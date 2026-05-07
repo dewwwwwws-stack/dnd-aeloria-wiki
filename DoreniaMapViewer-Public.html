@@ -35,9 +35,11 @@ body { width: 100%; height: 100%; background: var(--bg-void); color: var(--text-
 #mapLabel { font-family: 'Cinzel', serif; font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; }
 .header-spacer { flex: 1; }
 #loadStatus { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.08em; color: var(--text-dim); }
+.leaflet-control-zoom { margin: 0 !important; }
+.leaflet-top.leaflet-left { top: 8px !important; left: 8px !important; position: absolute !important; z-index: 801; }
+.leaflet-bottom { display: none !important; }
 #map-wrap { flex: 1; position: relative; overflow: hidden; min-height: 0; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; }
-.leaflet-control-zoom { position: absolute !important; top: 8px !important; left: 8px !important; }
 
 /* Leaflet overrides */
 .leaflet-container { background: var(--bg-void) !important; cursor: grab !important; }
@@ -175,12 +177,18 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  function fitMap() { map.invalidateSize(); map.fitBounds(bounds); }
+  function fitMap() { map.invalidateSize({ animate: false }); map.fitBounds(bounds, { animate: false }); }
   fitMap();
-  setTimeout(fitMap, 100);
-  setTimeout(fitMap, 500);
+  setTimeout(fitMap, 50);
+  setTimeout(fitMap, 250);
+  setTimeout(fitMap, 800);
   window.addEventListener('load', fitMap);
   window.addEventListener('resize', fitMap);
+
+  // ResizeObserver fires when the container actually gets its final size
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => fitMap()).observe(document.getElementById('map-wrap'));
+  }
 
   renderRoutes();
   renderMarkers();
