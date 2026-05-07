@@ -34,7 +34,8 @@ html, body { width: 100%; height: 100%; background: var(--bg-void); color: var(-
 #mapLabel { font-family: 'Cinzel', serif; font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; }
 .header-spacer { flex: 1; }
 #loadStatus { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.08em; color: var(--text-dim); }
-#map { flex: 1; background: var(--bg-void); }
+#map-wrap { flex: 1; position: relative; overflow: hidden; min-height: 0; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /* Leaflet overrides */
 .leaflet-container { background: var(--bg-void) !important; cursor: grab !important; }
@@ -100,7 +101,7 @@ html, body { width: 100%; height: 100%; background: var(--bg-void); color: var(-
     <div class="header-spacer"></div>
     <span id="loadStatus"></span>
   </div>
-  <div style="flex:1; position:relative; overflow:hidden;">
+  <div id="map-wrap">
     <div id="map"></div>
     <button id="legendToggle">LOCATIONS ▸</button>
     <div id="legend">
@@ -171,6 +172,10 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
   map.fitBounds(bounds);
+
+  // Re-fit after layout settles (fixes iframe sizing issue)
+  setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds); }, 100);
+  setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds); }, 500);
 
   renderRoutes();
   renderMarkers();
