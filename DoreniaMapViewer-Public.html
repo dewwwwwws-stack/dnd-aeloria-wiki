@@ -9,17 +9,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:          #090e0c;
-  --surface:     #0e1612;
-  --raised:      #141f19;
-  --border:      #1e3328;
-  --gold:        #4dcc85;
-  --gold-dim:    #2a7a4e;
-  --gold-faint:  #1a3325;
-  --text:        #b0d4c0;
-  --text-dim:    #607a6a;
-  --text-hi:     #d0ede0;
-  --red:         #a04040;
+  --bg:         #090e0c;
+  --surface:    #0e1612;
+  --raised:     #141f19;
+  --border:     #1e3328;
+  --gold:       #4dcc85;
+  --gold-dim:   #2a7a4e;
+  --gold-faint: #1a3325;
+  --text:       #b0d4c0;
+  --text-dim:   #607a6a;
+  --text-hi:    #d0ede0;
+  --red:        #a04040;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; overflow: hidden; }
@@ -27,62 +27,99 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 #app { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 #header { height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; position: relative; z-index: 1000; }
 #header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
-.header-title { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--gold); letter-spacing: 0.1em; }
+.header-title { font-family:'Cinzel',serif; font-size:13px; font-weight:700; color:var(--gold); letter-spacing:0.1em; }
 .header-sep { width:1px; height:22px; background:var(--border); }
-#mapLabel { font-family: 'Cinzel', serif; font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; }
-.header-spacer { flex: 1; }
-#loadStatus { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.08em; color: var(--text-dim); }
-.leaflet-control-zoom { margin: 0 !important; }
-.leaflet-top.leaflet-left { top: 8px !important; left: 8px !important; position: absolute !important; z-index: 801; }
-.leaflet-bottom { display: none !important; }
-#map-wrap { flex: 1; position: relative; overflow: hidden; min-height: 0; }
-#map { position: absolute; inset: 0; width: 100%; height: 100%; }
+#mapLabel { font-family:'Cinzel',serif; font-size:10px; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; }
+.header-spacer { flex:1; }
+#loadStatus { font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.08em; color:var(--text-dim); }
+#map-wrap { flex:1; position:relative; overflow:hidden; min-height:0; }
+#map { position:absolute; inset:0; width:100%; height:100%; }
 
-/* Leaflet overrides */
-.leaflet-container { background: var(--bg) !important; cursor: grab !important; }
-.leaflet-container:active { cursor: grabbing !important; }
-.leaflet-control-zoom { border: 1px solid var(--border) !important; border-radius: 3px !important; overflow: hidden; }
-.leaflet-control-zoom a { background: var(--surface) !important; color: var(--text-dim) !important; border-color: var(--border) !important; font-size: 16px !important; line-height: 26px !important; width: 26px !important; height: 26px !important; }
-.leaflet-control-zoom a:hover { background: var(--raised) !important; color: var(--gold) !important; }
-.leaflet-popup-content-wrapper { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 6px !important; box-shadow: 0 4px 24px rgba(0,0,0,0.7) !important; color: var(--text) !important; padding: 0 !important; }
-.leaflet-popup-tip-container { display: none !important; }
-.leaflet-popup-content { margin: 0 !important; min-width: 160px !important; max-width: 260px !important; }
-.popup-inner { padding: 12px 14px; }
-.popup-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 3px; }
-.popup-type { font-size: 10px; color: var(--text-dim); font-family: 'Cinzel', serif; letter-spacing: 0.06em; margin-bottom: 6px; text-transform: uppercase; }
-.popup-notes { font-size: 14px; color: var(--text); line-height: 1.6; border-top: 1px solid var(--border); padding-top: 8px; font-family: 'Crimson Pro', serif; }
-.route-tooltip { background: var(--surface) !important; border: 1px solid var(--border) !important; color: var(--text) !important; font-family: 'Crimson Pro', serif !important; font-size: 13px !important; padding: 4px 10px !important; border-radius: 4px !important; }
-.route-tooltip::before { display: none !important; }
-.annotation-label { background: transparent !important; border: none !important; box-shadow: none !important; }
-.annotation-text { font-family: 'Cinzel', serif; text-shadow: 0 1px 4px rgba(9,14,12,0.95), 0 0 10px rgba(9,14,12,0.95); white-space: nowrap; }
+/* Zoom control — keep inside container, hide bottom bar */
+.leaflet-bottom { display:none !important; }
+.leaflet-control-zoom { margin:0 !important; border:1px solid var(--border) !important; border-radius:3px !important; overflow:hidden; }
+.leaflet-top.leaflet-left { top:8px !important; left:8px !important; }
+.leaflet-control-zoom a { background:var(--surface) !important; color:var(--text-dim) !important; border-color:var(--border) !important; font-size:16px !important; line-height:26px !important; width:26px !important; height:26px !important; }
+.leaflet-control-zoom a:hover { background:var(--raised) !important; color:var(--gold) !important; }
 
-/* Loading & error screens */
-#loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; gap: 14px; }
-.loading-title { font-family: 'Cinzel', serif; font-size: 20px; color: var(--gold); letter-spacing: 0.15em; }
-.loading-sub { font-size: 14px; color: var(--text-dim); font-style: italic; font-family: 'Crimson Pro', serif; }
-.loading-bar-wrap { width: 180px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
-.loading-bar { height: 100%; background: var(--gold-dim); animation: lp 1.2s ease-in-out infinite; }
+/* Map container */
+.leaflet-container { background:var(--bg) !important; cursor:grab !important; }
+.leaflet-container:active { cursor:grabbing !important; }
+
+/* Popups */
+.leaflet-popup-content-wrapper { background:var(--surface) !important; border:1px solid var(--border) !important; border-radius:4px !important; box-shadow:0 4px 20px rgba(0,0,0,0.5) !important; color:var(--text) !important; padding:0 !important; }
+.leaflet-popup-tip-container { display:none !important; }
+.leaflet-popup-content { margin:0 !important; min-width:160px !important; max-width:260px !important; }
+.popup-inner { padding:12px 14px; }
+.popup-name { font-family:'Cinzel',serif; font-size:13px; font-weight:600; color:var(--gold); margin-bottom:3px; }
+.popup-type { font-size:10px; color:var(--text-dim); font-family:'Cinzel',serif; letter-spacing:0.06em; margin-bottom:6px; }
+.popup-notes { font-size:14px; color:var(--text); line-height:1.6; border-top:1px solid var(--border); padding-top:8px; font-family:'Crimson Pro',serif; }
+
+/* Route tooltips */
+.route-tooltip { background:var(--surface) !important; border:1px solid var(--border) !important; color:var(--text) !important; font-family:'Crimson Pro',serif !important; font-size:13px !important; padding:4px 8px !important; border-radius:3px !important; box-shadow:none !important; }
+.route-tooltip::before { display:none !important; }
+
+/* Annotations */
+.annotation-label { background:transparent !important; border:none !important; box-shadow:none !important; }
+.annotation-text { font-family:'Cinzel',serif; text-shadow:0 1px 4px rgba(9,14,12,0.95),0 0 10px rgba(9,14,12,0.9); white-space:nowrap; }
+
+/* Loading */
+#loading { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; gap:14px; }
+.loading-title { font-family:'Cinzel',serif; font-size:20px; color:var(--gold); letter-spacing:0.15em; text-shadow:0 0 30px rgba(77,204,133,0.2); }
+.loading-sub { font-size:14px; color:var(--text-dim); font-style:italic; }
+.loading-bar-wrap { width:180px; height:2px; background:var(--border); border-radius:1px; overflow:hidden; }
+.loading-bar { height:100%; background:var(--gold-dim); animation:lp 1.2s ease-in-out infinite; }
 @keyframes lp { 0%,100%{width:15%} 50%{width:75%} }
-#errorMsg { position: fixed; inset: 0; background: var(--bg); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 9999; }
-.error-title { font-family: 'Cinzel', serif; font-size: 16px; color: var(--red); letter-spacing: 0.1em; }
-.error-sub { font-size: 14px; color: var(--text-dim); font-style: italic; font-family: 'Crimson Pro', serif; }
+#errorMsg { position:fixed; inset:0; background:var(--bg); display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:9999; }
+.error-title { font-family:'Cinzel',serif; font-size:16px; color:var(--red); letter-spacing:0.1em; }
+.error-sub { font-size:14px; color:var(--text-dim); font-style:italic; }
 
-/* Legend drawer */
-#legend { position: absolute; right: 0; top: 0; bottom: 0; width: 240px; background: var(--surface); border-left: 1px solid var(--border); z-index: 800; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
-#legend.open { transform: translateX(0); }
-#legendToggle { position: absolute; right: 8px; top: 8px; z-index: 810; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.1em; padding: 5px 10px; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
-#legendToggle:hover { border-color: var(--gold-dim); color: var(--gold); }
-.legend-header { padding: 12px 14px 8px; font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.12em; color: var(--text-dim); border-bottom: 1px solid var(--border); text-transform: uppercase; }
-.legend-body { flex: 1; overflow-y: auto; padding: 8px 0; }
-.legend-body::-webkit-scrollbar { width: 4px; }
-.legend-body::-webkit-scrollbar-track { background: var(--surface); }
-.legend-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.legend-body::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
-.legend-section { padding: 5px 14px 3px; font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.12em; color: var(--text-dim); text-transform: uppercase; margin-top: 6px; border-top: 1px solid var(--border); }
-.legend-section:first-child { border-top: none; margin-top: 0; }
-.legend-item { display: flex; align-items: center; gap: 7px; padding: 5px 14px; font-size: 14px; color: var(--text); cursor: pointer; transition: background 0.1s; font-family: 'Crimson Pro', serif; }
-.legend-item:hover { background: var(--raised); color: var(--text-hi); }
-.legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+/* Legend */
+#legend { position:absolute; right:0; top:0; bottom:0; width:240px; background:var(--surface); border-left:1px solid var(--border); z-index:800; transform:translateX(100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
+#legend.open { transform:translateX(0); }
+#legendToggle { position:absolute; right:8px; top:8px; z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:all 0.15s; }
+#legendToggle:hover { border-color:var(--gold-dim); color:var(--gold); }
+.legend-header { padding:12px 14px 8px; font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.12em; color:var(--text-dim); border-bottom:1px solid var(--border); text-transform:uppercase; }
+.legend-body { flex:1; overflow-y:auto; padding:8px 0; }
+.legend-body::-webkit-scrollbar { width:5px; }
+.legend-body::-webkit-scrollbar-track { background:var(--surface); }
+.legend-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+.legend-body::-webkit-scrollbar-thumb:hover { background:var(--gold-dim); }
+.legend-section { padding:5px 14px 3px; font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; margin-top:6px; border-top:1px solid var(--border); }
+.legend-section:first-child { border-top:none; margin-top:0; }
+.legend-item { display:flex; align-items:center; gap:7px; padding:6px 14px; font-size:14px; color:var(--text); cursor:pointer; transition:background 0.1s; font-family:'Crimson Pro',serif; }
+.legend-item:hover { background:var(--raised); color:var(--text-hi); }
+.legend-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+
+/* Layer toggles panel */
+#layersPanel { position:absolute; left:0; top:0; bottom:0; width:220px; background:var(--surface); border-right:1px solid var(--border); z-index:800; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
+#layersPanel.open { transform:translateX(0); }
+#layersToggleBtn { position:absolute; left:8px; top:8px; z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:all 0.15s; }
+#layersToggleBtn:hover { border-color:var(--gold-dim); color:var(--gold); }
+.layers-header { padding:12px 14px 8px; font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.12em; color:var(--text-dim); border-bottom:1px solid var(--border); text-transform:uppercase; }
+.layers-body { flex:1; overflow-y:auto; padding:8px 0; }
+.layer-toggle-row { display:flex; align-items:center; gap:8px; padding:7px 14px; cursor:pointer; transition:background 0.1s; }
+.layer-toggle-row:hover { background:var(--raised); }
+.layer-toggle-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+.layer-toggle-name { font-size:13px; color:var(--text); flex:1; font-family:'Crimson Pro',serif; }
+.pub-toggle { width:26px; height:14px; background:var(--border); border-radius:7px; position:relative; flex-shrink:0; transition:background 0.2s; }
+.pub-toggle::after { content:''; position:absolute; top:2px; left:2px; width:10px; height:10px; background:var(--text-dim); border-radius:5px; transition:all 0.2s; }
+.pub-toggle.on { background:var(--gold-dim); }
+.pub-toggle.on::after { left:14px; background:var(--gold); }
+.layers-section { padding:5px 14px 3px; font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; margin-top:4px; border-top:1px solid var(--border); }
+.layers-section:first-child { border-top:none; margin-top:0; }
+
+/* Measure tool */
+#measureBtn { position:absolute; left:8px; top:44px; z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:all 0.15s; }
+#measureBtn:hover { border-color:var(--gold-dim); color:var(--gold); }
+#measureBtn.active { border-color:var(--gold-dim); color:var(--gold); background:rgba(77,204,133,0.08); }
+#measureResult { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); z-index:810; background:var(--surface); border:1px solid var(--gold-dim); border-radius:4px; padding:10px 16px; display:none; align-items:center; gap:16px; box-shadow:0 4px 16px rgba(0,0,0,0.5); }
+.meas-val { text-align:center; }
+.meas-num { font-family:'Cinzel',serif; font-size:16px; color:var(--gold); display:block; }
+.meas-unit { font-size:10px; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; }
+.meas-sep { width:1px; height:32px; background:var(--border); }
+#measureClose { background:transparent; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; padding:0 0 0 8px; line-height:1; }
+#measureClose:hover { color:var(--gold); }
 </style>
 </head>
 <body>
@@ -92,13 +129,12 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
   <div class="loading-sub">Loading map…</div>
   <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
 </div>
-
 <div id="errorMsg">
   <div class="error-title">Map data unavailable</div>
   <div class="error-sub">Could not load map-data.json from the repository.</div>
 </div>
 
-<div id="app" style="display:none; position:relative;">
+<div id="app" style="display:none">
   <div id="header">
     <span class="header-title">⚔ DORENIA</span>
     <div class="header-sep"></div>
@@ -108,6 +144,28 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
   </div>
   <div id="map-wrap">
     <div id="map"></div>
+
+    <!-- Layers toggle button -->
+    <button id="layersToggleBtn">LAYERS ▸</button>
+    <div id="layersPanel">
+      <div class="layers-header">Layers</div>
+      <div class="layers-body" id="layersBody"></div>
+    </div>
+
+    <!-- Measure button -->
+    <button id="measureBtn">⟷ MEASURE</button>
+
+    <!-- Measure result -->
+    <div id="measureResult">
+      <div class="meas-val"><span class="meas-num" id="measHex">—</span><span class="meas-unit">Hexes</span></div>
+      <div class="meas-sep"></div>
+      <div class="meas-val"><span class="meas-num" id="measMi">—</span><span class="meas-unit">Miles</span></div>
+      <div class="meas-sep"></div>
+      <div class="meas-val"><span class="meas-num" id="measKm">—</span><span class="meas-unit">km</span></div>
+      <button id="measureClose" title="Clear">✕</button>
+    </div>
+
+    <!-- Legend (locations) -->
     <button id="legendToggle">LOCATIONS ▸</button>
     <div id="legend">
       <div class="legend-header">Locations</div>
@@ -117,35 +175,35 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 </div>
 
 <script>
-// ── Dynamic loader ─────────────────────────────────────
+const DATA_URL = 'https://raw.githubusercontent.com/dewwwwwws-stack/dnd-aeloria-wiki/main/map-data.json';
+const CACHE_BUST = '?t=' + Math.floor(Date.now() / 30000);
+const DASH_MAP = { solid: null, dashed: '8,5', dotted: '2,5' };
+
+let map, data;
+let layerGroups = {};
+let layerVis = {};
+let measureMode = false, measPoints = [], measLayers = [], measMouseLine = null;
+
+// ── Loader ────────────────────────────────────────────
 (function(){
   var s = document.createElement('script');
   s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-  s.onload = function(){ loadMapData(); };
+  s.onload = loadMapData;
   s.onerror = function(){
     var s2 = document.createElement('script');
     s2.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
-    s2.onload = function(){ loadMapData(); };
+    s2.onload = loadMapData;
     s2.onerror = function(){ showError('Could not load Leaflet.'); };
     document.head.appendChild(s2);
   };
   document.head.appendChild(s);
 })();
 
-// ── Config ─────────────────────────────────────────────
-const DATA_URL = 'https://raw.githubusercontent.com/dewwwwwws-stack/dnd-aeloria-wiki/main/map-data.json';
-const CACHE_BUST = '?t=' + Math.floor(Date.now() / 30000); // refresh every 30s
-
-const DASH_MAP = { solid: null, dashed: '8,5', dotted: '2,5' };
-
-let map, data;
-
-// ── Load data ──────────────────────────────────────────
 function loadMapData() {
   fetch(DATA_URL + CACHE_BUST)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(d => { data = d; initViewer(); })
-    .catch(e => { showError('Could not fetch map-data.json: ' + e.message); });
+    .catch(e => showError('Could not fetch map-data.json: ' + e.message));
 }
 
 function showError(msg) {
@@ -155,27 +213,22 @@ function showError(msg) {
   el.querySelector('.error-sub').textContent = msg;
 }
 
-// ── Init viewer ────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────
 function initViewer() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
 
   const md = data.mapMeta;
   document.getElementById('mapLabel').textContent = md.label;
-  document.title = 'Dorenia — ' + md.label;
+  document.title = 'Dorenia \u2014 ' + md.label;
   document.getElementById('loadStatus').textContent =
-    'Updated ' + new Date(data.publishedAt).toLocaleString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    'Updated ' + new Date(data.publishedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
 
   map = L.map('map', {
-    crs: L.CRS.Simple,
-    minZoom: -3, maxZoom: 3,
-    zoomSnap: 0.25, zoomDelta: 0.5,
-    attributionControl: false,
-    zoomControl: true,
-    zoomAnimation: false,
-    fadeAnimation: false,
-    markerZoomAnimation: false,
-    zoomControlOptions: { position: 'topleft' }
+    crs: L.CRS.Simple, minZoom:-3, maxZoom:3,
+    zoomSnap:0.25, zoomDelta:0.5,
+    attributionControl:false, zoomControl:true,
+    zoomAnimation:false, fadeAnimation:false, markerZoomAnimation:false
   });
 
   const bounds = [[0,0],[md.h, md.w]];
@@ -183,36 +236,36 @@ function initViewer() {
 
   let initialFitDone = false;
   function fitMap() {
-    map.invalidateSize({ animate: false });
-    if (!initialFitDone) {
-      map.fitBounds(bounds, { animate: false });
-    }
+    map.invalidateSize({animate:false});
+    if (!initialFitDone) map.fitBounds(bounds, {animate:false});
   }
-
   fitMap();
-  setTimeout(() => { fitMap(); }, 50);
-  setTimeout(() => { fitMap(); initialFitDone = true; }, 400);
-
-  window.addEventListener('resize', () => {
-    map.invalidateSize({ animate: false });
-  });
-
+  setTimeout(()=>{ fitMap(); }, 50);
+  setTimeout(()=>{ fitMap(); initialFitDone = true; }, 400);
+  window.addEventListener('resize', ()=> map.invalidateSize({animate:false}));
   if (window.ResizeObserver) {
-    new ResizeObserver(() => {
-      map.invalidateSize({ animate: false });
-      if (!initialFitDone) map.fitBounds(bounds, { animate: false });
-    }).observe(document.getElementById('map-wrap'));
+    new ResizeObserver(()=>{ map.invalidateSize({animate:false}); if(!initialFitDone) map.fitBounds(bounds,{animate:false}); })
+      .observe(document.getElementById('map-wrap'));
   }
+
+  Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
+  Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
 
   renderRoutes();
   renderMarkers();
   renderAnnotations();
   buildLegend();
+  buildLayersPanel();
+  initMeasure();
+
+  map.on('click', onMapClick);
+  map.on('mousemove', onMapMouseMove);
+  map.on('contextmenu', onMapRightClick);
 }
 
-// ── Shapes ─────────────────────────────────────────────
+// ── Shapes ────────────────────────────────────────────
 function makeIcon(cat) {
-  const c = cat.color, s = '#05040f';
+  const c = cat.color, s = '#090e0c';
   const shapes = {
     circle:  `<circle cx="12" cy="12" r="7" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
     square:  `<rect x="5" y="5" width="14" height="14" rx="2" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
@@ -223,107 +276,237 @@ function makeIcon(cat) {
     leaf:    `<path d="M12 2C6 2 3 8 3 12c0 5 4 9 9 9s9-4 9-9C21 6 18 2 12 2z" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
     crown:   `<path d="M3 17h18l-2-9-4 4-3-7-3 7-4-4-2 9z" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/><rect x="3" y="17" width="18" height="2.5" rx="1" fill="${c}" stroke="${s}" stroke-width="1"/>`,
     castle:  `<rect x="4" y="10" width="16" height="11" rx="1" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="4" y="7" width="3" height="5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="10.5" y="7" width="3" height="5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="17" y="7" width="3" height="5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="9" y="14" width="6" height="7" fill="${s}"/>`,
-    wand:    `<line x1="4" y1="20" x2="17" y2="7" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/><circle cx="18.5" cy="5.5" r="2.5" fill="${c}" stroke="${s}" stroke-width="1"/><line x1="19" y1="2" x2="21" y2="4" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/><line x1="21" y1="7" x2="23" y2="6" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/>`,
+    wand:    `<line x1="4" y1="20" x2="17" y2="7" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/><circle cx="18.5" cy="5.5" r="2.5" fill="${c}" stroke="${s}" stroke-width="1"/>`,
     ship:    `<path d="M3 14c0 3 3 6 9 6s9-3 9-6H3z" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M8 14V8l4-4 4 4v6" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
-    chest:   `<rect x="3" y="11" width="18" height="10" rx="1.5" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M3 11h18V9a3 3 0 00-3-3H6a3 3 0 00-3 3v2z" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="9" y="13" width="6" height="3" rx="1" fill="${s}" opacity="0.6"/><line x1="3" y1="11" x2="21" y2="11" stroke="${s}" stroke-width="1"/>`,
+    chest:   `<rect x="3" y="11" width="18" height="10" rx="1.5" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M3 11h18V9a3 3 0 00-3-3H6a3 3 0 00-3 3v2z" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="9" y="13" width="6" height="3" rx="1" fill="${s}" opacity="0.6"/>`,
     star:    `<polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/>`,
     shield:  `<path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4z" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
-    sword:   `<line x1="5" y1="19" x2="19" y2="5" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="9" x2="15" y2="9" stroke="${c}" stroke-width="2" stroke-linecap="round" transform="rotate(-45 12 12)"/>`,
-    skull:   `<circle cx="12" cy="10" r="7" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="8" y="15" width="8" height="5" rx="1" fill="${c}" stroke="${s}" stroke-width="1"/><line x1="10" y1="15" x2="10" y2="20" stroke="${s}" stroke-width="1"/><line x1="14" y1="15" x2="14" y2="20" stroke="${s}" stroke-width="1"/><circle cx="9.5" cy="10" r="1.8" fill="${s}"/><circle cx="14.5" cy="10" r="1.8" fill="${s}"/>`,
+    sword:   `<line x1="5" y1="19" x2="19" y2="5" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/>`,
+    skull:   `<circle cx="12" cy="10" r="7" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="8" y="15" width="8" height="5" rx="1" fill="${c}" stroke="${s}" stroke-width="1"/><circle cx="9.5" cy="10" r="1.8" fill="${s}"/><circle cx="14.5" cy="10" r="1.8" fill="${s}"/>`,
     flame:   `<path d="M12 2c0 0-7 6-7 12a7 7 0 0014 0c0-3-2-5-2-5s-1 2-3 2c-1 0-2-1-2-2s1-2 1-4c0 0-1 1-1 2-1-2 0-5 0-5z" fill="${c}" stroke="${s}" stroke-width="1"/>`,
-    tower:   `<rect x="8" y="4" width="8" height="17" rx="1" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="6" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="10.5" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="15" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="10" y="14" width="4" height="7" fill="${s}"/>`,
-    tent:    `<path d="M12 3L2 20h20L12 3z" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/><path d="M12 3L8 20h8L12 3z" fill="${s}" opacity="0.25"/>`,
-    cave:    `<path d="M2 20c0 0 2-8 10-8s10 8 10 8H2z" fill="${c}" stroke="${s}" stroke-width="1.2"/><ellipse cx="12" cy="20" rx="4" ry="2.5" fill="${s}"/>`,
-    anchor:  `<circle cx="12" cy="6" r="2.5" fill="none" stroke="${c}" stroke-width="2"/><line x1="12" y1="8.5" x2="12" y2="20" stroke="${c}" stroke-width="2" stroke-linecap="round"/><line x1="7" y1="11" x2="17" y2="11" stroke="${c}" stroke-width="2" stroke-linecap="round"/><path d="M7 20c0-2 2-4 5-4s5 2 5 4" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
-    scroll:  `<rect x="5" y="4" width="14" height="16" rx="2" fill="${c}" stroke="${s}" stroke-width="1.2"/><line x1="8" y1="9" x2="16" y2="9" stroke="${s}" stroke-width="1.2" stroke-linecap="round"/><line x1="8" y1="12" x2="16" y2="12" stroke="${s}" stroke-width="1.2" stroke-linecap="round"/><line x1="8" y1="15" x2="13" y2="15" stroke="${s}" stroke-width="1.2" stroke-linecap="round"/><rect x="3" y="4" width="3" height="16" rx="1.5" fill="${c}" stroke="${s}" stroke-width="1"/>`,
-    boot:    `<path d="M8 3v11l-4 4h12l1-4-4-2V3H8z" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/>`,
-    bell:    `<path d="M6 10a6 6 0 0112 0v5H6v-5z" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M10 19a2 2 0 004 0" fill="${c}" stroke="${s}" stroke-width="1.2"/><line x1="12" y1="2" x2="12" y2="4" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+    tower:   `<rect x="8" y="4" width="8" height="17" rx="1" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="6" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="10.5" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="15" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/>`,
+    tent:    `<path d="M12 3L2 20h20L12 3z" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/>`,
+    cave:    `<path d="M2 20c0 0 2-8 10-8s10 8 10 8H2z" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
+    anchor:  `<circle cx="12" cy="6" r="2.5" fill="none" stroke="${c}" stroke-width="2"/><line x1="12" y1="8.5" x2="12" y2="20" stroke="${c}" stroke-width="2" stroke-linecap="round"/><line x1="7" y1="11" x2="17" y2="11" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+    scroll:  `<rect x="5" y="4" width="14" height="16" rx="2" fill="${c}" stroke="${s}" stroke-width="1.2"/><line x1="8" y1="9" x2="16" y2="9" stroke="${s}" stroke-width="1.2"/><line x1="8" y1="12" x2="16" y2="12" stroke="${s}" stroke-width="1.2"/>`,
+    boot:    `<path d="M8 3v11l-4 4h12l1-4-4-2V3H8z" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
+    bell:    `<path d="M6 10a6 6 0 0112 0v5H6v-5z" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M10 19a2 2 0 004 0" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
     moon:    `<path d="M20 13.5A8.5 8.5 0 1110.5 4a6.5 6.5 0 009.5 9.5z" fill="${c}" stroke="${s}" stroke-width="1.2"/>`
   };
   const inner = shapes[cat.shape] || shapes.circle;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">${inner}</svg>`;
   return L.divIcon({
-    html: `<div style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.9))">${svg}</div>`,
-    className: '', iconSize:[22,22], iconAnchor:[11,11], popupAnchor:[0,-13]
+    html:`<div style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.9))">${svg}</div>`,
+    className:'', iconSize:[22,22], iconAnchor:[11,11], popupAnchor:[0,-13]
   });
 }
 
-// ── Render layers ──────────────────────────────────────
+// ── Render layers ─────────────────────────────────────
 function renderMarkers() {
   const cats = data.markerCats || {};
-  (data.markers || []).forEach(m => {
-    const cat = cats[m.cat] || { label: m.cat, color: '#c9a84c', shape: 'circle' };
+  layerGroups.markers = {};
+  Object.keys(cats).forEach(cat => {
+    layerGroups.markers[cat] = L.layerGroup().addTo(map);
+  });
+  (data.markers||[]).forEach(m => {
+    const cat = cats[m.cat] || {label:m.cat, color:'#4dcc85', shape:'circle'};
     const icon = makeIcon(cat);
-    const lm = L.marker([m.lat, m.lng], { icon, title: m.name }).addTo(map);
-    lm.bindPopup(`<div class="popup-inner">
-      <div class="popup-name">${esc(m.name)}</div>
-      <div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>
-      ${m.notes ? `<div class="popup-notes">${esc(m.notes)}</div>` : ''}
-    </div>`, { maxWidth: 260 });
+    const lm = L.marker([m.lat,m.lng],{icon,title:m.name}).bindPopup(
+      `<div class="popup-inner"><div class="popup-name">${esc(m.name)}</div><div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>${m.notes?`<div class="popup-notes">${esc(m.notes)}</div>`:''}</div>`,
+      {maxWidth:260}
+    );
+    const grp = layerGroups.markers[m.cat];
+    if (grp) grp.addLayer(lm); else lm.addTo(map);
   });
 }
 
 function renderRoutes() {
   const cats = data.routeCats || {};
-  (data.routes || []).forEach(r => {
-    const rc = cats[r.cat] || { label: r.cat, color: '#c9a84c', dash: 'solid' };
+  layerGroups.routes = {};
+  Object.keys(cats).forEach(cat => {
+    layerGroups.routes[cat] = L.layerGroup().addTo(map);
+  });
+  (data.routes||[]).forEach(r => {
+    const rc = cats[r.cat] || {label:r.cat, color:'#4dcc85', dash:'solid'};
     const dashVal = DASH_MAP[rc.dash] !== undefined ? DASH_MAP[rc.dash] : null;
-    const line = L.polyline(r.points.map(p => [p.lat, p.lng]), {
-      color: rc.color, weight: 2.5, dashArray: dashVal, opacity: 0.85
-    }).addTo(map);
+    const line = L.polyline(r.points.map(p=>[p.lat,p.lng]),{color:rc.color,weight:2.5,dashArray:dashVal,opacity:0.85});
     let tt = `<strong>${esc(r.name)}</strong><br>${esc(rc.label)}`;
-    if (r.dist) tt += `<br>${r.dist.hexes} hex · ${r.dist.miles} mi · ${r.dist.km} km`;
-    line.bindTooltip(tt, { className: 'route-tooltip', sticky: true });
+    if (r.dist) tt += `<br>${r.dist.hexes} hex \u00b7 ${r.dist.miles} mi \u00b7 ${r.dist.km} km`;
+    line.bindTooltip(tt,{className:'route-tooltip',sticky:true});
+    const grp = layerGroups.routes[r.cat];
+    if (grp) grp.addLayer(line); else line.addTo(map);
   });
 }
 
 function renderAnnotations() {
-  (data.annotations || []).forEach(a => {
+  (data.annotations||[]).forEach(a => {
     const icon = L.divIcon({
-      html: `<div class="annotation-text" style="font-size:${a.size}px;color:${a.color}">${esc(a.text)}</div>`,
-      className: 'annotation-label', iconAnchor: [0,0]
+      html:`<div class="annotation-text" style="font-size:${a.size}px;color:${a.color}">${esc(a.text)}</div>`,
+      className:'annotation-label', iconAnchor:[0,0]
     });
-    L.marker([a.lat, a.lng], { icon, interactive: false }).addTo(map);
+    L.marker([a.lat,a.lng],{icon,interactive:false}).addTo(map);
   });
 }
 
-// ── Legend ─────────────────────────────────────────────
+// ── Layers panel ──────────────────────────────────────
+function buildLayersPanel() {
+  const cats = data.markerCats || {};
+  const rcats = data.routeCats || {};
+  let html = '';
+  if (Object.keys(cats).length) {
+    html += `<div class="layers-section">Markers</div>`;
+    html += Object.entries(cats).map(([cat,def]) =>
+      `<div class="layer-toggle-row" onclick="togglePubLayer('m_${cat}','${cat}','marker')">
+        <div class="layer-toggle-dot" style="background:${def.color}"></div>
+        <span class="layer-toggle-name">${esc(def.label)}</span>
+        <div class="pub-toggle on" id="ptog_m_${cat}"></div>
+      </div>`
+    ).join('');
+  }
+  if (Object.keys(rcats).length) {
+    html += `<div class="layers-section">Routes</div>`;
+    html += Object.entries(rcats).map(([cat,def]) =>
+      `<div class="layer-toggle-row" onclick="togglePubLayer('r_${cat}','${cat}','route')">
+        <div class="layer-toggle-dot" style="background:${def.color};border-radius:1px"></div>
+        <span class="layer-toggle-name">${esc(def.label)}</span>
+        <div class="pub-toggle on" id="ptog_r_${cat}"></div>
+      </div>`
+    ).join('');
+  }
+  document.getElementById('layersBody').innerHTML = html ||
+    '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No layers</div>';
+}
+
+window.togglePubLayer = function(visKey, cat, kind) {
+  layerVis[visKey] = !layerVis[visKey];
+  const tog = document.getElementById('ptog_' + visKey);
+  if (tog) tog.classList.toggle('on', layerVis[visKey]);
+  const grp = kind === 'marker' ? layerGroups.markers?.[cat] : layerGroups.routes?.[cat];
+  if (grp) {
+    if (layerVis[visKey]) { if (!map.hasLayer(grp)) map.addLayer(grp); }
+    else { if (map.hasLayer(grp)) map.removeLayer(grp); }
+  }
+  buildLegend();
+};
+
+let layersOpen = false;
+document.getElementById('layersToggleBtn').addEventListener('click', () => {
+  layersOpen = !layersOpen;
+  document.getElementById('layersPanel').classList.toggle('open', layersOpen);
+  document.getElementById('layersToggleBtn').textContent = layersOpen ? 'LAYERS \u2715' : 'LAYERS \u25b8';
+});
+
+// ── Legend ────────────────────────────────────────────
 function buildLegend() {
   const cats = data.markerCats || {};
-  const markers = data.markers || [];
-  if (!markers.length) return;
-
-  // Group by category
+  const markers = (data.markers||[]).filter(m => layerVis['m_' + m.cat] !== false);
+  if (!markers.length) {
+    document.getElementById('legendBody').innerHTML =
+      '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No visible markers</div>';
+    return;
+  }
   const grouped = {};
-  markers.forEach(m => { (grouped[m.cat] = grouped[m.cat]||[]).push(m); });
-
-  const body = document.getElementById('legendBody');
-  body.innerHTML = Object.entries(grouped).map(([cat, ms]) => {
-    const def = cats[cat] || { label: cat, color: '#c9a84c' };
+  markers.forEach(m => { (grouped[m.cat]=grouped[m.cat]||[]).push(m); });
+  document.getElementById('legendBody').innerHTML = Object.entries(grouped).map(([cat,ms]) => {
+    const def = cats[cat] || {label:cat, color:'#4dcc85'};
     return `<div class="legend-section">${esc(def.label)}</div>` +
       ms.map(m => `<div class="legend-item" onclick="flyTo(${m.lat},${m.lng})">
-        <div class="legend-dot" style="background:${def.color}"></div>
-        ${esc(m.name)}
+        <div class="legend-dot" style="background:${def.color}"></div>${esc(m.name)}
       </div>`).join('');
   }).join('');
 }
 
-window.flyTo = function(lat, lng) {
-  map.flyTo([lat, lng], 1, { duration: 0.8 });
-  // Close legend on mobile
+window.flyTo = function(lat,lng) {
+  map.flyTo([lat,lng],1,{duration:0.6,animate:true});
   if (window.innerWidth < 600) toggleLegend();
 };
 
-// ── Legend toggle ──────────────────────────────────────
 let legendOpen = false;
 function toggleLegend() {
   legendOpen = !legendOpen;
   document.getElementById('legend').classList.toggle('open', legendOpen);
-  document.getElementById('legendToggle').textContent = legendOpen ? 'LOCATIONS ✕' : 'LOCATIONS ▸';
+  document.getElementById('legendToggle').textContent = legendOpen ? 'LOCATIONS \u2715' : 'LOCATIONS \u25b8';
 }
 document.getElementById('legendToggle').addEventListener('click', toggleLegend);
 
-// ── Utils ──────────────────────────────────────────────
+// ── Measure tool ──────────────────────────────────────
+function initMeasure() {
+  document.getElementById('measureBtn').addEventListener('click', () => {
+    measureMode = !measureMode;
+    document.getElementById('measureBtn').classList.toggle('active', measureMode);
+    document.getElementById('measureBtn').textContent = measureMode ? '\u2715 CANCEL MEASURE' : '\u27f7 MEASURE';
+    if (!measureMode) clearMeasure();
+  });
+  document.getElementById('measureClose').addEventListener('click', () => {
+    clearMeasure();
+    measureMode = false;
+    document.getElementById('measureBtn').classList.remove('active');
+    document.getElementById('measureBtn').textContent = '\u27f7 MEASURE';
+  });
+}
+
+function clearMeasure() {
+  measPoints = [];
+  measLayers.forEach(l => map.removeLayer(l));
+  measLayers = [];
+  if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
+  document.getElementById('measureResult').style.display = 'none';
+}
+
+function calcMeasureDist(pts) {
+  const cal = data.calibration;
+  if (!cal || !cal.pixPerHex || pts.length < 2) return null;
+  let px = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i-1], b = pts[i];
+    px += Math.sqrt((b.lat-a.lat)**2 + (b.lng-a.lng)**2);
+  }
+  const hexes = px / cal.pixPerHex;
+  return { hexes: +hexes.toFixed(1), miles: +(hexes*3).toFixed(1), km: +(hexes*5).toFixed(1) };
+}
+
+function updateMeasureResult() {
+  const dist = calcMeasureDist(measPoints);
+  if (!dist) {
+    document.getElementById('measureResult').style.display = 'none';
+    return;
+  }
+  document.getElementById('measHex').textContent = dist.hexes;
+  document.getElementById('measMi').textContent  = dist.miles;
+  document.getElementById('measKm').textContent  = dist.km;
+  document.getElementById('measureResult').style.display = 'flex';
+}
+
+function onMapClick(e) {
+  if (!measureMode) return;
+  measPoints.push(e.latlng);
+  const dot = L.circleMarker(e.latlng,{radius:5,color:'#4dcc85',fillColor:'#4dcc85',fillOpacity:1,weight:2}).addTo(map);
+  measLayers.push(dot);
+  if (measPoints.length >= 2) {
+    if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
+    const line = L.polyline(measPoints,{color:'#4dcc85',weight:2,dashArray:'6,4',opacity:0.8,interactive:false}).addTo(map);
+    measLayers.push(line);
+    updateMeasureResult();
+  }
+}
+
+function onMapMouseMove(e) {
+  if (!measureMode || measPoints.length === 0) return;
+  if (measMouseLine) map.removeLayer(measMouseLine);
+  measMouseLine = L.polyline([measPoints[measPoints.length-1], e.latlng],
+    {color:'#4dcc85',weight:1.5,dashArray:'4,4',opacity:0.4,interactive:false}).addTo(map);
+}
+
+function onMapRightClick(e) {
+  if (measureMode && measPoints.length >= 2) {
+    L.DomEvent.stop(e);
+    if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
+    measureMode = false;
+    document.getElementById('measureBtn').classList.remove('active');
+    document.getElementById('measureBtn').textContent = '\u27f7 MEASURE';
+  }
+}
+
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
