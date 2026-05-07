@@ -6,29 +6,26 @@
 <title>Dorenia — Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg-void: #05040f;
-  --bg-deep: #0a0818;
-  --bg-panel: #100e1e;
-  --bg-card: #161228;
-  --border: #2a2245;
-  --border-bright: #3d3560;
-  --gold: #c9a84c;
-  --gold-dim: #8a6e2f;
-  --gold-glow: rgba(201,168,76,0.15);
-  --text-primary: #e8dfc8;
-  --text-secondary: #9d9080;
-  --text-dim: #5a5248;
-  --red: #c94c4c;
-  --green: #4caf76;
+  --bg:          #090e0c;
+  --surface:     #0e1612;
+  --raised:      #141f19;
+  --border:      #1e3328;
+  --gold:        #4dcc85;
+  --gold-dim:    #2a7a4e;
+  --gold-faint:  #1a3325;
+  --text:        #b0d4c0;
+  --text-dim:    #607a6a;
+  --text-hi:     #d0ede0;
+  --red:         #a04040;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; overflow: hidden; }
-body { width: 100%; height: 100%; background: var(--bg-void); color: var(--text-primary); font-family: 'Crimson Text', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; }
+body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Crimson Pro', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
 #app { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-#header { height: 44px; background: var(--bg-deep); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; position: relative; z-index: 1000; }
+#header { height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; position: relative; z-index: 1000; }
 #header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
 .header-title { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--gold); letter-spacing: 0.1em; }
 .header-sep { width:1px; height:22px; background:var(--border); }
@@ -42,45 +39,49 @@ body { width: 100%; height: 100%; background: var(--bg-void); color: var(--text-
 #map { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /* Leaflet overrides */
-.leaflet-container { background: var(--bg-void) !important; cursor: grab !important; }
+.leaflet-container { background: var(--bg) !important; cursor: grab !important; }
 .leaflet-container:active { cursor: grabbing !important; }
-.leaflet-control-zoom { border: 1px solid var(--border-bright) !important; border-radius: 3px !important; overflow: hidden; }
-.leaflet-control-zoom a { background: var(--bg-panel) !important; color: var(--text-secondary) !important; border-color: var(--border) !important; font-size: 16px !important; line-height: 26px !important; width: 26px !important; height: 26px !important; }
-.leaflet-control-zoom a:hover { background: var(--bg-card) !important; color: var(--gold) !important; }
-.leaflet-popup-content-wrapper { background: var(--bg-panel) !important; border: 1px solid var(--border-bright) !important; border-radius: 4px !important; box-shadow: 0 4px 24px rgba(0,0,0,0.7) !important; color: var(--text-primary) !important; padding: 0 !important; }
+.leaflet-control-zoom { border: 1px solid var(--border) !important; border-radius: 3px !important; overflow: hidden; }
+.leaflet-control-zoom a { background: var(--surface) !important; color: var(--text-dim) !important; border-color: var(--border) !important; font-size: 16px !important; line-height: 26px !important; width: 26px !important; height: 26px !important; }
+.leaflet-control-zoom a:hover { background: var(--raised) !important; color: var(--gold) !important; }
+.leaflet-popup-content-wrapper { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 6px !important; box-shadow: 0 4px 24px rgba(0,0,0,0.7) !important; color: var(--text) !important; padding: 0 !important; }
 .leaflet-popup-tip-container { display: none !important; }
 .leaflet-popup-content { margin: 0 !important; min-width: 160px !important; max-width: 260px !important; }
 .popup-inner { padding: 12px 14px; }
 .popup-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 3px; }
-.popup-type { font-size: 10px; color: var(--text-dim); font-family: 'Cinzel', serif; letter-spacing: 0.06em; margin-bottom: 6px; }
-.popup-notes { font-size: 13px; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid var(--border); padding-top: 8px; }
-.route-tooltip { background: var(--bg-deep) !important; border: 1px solid var(--border-bright) !important; color: var(--text-secondary) !important; font-family: 'Crimson Text', serif !important; font-size: 12px !important; padding: 4px 8px !important; border-radius: 3px !important; }
+.popup-type { font-size: 10px; color: var(--text-dim); font-family: 'Cinzel', serif; letter-spacing: 0.06em; margin-bottom: 6px; text-transform: uppercase; }
+.popup-notes { font-size: 14px; color: var(--text); line-height: 1.6; border-top: 1px solid var(--border); padding-top: 8px; font-family: 'Crimson Pro', serif; }
+.route-tooltip { background: var(--surface) !important; border: 1px solid var(--border) !important; color: var(--text) !important; font-family: 'Crimson Pro', serif !important; font-size: 13px !important; padding: 4px 10px !important; border-radius: 4px !important; }
 .route-tooltip::before { display: none !important; }
 .annotation-label { background: transparent !important; border: none !important; box-shadow: none !important; }
-.annotation-text { font-family: 'Cinzel', serif; text-shadow: 0 1px 4px rgba(5,4,15,0.9), 0 0 10px rgba(5,4,15,0.9); white-space: nowrap; }
-#loading { position: fixed; inset: 0; background: var(--bg-void); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; gap: 14px; }
-.loading-title { font-family: 'Cinzel', serif; font-size: 20px; color: var(--gold); letter-spacing: 0.15em; text-shadow: 0 0 30px rgba(201,168,76,0.3); }
-.loading-sub { font-size: 13px; color: var(--text-dim); font-style: italic; }
+.annotation-text { font-family: 'Cinzel', serif; text-shadow: 0 1px 4px rgba(9,14,12,0.95), 0 0 10px rgba(9,14,12,0.95); white-space: nowrap; }
+
+/* Loading & error screens */
+#loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; gap: 14px; }
+.loading-title { font-family: 'Cinzel', serif; font-size: 20px; color: var(--gold); letter-spacing: 0.15em; }
+.loading-sub { font-size: 14px; color: var(--text-dim); font-style: italic; font-family: 'Crimson Pro', serif; }
 .loading-bar-wrap { width: 180px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
 .loading-bar { height: 100%; background: var(--gold-dim); animation: lp 1.2s ease-in-out infinite; }
 @keyframes lp { 0%,100%{width:15%} 50%{width:75%} }
-#errorMsg { position: fixed; inset: 0; background: var(--bg-void); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 9999; }
+#errorMsg { position: fixed; inset: 0; background: var(--bg); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 9999; }
 .error-title { font-family: 'Cinzel', serif; font-size: 16px; color: var(--red); letter-spacing: 0.1em; }
-.error-sub { font-size: 13px; color: var(--text-dim); font-style: italic; }
+.error-sub { font-size: 14px; color: var(--text-dim); font-style: italic; font-family: 'Crimson Pro', serif; }
 
 /* Legend drawer */
-#legend { position: absolute; right: 0; top: 0; bottom: 0; width: 240px; background: var(--bg-panel); border-left: 1px solid var(--border); z-index: 800; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
+#legend { position: absolute; right: 0; top: 0; bottom: 0; width: 240px; background: var(--surface); border-left: 1px solid var(--border); z-index: 800; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
 #legend.open { transform: translateX(0); }
-#legendToggle { position: absolute; right: 8px; top: 8px; z-index: 810; background: var(--bg-panel); border: 1px solid var(--border-bright); color: var(--text-secondary); font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.1em; padding: 5px 10px; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
+#legendToggle { position: absolute; right: 8px; top: 8px; z-index: 810; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.1em; padding: 5px 10px; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
 #legendToggle:hover { border-color: var(--gold-dim); color: var(--gold); }
 .legend-header { padding: 12px 14px 8px; font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.12em; color: var(--text-dim); border-bottom: 1px solid var(--border); text-transform: uppercase; }
 .legend-body { flex: 1; overflow-y: auto; padding: 8px 0; }
-.legend-body::-webkit-scrollbar { width: 3px; }
-.legend-body::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+.legend-body::-webkit-scrollbar { width: 4px; }
+.legend-body::-webkit-scrollbar-track { background: var(--surface); }
+.legend-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.legend-body::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
 .legend-section { padding: 5px 14px 3px; font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.12em; color: var(--text-dim); text-transform: uppercase; margin-top: 6px; border-top: 1px solid var(--border); }
 .legend-section:first-child { border-top: none; margin-top: 0; }
-.legend-item { display: flex; align-items: center; gap: 7px; padding: 5px 14px; font-size: 13px; color: var(--text-secondary); cursor: pointer; transition: background 0.1s; }
-.legend-item:hover { background: var(--bg-card); color: var(--text-primary); }
+.legend-item { display: flex; align-items: center; gap: 7px; padding: 5px 14px; font-size: 14px; color: var(--text); cursor: pointer; transition: background 0.1s; font-family: 'Crimson Pro', serif; }
+.legend-item:hover { background: var(--raised); color: var(--text-hi); }
 .legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
 </style>
 </head>
@@ -171,23 +172,36 @@ function initViewer() {
     zoomSnap: 0.25, zoomDelta: 0.5,
     attributionControl: false,
     zoomControl: true,
+    zoomAnimation: false,
+    fadeAnimation: false,
+    markerZoomAnimation: false,
     zoomControlOptions: { position: 'topleft' }
   });
 
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  function fitMap() { map.invalidateSize({ animate: false }); map.fitBounds(bounds, { animate: false }); }
-  fitMap();
-  setTimeout(fitMap, 50);
-  setTimeout(fitMap, 250);
-  setTimeout(fitMap, 800);
-  window.addEventListener('load', fitMap);
-  window.addEventListener('resize', fitMap);
+  let initialFitDone = false;
+  function fitMap() {
+    map.invalidateSize({ animate: false });
+    if (!initialFitDone) {
+      map.fitBounds(bounds, { animate: false });
+    }
+  }
 
-  // ResizeObserver fires when the container actually gets its final size
+  fitMap();
+  setTimeout(() => { fitMap(); }, 50);
+  setTimeout(() => { fitMap(); initialFitDone = true; }, 400);
+
+  window.addEventListener('resize', () => {
+    map.invalidateSize({ animate: false });
+  });
+
   if (window.ResizeObserver) {
-    new ResizeObserver(() => fitMap()).observe(document.getElementById('map-wrap'));
+    new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+      if (!initialFitDone) map.fitBounds(bounds, { animate: false });
+    }).observe(document.getElementById('map-wrap'));
   }
 
   renderRoutes();
