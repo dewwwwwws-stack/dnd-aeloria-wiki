@@ -234,13 +234,16 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
+  const H = md.h; // map height in pixels — needed to flip Y
+
+  function flipY(lat) { return H - lat; }
+  function toLL(p) { return [flipY(p.lat), p.lng]; }
+
   function fitMap() {
     map.invalidateSize({animate:false});
-    // Use fitBounds with no padding to exactly fill the container
     map.fitBounds(bounds, {animate:false, padding:[0,0], maxZoom:1});
   }
 
-  // Fit repeatedly as iframe settles — stop after 2s to not fight user interaction
   let fitCount = 0;
   function scheduledFit() {
     fitMap();
@@ -313,7 +316,7 @@ function renderMarkers() {
   (data.markers||[]).forEach(m => {
     const cat = cats[m.cat] || {label:m.cat, color:'#4dcc85', shape:'circle'};
     const icon = makeIcon(cat);
-    const lm = L.marker([m.lat,m.lng],{icon,title:m.name}).bindPopup(
+    const lm = L.marker(toLL(m),{icon,title:m.name}).bindPopup(
       `<div class="popup-inner"><div class="popup-name">${esc(m.name)}</div><div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>${m.notes?`<div class="popup-notes">${esc(m.notes)}</div>`:''}</div>`,
       {maxWidth:260}
     );
@@ -331,7 +334,7 @@ function renderRoutes() {
   (data.routes||[]).forEach(r => {
     const rc = cats[r.cat] || {label:r.cat, color:'#4dcc85', dash:'solid'};
     const dashVal = DASH_MAP[rc.dash] !== undefined ? DASH_MAP[rc.dash] : null;
-    const line = L.polyline(r.points.map(p=>[p.lat,p.lng]),{color:rc.color,weight:2.5,dashArray:dashVal,opacity:0.85});
+    const line = L.polyline(r.points.map(p => toLL(p)),{color:rc.color,weight:2.5,dashArray:dashVal,opacity:0.85});
     let tt = `<strong>${esc(r.name)}</strong><br>${esc(rc.label)}`;
     if (r.dist) tt += `<br>${r.dist.hexes} hex \u00b7 ${r.dist.miles} mi \u00b7 ${r.dist.km} km`;
     line.bindTooltip(tt,{className:'route-tooltip',sticky:true});
@@ -346,7 +349,7 @@ function renderAnnotations() {
       html:`<div class="annotation-text" style="font-size:${a.size}px;color:${a.color}">${esc(a.text)}</div>`,
       className:'annotation-label', iconAnchor:[0,0]
     });
-    L.marker([a.lat,a.lng],{icon,interactive:false}).addTo(map);
+    L.marker(toLL(a),{icon,interactive:false}).addTo(map);
   });
 }
 
@@ -419,7 +422,7 @@ function buildLegend() {
 }
 
 window.flyTo = function(lat,lng) {
-  map.flyTo([lat,lng],1,{duration:0.6,animate:true});
+  map.flyTo([flipY(lat), lng], 1, {duration:0.6, animate:true});
   if (window.innerWidth < 600) toggleLegend();
 };
 
@@ -481,12 +484,14 @@ function updateMeasureResult() {
 
 function onMapClick(e) {
   if (!measureMode) return;
-  measPoints.push(e.latlng);
+  // Store in original coordinate space (flipped back)
+  const origLat = H - e.latlng.lat;
+  measPoints.push({lat: origLat, lng: e.latlng.lng});
   const dot = L.circleMarker(e.latlng,{radius:5,color:'#4dcc85',fillColor:'#4dcc85',fillOpacity:1,weight:2}).addTo(map);
   measLayers.push(dot);
   if (measPoints.length >= 2) {
     if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
-    const line = L.polyline(measPoints,{color:'#4dcc85',weight:2,dashArray:'6,4',opacity:0.8,interactive:false}).addTo(map);
+    const line = L.polyline(measPoints.map(p => toLL(p)),{color:'#4dcc85',weight:2,dashArray:'6,4',opacity:0.8,interactive:false}).addTo(map);
     measLayers.push(line);
     updateMeasureResult();
   }
@@ -495,7 +500,8 @@ function onMapClick(e) {
 function onMapMouseMove(e) {
   if (!measureMode || measPoints.length === 0) return;
   if (measMouseLine) map.removeLayer(measMouseLine);
-  measMouseLine = L.polyline([measPoints[measPoints.length-1], e.latlng],
+  const last = toLL(measPoints[measPoints.length-1]);
+  measMouseLine = L.polyline([last, e.latlng],
     {color:'#4dcc85',weight:1.5,dashArray:'4,4',opacity:0.4,interactive:false}).addTo(map);
 }
 
