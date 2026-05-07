@@ -25,8 +25,9 @@
   --green: #4caf76;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 100%; height: 100%; background: var(--bg-void); color: var(--text-primary); font-family: 'Crimson Text', Georgia, serif; overflow: hidden; }
-#app { display: flex; flex-direction: column; height: 100vh; }
+html { height: 100%; overflow: hidden; }
+body { width: 100%; height: 100%; background: var(--bg-void); color: var(--text-primary); font-family: 'Crimson Text', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; }
+#app { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 #header { height: 44px; background: var(--bg-deep); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; position: relative; z-index: 1000; }
 #header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
 .header-title { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--gold); letter-spacing: 0.1em; }
@@ -36,6 +37,7 @@ html, body { width: 100%; height: 100%; background: var(--bg-void); color: var(-
 #loadStatus { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.08em; color: var(--text-dim); }
 #map-wrap { flex: 1; position: relative; overflow: hidden; min-height: 0; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; }
+.leaflet-control-zoom { position: absolute !important; top: 8px !important; left: 8px !important; }
 
 /* Leaflet overrides */
 .leaflet-container { background: var(--bg-void) !important; cursor: grab !important; }
@@ -166,16 +168,19 @@ function initViewer() {
     minZoom: -3, maxZoom: 3,
     zoomSnap: 0.25, zoomDelta: 0.5,
     attributionControl: false,
-    zoomControl: true
+    zoomControl: true,
+    zoomControlOptions: { position: 'topleft' }
   });
 
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
-  map.fitBounds(bounds);
 
-  // Re-fit after layout settles (fixes iframe sizing issue)
-  setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds); }, 100);
-  setTimeout(() => { map.invalidateSize(); map.fitBounds(bounds); }, 500);
+  function fitMap() { map.invalidateSize(); map.fitBounds(bounds); }
+  fitMap();
+  setTimeout(fitMap, 100);
+  setTimeout(fitMap, 500);
+  window.addEventListener('load', fitMap);
+  window.addEventListener('resize', fitMap);
 
   renderRoutes();
   renderMarkers();
