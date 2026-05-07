@@ -240,20 +240,32 @@ function initViewer() {
     if (!initialFitDone) map.fitBounds(bounds, {animate:false});
   }
   fitMap();
-  setTimeout(()=>{ fitMap(); }, 50);
-  setTimeout(()=>{ fitMap(); initialFitDone = true; }, 400);
+
+  Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
+  Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
+
+  // Render layers AFTER the initial fit settles, so SVG renderer pane
+  // has correct transform when polylines are added.
+  setTimeout(()=>{
+    fitMap();
+    renderRoutes();
+    renderMarkers();
+    renderAnnotations();
+  }, 50);
+  setTimeout(()=>{
+    fitMap();
+    initialFitDone = true;
+    // Force SVG renderer pane to recalculate after final fit
+    if (map._renderer && map._renderer._update) map._renderer._update();
+    Object.values(layerGroups.routes||{}).forEach(g => g.eachLayer(l => l.redraw && l.redraw()));
+  }, 400);
+
   window.addEventListener('resize', ()=> map.invalidateSize({animate:false}));
   if (window.ResizeObserver) {
     new ResizeObserver(()=>{ map.invalidateSize({animate:false}); if(!initialFitDone) map.fitBounds(bounds,{animate:false}); })
       .observe(document.getElementById('map-wrap'));
   }
 
-  Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
-  Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
-
-  renderRoutes();
-  renderMarkers();
-  renderAnnotations();
   buildLegend();
   buildLayersPanel();
   initMeasure();
