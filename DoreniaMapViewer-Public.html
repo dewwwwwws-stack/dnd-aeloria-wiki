@@ -228,7 +228,9 @@ function initViewer() {
     crs: L.CRS.Simple, minZoom:-3, maxZoom:3,
     zoomSnap:0.25, zoomDelta:0.5,
     attributionControl:false, zoomControl:true,
-    zoomAnimation:false, fadeAnimation:false, markerZoomAnimation:false
+    zoomAnimation:false, fadeAnimation:false, markerZoomAnimation:false,
+    preferCanvas: false,
+    renderer: L.svg({ padding: 2 })
   });
 
   const bounds = [[0,0],[md.h, md.w]];
@@ -341,7 +343,7 @@ function renderRoutes() {
   (data.routes||[]).forEach(r => {
     const rc = cats[r.cat] || {label:r.cat, color:'#4dcc85', dash:'solid'};
     const dashVal = DASH_MAP[rc.dash] !== undefined ? DASH_MAP[rc.dash] : null;
-    const line = L.polyline(r.points.map(p=>[p.lat,p.lng]),{color:rc.color,weight:2.5,dashArray:dashVal,opacity:0.85});
+    const line = L.polyline(r.points.map(p=>[p.lat,p.lng]),{color:rc.color,weight:2.5,dashArray:dashVal,opacity:0.85,renderer:map.options.renderer});
     let tt = `<strong>${esc(r.name)}</strong><br>${esc(rc.label)}`;
     if (r.dist) tt += `<br>${r.dist.hexes} hex \u00b7 ${r.dist.miles} mi \u00b7 ${r.dist.km} km`;
     line.bindTooltip(tt,{className:'route-tooltip',sticky:true});
