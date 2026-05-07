@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dorenia — Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-void: #05040f;
+  --bg-deep: #0a0818;
+  --bg-panel: #100e1e;
+  --bg-card: #161228;
+  --border: #2a2245;
+  --border-bright: #3d3560;
+  --gold: #c9a84c;
+  --gold-dim: #8a6e2f;
+  --gold-glow: rgba(201,168,76,0.15);
+  --text-primary: #e8dfc8;
+  --text-secondary: #9d9080;
+  --text-dim: #5a5248;
+  --red: #c94c4c;
+  --green: #4caf76;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; background: var(--bg-void); color: var(--text-primary); font-family: 'Crimson Text', Georgia, serif; overflow: hidden; }
+#app { display: flex; flex-direction: column; height: 100vh; }
+#header { height: 44px; background: var(--bg-deep); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; position: relative; z-index: 1000; }
+#header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
+.header-title { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--gold); letter-spacing: 0.1em; }
+.header-sep { width:1px; height:22px; background:var(--border); }
+#mapLabel { font-family: 'Cinzel', serif; font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; text-transform: uppercase; }
+.header-spacer { flex: 1; }
+#loadStatus { font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.08em; color: var(--text-dim); }
+#map { flex: 1; background: var(--bg-void); }
+
+/* Leaflet overrides */
+.leaflet-container { background: var(--bg-void) !important; cursor: grab !important; }
+.leaflet-container:active { cursor: grabbing !important; }
+.leaflet-control-zoom { border: 1px solid var(--border-bright) !important; border-radius: 3px !important; overflow: hidden; }
+.leaflet-control-zoom a { background: var(--bg-panel) !important; color: var(--text-secondary) !important; border-color: var(--border) !important; font-size: 16px !important; line-height: 26px !important; width: 26px !important; height: 26px !important; }
+.leaflet-control-zoom a:hover { background: var(--bg-card) !important; color: var(--gold) !important; }
+.leaflet-popup-content-wrapper { background: var(--bg-panel) !important; border: 1px solid var(--border-bright) !important; border-radius: 4px !important; box-shadow: 0 4px 24px rgba(0,0,0,0.7) !important; color: var(--text-primary) !important; padding: 0 !important; }
+.leaflet-popup-tip-container { display: none !important; }
+.leaflet-popup-content { margin: 0 !important; min-width: 160px !important; max-width: 260px !important; }
+.popup-inner { padding: 12px 14px; }
+.popup-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 3px; }
+.popup-type { font-size: 10px; color: var(--text-dim); font-family: 'Cinzel', serif; letter-spacing: 0.06em; margin-bottom: 6px; }
+.popup-notes { font-size: 13px; color: var(--text-secondary); line-height: 1.5; border-top: 1px solid var(--border); padding-top: 8px; }
+.route-tooltip { background: var(--bg-deep) !important; border: 1px solid var(--border-bright) !important; color: var(--text-secondary) !important; font-family: 'Crimson Text', serif !important; font-size: 12px !important; padding: 4px 8px !important; border-radius: 3px !important; }
+.route-tooltip::before { display: none !important; }
+.annotation-label { background: transparent !important; border: none !important; box-shadow: none !important; }
+.annotation-text { font-family: 'Cinzel', serif; text-shadow: 0 1px 4px rgba(5,4,15,0.9), 0 0 10px rgba(5,4,15,0.9); white-space: nowrap; }
+#loading { position: fixed; inset: 0; background: var(--bg-void); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; gap: 14px; }
+.loading-title { font-family: 'Cinzel', serif; font-size: 20px; color: var(--gold); letter-spacing: 0.15em; text-shadow: 0 0 30px rgba(201,168,76,0.3); }
+.loading-sub { font-size: 13px; color: var(--text-dim); font-style: italic; }
+.loading-bar-wrap { width: 180px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+.loading-bar { height: 100%; background: var(--gold-dim); animation: lp 1.2s ease-in-out infinite; }
+@keyframes lp { 0%,100%{width:15%} 50%{width:75%} }
+#errorMsg { position: fixed; inset: 0; background: var(--bg-void); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 9999; }
+.error-title { font-family: 'Cinzel', serif; font-size: 16px; color: var(--red); letter-spacing: 0.1em; }
+.error-sub { font-size: 13px; color: var(--text-dim); font-style: italic; }
+
+/* Legend drawer */
+#legend { position: absolute; right: 0; top: 0; bottom: 0; width: 240px; background: var(--bg-panel); border-left: 1px solid var(--border); z-index: 800; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
+#legend.open { transform: translateX(0); }
+#legendToggle { position: absolute; right: 8px; top: 8px; z-index: 810; background: var(--bg-panel); border: 1px solid var(--border-bright); color: var(--text-secondary); font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.1em; padding: 5px 10px; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
+#legendToggle:hover { border-color: var(--gold-dim); color: var(--gold); }
+.legend-header { padding: 12px 14px 8px; font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: 0.12em; color: var(--text-dim); border-bottom: 1px solid var(--border); text-transform: uppercase; }
+.legend-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+.legend-body::-webkit-scrollbar { width: 3px; }
+.legend-body::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+.legend-section { padding: 5px 14px 3px; font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.12em; color: var(--text-dim); text-transform: uppercase; margin-top: 6px; border-top: 1px solid var(--border); }
+.legend-section:first-child { border-top: none; margin-top: 0; }
+.legend-item { display: flex; align-items: center; gap: 7px; padding: 5px 14px; font-size: 13px; color: var(--text-secondary); cursor: pointer; transition: background 0.1s; }
+.legend-item:hover { background: var(--bg-card); color: var(--text-primary); }
+.legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="loading-title">⚔ DORENIA</div>
+  <div class="loading-sub">Loading map…</div>
+  <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
+</div>
+
+<div id="errorMsg">
+  <div class="error-title">Map data unavailable</div>
+  <div class="error-sub">Could not load map-data.json from the repository.</div>
+</div>
+
+<div id="app" style="display:none; position:relative;">
+  <div id="header">
+    <span class="header-title">⚔ DORENIA</span>
+    <div class="header-sep"></div>
+    <span id="mapLabel">—</span>
+    <div class="header-spacer"></div>
+    <span id="loadStatus"></span>
+  </div>
+  <div style="flex:1; position:relative; overflow:hidden;">
+    <div id="map"></div>
+    <button id="legendToggle">LOCATIONS ▸</button>
+    <div id="legend">
+      <div class="legend-header">Locations</div>
+      <div class="legend-body" id="legendBody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Dynamic loader ─────────────────────────────────────
+(function(){
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  s.onload = function(){ loadMapData(); };
+  s.onerror = function(){
+    var s2 = document.createElement('script');
+    s2.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+    s2.onload = function(){ loadMapData(); };
+    s2.onerror = function(){ showError('Could not load Leaflet.'); };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);
+})();
+
+// ── Config ─────────────────────────────────────────────
+const DATA_URL = 'https://raw.githubusercontent.com/dewwwwwws-stack/dnd-aeloria-wiki/main/map-data.json';
+const CACHE_BUST = '?t=' + Math.floor(Date.now() / 30000); // refresh every 30s
+
+const DASH_MAP = { solid: null, dashed: '8,5', dotted: '2,5' };
+
+let map, data;
+
+// ── Load data ──────────────────────────────────────────
+function loadMapData() {
+  fetch(DATA_URL + CACHE_BUST)
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => { data = d; initViewer(); })
+    .catch(e => { showError('Could not fetch map-data.json: ' + e.message); });
+}
+
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  const el = document.getElementById('errorMsg');
+  el.style.display = 'flex';
+  el.querySelector('.error-sub').textContent = msg;
+}
+
+// ── Init viewer ────────────────────────────────────────
+function initViewer() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  const md = data.mapMeta;
+  document.getElementById('mapLabel').textContent = md.label;
+  document.title = 'Dorenia — ' + md.label;
+  document.getElementById('loadStatus').textContent =
+    'Updated ' + new Date(data.publishedAt).toLocaleString('en-GB', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+
+  map = L.map('map', {
+    crs: L.CRS.Simple,
+    minZoom: -3, maxZoom: 3,
+    zoomSnap: 0.25, zoomDelta: 0.5,
+    attributionControl: false,
+    zoomControl: true
+  });
+
+  const bounds = [[0,0],[md.h, md.w]];
+  L.imageOverlay(md.githubUrl, bounds).addTo(map);
+  map.fitBounds(bounds);
+
+  renderRoutes();
+  renderMarkers();
+  renderAnnotations();
+  buildLegend();
+}
+
+// ── Shapes ─────────────────────────────────────────────
+function makeIcon(cat) {
+  const c = cat.color, s = '#05040f';
+  const shapes = {
+    circle:  `<circle cx="12" cy="12" r="7" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
+    square:  `<rect x="5" y="5" width="14" height="14" rx="2" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
+    diamond: `<polygon points="12,3 21,12 12,21 3,12" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
+    pin:     `<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="${c}" stroke="${s}" stroke-width="0.5"/>`,
+    eye:     `<ellipse cx="12" cy="12" rx="9" ry="5" fill="${c}" stroke="${s}" stroke-width="1.5"/><circle cx="12" cy="12" r="2.5" fill="${s}"/>`,
+    cross:   `<line x1="4" y1="4" x2="20" y2="20" stroke="${c}" stroke-width="3" stroke-linecap="round"/><line x1="20" y1="4" x2="4" y2="20" stroke="${c}" stroke-width="3" stroke-linecap="round"/>`,
+    leaf:    `<path d="M12 2C6 2 3 8 3 12c0 5 4 9 9 9s9-4 9-9C21 6 18 2 12 2z" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
+    crown:   `<path d="M3 17h18l-2-9-4 4-3-7-3 7-4-4-2 9z" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/><rect x="3" y="17" width="18" height="2.5" rx="1" fill="${c}" stroke="${s}" stroke-width="1"/>`,
+    castle:  `<rect x="4" y="10" width="16" height="11" rx="1" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="4" y="7" width="3" height="5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="10.5" y="7" width="3" height="5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="17" y="7" width="3" height="5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="9" y="14" width="6" height="7" fill="${s}"/>`,
+    wand:    `<line x1="4" y1="20" x2="17" y2="7" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/><circle cx="18.5" cy="5.5" r="2.5" fill="${c}" stroke="${s}" stroke-width="1"/><line x1="19" y1="2" x2="21" y2="4" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/><line x1="21" y1="7" x2="23" y2="6" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/>`,
+    ship:    `<path d="M3 14c0 3 3 6 9 6s9-3 9-6H3z" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M8 14V8l4-4 4 4v6" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
+    chest:   `<rect x="3" y="11" width="18" height="10" rx="1.5" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M3 11h18V9a3 3 0 00-3-3H6a3 3 0 00-3 3v2z" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="9" y="13" width="6" height="3" rx="1" fill="${s}" opacity="0.6"/><line x1="3" y1="11" x2="21" y2="11" stroke="${s}" stroke-width="1"/>`,
+    star:    `<polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/>`,
+    shield:  `<path d="M12 2L4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6l-8-4z" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
+    sword:   `<line x1="5" y1="19" x2="19" y2="5" stroke="${c}" stroke-width="2.5" stroke-linecap="round"/><line x1="9" y1="9" x2="15" y2="9" stroke="${c}" stroke-width="2" stroke-linecap="round" transform="rotate(-45 12 12)"/>`,
+    skull:   `<circle cx="12" cy="10" r="7" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="8" y="15" width="8" height="5" rx="1" fill="${c}" stroke="${s}" stroke-width="1"/><line x1="10" y1="15" x2="10" y2="20" stroke="${s}" stroke-width="1"/><line x1="14" y1="15" x2="14" y2="20" stroke="${s}" stroke-width="1"/><circle cx="9.5" cy="10" r="1.8" fill="${s}"/><circle cx="14.5" cy="10" r="1.8" fill="${s}"/>`,
+    flame:   `<path d="M12 2c0 0-7 6-7 12a7 7 0 0014 0c0-3-2-5-2-5s-1 2-3 2c-1 0-2-1-2-2s1-2 1-4c0 0-1 1-1 2-1-2 0-5 0-5z" fill="${c}" stroke="${s}" stroke-width="1"/>`,
+    tower:   `<rect x="8" y="4" width="8" height="17" rx="1" fill="${c}" stroke="${s}" stroke-width="1.2"/><rect x="6" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="10.5" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="15" y="2" width="3" height="4" rx="0.5" fill="${c}" stroke="${s}" stroke-width="1"/><rect x="10" y="14" width="4" height="7" fill="${s}"/>`,
+    tent:    `<path d="M12 3L2 20h20L12 3z" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/><path d="M12 3L8 20h8L12 3z" fill="${s}" opacity="0.25"/>`,
+    cave:    `<path d="M2 20c0 0 2-8 10-8s10 8 10 8H2z" fill="${c}" stroke="${s}" stroke-width="1.2"/><ellipse cx="12" cy="20" rx="4" ry="2.5" fill="${s}"/>`,
+    anchor:  `<circle cx="12" cy="6" r="2.5" fill="none" stroke="${c}" stroke-width="2"/><line x1="12" y1="8.5" x2="12" y2="20" stroke="${c}" stroke-width="2" stroke-linecap="round"/><line x1="7" y1="11" x2="17" y2="11" stroke="${c}" stroke-width="2" stroke-linecap="round"/><path d="M7 20c0-2 2-4 5-4s5 2 5 4" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+    scroll:  `<rect x="5" y="4" width="14" height="16" rx="2" fill="${c}" stroke="${s}" stroke-width="1.2"/><line x1="8" y1="9" x2="16" y2="9" stroke="${s}" stroke-width="1.2" stroke-linecap="round"/><line x1="8" y1="12" x2="16" y2="12" stroke="${s}" stroke-width="1.2" stroke-linecap="round"/><line x1="8" y1="15" x2="13" y2="15" stroke="${s}" stroke-width="1.2" stroke-linecap="round"/><rect x="3" y="4" width="3" height="16" rx="1.5" fill="${c}" stroke="${s}" stroke-width="1"/>`,
+    boot:    `<path d="M8 3v11l-4 4h12l1-4-4-2V3H8z" fill="${c}" stroke="${s}" stroke-width="1.2" stroke-linejoin="round"/>`,
+    bell:    `<path d="M6 10a6 6 0 0112 0v5H6v-5z" fill="${c}" stroke="${s}" stroke-width="1.2"/><path d="M10 19a2 2 0 004 0" fill="${c}" stroke="${s}" stroke-width="1.2"/><line x1="12" y1="2" x2="12" y2="4" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+    moon:    `<path d="M20 13.5A8.5 8.5 0 1110.5 4a6.5 6.5 0 009.5 9.5z" fill="${c}" stroke="${s}" stroke-width="1.2"/>`
+  };
+  const inner = shapes[cat.shape] || shapes.circle;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">${inner}</svg>`;
+  return L.divIcon({
+    html: `<div style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.9))">${svg}</div>`,
+    className: '', iconSize:[22,22], iconAnchor:[11,11], popupAnchor:[0,-13]
+  });
+}
+
+// ── Render layers ──────────────────────────────────────
+function renderMarkers() {
+  const cats = data.markerCats || {};
+  (data.markers || []).forEach(m => {
+    const cat = cats[m.cat] || { label: m.cat, color: '#c9a84c', shape: 'circle' };
+    const icon = makeIcon(cat);
+    const lm = L.marker([m.lat, m.lng], { icon, title: m.name }).addTo(map);
+    lm.bindPopup(`<div class="popup-inner">
+      <div class="popup-name">${esc(m.name)}</div>
+      <div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>
+      ${m.notes ? `<div class="popup-notes">${esc(m.notes)}</div>` : ''}
+    </div>`, { maxWidth: 260 });
+  });
+}
+
+function renderRoutes() {
+  const cats = data.routeCats || {};
+  (data.routes || []).forEach(r => {
+    const rc = cats[r.cat] || { label: r.cat, color: '#c9a84c', dash: 'solid' };
+    const dashVal = DASH_MAP[rc.dash] !== undefined ? DASH_MAP[rc.dash] : null;
+    const line = L.polyline(r.points.map(p => [p.lat, p.lng]), {
+      color: rc.color, weight: 2.5, dashArray: dashVal, opacity: 0.85
+    }).addTo(map);
+    let tt = `<strong>${esc(r.name)}</strong><br>${esc(rc.label)}`;
+    if (r.dist) tt += `<br>${r.dist.hexes} hex · ${r.dist.miles} mi · ${r.dist.km} km`;
+    line.bindTooltip(tt, { className: 'route-tooltip', sticky: true });
+  });
+}
+
+function renderAnnotations() {
+  (data.annotations || []).forEach(a => {
+    const icon = L.divIcon({
+      html: `<div class="annotation-text" style="font-size:${a.size}px;color:${a.color}">${esc(a.text)}</div>`,
+      className: 'annotation-label', iconAnchor: [0,0]
+    });
+    L.marker([a.lat, a.lng], { icon, interactive: false }).addTo(map);
+  });
+}
+
+// ── Legend ─────────────────────────────────────────────
+function buildLegend() {
+  const cats = data.markerCats || {};
+  const markers = data.markers || [];
+  if (!markers.length) return;
+
+  // Group by category
+  const grouped = {};
+  markers.forEach(m => { (grouped[m.cat] = grouped[m.cat]||[]).push(m); });
+
+  const body = document.getElementById('legendBody');
+  body.innerHTML = Object.entries(grouped).map(([cat, ms]) => {
+    const def = cats[cat] || { label: cat, color: '#c9a84c' };
+    return `<div class="legend-section">${esc(def.label)}</div>` +
+      ms.map(m => `<div class="legend-item" onclick="flyTo(${m.lat},${m.lng})">
+        <div class="legend-dot" style="background:${def.color}"></div>
+        ${esc(m.name)}
+      </div>`).join('');
+  }).join('');
+}
+
+window.flyTo = function(lat, lng) {
+  map.flyTo([lat, lng], 1, { duration: 0.8 });
+  // Close legend on mobile
+  if (window.innerWidth < 600) toggleLegend();
+};
+
+// ── Legend toggle ──────────────────────────────────────
+let legendOpen = false;
+function toggleLegend() {
+  legendOpen = !legendOpen;
+  document.getElementById('legend').classList.toggle('open', legendOpen);
+  document.getElementById('legendToggle').textContent = legendOpen ? 'LOCATIONS ✕' : 'LOCATIONS ▸';
+}
+document.getElementById('legendToggle').addEventListener('click', toggleLegend);
+
+// ── Utils ──────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
