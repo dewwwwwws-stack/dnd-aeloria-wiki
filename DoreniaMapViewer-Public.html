@@ -33,8 +33,7 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 .header-spacer { flex:1; }
 #loadStatus { font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.08em; color:var(--text-dim); }
 #map-wrap { flex:1; position:relative; overflow:hidden; min-height:0; }
-#map { position:absolute; inset:0; width:100%; height:100%; overflow:hidden !important; }
-.leaflet-container { overflow:hidden !important; }
+#map { position:absolute; inset:0; width:100%; height:100%; }
 
 /* Zoom control — keep inside container, hide bottom bar */
 .leaflet-bottom { display:none !important; }
@@ -235,38 +234,30 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  let initialFitDone = false;
+  let settled = false;
   function fitMap() {
     map.invalidateSize({animate:false});
-    if (!initialFitDone) map.fitBounds(bounds, {animate:false});
+    map.fitBounds(bounds, {animate:false, padding:[0,0]});
   }
+
+  // Keep refitting until the container stabilises
   fitMap();
+  [50, 150, 300, 600, 1200].forEach(t => setTimeout(() => {
+    if (!settled) fitMap();
+  }, t));
+  setTimeout(() => { settled = true; }, 1500);
+
+  window.addEventListener('resize', fitMap);
+  if (window.ResizeObserver) {
+    new ResizeObserver(fitMap).observe(document.getElementById('map-wrap'));
+  }
 
   Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
   Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
 
-  // Render layers AFTER the initial fit settles, so SVG renderer pane
-  // has correct transform when polylines are added.
-  setTimeout(()=>{
-    fitMap();
-    renderRoutes();
-    renderMarkers();
-    renderAnnotations();
-  }, 50);
-  setTimeout(()=>{
-    fitMap();
-    initialFitDone = true;
-    // Force SVG renderer pane to recalculate after final fit
-    if (map._renderer && map._renderer._update) map._renderer._update();
-    Object.values(layerGroups.routes||{}).forEach(g => g.eachLayer(l => l.redraw && l.redraw()));
-  }, 400);
-
-  window.addEventListener('resize', ()=> map.invalidateSize({animate:false}));
-  if (window.ResizeObserver) {
-    new ResizeObserver(()=>{ map.invalidateSize({animate:false}); if(!initialFitDone) map.fitBounds(bounds,{animate:false}); })
-      .observe(document.getElementById('map-wrap'));
-  }
-
+  renderRoutes();
+  renderMarkers();
+  renderAnnotations();
   buildLegend();
   buildLayersPanel();
   initMeasure();
@@ -324,7 +315,7 @@ function renderMarkers() {
   (data.markers||[]).forEach(m => {
     const cat = cats[m.cat] || {label:m.cat, color:'#4dcc85', shape:'circle'};
     const icon = makeIcon(cat);
-    const lm = L.marker([m.lat, m.lng],{icon,title:m.name}).bindPopup(
+    const lm = L.marker([m.lat,m.lng],{icon,title:m.name}).bindPopup(
       `<div class="popup-inner"><div class="popup-name">${esc(m.name)}</div><div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>${m.notes?`<div class="popup-notes">${esc(m.notes)}</div>`:''}</div>`,
       {maxWidth:260}
     );
@@ -357,7 +348,7 @@ function renderAnnotations() {
       html:`<div class="annotation-text" style="font-size:${a.size}px;color:${a.color}">${esc(a.text)}</div>`,
       className:'annotation-label', iconAnchor:[0,0]
     });
-    L.marker([a.lat, a.lng],{icon,interactive:false}).addTo(map);
+    L.marker([a.lat,a.lng],{icon,interactive:false}).addTo(map);
   });
 }
 
