@@ -224,7 +224,9 @@ function initViewer() {
   document.getElementById('mapLabel').textContent = md.label;
   document.title = 'Dorenia \u2014 ' + md.label;
   document.getElementById('loadStatus').textContent =
-    'Updated ' + new Date(data.publishedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    'Updated ' + new Date(data.publishedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
+    + (data.markers?.length ? ` · M[0]: ${JSON.stringify(data.markers[0]?.lat)},${JSON.stringify(data.markers[0]?.lng)}` : '')
+    + (data.routes?.length ? ` · R[0]p0: ${JSON.stringify(data.routes[0]?.points?.[0])}` : '');
 
   H = md.h;
 
@@ -237,27 +239,29 @@ function initViewer() {
   });
 
   const bounds = [[0,0],[md.h, md.w]];
-  L.imageOverlay(md.githubUrl, bounds).addTo(map);
+  const overlay = L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  function fitMap() {
+  let hasFit = false;
+  function doFit() {
+    if (hasFit) return;
     map.invalidateSize({animate:false});
     const wrap = document.getElementById('map-wrap');
     const cW = wrap.clientWidth  || window.innerWidth;
     const cH = wrap.clientHeight || 625;
-    // Calculate exact zoom to fit the map image in the container
-    const zoom = Math.min(
-      Math.log2(cW / md.w),
-      Math.log2(cH / md.h)
-    );
-    // Center of the map in Leaflet CRS.Simple coords
-    const center = [md.h / 2, md.w / 2];
-    map.setView(center, zoom, {animate:false});
+    const zoom = Math.min(Math.log2(cW / md.w), Math.log2(cH / md.h));
+    map.setView([md.h / 2, md.w / 2], zoom, {animate:false});
+    hasFit = true;
   }
 
-  setTimeout(fitMap, 0);
-  setTimeout(fitMap, 200);
-  setTimeout(fitMap, 600);
-  window.addEventListener('resize', fitMap);
+  // Fit once when image loads
+  overlay.on('load', doFit);
+  // Fallback if load already fired or never fires
+  setTimeout(doFit, 300);
+
+  window.addEventListener('resize', () => {
+    hasFit = false;
+    doFit();
+  });
 
   Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
   Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
