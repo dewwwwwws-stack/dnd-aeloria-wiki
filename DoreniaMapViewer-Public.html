@@ -201,7 +201,13 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 </div>
 
 <script>
-const DATA_URL = 'https://raw.githubusercontent.com/dewwwwwws-stack/dnd-aeloria-wiki/main/map-data.json';
+const GH_BASE = 'https://raw.githubusercontent.com/dewwwwwws-stack/dnd-aeloria-wiki/main/';
+const MAP_PARAM = new URLSearchParams(window.location.search).get('map') || 'dorenia';
+const GH_FILE_MAP = {
+  dorenia: 'map-data.json',
+  aeloria: 'map-data-aeloria.json'
+};
+const DATA_URL = GH_BASE + (GH_FILE_MAP[MAP_PARAM] || 'map-data-' + MAP_PARAM + '.json');
 const CACHE_BUST = '?t=' + Math.floor(Date.now() / 30000);
 const DASH_MAP = { solid: null, dashed: '8,5', dotted: '2,5' };
 
@@ -537,7 +543,6 @@ function clearMeasure() {
 }
 
 function makeMeasureWaypoint(latlng, index) {
-  // Numbered waypoint marker
   const icon = L.divIcon({
     html: `<div style="
       width:22px;height:22px;border-radius:50%;
@@ -546,10 +551,11 @@ function makeMeasureWaypoint(latlng, index) {
       font-family:'Cinzel',serif;font-size:9px;color:#4dcc85;
       box-shadow:0 0 8px rgba(77,204,133,0.5);
       pointer-events:none;
+      position:relative;left:-11px;top:-11px;
     ">${index + 1}</div>`,
     className: '',
-    iconSize: [22, 22],
-    iconAnchor: [11, 11]
+    iconSize: [0, 0],
+    iconAnchor: [0, 0]
   });
   return L.marker(latlng, { icon, interactive: false, zIndexOffset: 1000 });
 }
