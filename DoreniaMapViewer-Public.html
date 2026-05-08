@@ -34,7 +34,31 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 #loadStatus { font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.08em; color:var(--text-dim); }
 #map-wrap { position:relative; overflow:hidden !important; min-height:0; flex:1; }
 #map { position:absolute; top:0; left:0; overflow:hidden !important; background:var(--bg); }
-.leaflet-container { overflow:hidden !important; }
+.leaflet-container { position:relative !important; overflow:hidden !important; }
+.leaflet-map-pane { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-tile-pane { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-overlay-pane { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-overlay-pane svg { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-marker-pane { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-tooltip-pane { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-popup-pane { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-pane { position:absolute !important; top:0 !important; left:0 !important; }
+.leaflet-popup { position:absolute !important; }
+/* Marker tooltip on hover */
+.marker-tooltip {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  font-family: 'Cinzel', serif !important;
+  font-size: 11px !important;
+  letter-spacing: 0.06em !important;
+  padding: 4px 9px !important;
+  border-radius: 3px !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+}
+.marker-tooltip::before { display:none !important; }
 
 /* Zoom control — keep inside container, hide bottom bar */
 .leaflet-bottom { display:none !important; }
@@ -251,7 +275,6 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  // Use Leaflet's own measured size for zoom calculation
   const mapSize = map.getSize();
   const zoom = Math.min(
     Math.log2(mapSize.x / md.w),
@@ -259,30 +282,28 @@ function initViewer() {
   );
   map.setView([md.h / 2, md.w / 2], zoom, {animate: false});
 
+  // Wait for Leaflet to finish setting up pane transforms before adding layers
+  map.once('moveend', function() {
+    Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
+    Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
+    renderRoutes();
+    renderMarkers();
+    renderAnnotations();
+    buildLegend();
+    buildLayersPanel();
+    initMeasure();
+    map.on('click', onMapClick);
+    map.on('mousemove', onMapMouseMove);
+    map.on('contextmenu', onMapRightClick);
+  });
+
   window.addEventListener('resize', () => {
     const nW = wrap.clientWidth  || window.innerWidth;
     const nH = wrap.clientHeight || 625;
     mapDiv.style.width  = nW + 'px';
     mapDiv.style.height = nH + 'px';
     map.invalidateSize({animate: false});
-    const s = map.getSize();
-    const nZoom = Math.min(Math.log2(s.x / md.w), Math.log2(s.y / md.h));
-    map.setView([md.h / 2, md.w / 2], nZoom, {animate: false});
   });
-
-  Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
-  Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
-
-  renderRoutes();
-  renderMarkers();
-  renderAnnotations();
-  buildLegend();
-  buildLayersPanel();
-  initMeasure();
-
-  map.on('click', onMapClick);
-  map.on('mousemove', onMapMouseMove);
-  map.on('contextmenu', onMapRightClick);
 }
 
 // ── Shapes ────────────────────────────────────────────
@@ -333,10 +354,23 @@ function renderMarkers() {
   (data.markers||[]).forEach(m => {
     const cat = cats[m.cat] || {label:m.cat, color:'#4dcc85', shape:'circle'};
     const icon = makeIcon(cat);
-    const lm = L.marker(toLL(m),{icon,title:m.name}).bindPopup(
-      `<div class="popup-inner"><div class="popup-name">${esc(m.name)}</div><div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>${m.notes?`<div class="popup-notes">${esc(m.notes)}</div>`:''}</div>`,
-      {maxWidth:260}
-    );
+    let markerPopup = `<div class="popup-inner"><div class="popup-name">${esc(m.name)}</div><div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>${m.notes?`<div class="popup-notes">${esc(m.notes)}</div>`:''}</div>`;
+    if (m.wikiLink) {
+      try {
+        const u = new URL(m.wikiLink);
+        const label = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || m.name).replace(/-/g,' ');
+        markerPopup += `<div class="popup-wiki"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><a href="${esc(m.wikiLink)}" target="_blank" rel="noopener">${esc(label)} ↗</a></div>`;
+      } catch(e) {}
+    }
+    const lm = L.marker(toLL(m),{icon,title:m.name})
+      .bindTooltip(esc(m.name), {
+        className: 'marker-tooltip',
+        direction: 'top',
+        offset: [0, -14],
+        sticky: false,
+        permanent: false
+      })
+      .bindPopup(markerPopup, {maxWidth:260});
     const grp = layerGroups.markers[m.cat];
     if (grp) grp.addLayer(lm); else lm.addTo(map);
   });
@@ -352,9 +386,23 @@ function renderRoutes() {
     const rc = cats[r.cat] || {label:r.cat, color:'#4dcc85', dash:'solid'};
     const dashVal = DASH_MAP[rc.dash] !== undefined ? DASH_MAP[rc.dash] : null;
     const line = L.polyline(r.points.map(p => toLL(p)),{color:rc.color,weight:2.5,dashArray:dashVal,opacity:0.85});
-    let tt = `<strong>${esc(r.name)}</strong><br>${esc(rc.label)}`;
-    if (r.dist) tt += `<br>${r.dist.hexes} hex \u00b7 ${r.dist.miles} mi \u00b7 ${r.dist.km} km`;
-    line.bindTooltip(tt,{className:'route-tooltip',sticky:true});
+    let tt = `<strong style="color:var(--gold)">${esc(r.name)}</strong><br><span style="color:var(--text-dim)">${esc(rc.label)}</span>`;
+    if (r.dist) tt += `<br><span style="color:var(--text)">${r.dist.hexes} hex · ${r.dist.miles} mi · ${r.dist.km} km</span>`;
+    line.bindTooltip(tt, {className:'route-tooltip', sticky:true, direction:'top'});
+
+    // Click popup with full details
+    let popupHtml = `<div class="popup-inner"><div class="popup-name">${esc(r.name)}</div><div class="popup-type" style="color:${rc.color}">${esc(rc.label)}</div>`;
+    if (r.dist) popupHtml += `<div style="font-size:12px;color:var(--text-dim);margin-top:4px">${r.dist.hexes} hex · ${r.dist.miles} mi · ${r.dist.km} km</div>`;
+    if (r.notes) popupHtml += `<div class="popup-notes">${esc(r.notes)}</div>`;
+    popupHtml += '</div>';
+    if (r.wikiLink) {
+      try {
+        const u = new URL(r.wikiLink);
+        const label = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || r.name).replace(/-/g,' ');
+        popupHtml += `<div class="popup-wiki"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><a href="${esc(r.wikiLink)}" target="_blank" rel="noopener">${esc(label)} ↗</a></div>`;
+      } catch(e) {}
+    }
+    line.bindPopup(popupHtml, {maxWidth:260});
     const grp = layerGroups.routes[r.cat];
     if (grp) grp.addLayer(line); else line.addTo(map);
   });
