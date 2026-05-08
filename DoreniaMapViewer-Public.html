@@ -22,9 +22,9 @@
   --red:        #a04040;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: 100vh; max-height: 100vh; overflow: hidden; }
-body { width: 100%; height: 100vh; max-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Crimson Pro', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
-#app { display: flex; flex-direction: column; width: 100%; height: 100vh; max-height: 100vh; overflow: hidden; }
+html { height: 100%; overflow: hidden; }
+body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Crimson Pro', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+#app { display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; }
 #header { height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; position: relative; z-index: 1000; }
 #header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
 .header-title { font-family:'Cinzel',serif; font-size:13px; font-weight:700; color:var(--gold); letter-spacing:0.1em; }
@@ -244,10 +244,13 @@ function initViewer() {
   let hasFit = false;
   function doFit() {
     if (hasFit) return;
-    map.invalidateSize({animate:false});
     const wrap = document.getElementById('map-wrap');
-    const cW = wrap.clientWidth  || window.innerWidth;
+    const cW = wrap.clientWidth  || 1920;
     const cH = wrap.clientHeight || 625;
+    // Force the map div to the exact container size
+    document.getElementById('map').style.width  = cW + 'px';
+    document.getElementById('map').style.height = cH + 'px';
+    map.invalidateSize({animate:false});
     const zoom = Math.min(Math.log2(cW / md.w), Math.log2(cH / md.h));
     map.setView([md.h / 2, md.w / 2], zoom, {animate:false});
     hasFit = true;
