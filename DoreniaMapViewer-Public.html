@@ -526,11 +526,11 @@ function updateMeasureResult() {
 
 function onMapClick(e) {
   if (!measureMode) return;
-  const pt = { lat: e.latlng.lat, lng: e.latlng.lng };
+  const pt = e.latlng; // already in Leaflet coords, store directly
   measPoints.push(pt);
 
   // Place numbered waypoint marker
-  const wm = makeMeasureWaypoint(e.latlng, measPoints.length - 1);
+  const wm = makeMeasureWaypoint(pt, measPoints.length - 1);
   wm.addTo(map);
   measLayers.push(wm);
 
@@ -538,7 +538,7 @@ function onMapClick(e) {
   if (measPoints.length >= 2) {
     if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
     const prev = measPoints[measPoints.length - 2];
-    const seg = L.polyline([toLL(prev), e.latlng], {
+    const seg = L.polyline([prev, pt], {
       color: '#4dcc85', weight: 2.5, opacity: 0.9, interactive: false
     }).addTo(map);
     measLayers.push(seg);
@@ -550,7 +550,7 @@ function onMapClick(e) {
 function onMapMouseMove(e) {
   if (!measureMode || measPoints.length === 0) return;
   if (measMouseLine) map.removeLayer(measMouseLine);
-  const last = toLL(measPoints[measPoints.length - 1]);
+  const last = measPoints[measPoints.length - 1];
   measMouseLine = L.polyline([last, e.latlng], {
     color: '#4dcc85', weight: 1.5, dashArray: '5,5', opacity: 0.5, interactive: false
   }).addTo(map);
