@@ -154,6 +154,7 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 
     <!-- Measure button -->
     <button id="measureBtn">⟷ MEASURE</button>
+    <div id="measureHint" style="display:none;position:absolute;left:8px;top:80px;z-index:810;font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.08em;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:4px 8px;pointer-events:none;">Click to place · Enter or Right-click to finish · Esc to cancel</div>
 
     <!-- Measure result -->
     <div id="measureResult">
@@ -450,16 +451,29 @@ document.getElementById('legendToggle').addEventListener('click', toggleLegend);
 // ── Measure tool ──────────────────────────────────────
 function initMeasure() {
   document.getElementById('measureBtn').addEventListener('click', () => {
-    measureMode = !measureMode;
-    document.getElementById('measureBtn').classList.toggle('active', measureMode);
-    document.getElementById('measureBtn').textContent = measureMode ? '\u2715 CANCEL MEASURE' : '\u27f7 MEASURE';
-    if (!measureMode) clearMeasure();
+    if (measureMode) {
+      // If already measuring, finish if we have points, else cancel
+      if (measPoints.length >= 2) finishMeasure();
+      else {
+        clearMeasure();
+        measureMode = false;
+        document.getElementById('measureBtn').classList.remove('active');
+        document.getElementById('measureBtn').textContent = '\u27f7 MEASURE';
+      }
+    } else {
+      clearMeasure();
+      measureMode = true;
+      document.getElementById('measureBtn').classList.add('active');
+      document.getElementById('measureBtn').textContent = '\u23ce FINISH MEASURE';
+      document.getElementById('measureHint').style.display = 'block';
+    }
   });
   document.getElementById('measureClose').addEventListener('click', () => {
     clearMeasure();
     measureMode = false;
     document.getElementById('measureBtn').classList.remove('active');
     document.getElementById('measureBtn').textContent = '\u27f7 MEASURE';
+    document.getElementById('measureHint').style.display = 'none';
   });
 }
 
@@ -471,13 +485,31 @@ function clearMeasure() {
   document.getElementById('measureResult').style.display = 'none';
 }
 
+function makeMeasureWaypoint(latlng, index) {
+  // Numbered waypoint marker
+  const icon = L.divIcon({
+    html: `<div style="
+      width:22px;height:22px;border-radius:50%;
+      background:#090e0c;border:2px solid #4dcc85;
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Cinzel',serif;font-size:9px;color:#4dcc85;
+      box-shadow:0 0 8px rgba(77,204,133,0.5);
+      pointer-events:none;
+    ">${index + 1}</div>`,
+    className: '',
+    iconSize: [22, 22],
+    iconAnchor: [11, 11]
+  });
+  return L.marker(latlng, { icon, interactive: false, zIndexOffset: 1000 });
+}
+
 function calcMeasureDist(pts) {
   const cal = data.calibration;
   if (!cal || !cal.pixPerHex || pts.length < 2) return null;
   let px = 0;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i-1], b = pts[i];
-    px += Math.sqrt((b.lat-a.lat)**2 + (b.lng-a.lng)**2);
+    px += Math.sqrt((b.lat - a.lat)**2 + (b.lng - a.lng)**2);
   }
   const hexes = px / cal.pixPerHex;
   return { hexes: +hexes.toFixed(1), miles: +(hexes*3).toFixed(1), km: +(hexes*5).toFixed(1) };
@@ -485,10 +517,7 @@ function calcMeasureDist(pts) {
 
 function updateMeasureResult() {
   const dist = calcMeasureDist(measPoints);
-  if (!dist) {
-    document.getElementById('measureResult').style.display = 'none';
-    return;
-  }
+  if (!dist) { document.getElementById('measureResult').style.display = 'none'; return; }
   document.getElementById('measHex').textContent = dist.hexes;
   document.getElementById('measMi').textContent  = dist.miles;
   document.getElementById('measKm').textContent  = dist.km;
@@ -497,34 +526,61 @@ function updateMeasureResult() {
 
 function onMapClick(e) {
   if (!measureMode) return;
-  measPoints.push({lat: e.latlng.lat, lng: e.latlng.lng});
-  const dot = L.circleMarker(e.latlng,{radius:5,color:'#4dcc85',fillColor:'#4dcc85',fillOpacity:1,weight:2}).addTo(map);
-  measLayers.push(dot);
+  const pt = { lat: e.latlng.lat, lng: e.latlng.lng };
+  measPoints.push(pt);
+
+  // Place numbered waypoint marker
+  const wm = makeMeasureWaypoint(e.latlng, measPoints.length - 1);
+  wm.addTo(map);
+  measLayers.push(wm);
+
+  // Draw segment from previous point
   if (measPoints.length >= 2) {
     if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
-    const line = L.polyline(measPoints.map(p => toLL(p)),{color:'#4dcc85',weight:2,dashArray:'6,4',opacity:0.8,interactive:false}).addTo(map);
-    measLayers.push(line);
-    updateMeasureResult();
+    const prev = measPoints[measPoints.length - 2];
+    const seg = L.polyline([toLL(prev), e.latlng], {
+      color: '#4dcc85', weight: 2.5, opacity: 0.9, interactive: false
+    }).addTo(map);
+    measLayers.push(seg);
   }
+
+  updateMeasureResult();
 }
 
 function onMapMouseMove(e) {
   if (!measureMode || measPoints.length === 0) return;
   if (measMouseLine) map.removeLayer(measMouseLine);
-  const last = toLL(measPoints[measPoints.length-1]);
-  measMouseLine = L.polyline([last, e.latlng],
-    {color:'#4dcc85',weight:1.5,dashArray:'4,4',opacity:0.4,interactive:false}).addTo(map);
+  const last = toLL(measPoints[measPoints.length - 1]);
+  measMouseLine = L.polyline([last, e.latlng], {
+    color: '#4dcc85', weight: 1.5, dashArray: '5,5', opacity: 0.5, interactive: false
+  }).addTo(map);
 }
 
 function onMapRightClick(e) {
-  if (measureMode && measPoints.length >= 2) {
-    L.DomEvent.stop(e);
-    if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
+  if (!measureMode) return;
+  L.DomEvent.stop(e);
+  finishMeasure();
+}
+
+function finishMeasure() {
+  if (measMouseLine) { map.removeLayer(measMouseLine); measMouseLine = null; }
+  measureMode = false;
+  document.getElementById('measureBtn').classList.remove('active');
+  document.getElementById('measureBtn').textContent = '\u27f7 MEASURE';
+  document.getElementById('measureHint').style.display = 'none';
+  updateMeasureResult();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && measureMode && measPoints.length >= 2) finishMeasure();
+  if (e.key === 'Escape' && measureMode) {
+    clearMeasure();
     measureMode = false;
     document.getElementById('measureBtn').classList.remove('active');
     document.getElementById('measureBtn').textContent = '\u27f7 MEASURE';
+    document.getElementById('measureHint').style.display = 'none';
   }
-}
+});
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
