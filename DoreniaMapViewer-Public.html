@@ -22,9 +22,9 @@
   --red:        #a04040;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: 100%; max-height: 100%; overflow: hidden; }
-body { width: 100%; height: 100%; max-height: 100%; background: var(--bg); color: var(--text); font-family: 'Crimson Pro', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
-#app { display: flex; flex-direction: column; flex: 1; min-height: 0; max-height: 100%; overflow: hidden; }
+html { height: 100vh; max-height: 100vh; overflow: hidden; }
+body { width: 100%; height: 100vh; max-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Crimson Pro', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+#app { display: flex; flex-direction: column; width: 100%; height: 100vh; max-height: 100vh; overflow: hidden; }
 #header { height: 44px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; position: relative; z-index: 1000; }
 #header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
 .header-title { font-family:'Cinzel',serif; font-size:13px; font-weight:700; color:var(--gold); letter-spacing:0.1em; }
@@ -228,15 +228,9 @@ function initViewer() {
 
   H = md.h;
 
-  const wrap = document.getElementById('map-wrap');
-  const cW = wrap.clientWidth  || window.innerWidth;
-  const cH = wrap.clientHeight || (window.innerHeight - 44);
-  const initZoom = Math.min(Math.log2(cW / md.w), Math.log2(cH / md.h));
-
   map = L.map('map', {
     crs: L.CRS.Simple,
-    minZoom: Math.floor(initZoom) - 1,
-    maxZoom: 3,
+    minZoom: -4, maxZoom: 3,
     zoomSnap: 0.1, zoomDelta: 0.5,
     attributionControl: false, zoomControl: true,
     zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false
@@ -250,10 +244,10 @@ function initViewer() {
     map.fitBounds(bounds, {animate:false, padding:[0,0]});
   }
 
-  fitMap();
-  setTimeout(fitMap, 100);
-  setTimeout(fitMap, 400);
-  setTimeout(fitMap, 900);
+  // Fit immediately and after layout settles
+  setTimeout(fitMap, 0);
+  setTimeout(fitMap, 200);
+  setTimeout(fitMap, 600);
   window.addEventListener('resize', fitMap);
 
   Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
