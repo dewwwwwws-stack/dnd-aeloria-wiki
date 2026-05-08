@@ -183,6 +183,9 @@ let map, data;
 let layerGroups = {};
 let layerVis = {};
 let measureMode = false, measPoints = [], measLayers = [], measMouseLine = null;
+let H = 4000; // map height, updated on init
+function flipY(lat) { return H - lat; }
+function toLL(p) { return [flipY(p.lat), p.lng]; }
 
 // ── Loader ────────────────────────────────────────────
 (function(){
@@ -234,10 +237,7 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  const H = md.h; // map height in pixels — needed to flip Y
-
-  function flipY(lat) { return H - lat; }
-  function toLL(p) { return [flipY(p.lat), p.lng]; }
+  H = md.h; // update module-level height for coordinate flipping
 
   function fitMap() {
     map.invalidateSize({animate:false});
