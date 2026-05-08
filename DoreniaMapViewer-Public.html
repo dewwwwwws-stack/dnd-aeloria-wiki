@@ -32,8 +32,8 @@ body { width: 100%; height: 100%; max-height: 100%; background: var(--bg); color
 #mapLabel { font-family:'Cinzel',serif; font-size:10px; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; }
 .header-spacer { flex:1; }
 #loadStatus { font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.08em; color:var(--text-dim); }
-#map-wrap { flex:1; position:relative; overflow:hidden; min-height:0; }
-#map { position:absolute; inset:0; width:100%; height:100%; }
+#map-wrap { flex:1; position:relative; overflow:hidden; min-height:0; height:100%; }
+#map { position:absolute; inset:0; width:100%; height:100%; background:var(--bg); }
 
 /* Zoom control — keep inside container, hide bottom bar */
 .leaflet-bottom { display:none !important; }
@@ -183,9 +183,8 @@ let map, data;
 let layerGroups = {};
 let layerVis = {};
 let measureMode = false, measPoints = [], measLayers = [], measMouseLine = null;
-let H = 4000; // map height, updated on init
-function flipY(lat) { return H - lat; }
-function toLL(p) { return [flipY(p.lat), p.lng]; }
+let H = 4000;
+function toLL(p) { return [p.lat, p.lng]; }
 
 // ── Loader ────────────────────────────────────────────
 (function(){
@@ -426,7 +425,7 @@ function buildLegend() {
 }
 
 window.flyTo = function(lat,lng) {
-  map.flyTo([flipY(lat), lng], 1, {duration:0.6, animate:true});
+  map.flyTo([lat, lng], 1, {duration:0.6, animate:true});
   if (window.innerWidth < 600) toggleLegend();
 };
 
@@ -488,9 +487,7 @@ function updateMeasureResult() {
 
 function onMapClick(e) {
   if (!measureMode) return;
-  // Store in original coordinate space (flipped back)
-  const origLat = H - e.latlng.lat;
-  measPoints.push({lat: origLat, lng: e.latlng.lng});
+  measPoints.push({lat: e.latlng.lat, lng: e.latlng.lng});
   const dot = L.circleMarker(e.latlng,{radius:5,color:'#4dcc85',fillColor:'#4dcc85',fillOpacity:1,weight:2}).addTo(map);
   measLayers.push(dot);
   if (measPoints.length >= 2) {
