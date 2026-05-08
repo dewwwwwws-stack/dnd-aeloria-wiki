@@ -241,10 +241,19 @@ function initViewer() {
 
   function fitMap() {
     map.invalidateSize({animate:false});
-    map.fitBounds(bounds, {animate:false, padding:[0,0]});
+    const wrap = document.getElementById('map-wrap');
+    const cW = wrap.clientWidth  || window.innerWidth;
+    const cH = wrap.clientHeight || 625;
+    // Calculate exact zoom to fit the map image in the container
+    const zoom = Math.min(
+      Math.log2(cW / md.w),
+      Math.log2(cH / md.h)
+    );
+    // Center of the map in Leaflet CRS.Simple coords
+    const center = [md.h / 2, md.w / 2];
+    map.setView(center, zoom, {animate:false});
   }
 
-  // Fit immediately and after layout settles
   setTimeout(fitMap, 0);
   setTimeout(fitMap, 200);
   setTimeout(fitMap, 600);
