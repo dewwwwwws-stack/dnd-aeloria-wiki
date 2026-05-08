@@ -227,30 +227,34 @@ function initViewer() {
   document.getElementById('loadStatus').textContent =
     'Updated ' + new Date(data.publishedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
 
+  H = md.h;
+
+  const wrap = document.getElementById('map-wrap');
+  const cW = wrap.clientWidth  || window.innerWidth;
+  const cH = wrap.clientHeight || (window.innerHeight - 44);
+  const initZoom = Math.min(Math.log2(cW / md.w), Math.log2(cH / md.h));
+
   map = L.map('map', {
-    crs: L.CRS.Simple, minZoom:-3, maxZoom:3,
-    zoomSnap:0.25, zoomDelta:0.5,
-    attributionControl:false, zoomControl:true,
-    zoomAnimation:false, fadeAnimation:false, markerZoomAnimation:false
+    crs: L.CRS.Simple,
+    minZoom: Math.floor(initZoom) - 1,
+    maxZoom: 3,
+    zoomSnap: 0.1, zoomDelta: 0.5,
+    attributionControl: false, zoomControl: true,
+    zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false
   });
 
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  H = md.h; // update module-level height for coordinate flipping
-
   function fitMap() {
     map.invalidateSize({animate:false});
-    map.fitBounds(bounds, {animate:false, padding:[0,0], maxZoom:1});
+    map.fitBounds(bounds, {animate:false, padding:[0,0]});
   }
 
-  let fitCount = 0;
-  function scheduledFit() {
-    fitMap();
-    fitCount++;
-    if (fitCount < 8) setTimeout(scheduledFit, fitCount < 4 ? 100 : 300);
-  }
-  scheduledFit();
+  fitMap();
+  setTimeout(fitMap, 100);
+  setTimeout(fitMap, 400);
+  setTimeout(fitMap, 900);
   window.addEventListener('resize', fitMap);
 
   Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
