@@ -33,7 +33,7 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 .header-spacer { flex:1; }
 #loadStatus { font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.08em; color:var(--text-dim); }
 #map-wrap { position:relative; overflow:hidden !important; min-height:0; flex:1; }
-#map { position:absolute; top:0; left:0; overflow:hidden !important; }
+#map { position:absolute; top:0; left:0; overflow:hidden !important; background:var(--bg); }
 .leaflet-container { overflow:hidden !important; }
 
 /* Zoom control — keep inside container, hide bottom bar */
@@ -232,14 +232,13 @@ function initViewer() {
 
   H = md.h;
 
-  // Pin dimensions BEFORE creating Leaflet — prevents scrollHeight > clientHeight
-  const wrap = document.getElementById('map-wrap');
   const mapDiv = document.getElementById('map');
+  const wrap = document.getElementById('map-wrap');
+
+  // Set explicit size before init so Leaflet reads correct dimensions
   const cW = wrap.clientWidth  || window.innerWidth;
   const cH = wrap.clientHeight || 625;
-  mapDiv.style.width  = cW + 'px';
-  mapDiv.style.height = cH + 'px';
-  mapDiv.style.overflow = 'hidden';
+  mapDiv.style.cssText = `position:absolute;top:0;left:0;width:${cW}px;height:${cH}px;overflow:hidden;`;
 
   map = L.map('map', {
     crs: L.CRS.Simple,
@@ -252,7 +251,12 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  const zoom = Math.min(Math.log2(cW / md.w), Math.log2(cH / md.h));
+  // Use Leaflet's own measured size for zoom calculation
+  const mapSize = map.getSize();
+  const zoom = Math.min(
+    Math.log2(mapSize.x / md.w),
+    Math.log2(mapSize.y / md.h)
+  );
   map.setView([md.h / 2, md.w / 2], zoom, {animate: false});
 
   window.addEventListener('resize', () => {
@@ -261,7 +265,8 @@ function initViewer() {
     mapDiv.style.width  = nW + 'px';
     mapDiv.style.height = nH + 'px';
     map.invalidateSize({animate: false});
-    const nZoom = Math.min(Math.log2(nW / md.w), Math.log2(nH / md.h));
+    const s = map.getSize();
+    const nZoom = Math.min(Math.log2(s.x / md.w), Math.log2(s.y / md.h));
     map.setView([md.h / 2, md.w / 2], nZoom, {animate: false});
   });
 
