@@ -364,13 +364,7 @@ function renderMarkers() {
     const cat = cats[m.cat] || {label:m.cat, color:'#4dcc85', shape:'circle'};
     const icon = makeIcon(cat);
     let markerPopup = `<div class="popup-inner"><div class="popup-name">${esc(m.name)}</div><div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>${m.notes?`<div class="popup-notes">${esc(m.notes)}</div>`:''}</div>`;
-    if (m.wikiLink) {
-      try {
-        const u = new URL(m.wikiLink);
-        const label = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || m.name).replace(/-/g,' ');
-        markerPopup += `<div class="popup-wiki"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><a href="${esc(m.wikiLink)}" target="_blank" rel="noopener">${esc(label)} ↗</a></div>`;
-      } catch(e) {}
-    }
+    markerPopup += wikiLinkHtmlPub(m.wikiLink, m.name);
     const lm = L.marker(toLL(m),{icon,title:m.name})
       .bindTooltip(esc(m.name), {
         className: 'marker-tooltip',
@@ -404,13 +398,7 @@ function renderRoutes() {
     if (r.dist) popupHtml += `<div style="font-size:12px;color:var(--text-dim);margin-top:4px">${r.dist.hexes} hex · ${r.dist.miles} mi · ${r.dist.km} km</div>`;
     if (r.notes) popupHtml += `<div class="popup-notes">${esc(r.notes)}</div>`;
     popupHtml += '</div>';
-    if (r.wikiLink) {
-      try {
-        const u = new URL(r.wikiLink);
-        const label = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || r.name).replace(/-/g,' ');
-        popupHtml += `<div class="popup-wiki"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><a href="${esc(r.wikiLink)}" target="_blank" rel="noopener">${esc(label)} ↗</a></div>`;
-      } catch(e) {}
-    }
+    popupHtml += wikiLinkHtmlPub(r.wikiLink, r.name);
     line.bindPopup(popupHtml, {maxWidth:260});
     const grp = layerGroups.routes[r.cat];
     if (grp) grp.addLayer(line); else line.addTo(map);
@@ -681,6 +669,22 @@ document.addEventListener('keydown', e => {
     document.getElementById('measureHint').style.display = 'none';
   }
 });
+
+function wikiLinkHtmlPub(url, fallbackName) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    const label = decodeURIComponent(parts[parts.length-1] || fallbackName || 'Read more').replace(/-/g,' ');
+    return `<div class="popup-wiki">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+      <a href="${esc(url)}"
+         onclick="if(!event.ctrlKey&&!event.metaKey&&event.button!==1){event.preventDefault();window.parent.location.href='${esc(url)}'}"
+         style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.06em;color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);"
+      >${esc(label)}</a>
+    </div>`;
+  } catch(e) { return ''; }
+}
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
