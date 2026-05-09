@@ -343,13 +343,13 @@ function makeIcon(cat) {
     moon:    `<path d="M20 13.5A8.5 8.5 0 1110.5 4a6.5 6.5 0 009.5 9.5z" fill="${c}" stroke="${s}" stroke-width="1.2"/>`
   };
   const inner = shapes[cat.shape] || shapes.circle;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" style="position:relative;left:-11px;top:-11px;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.9))">${inner}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" style="filter:drop-shadow(0 2px 5px rgba(0,0,0,0.9))">${inner}</svg>`;
   return L.divIcon({
-    html: `<div style="pointer-events:none">${svg}</div>`,
+    html: `<div style="width:22px;height:22px;margin-left:-11px;margin-top:-11px;cursor:pointer">${svg}</div>`,
     className: '',
-    iconSize: [0, 0],
+    iconSize: [22, 22],
     iconAnchor: [0, 0],
-    popupAnchor: [0, -13]
+    popupAnchor: [11, -11]
   });
 }
 
