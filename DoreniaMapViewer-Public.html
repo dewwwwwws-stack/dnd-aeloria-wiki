@@ -35,8 +35,8 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 .header-spacer { flex:1; }
 #loadStatus { font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.06em; color:var(--text-dim); }
 
-#map-wrap { position:relative; overflow:hidden !important; min-height:0; flex:1; }
-#map { position:absolute; top:0; left:0; overflow:hidden !important; background:var(--bg); }
+#map-wrap { position:relative; overflow:hidden !important; min-height:0; flex:1; width:100%; }
+#map { position:absolute; top:0; left:0; width:100% !important; height:100% !important; overflow:hidden !important; background:var(--bg); }
 .leaflet-container { position:relative !important; overflow:hidden !important; }
 .leaflet-map-pane { position:absolute !important; top:0 !important; left:0 !important; }
 .leaflet-tile-pane { position:absolute !important; top:0 !important; left:0 !important; }
@@ -268,13 +268,8 @@ function initViewer() {
 
   H = md.h;
 
-  const mapDiv = document.getElementById('map');
-  const wrap = document.getElementById('map-wrap');
-
-  // Set explicit size before init so Leaflet reads correct dimensions
-  const cW = wrap.clientWidth  || window.innerWidth;
-  const cH = wrap.clientHeight || 625;
-  mapDiv.style.cssText = `position:absolute;top:0;left:0;width:${cW}px;height:${cH}px;overflow:hidden;`;
+  // Use CSS 100% sizing — no manual pixel calculation needed
+  // The #map CSS is already width:100% height:100%
 
   map = L.map('map', {
     crs: L.CRS.Simple,
@@ -287,10 +282,19 @@ function initViewer() {
   const bounds = [[0,0],[md.h, md.w]];
   L.imageOverlay(md.githubUrl, bounds).addTo(map);
 
-  const mapSize = map.getSize();
-  // Zoom to fill the full width of the container
-  const zoomW = Math.log2(mapSize.x / md.w);
-  map.setView([md.h / 2, md.w / 2], zoomW, {animate: false});
+  function fitWidth() {
+    map.invalidateSize({animate:false});
+    const s = map.getSize();
+    if (s.x > 0) {
+      const z = Math.log2(s.x / md.w);
+      map.setView([md.h / 2, md.w / 2], z, {animate:false});
+    }
+  }
+
+  fitWidth();
+  setTimeout(fitWidth, 100);
+  setTimeout(fitWidth, 500);
+  window.addEventListener('resize', fitWidth);
 
   // Add LAYERS and MEASURE as Leaflet controls (always inside map canvas)
   const LayersControl = L.Control.extend({
@@ -343,13 +347,6 @@ function initViewer() {
     map.on('contextmenu', onMapRightClick);
   });
 
-  window.addEventListener('resize', () => {
-    const nW = wrap.clientWidth  || window.innerWidth;
-    const nH = wrap.clientHeight || 625;
-    mapDiv.style.width  = nW + 'px';
-    mapDiv.style.height = nH + 'px';
-    map.invalidateSize({animate: false});
-  });
 }
 
 // ── Shapes ────────────────────────────────────────────
@@ -622,12 +619,10 @@ function makeMeasureWaypoint(latlng, index) {
       display:flex;align-items:center;justify-content:center;
       font-family:'Cinzel',serif;font-size:9px;color:#4dcc85;
       box-shadow:0 0 8px rgba(77,204,133,0.5);
-      pointer-events:none;
-      margin-left:-11px;margin-top:-11px;
     ">${index + 1}</div>`,
     className: '',
     iconSize: [22, 22],
-    iconAnchor: [0, 0]
+    iconAnchor: [11, 11]
   });
   return L.marker(latlng, { icon, interactive: false, zIndexOffset: 1000 });
 }
