@@ -311,8 +311,12 @@ function initViewer() {
   window.addEventListener('resize', fitWidth);
 
   map.once('moveend', function() {
-    Object.keys(data.markerCats||{}).forEach(k => layerVis['m_'+k] = true);
-    Object.keys(data.routeCats||{}).forEach(k => layerVis['r_'+k] = true);
+  Object.keys(data.markerCats||{}).forEach(k => {
+    layerVis['m_'+k] = (data.layerVisibility?.[k]) !== false;
+  });
+  Object.keys(data.routeCats||{}).forEach(k => {
+    layerVis['r_'+k] = (data.layerVisibility?.['route_'+k]) !== false;
+  });
     renderRoutes();
     renderMarkers();
     renderAnnotations();
@@ -372,7 +376,9 @@ function renderMarkers() {
   const cats = data.markerCats || {};
   layerGroups.markers = {};
   Object.keys(cats).forEach(cat => {
-    layerGroups.markers[cat] = L.layerGroup().addTo(map);
+    const grp = L.layerGroup();
+    if (layerVis['m_'+cat] !== false) grp.addTo(map);
+    layerGroups.markers[cat] = grp;
   });
   (data.markers||[]).forEach(m => {
     const cat = cats[m.cat] || {label:m.cat, color:'#4dcc85', shape:'circle'};
@@ -397,7 +403,9 @@ function renderRoutes() {
   const cats = data.routeCats || {};
   layerGroups.routes = {};
   Object.keys(cats).forEach(cat => {
-    layerGroups.routes[cat] = L.layerGroup().addTo(map);
+    const grp = L.layerGroup();
+    if (layerVis['r_'+cat] !== false) grp.addTo(map);
+    layerGroups.routes[cat] = grp;
   });
   (data.routes||[]).forEach(r => {
     const rc = cats[r.cat] || {label:r.cat, color:'#4dcc85', dash:'solid'};
@@ -480,7 +488,7 @@ function buildLayersPanel() {
       `<div class="layer-toggle-row" onclick="togglePubLayer('m_${cat}','${cat}','marker')">
         ${layerMarkerIcon(def)}
         <span class="layer-toggle-name">${esc(def.label)}</span>
-        <div class="pub-toggle on" id="ptog_m_${cat}"></div>
+        <div class="pub-toggle ${layerVis['m_'+cat]!==false?'on':''}" id="ptog_m_${cat}"></div>
       </div>`
     ).join('');
   }
@@ -490,7 +498,7 @@ function buildLayersPanel() {
       `<div class="layer-toggle-row" onclick="togglePubLayer('r_${cat}','${cat}','route')">
         ${layerRouteIcon(def)}
         <span class="layer-toggle-name">${esc(def.label)}</span>
-        <div class="pub-toggle on" id="ptog_r_${cat}"></div>
+        <div class="pub-toggle ${layerVis['r_'+cat]!==false?'on':''}" id="ptog_r_${cat}"></div>
       </div>`
     ).join('');
   }
