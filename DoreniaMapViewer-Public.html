@@ -331,7 +331,18 @@ function initViewer() {
     renderRoutes();
     renderMarkers();
     renderAnnotations();
-    regionLayerGroup = L.layerGroup(); // init after map exists
+    regionLayerGroup = L.layerGroup();
+    // Create region pane: above overlay (z400) but below markers (z600)
+    if (!map.getPane('regionPane')) {
+      map.createPane('regionPane');
+      map.getPane('regionPane').style.zIndex = 450;
+      map.getPane('regionPane').style.pointerEvents = 'none';
+    }
+    // Create regionHit pane: above SVG flags (z450) to receive clicks
+    if (!map.getPane('regionHitPane')) {
+      map.createPane('regionHitPane');
+      map.getPane('regionHitPane').style.zIndex = 455;
+    }
     renderRegions();
     buildLegend();
     buildLayersPanel();
@@ -762,7 +773,10 @@ function latLngToSvgPct(latlng, bounds) {
 
 function renderRegions() {
   regionLayerGroup.clearLayers();
-  regionSvgOverlays.forEach(o => { try { map.removeLayer(o); } catch(e) {} });
+  regionSvgOverlays.forEach(o => {
+    if (o.svg && o.svg.parentNode) o.svg.parentNode.removeChild(o.svg);
+    if (o.reposition) map.off('zoomend moveend', o.reposition);
+  });
   regionSvgOverlays = [];
 
   (data.regions||[]).forEach(r => {
@@ -772,7 +786,7 @@ function renderRegions() {
     const polygon = L.polygon(pts, {
       color, weight:2.5, opacity:0.9,
       fillColor:color, fillOpacity:0.35,
-      interactive:true, bubblingMouseEvents:true
+      interactive:true, bubblingMouseEvents:false
     });
     polygon.on('add', function() {
       const el = polygon.getElement();
@@ -809,19 +823,30 @@ function renderRegions() {
     svg.setAttribute('viewBox', '0 0 ' + VW + ' ' + VH);
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.style.pointerEvents = 'none';
+    svg.style.position = 'absolute';
     svg.innerHTML = '<defs><clipPath id="clip_' + uid + '"><polygon points="' + clipPts + '"/></clipPath></defs>' +
       '<image href="' + esc(r.flag) + '" x="0" y="0" width="' + VW + '" height="' + VH + '" preserveAspectRatio="xMidYMid slice" opacity="0.65" clip-path="url(#clip_' + uid + ')" style="pointer-events:none"/>';
-    const svgOverlay = L.svgOverlay(svg, bounds, {interactive:false, zIndex:1, opacity:1});
-    svgOverlay.on('add', function() {
-      // Also disable pointer events on the wrapper element Leaflet creates
-      const el = this.getElement();
-      if (el) {
-        el.style.pointerEvents = 'none';
-        if (el.parentElement) el.parentElement.style.pointerEvents = 'none';
-      }
-    });
-    regionLayerGroup.addLayer(svgOverlay);
-    regionSvgOverlays.push(svgOverlay);
+
+    // Track for repositioning on zoom/pan
+    const svgData = { svg, bounds, r };
+
+    function positionSvg() {
+      const topLeft = map.latLngToLayerPoint(bounds.getNorthWest());
+      const bottomRight = map.latLngToLayerPoint(bounds.getSouthEast());
+      const w = bottomRight.x - topLeft.x;
+      const h = bottomRight.y - topLeft.y;
+      svg.style.left = topLeft.x + 'px';
+      svg.style.top  = topLeft.y + 'px';
+      svg.style.width  = w + 'px';
+      svg.style.height = h + 'px';
+    }
+
+    map.getPanes().tilePane.appendChild(svg);
+    positionSvg();
+    svg.style.display = 'none'; // hidden until political mode activated
+    svgData.reposition = positionSvg;
+    map.on('zoomend moveend', positionSvg);
+    regionSvgOverlays.push(svgData);
   });
   buildRegionsPanel();
 }
@@ -837,16 +862,16 @@ function buildRegionsPanel() {
     : '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No regions published</div>';
 }
 
-let regionsOpen = false;
 document.getElementById('regionsToggleBtn').addEventListener('click', () => {
   politicalMode = !politicalMode;
   document.getElementById('regionsToggleBtn').classList.toggle('open', politicalMode);
   document.getElementById('regionsToggleBtn').textContent = politicalMode ? '\u2694 POLITICAL MODE \u2715' : '\u2694 POLITICAL MODE';
   if (politicalMode) {
-    if (!regionLayerGroup) regionLayerGroup = L.layerGroup();
     if (!map.hasLayer(regionLayerGroup)) regionLayerGroup.addTo(map);
+    regionSvgOverlays.forEach(d => { d.svg.style.display = ''; d.reposition(); });
   } else {
-    if (regionLayerGroup && map.hasLayer(regionLayerGroup)) map.removeLayer(regionLayerGroup);
+    if (map.hasLayer(regionLayerGroup)) map.removeLayer(regionLayerGroup);
+    regionSvgOverlays.forEach(d => { d.svg.style.display = 'none'; });
   }
 });
 </script>
