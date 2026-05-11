@@ -750,9 +750,21 @@ function wikiLinkHtmlPub(url, fallbackName) {
 let regionsVisible = false;
 let regionLayerGroup = null;
 let politicalMode = false;
+let regionSvgOverlays = []; // track SVG overlays for cleanup
+
+function latLngToSvgPct(latlng, bounds) {
+  const ne = bounds.getNorthEast(), sw = bounds.getSouthWest();
+  const x = (latlng.lng - sw.lng) / (ne.lng - sw.lng) * 100;
+  const y = (ne.lat - latlng.lat) / (ne.lat - sw.lat) * 100;
+  return [x, y];
+}
 
 function renderRegions() {
   regionLayerGroup.clearLayers();
+  // Remove old SVG overlays
+  regionSvgOverlays.forEach(o => { try { map.removeLayer(o); } catch(e) {} });
+  regionSvgOverlays = [];
+
   (data.regions||[]).forEach(r => {
     const pts = r.points.map(p => toLL(p));
     const color = r.color || '#7c3aed';
@@ -778,45 +790,70 @@ function renderRegions() {
     polygon.bindPopup(popupHtml, {maxWidth:280});
     regionLayerGroup.addLayer(polygon);
 
-    // Flag + label sized to polygon bounds
+    if (!r.flag && !r.name) return;
+
     const bounds = polygon.getBounds();
+    const uid = 'r' + Math.random().toString(36).slice(2,8);
+
+    // Build SVG overlay clipped to polygon bounds
+    // The polygon points as percentages within the bounding box
+    const clipPoints = pts.map(ll => latLngToSvgPct(L.latLng(ll[0], ll[1]), bounds));
+    const clipPath = clipPoints.map((p,i) => (i===0?'M':'L') + p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' ') + ' Z';
+
+    // Center position as percentage
     const center = bounds.getCenter();
+    const [cx, cy] = latLngToSvgPct(center, bounds);
 
-    // Calculate pixel size of polygon at current zoom
-    const neP = map.latLngToLayerPoint(bounds.getNorthEast());
-    const swP = map.latLngToLayerPoint(bounds.getSouthWest());
-    const pxW = Math.abs(neP.x - swP.x);
-    const pxH = Math.abs(neP.y - swP.y);
-    const flagW = Math.round(Math.min(pxW, pxH) * 0.75);
-    const flagH = Math.round(flagW * 0.65);
+    // Flag occupies 70% of the smaller dimension
+    const flagPct = 70;
+    const flagW = flagPct; const flagH = flagPct * 0.65;
+    const flagX = cx - flagW/2; const flagY = cy - flagH/2 - 5;
 
-    let innerHtml = '';
+    // Label below flag
+    const labelY = flagY + flagH + 2;
+
+    let svgContent = `
+      <defs>
+        <clipPath id="clip_${uid}" clipPathUnits="userSpaceOnUse">
+          <path d="${clipPath}" transform="scale(1)"/>
+        </clipPath>
+      </defs>
+      <g clip-path="url(#clip_${uid})" style="pointer-events:none">`;
+
     if (r.flag) {
-      innerHtml = `<div style="
-        width:${flagW}px;height:${flagH}px;
-        border-radius:4px;overflow:hidden;
-        box-shadow:0 3px 12px rgba(0,0,0,0.8);
-        border:2px solid rgba(255,255,255,0.7);
-        margin-bottom:5px;
-      "><img src="${esc(r.flag)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'"></div>`;
+      svgContent += `<image href="${esc(r.flag)}" x="${flagX}%" y="${flagY}%" width="${flagW}%" height="${flagH}%" preserveAspectRatio="xMidYMid slice"/>`;
+      // Semi-transparent overlay on label area
+      svgContent += `<rect x="${cx-flagW/2}%" y="${labelY}%" width="${flagW}%" height="12%" fill="rgba(9,14,12,0.75)" rx="2"/>`;
     }
-    innerHtml += `<div style="
-      background:rgba(9,14,12,0.85);
-      border:1px solid ${color};
-      border-radius:3px;
-      padding:3px 8px;
-      text-align:center;
-      max-width:${Math.max(flagW, 80)}px;
-    ">
-      <div style="font-family:'Cinzel',serif;font-size:${Math.max(9, Math.round(flagW * 0.13))}px;color:#e8dcc4;letter-spacing:0.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.name)}</div>
-      ${r.faction ? `<div style="font-family:'Crimson Pro',serif;font-size:${Math.max(10, Math.round(flagW * 0.14))}px;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.faction)}</div>` : ''}
-    </div>`;
 
-    const labelIcon = L.divIcon({
-      html: `<div style="transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;">${innerHtml}</div>`,
-      className: '', iconSize: [0,0], iconAnchor: [0,0]
-    });
-    regionLayerGroup.addLayer(L.marker(center, {icon:labelIcon, interactive:false, zIndexOffset:-100}));
+    const nameSize = Math.max(1.8, Math.min(3.5, flagW * 0.12));
+    const factionSize = Math.max(1.5, Math.min(3, flagW * 0.1));
+    const nameColor = '#e8dcc4';
+
+    svgContent += `<text x="${cx}%" y="${labelY + 5}%" text-anchor="middle" font-family="Cinzel, serif" font-size="${nameSize}%" fill="${nameColor}" style="pointer-events:none">${esc(r.name)}</text>`;
+    if (r.faction) {
+      svgContent += `<text x="${cx}%" y="${labelY + 9}%" text-anchor="middle" font-family="Crimson Pro, serif" font-size="${factionSize}%" fill="${color}" style="pointer-events:none">${esc(r.faction)}</text>`;
+    }
+
+    svgContent += `</g>`;
+
+    const svgOverlay = L.svgOverlay(
+      (function() {
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('xmlns', ns);
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.style.overflow = 'visible';
+        svg.innerHTML = svgContent;
+        return svg;
+      })(),
+      bounds,
+      { interactive: false, zIndex: 1, opacity: 1 }
+    );
+
+    regionLayerGroup.addLayer(svgOverlay);
+    regionSvgOverlays.push(svgOverlay);
   });
   buildRegionsPanel();
 }
