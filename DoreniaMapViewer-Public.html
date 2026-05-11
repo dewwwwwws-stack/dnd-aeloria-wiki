@@ -411,10 +411,11 @@ function renderRoutes() {
   (data.routes||[]).forEach(r => {
     const rc = cats[r.cat] || {label:r.cat, color:'#4dcc85', dash:'solid'};
     const dashVal = DASH_MAP[rc.dash] !== undefined ? DASH_MAP[rc.dash] : null;
-    const line = L.polyline(r.points.map(p => toLL(p)),{color:rc.color,weight:2.5,dashArray:dashVal,opacity:0.85});
+    const pts = r.points.map(p => toLL(p));
+    const line = L.polyline(pts, {color:rc.color, weight:2.5, dashArray:dashVal, opacity:0.85, interactive:false});
+
     let tt = `<strong>${esc(r.name)}</strong><br><span style="color:${rc.color}">${esc(rc.label)}</span>`;
     if (r.dist) tt += `<br><span style="color:var(--text-dim);font-size:11px">${r.dist.hexes} hex · ${r.dist.miles} mi · ${r.dist.km} km</span>`;
-    line.bindTooltip(tt, {className:'route-tooltip', sticky:true, direction:'top'});
 
     let popupHtml = `<div class="popup-inner">
       <div class="popup-name">${esc(r.name)}</div>
@@ -423,9 +424,15 @@ function renderRoutes() {
     if (r.notes) popupHtml += `<div class="popup-notes">${esc(r.notes)}</div>`;
     popupHtml += '</div>';
     popupHtml += wikiLinkHtmlPub(r.wikiLink, r.name);
-    line.bindPopup(popupHtml, {maxWidth:260});
+
+    // Wide invisible hit area for easy hover/click
+    const hitLine = L.polyline(pts, {color:'transparent', weight:20, opacity:0, interactive:true});
+    hitLine.bindTooltip(tt, {className:'route-tooltip', sticky:true, direction:'top'});
+    hitLine.bindPopup(popupHtml, {maxWidth:260});
+
     const grp = layerGroups.routes[r.cat];
-    if (grp) grp.addLayer(line); else line.addTo(map);
+    if (grp) { grp.addLayer(line); grp.addLayer(hitLine); }
+    else { line.addTo(map); hitLine.addTo(map); }
   });
 }
 
