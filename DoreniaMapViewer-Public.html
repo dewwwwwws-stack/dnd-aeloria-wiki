@@ -168,6 +168,10 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 #layersPanel.open { transform:translateX(0); }
 #legend { position:absolute; right:0; top:0; bottom:0; width:240px; background:var(--surface); border-left:1px solid var(--border); z-index:1900; transform:translateX(100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
 #legend.open { transform:translateX(0); }
+#regionsToggleBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:border-color 0.15s, color 0.15s, background 0.15s; display:block; width:auto !important; }
+#regionsToggleBtn:hover, #regionsToggleBtn.open { border-color:var(--gold-dim); color:var(--gold); background:var(--gold-faint); }
+#regionsPanel { position:absolute; left:0; top:0; bottom:0; width:220px; background:var(--surface); border-right:1px solid var(--border); z-index:1800; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
+#regionsPanel.open { transform:translateX(0); }
 </style>
 </head>
 <body>
@@ -206,13 +210,17 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
       <div id="controlsLeft">
         <button id="layersToggleBtn">LAYERS ▸</button>
         <button id="measureBtn">⟷ MEASURE</button>
+        <button id="regionsToggleBtn">REGIONS ▸</button>
         <div id="measureHint" style="display:none;font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.08em;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:4px 8px;pointer-events:none;white-space:nowrap;">Click to place · Enter or Right-click to finish · Esc to cancel</div>
       </div>
       <div id="controlsRight">
         <button id="legendToggle">LOCATIONS ▸</button>
       </div>
     </div>
-    <!-- Measure result -->
+    <div id="regionsPanel">
+      <div class="layers-header">Regions</div>
+      <div class="layers-body" id="regionsBody"></div>
+    </div>
     <div id="measureResult">
       <div class="meas-val"><span class="meas-num" id="measHex">—</span><span class="meas-unit">Hexes</span></div>
       <div class="meas-sep"></div>
@@ -322,6 +330,7 @@ function initViewer() {
     renderRoutes();
     renderMarkers();
     renderAnnotations();
+    renderRegions();
     buildLegend();
     buildLayersPanel();
     initMeasure();
@@ -707,7 +716,9 @@ document.addEventListener('keydown', e => {
   }
 });
 
-function wikiLinkHtmlPub(url, fallbackName) {
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
   if (!url) return '';
   try {
     const u = new URL(url);
@@ -732,9 +743,72 @@ function downloadMapData() {
   URL.revokeObjectURL(a.href);
 }
 
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ── Regions ───────────────────────────────────────────
+let regionsVisible = false; // off by default
+let regionLayerGroup = L.layerGroup(); // added to map only when toggled on
+
+function renderRegions() {
+  regionLayerGroup.clearLayers();
+  (data.regions||[]).forEach(r => {
+    const pts = r.points.map(p => toLL(p));
+    const color = r.color || '#7c3aed';
+    const polygon = L.polygon(pts, {
+      color, weight:2, opacity:0.9,
+      fillColor:color, fillOpacity:0.35,
+      interactive:true
+    });
+
+    const tt = `<strong>${esc(r.name)}</strong>${r.faction?`<br><span style="color:${color}">${esc(r.faction)}</span>`:''}`;
+    polygon.bindTooltip(tt, {className:'route-tooltip', sticky:true});
+
+    let popupHtml = `<div class="popup-inner"><div class="popup-name">${esc(r.name)}</div>`;
+    if (r.faction) popupHtml += `<div class="popup-type" style="color:${color}">${esc(r.faction)}</div>`;
+    popupHtml += '</div>';
+    popupHtml += wikiLinkHtmlPub(r.wikiLink, r.name);
+    if (r.flag) popupHtml += `<div style="padding:8px 14px"><img src="${esc(r.flag)}" style="max-width:100%;max-height:80px;border-radius:3px;border:1px solid var(--border)"></div>`;
+    polygon.bindPopup(popupHtml, {maxWidth:280});
+
+    regionLayerGroup.addLayer(polygon);
+
+    // Flag at centroid
+    if (r.flag) {
+      const centroid = polygon.getBounds().getCenter();
+      const flagIcon = L.divIcon({
+        html:`<img src="${esc(r.flag)}" style="width:32px;height:32px;object-fit:contain;border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,0.7);transform:translate(-16px,-16px)">`,
+        className:'', iconSize:[0,0], iconAnchor:[0,0]
+      });
+      regionLayerGroup.addLayer(L.marker(centroid, {icon:flagIcon, interactive:false}));
+    }
+  });
+  buildRegionsPanel();
 }
+
+function buildRegionsPanel() {
+  const regions = data.regions||[];
+  document.getElementById('regionsBody').innerHTML = regions.length
+    ? regions.map(r=>`<div class="layer-toggle-row" style="cursor:default">
+        <div style="width:12px;height:12px;border-radius:2px;background:${r.color||'#7c3aed'};flex-shrink:0"></div>
+        <span class="layer-toggle-name">${esc(r.name)}</span>
+        ${r.faction?`<span style="font-size:11px;color:var(--text-dim)">${esc(r.faction)}</span>`:''}
+      </div>`).join('')
+    : '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No regions published</div>';
+}
+
+let regionsOpen = false;
+document.getElementById('regionsToggleBtn').addEventListener('click', () => {
+  regionsOpen = !regionsOpen;
+  document.getElementById('regionsPanel').classList.toggle('open', regionsOpen);
+  document.getElementById('regionsToggleBtn').classList.toggle('open', regionsOpen);
+  document.getElementById('regionsToggleBtn').textContent = regionsOpen ? 'REGIONS \u2715' : 'REGIONS \u25b8';
+
+  // Toggle visibility on first open
+  if (regionsOpen && !regionsVisible) {
+    regionsVisible = true;
+    regionLayerGroup.addTo(map);
+  } else if (!regionsOpen && regionsVisible) {
+    // Keep visible on map when panel closes, user can re-open to see list
+  }
+});
 </script>
 </body>
 </html>
