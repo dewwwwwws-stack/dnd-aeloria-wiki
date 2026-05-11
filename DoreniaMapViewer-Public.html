@@ -330,6 +330,7 @@ function initViewer() {
     renderRoutes();
     renderMarkers();
     renderAnnotations();
+    regionLayerGroup = L.layerGroup(); // init after map exists
     renderRegions();
     buildLegend();
     buildLayersPanel();
@@ -719,6 +720,8 @@ document.addEventListener('keydown', e => {
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+function wikiLinkHtmlPub(url, fallbackName) {
   if (!url) return '';
   try {
     const u = new URL(url);
@@ -733,19 +736,9 @@ function esc(s) {
   } catch(e) { return ''; }
 }
 
-function downloadMapData() {
-  if (!data) return;
-  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `map-data-${MAP_PARAM}-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
 // ── Regions ───────────────────────────────────────────
-let regionsVisible = false; // off by default
-let regionLayerGroup = L.layerGroup(); // added to map only when toggled on
+let regionsVisible = false;
+let regionLayerGroup = null;
 
 function renderRegions() {
   regionLayerGroup.clearLayers();
