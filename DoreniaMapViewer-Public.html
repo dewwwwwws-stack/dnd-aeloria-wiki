@@ -715,8 +715,7 @@ function wikiLinkHtmlPub(url, fallbackName) {
     const label = decodeURIComponent(parts[parts.length-1] || fallbackName || 'Read more').replace(/-/g,' ');
     return `<div class="popup-wiki">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-      <a href="${esc(url)}"
-         onclick="if(!event.ctrlKey&&!event.metaKey&&event.button!==1){event.preventDefault();window.parent.location.href='${esc(url)}'}"
+      <a href="${esc(url)}" target="_top"
          style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.06em;color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);"
       >${esc(label)}</a>
     </div>`;
