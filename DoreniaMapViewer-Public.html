@@ -727,11 +727,21 @@ function wikiLinkHtmlPub(url, fallbackName) {
     const u = new URL(url);
     const parts = u.pathname.split('/').filter(Boolean);
     const label = decodeURIComponent(parts[parts.length-1] || fallbackName || 'Read more').replace(/-/g,' ');
+    // Use id-based click handler to avoid inline JS escaping issues
+    const id = 'wl_' + Math.random().toString(36).slice(2,8);
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        try { window.top.location.href = url; } catch(err) {
+          window.open(url, '_blank');
+        }
+      });
+    }, 50);
     return `<div class="popup-wiki">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-      <a href="${esc(url)}" target="_top"
-         style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.06em;color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);"
-      >${esc(label)}</a>
+      <a id="${id}" href="${esc(url)}" style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.06em;color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);cursor:pointer;">${esc(label)}</a>
     </div>`;
   } catch(e) { return ''; }
 }
