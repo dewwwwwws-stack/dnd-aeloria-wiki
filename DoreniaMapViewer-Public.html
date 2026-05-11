@@ -756,9 +756,13 @@ function renderRegions() {
     const pts = r.points.map(p => toLL(p));
     const color = r.color || '#7c3aed';
     const polygon = L.polygon(pts, {
-      color, weight:2, opacity:0.9,
+      color, weight:2.5, opacity:0.9,
       fillColor:color, fillOpacity:0.35,
-      interactive:true
+      interactive:true, bubblingMouseEvents:true
+    });
+    polygon.on('add', function() {
+      const el = polygon.getElement();
+      if (el) el.querySelectorAll('path').forEach(p => { p.style.pointerEvents = 'stroke'; });
     });
 
     const tt = `<strong>${esc(r.name)}</strong>${r.faction?`<br><span style="color:${color}">${esc(r.faction)}</span>`:''}`;
@@ -788,14 +792,31 @@ function renderRegions() {
 
 function buildRegionsPanel() {
   const regions = data.regions||[];
-  document.getElementById('regionsBody').innerHTML = regions.length
+  const toggleBtn = `<div style="padding:6px 14px 4px;display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.1em;color:var(--text-dim)">REGIONS</span>
+    <button id="pubRegionsToggle" onclick="togglePubRegions()" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.06em;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);padding:3px 8px;border-radius:3px;cursor:pointer;">Hide</button>
+  </div>`;
+  document.getElementById('regionsBody').innerHTML = toggleBtn + (regions.length
     ? regions.map(r=>`<div class="layer-toggle-row" style="cursor:default">
         <div style="width:12px;height:12px;border-radius:2px;background:${r.color||'#7c3aed'};flex-shrink:0"></div>
         <span class="layer-toggle-name">${esc(r.name)}</span>
         ${r.faction?`<span style="font-size:11px;color:var(--text-dim)">${esc(r.faction)}</span>`:''}
       </div>`).join('')
-    : '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No regions published</div>';
+    : '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No regions published</div>');
 }
+
+window.togglePubRegions = function() {
+  if (!regionLayerGroup) return;
+  if (map.hasLayer(regionLayerGroup)) {
+    map.removeLayer(regionLayerGroup);
+    const btn = document.getElementById('pubRegionsToggle');
+    if (btn) btn.textContent = 'Show';
+  } else {
+    regionLayerGroup.addTo(map);
+    const btn = document.getElementById('pubRegionsToggle');
+    if (btn) btn.textContent = 'Hide';
+  }
+};
 
 let regionsOpen = false;
 document.getElementById('regionsToggleBtn').addEventListener('click', () => {
