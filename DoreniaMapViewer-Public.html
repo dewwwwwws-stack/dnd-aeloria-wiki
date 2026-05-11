@@ -210,7 +210,7 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
       <div id="controlsLeft">
         <button id="layersToggleBtn">LAYERS ▸</button>
         <button id="measureBtn">⟷ MEASURE</button>
-        <button id="regionsToggleBtn">REGIONS ▸</button>
+        <button id="regionsToggleBtn">⚔ POLITICAL MODE</button>
         <div id="measureHint" style="display:none;font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.08em;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:4px 8px;pointer-events:none;white-space:nowrap;">Click to place · Enter or Right-click to finish · Esc to cancel</div>
       </div>
       <div id="controlsRight">
@@ -749,12 +749,14 @@ function wikiLinkHtmlPub(url, fallbackName) {
 // ── Regions ───────────────────────────────────────────
 let regionsVisible = false;
 let regionLayerGroup = null;
+let politicalMode = false;
 
 function renderRegions() {
   regionLayerGroup.clearLayers();
   (data.regions||[]).forEach(r => {
     const pts = r.points.map(p => toLL(p));
     const color = r.color || '#7c3aed';
+
     const polygon = L.polygon(pts, {
       color, weight:2.5, opacity:0.9,
       fillColor:color, fillOpacity:0.35,
@@ -774,63 +776,72 @@ function renderRegions() {
     popupHtml += wikiLinkHtmlPub(r.wikiLink, r.name);
     if (r.flag) popupHtml += `<div style="padding:8px 14px"><img src="${esc(r.flag)}" style="max-width:100%;max-height:80px;border-radius:3px;border:1px solid var(--border)"></div>`;
     polygon.bindPopup(popupHtml, {maxWidth:280});
-
     regionLayerGroup.addLayer(polygon);
 
-    // Flag at centroid
+    // Flag + label sized to polygon bounds
+    const bounds = polygon.getBounds();
+    const center = bounds.getCenter();
+
+    // Calculate pixel size of polygon at current zoom
+    const neP = map.latLngToLayerPoint(bounds.getNorthEast());
+    const swP = map.latLngToLayerPoint(bounds.getSouthWest());
+    const pxW = Math.abs(neP.x - swP.x);
+    const pxH = Math.abs(neP.y - swP.y);
+    const flagW = Math.round(Math.min(pxW, pxH) * 0.75);
+    const flagH = Math.round(flagW * 0.65);
+
+    let innerHtml = '';
     if (r.flag) {
-      const centroid = polygon.getBounds().getCenter();
-      const flagIcon = L.divIcon({
-        html:`<img src="${esc(r.flag)}" style="width:32px;height:32px;object-fit:contain;border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,0.7);transform:translate(-16px,-16px)">`,
-        className:'', iconSize:[0,0], iconAnchor:[0,0]
-      });
-      regionLayerGroup.addLayer(L.marker(centroid, {icon:flagIcon, interactive:false}));
+      innerHtml = `<div style="
+        width:${flagW}px;height:${flagH}px;
+        border-radius:4px;overflow:hidden;
+        box-shadow:0 3px 12px rgba(0,0,0,0.8);
+        border:2px solid rgba(255,255,255,0.7);
+        margin-bottom:5px;
+      "><img src="${esc(r.flag)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'"></div>`;
     }
+    innerHtml += `<div style="
+      background:rgba(9,14,12,0.85);
+      border:1px solid ${color};
+      border-radius:3px;
+      padding:3px 8px;
+      text-align:center;
+      max-width:${Math.max(flagW, 80)}px;
+    ">
+      <div style="font-family:'Cinzel',serif;font-size:${Math.max(9, Math.round(flagW * 0.13))}px;color:#e8dcc4;letter-spacing:0.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.name)}</div>
+      ${r.faction ? `<div style="font-family:'Crimson Pro',serif;font-size:${Math.max(10, Math.round(flagW * 0.14))}px;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.faction)}</div>` : ''}
+    </div>`;
+
+    const labelIcon = L.divIcon({
+      html: `<div style="transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;">${innerHtml}</div>`,
+      className: '', iconSize: [0,0], iconAnchor: [0,0]
+    });
+    regionLayerGroup.addLayer(L.marker(center, {icon:labelIcon, interactive:false, zIndexOffset:-100}));
   });
   buildRegionsPanel();
 }
 
 function buildRegionsPanel() {
   const regions = data.regions||[];
-  const toggleBtn = `<div style="padding:6px 14px 4px;display:flex;align-items:center;justify-content:space-between;">
-    <span style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.1em;color:var(--text-dim)">REGIONS</span>
-    <button id="pubRegionsToggle" onclick="togglePubRegions()" style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.06em;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);padding:3px 8px;border-radius:3px;cursor:pointer;">Hide</button>
-  </div>`;
-  document.getElementById('regionsBody').innerHTML = toggleBtn + (regions.length
+  document.getElementById('regionsBody').innerHTML = regions.length
     ? regions.map(r=>`<div class="layer-toggle-row" style="cursor:default">
         <div style="width:12px;height:12px;border-radius:2px;background:${r.color||'#7c3aed'};flex-shrink:0"></div>
         <span class="layer-toggle-name">${esc(r.name)}</span>
         ${r.faction?`<span style="font-size:11px;color:var(--text-dim)">${esc(r.faction)}</span>`:''}
       </div>`).join('')
-    : '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No regions published</div>');
+    : '<div style="padding:12px 14px;font-size:12px;color:var(--text-dim);font-style:italic">No regions published</div>';
 }
-
-window.togglePubRegions = function() {
-  if (!regionLayerGroup) return;
-  if (map.hasLayer(regionLayerGroup)) {
-    map.removeLayer(regionLayerGroup);
-    const btn = document.getElementById('pubRegionsToggle');
-    if (btn) btn.textContent = 'Show';
-  } else {
-    regionLayerGroup.addTo(map);
-    const btn = document.getElementById('pubRegionsToggle');
-    if (btn) btn.textContent = 'Hide';
-  }
-};
 
 let regionsOpen = false;
 document.getElementById('regionsToggleBtn').addEventListener('click', () => {
-  regionsOpen = !regionsOpen;
-  document.getElementById('regionsPanel').classList.toggle('open', regionsOpen);
-  document.getElementById('regionsToggleBtn').classList.toggle('open', regionsOpen);
-  document.getElementById('regionsToggleBtn').textContent = regionsOpen ? 'REGIONS \u2715' : 'REGIONS \u25b8';
-
-  // Toggle visibility on first open
-  if (regionsOpen && !regionsVisible) {
-    regionsVisible = true;
-    regionLayerGroup.addTo(map);
-  } else if (!regionsOpen && regionsVisible) {
-    // Keep visible on map when panel closes, user can re-open to see list
+  politicalMode = !politicalMode;
+  document.getElementById('regionsToggleBtn').classList.toggle('open', politicalMode);
+  document.getElementById('regionsToggleBtn').textContent = politicalMode ? '\u2694 POLITICAL MODE \u2715' : '\u2694 POLITICAL MODE';
+  if (politicalMode) {
+    if (!regionLayerGroup) regionLayerGroup = L.layerGroup();
+    if (!map.hasLayer(regionLayerGroup)) regionLayerGroup.addTo(map);
+  } else {
+    if (regionLayerGroup && map.hasLayer(regionLayerGroup)) map.removeLayer(regionLayerGroup);
   }
 });
 </script>
