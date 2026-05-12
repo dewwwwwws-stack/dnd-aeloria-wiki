@@ -1191,16 +1191,33 @@ function openModal(c) {
   document.getElementById('mComponents').textContent=c.components?'Components: '+c.components:'';
   document.getElementById('mTags').textContent=c.tags?'Tags: '+c.tags:'';
   updateModalGlyph();
-  const bg = document.getElementById('modalBg');
-  // position:fixed doesn't work reliably inside Obsidian's sandboxed iframe —
-  // it anchors to the iframe document top, not the visible viewport.
-  // Fix: use position:absolute and manually pin to the current scroll offset.
-  const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-  const viewH   = window.innerHeight || document.documentElement.clientHeight || 600;
+  pinOverlay(document.getElementById('modalBg'));
+}
+// ── OVERLAY HELPERS ────────────────────────────────────────────────────
+// Both Obsidian's plugin iframe and standard cross-origin iframes need
+// position:absolute overlays pinned to the visible viewport. We read the
+// scroll position from whichever container actually scrolls (body or
+// documentElement varies by browser/iframe context), then lock that
+// container's overflow so the background can't scroll while open.
+function pinOverlay(bg) {
+  const doc = document.documentElement;
+  const body = document.body;
+  const scrollY = window.scrollY || doc.scrollTop || body.scrollTop || 0;
+  const viewH   = window.innerHeight || doc.clientHeight || 600;
   bg.style.top    = scrollY + 'px';
   bg.style.height = viewH + 'px';
+  // Lock scroll on whichever element is actually scrolling
+  bg.dataset.lockedDoc = doc.style.overflow;
+  bg.dataset.lockedBody = body.style.overflow;
+  doc.style.overflow = 'hidden';
+  body.style.overflow = 'hidden';
   bg.classList.add('open');
   bg.scrollTop = 0;
+}
+function unpinOverlay(bg) {
+  bg.classList.remove('open');
+  document.documentElement.style.overflow = bg.dataset.lockedDoc || '';
+  document.body.style.overflow = bg.dataset.lockedBody || '';
 }
 function updateModalGlyph() {
   document.getElementById('mGlyph').innerHTML=getGlyph(mCard,mStyle,mFmt)||'';
@@ -1215,20 +1232,12 @@ function setMF(f,btn) {
   document.querySelectorAll('#mControls .mc-fmt-row .mbtn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active'); updateModalGlyph();
 }
-function closeModal() { document.getElementById('modalBg').classList.remove('open');  }
+function closeModal() { unpinOverlay(document.getElementById('modalBg')); }
 function closeOutside(e) { if(e.target===document.getElementById('modalBg')) closeModal(); }
 
 // ── ADD SPELL ────────────────────────────────────────────────────────
-function openAddPanel()  {
-  const bg = document.getElementById('addPanel');
-  // Same iframe-aware pattern as openModal — position:absolute pinned to current scroll.
-  const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-  const viewH   = window.innerHeight || document.documentElement.clientHeight || 600;
-  bg.style.top    = scrollY + 'px';
-  bg.style.height = viewH + 'px';
-  bg.classList.add('open'); updateSuggestion();
-}
-function closeAddPanel() { document.getElementById('addPanel').classList.remove('open'); clearForm(); }
+function openAddPanel()  { pinOverlay(document.getElementById('addPanel')); updateSuggestion(); }
+function closeAddPanel() { unpinOverlay(document.getElementById('addPanel')); clearForm(); }
 function closeAddOutside(e) { if(e.target===document.getElementById('addPanel')) closeAddPanel(); }
 function updateSuggestion() {
   const school=document.getElementById('aSchool').value;
