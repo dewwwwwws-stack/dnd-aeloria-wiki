@@ -29,10 +29,9 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 .divine-card{width:150px}
 .pact-card{width:200px}
 .octagon-card{width:200px}
-.linear-card{width:500px}
-.scatter-card{width:200px}
+.linear-card{width:560px}
 .card .glyph{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center}
-.linear-card .glyph{aspect-ratio:2.5}
+.linear-card .glyph{aspect-ratio:1.667}
 .card .glyph svg{width:100%;height:auto;display:block;border-radius:5px}
 .glyph-placeholder{width:100%;aspect-ratio:1;background:#0a0a18;border-radius:5px;
   display:flex;align-items:center;justify-content:center;font-size:15px;color:#2a2a4a;font-style:italic}
@@ -45,7 +44,7 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
   align-items:flex-start;justify-content:center;padding:20px 20px 40px;overflow-y:auto}
 .modal-bg.open{display:flex}
 .modal{background:#0d0d1a;border:1px solid #2a2a4a;border-radius:12px;padding:22px;
-  max-width:560px;width:100%;margin:auto}
+  max-width:900px;width:100%;margin:auto}
 .modal-glyph svg{width:100%;height:auto;display:block;margin-bottom:14px}
 .modal h2{font-style:italic;color:#ccc;font-size:28px;margin-bottom:4px}
 .modal-meta{font-size:16px;color:#555;margin-bottom:10px;line-height:1.6}
@@ -112,7 +111,6 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 <button class="tbtn" onclick="setFmt('divine',this)">Divine</button>
 <button class="tbtn" onclick="setFmt('pact',this)">Pact Magic</button>
 <button class="tbtn" onclick="setFmt('octagon',this)">Octagon</button>
-<button class="tbtn" onclick="setFmt('scatter',this)">Scatter</button>
 <button class="tbtn" onclick="setFmt('linear',this)">Linear</button></div>
     <button class="add-btn" onclick="openAddPanel()">+ Add Spell</button>
     <span class="count" id="count"></span>
@@ -184,7 +182,7 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 // ── PERFORMANCE VARS (declared before init) ──────────────────────
 let _filterTimer  = null;
 let _currentCards = [];
-const CARD_W = { arcane: 212, divine: 162, pact: 212, octagon: 212, scatter: 212, linear: 500 };
+const CARD_W = { arcane: 212, divine: 162, pact: 212, octagon: 212, linear: 572 };
 
 
 // ═══════════════════════════════════════════════════════════════════
@@ -488,7 +486,7 @@ const ARC = {
       const lr=this.R+52, ar=this.ANGLES[school]*Math.PI/180;
       const lx=this.CX+lr*Math.sin(ar), ly=this.CY-lr*Math.cos(ar);
       const rot=this.ANGLES[school];
-      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="20" fill="#666" font-style="italic" transform="rotate(${rot},${f(lx)},${f(ly)})">${school}</text>`;
+      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="32" fill="#888" font-style="italic" transform="rotate(${rot},${f(lx)},${f(ly)})">${school}</text>`;
     }
     return s;
   },
@@ -536,8 +534,10 @@ const DIV = {
         const y=this.dotY(d);
         s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${this.DOT_R}" fill="#1a1a30" stroke="#3a3a5a" stroke-width="1.5"/>`;
       }
-      const ly=this.MY-38;
-      s+=`<text x="${f(x)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="auto" font-family="Georgia,serif" font-size="18" fill="#666" font-style="italic" transform="rotate(-90,${f(x)},${f(ly)})">${_SO[i]}</text>`;
+      // Labels rotated -90 with text-anchor="start" so they extend upward.
+      // The viewBox is extended above y=0 in render() to give room.
+      const ly=this.MY-10;
+      s+=`<text x="${f(x)}" y="${f(ly)}" text-anchor="start" dominant-baseline="middle" font-family="Georgia,serif" font-size="28" fill="#888" font-style="italic" transform="rotate(-90,${f(x)},${f(ly)})">${_SO[i]}</text>`;
     }
     return s;
   },
@@ -552,7 +552,10 @@ const DIV = {
     }
     for(const p of pts) s+=renderDot(p.x,p.y,_SC[p.school],p.dot!==null,this.DOT_R);
     s+=labels(name,level,school,style,this.W,this.H);
-    return svg(s,this.W,this.H);
+    // Extend viewBox upward to give rotated school labels room (they extend
+    // from y=MY-10 upward into negative-y space).
+    const top = -180;
+    return `<svg viewBox="0 ${top} ${this.W} ${this.H - top}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
   }
 };
 
@@ -598,7 +601,7 @@ const PACT = (() => {
       let lx=mx, ly=my;
       if(ln>0){ const off=inner?20:-22; lx+=(-ddy/ln)*off; ly+=(ddx/ln)*off; }
       if(angle>90||angle<-90) angle+=180;
-      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="${inner?17:21}" fill="${inner?'#777':'#888'}" font-style="italic" transform="rotate(${f(angle)},${f(lx)},${f(ly)})">${school}</text>`;
+      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="${inner?28:34}" fill="${inner?'#888':'#aaa'}" font-style="italic" transform="rotate(${f(angle)},${f(lx)},${f(ly)})">${school}</text>`;
     }
     return s;
   }
@@ -709,7 +712,7 @@ const OCT = (() => {
       let rot = i * 45;  // 0=top → label reads upward; adjust for readability
       // Keep text readable: flip if pointing generally downward
       if (rot > 90 && rot < 270) rot += 180;
-      s += `<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="20" fill="#666" font-style="italic" transform="rotate(${f(rot)},${f(lx)},${f(ly)})">${school}</text>`;
+      s += `<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="32" fill="#888" font-style="italic" transform="rotate(${f(rot)},${f(lx)},${f(ly)})">${school}</text>`;
     }
     return s;
   }
@@ -733,133 +736,12 @@ const OCT = (() => {
     }
   };
 })();
-// ── SCATTER RENDERER ─────────────────────────────────────────────────
-const SCATTER = (() => {
-  const W=1000, CX=500, CY=500, DOT_R=10;
-  // Safe drawing area: a circle of this radius centred on CX,CY
-  const SAFE_R = 390;
-  // Margin kept clear of the very edge so labels have room
-  const LABEL_MARGIN = 60;
-  // Minimum distance between any two dot positions so they don't pile up
-  const MIN_DIST = 48;
-
-  // Build a stable per-school-per-dot position using the spell name as seed.
-  // We hash school+dot index into an offset so every (school,dot) combo is
-  // independently placed regardless of parse order.
-  function hashSeed(spellName, school, dot) {
-    let h = 0x811c9dc5;
-    for (const c of (spellName + school + dot)) {
-      h ^= c.charCodeAt(0);
-      h = (Math.imul(h, 0x01000193)) >>> 0;
-    }
-    return h;
-  }
-
-  // Generate all 40 positions (8 schools × 5 dots) with collision avoidance.
-  function buildPositions(spellName) {
-    const positions = {};   // key: "school:dot" → [x,y]
-    const placed = [];
-
-    for (const school of _SO) {
-      positions[school] = {};
-      for (let dot = 1; dot <= 5; dot++) {
-        const rng = seededRng(hashSeed(spellName, school, dot));
-        let x, y, attempts = 0;
-        do {
-          // Pick a random point inside a circle, biased away from dead centre
-          const angle = rng.uniform(0, 2 * Math.PI);
-          const r = rng.uniform(SAFE_R * 0.15, SAFE_R - LABEL_MARGIN);
-          x = CX + r * Math.cos(angle);
-          y = CY + r * Math.sin(angle);
-          attempts++;
-          // After many tries just accept wherever we land
-          if (attempts > 40) break;
-        } while (placed.some(([px, py]) => Math.hypot(x - px, y - py) < MIN_DIST));
-        placed.push([x, y]);
-        positions[school][dot] = [x, y];
-      }
-    }
-    return positions;
-  }
-
-  // Cache positions per spell name so base() and render() agree
-  const _posCache = new Map();
-  function getPositions(spellName) {
-    if (!_posCache.has(spellName)) _posCache.set(spellName, buildPositions(spellName));
-    return _posCache.get(spellName);
-  }
-
-  function getDot(spellName, school, dot) {
-    return getPositions(spellName)[school][dot];
-  }
-
-  function getPassthrough(spellName, school, i) {
-    return getDot(spellName, school, (i % 5) + 1);
-  }
-
-  function base(spellName) {
-    let s = `<rect width="${W}" height="${W}" fill="#0d0d1a"/>`;
-    // Faint background circle as bounding reference
-    s += `<circle cx="${CX}" cy="${CY}" r="${SAFE_R + 10}" fill="#12122a" stroke="#222238" stroke-width="1.5"/>`;
-    s += `<circle cx="${CX}" cy="${CY}" r="${SAFE_R * 0.5}" fill="none" stroke="#1a1a30" stroke-width="0.8" stroke-dasharray="4,6"/>`;
-
-    const pos = getPositions(spellName);
-    for (const school of _SO) {
-      const color = _SC[school];
-      for (let dot = 1; dot <= 5; dot++) {
-        const [x, y] = pos[school][dot];
-        // Empty slot: small coloured diamond tinted to its school colour
-        const sz = DOT_R;
-        const pts = `${f(x)},${f(y-sz)} ${f(x+sz)},${f(y)} ${f(x)},${f(y+sz)} ${f(x-sz)},${f(y)}`;
-        s += `<polygon points="${pts}" fill="#1a1a30" stroke="${color}55" stroke-width="1.5"/>`;
-      }
-    }
-    return s;
-  }
-
-  function renderDiamond(x, y, color, isEndpoint, r) {
-    const s = r + (isEndpoint ? 3 : 1);
-    const pts = `${f(x)},${f(y-s)} ${f(x+s)},${f(y)} ${f(x)},${f(y+s)} ${f(x-s)},${f(y)}`;
-    const fill = isEndpoint ? color : '#ffffff33';
-    let out = '';
-    if (isEndpoint) {
-      const gs = s + 5;
-      const gpts = `${f(x)},${f(y-gs)} ${f(x+gs)},${f(y)} ${f(x)},${f(y+gs)} ${f(x-gs)},${f(y)}`;
-      out += `<polygon points="${gpts}" fill="${color}33" stroke="none"/>`;
-    }
-    out += `<polygon points="${pts}" fill="${fill}" stroke="${color}" stroke-width="2" opacity="0.95"/>`;
-    return out;
-  }
-
-  return {
-    render(name, level, school, notation, style) {
-      const parsed = parseNotation(notation);
-      const color = _SC[school];
-      const pts = parsed.map((p, i) => {
-        const [x, y] = p.dot
-          ? getDot(name, p.school, p.dot)
-          : getPassthrough(name, p.school, i);
-        return { x, y, school: p.school, dot: p.dot };
-      });
-      // CX/CY still used as the "centre" reference for psionic/skilled curves
-      let s = base(name);
-      for (let i = 0; i < pts.length - 1; i++) {
-        const { x: x1, y: y1 } = pts[i], { x: x2, y: y2 } = pts[i + 1];
-        s += applyLineStyle(style, x1, y1, x2, y2, color, i * 137 + level, CX, CY);
-      }
-      for (const p of pts) s += renderDiamond(p.x, p.y, _SC[p.school], p.dot !== null, DOT_R);
-      s += labels(name, level, school, style, W);
-      return svg(s, W, W);
-    }
-  };
-})();
-
 // ── LINEAR RENDERER ───────────────────────────────────────────────────
 // One long horizontal line: 8 schools left→right, 5 dots each.
 // Forward hops (left→right) arc above the track; backward hops arc below.
 // Arc height scales with horizontal distance.
 const LIN = (() => {
-  const W=2000, H=800, DOT_R=11;
+  const W=2000, H=1200, DOT_R=11;
   const MX=90, CY=H/2;   // track dead centre — equal space above and below
   const TOTAL = 40;
   const STEP  = (W - 2*MX) / (TOTAL - 1);
@@ -1027,7 +909,7 @@ const LIN = (() => {
         s += `<circle cx="${f(x)}" cy="${f(y)}" r="${DOT_R}" fill="#1e1e3a" stroke="${sc}88" stroke-width="1.5"/>`;
       }
       const gx = MX + (si * 5 + 2) * STEP;
-      s += `<text x="${f(gx)}" y="${CY + 42}" text-anchor="middle" dominant-baseline="auto" font-family="Georgia,serif" font-size="20" fill="#666" font-style="italic">${school}</text>`;
+      s += `<text x="${f(gx)}" y="${CY + 42}" text-anchor="middle" dominant-baseline="auto" font-family="Georgia,serif" font-size="32" fill="#888" font-style="italic">${school}</text>`;
     }
     return s;
   }
@@ -1104,7 +986,6 @@ function renderGlyph(name,level,school,notation,style,fmt){
     case 'pact':    return PACT.render(name,lv,school,notation,style);
     case 'octagon': return OCT.render(name,lv,school,notation,style);
     case 'linear':  return LIN.render(name,lv,school,notation,style);
-    case 'scatter': return SCATTER.render(name,lv,school,notation,style);
     default:        return ARC.render(name,lv,school,notation,style);
   }
 }
@@ -1117,8 +998,8 @@ const SCHOOL_COLORS_MAP = {"Evocation": "#FF2600", "Conjuration": "#0080FF", "Di
 const SCHOOL_ABBREV = {"Evocation": "Ev", "Conjuration": "Co", "Divination": "Di", "Abjuration": "Ab", "Enchantment": "En", "Transmutation": "Tr", "Illusion": "Il", "Necromancy": "Ne"};
 const STYLES        = ["skilled", "novice", "chaotic", "psionic", "natural", "scriptural"];
 const STYLE_LABELS  = {"skilled": "Skilled", "novice": "Novice", "chaotic": "Chaotic", "psionic": "Psionic", "natural": "Natural", "scriptural": "Scriptural"};
-const FORMATS       = ["arcane", "divine", "pact", "octagon", "scatter", "linear"];
-const FORMAT_LABELS = {"arcane": "Arcane", "divine": "Divine", "pact": "Pact Magic", "octagon": "Octagon", "scatter": "Scatter", "linear": "Linear"};
+const FORMATS       = ["arcane", "divine", "pact", "octagon", "linear"];
+const FORMAT_LABELS = {"arcane": "Arcane", "divine": "Divine", "pact": "Pact Magic", "octagon": "Octagon", "linear": "Linear"};
 
 let customCards = [];
 try { customCards = JSON.parse(localStorage.getItem('dorenia_custom_v4')||'[]'); } catch(e) {}
@@ -1220,7 +1101,17 @@ function unpinOverlay(bg) {
   document.body.style.overflow = bg.dataset.lockedBody || '';
 }
 function updateModalGlyph() {
-  document.getElementById('mGlyph').innerHTML=getGlyph(mCard,mStyle,mFmt)||'';
+  const raw = getGlyph(mCard,mStyle,mFmt) || '';
+  // The renderers embed name/level/school/style as three <text> elements at
+  // y=28, y=52, y=74 inside the SVG (see labels() in renderGlyph). In the
+  // modal those titles are redundant with the <h2 id="mName"> below the
+  // glyph and they crowd the artwork. Strip them and crop the viewBox so
+  // the glyph fills the available space cleanly.
+  const stripped = raw
+    .replace(/<text[^>]*y="28"[^>]*>[^<]*<\/text>\s*/, '')
+    .replace(/<text[^>]*y="52"[^>]*>[^<]*<\/text>\s*/, '')
+    .replace(/<text[^>]*y="74"[^>]*>[^<]*<\/text>\s*/, '');
+  document.getElementById('mGlyph').innerHTML = stripped;
 }
 function setMS(s,btn) {
   mStyle=s;
