@@ -165,6 +165,13 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 .meas-sep { width:1px; height:32px; background:var(--border); }
 #measureClose { background:transparent; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; padding:0 0 0 8px; line-height:1; }
 #measureClose:hover { color:var(--gold); }
+.meas-travel { display:flex; flex-direction:column; gap:4px; min-width:140px; }
+#measMode { background:var(--surface); border:1px solid var(--border); color:var(--gold); font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.08em; padding:3px 6px; border-radius:3px; cursor:pointer; text-transform:uppercase; }
+#measMode:hover, #measMode:focus { border-color:var(--gold-dim); outline:none; }
+.meas-times { display:flex; flex-direction:column; gap:2px; }
+.meas-time-row { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.meas-time-lbl { font-size:9px; color:var(--text-dim); letter-spacing:0.08em; text-transform:uppercase; }
+.meas-time-val { font-family:'Cinzel',serif; font-size:11px; color:var(--gold); }
 #layersPanel { position:absolute; left:0; top:0; bottom:0; width:220px; background:var(--surface); border-right:1px solid var(--border); z-index:1900; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
 #layersPanel.open { transform:translateX(0); }
 #legend { position:absolute; right:0; top:0; bottom:0; width:240px; background:var(--surface); border-left:1px solid var(--border); z-index:1900; transform:translateX(100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
@@ -228,6 +235,19 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
       <div class="meas-val"><span class="meas-num" id="measMi">—</span><span class="meas-unit">Miles</span></div>
       <div class="meas-sep"></div>
       <div class="meas-val"><span class="meas-num" id="measKm">—</span><span class="meas-unit">km</span></div>
+      <div class="meas-sep"></div>
+      <div class="meas-travel">
+        <select id="measMode">
+          <option value="walking">Walking</option>
+          <option value="carriage">Carriage</option>
+          <option value="ship">Sailing Ship</option>
+          <option value="airship">Airship</option>
+        </select>
+        <div class="meas-times">
+          <div class="meas-time-row"><span class="meas-time-lbl">8hr day</span><span class="meas-time-val" id="measTime8">—</span></div>
+          <div class="meas-time-row"><span class="meas-time-lbl">Continuous</span><span class="meas-time-val" id="measTime24">—</span></div>
+        </div>
+      </div>
       <button id="measureClose" title="Clear">✕</button>
     </div>
   </div>
@@ -623,6 +643,17 @@ function initMeasure() {
     document.getElementById('measureBtn').textContent = '\u27f7 MEASURE';
     document.getElementById('measureHint').style.display = 'none';
   });
+  // Restore saved travel mode and wire change handler
+  try {
+    const savedMode = localStorage.getItem('dorenia_measMode');
+    if (savedMode && TRAVEL_SPEEDS[savedMode]) {
+      document.getElementById('measMode').value = savedMode;
+    }
+  } catch (e) {}
+  document.getElementById('measMode').addEventListener('change', (e) => {
+    try { localStorage.setItem('dorenia_measMode', e.target.value); } catch (err) {}
+    updateMeasureResult();
+  });
 }
 
 function clearMeasure() {
@@ -662,12 +693,67 @@ function calcMeasureDist(pts) {
   return { hexes: +hexes.toFixed(1), miles: +(hexes*3).toFixed(1), km: +(hexes*5).toFixed(1) };
 }
 
+// Travel speeds (mph) for 5e 2024 travel pace
+const TRAVEL_SPEEDS = {
+  walking:  { mph: 3, continuous: false },  // Normal pace
+  carriage: { mph: 3, continuous: false },  // Light carriage / wagon
+  ship:     { mph: 4, continuous: true  },  // Sailing ship, crew rotates
+  airship:  { mph: 8, continuous: true  }   // Magical airship
+};
+
+function formatTravelTime(hours) {
+  if (!isFinite(hours) || hours <= 0) return '—';
+  if (hours < 1) {
+    const mins = Math.round(hours * 60);
+    return mins + ' min';
+  }
+  if (hours < 24) {
+    const h = Math.round(hours * 10) / 10;
+    return h + ' hr' + (h === 1 ? '' : 's');
+  }
+  const days = Math.floor(hours / 24);
+  const rem = Math.round(hours - days * 24);
+  if (rem === 0) return days + ' day' + (days === 1 ? '' : 's');
+  if (rem === 24) return (days + 1) + ' day' + (days + 1 === 1 ? '' : 's');
+  return days + 'd ' + rem + 'h';
+}
+
+function calcTravelTimes(miles, mode) {
+  const s = TRAVEL_SPEEDS[mode];
+  if (!s || !miles) return { t8: '—', t24: '—' };
+  const totalHours = miles / s.mph;
+  if (s.continuous) {
+    // Ship/airship: same value both columns, they travel 24/7
+    const t = formatTravelTime(totalHours);
+    return { t8: t, t24: t };
+  }
+  // Walking/carriage: 8hr travel day vs forced march continuous
+  // 8hr/day: total miles / (mph * 8) = days, then days * 24 hours for display
+  const days8 = totalHours / 8;
+  const displayHours8 = days8 * 24;
+  return {
+    t8:  formatTravelTime(displayHours8),
+    t24: formatTravelTime(totalHours)
+  };
+}
+
 function updateMeasureResult() {
   const dist = calcMeasureDist(measPoints);
   if (!dist) { document.getElementById('measureResult').style.display = 'none'; return; }
   document.getElementById('measHex').textContent = dist.hexes;
   document.getElementById('measMi').textContent  = dist.miles;
   document.getElementById('measKm').textContent  = dist.km;
+  const mode = document.getElementById('measMode').value;
+  const times = calcTravelTimes(dist.miles, mode);
+  document.getElementById('measTime8').textContent  = times.t8;
+  document.getElementById('measTime24').textContent = times.t24;
+  // Hide 8hr row for continuous modes (ship/airship) since both values are identical
+  const isContinuous = TRAVEL_SPEEDS[mode] && TRAVEL_SPEEDS[mode].continuous;
+  const rows = document.querySelectorAll('#measureResult .meas-time-row');
+  if (rows.length === 2) {
+    rows[0].style.display = isContinuous ? 'none' : 'flex';
+    rows[1].querySelector('.meas-time-lbl').textContent = isContinuous ? 'Travel time' : 'Continuous';
+  }
   document.getElementById('measureResult').style.display = 'flex';
 }
 
