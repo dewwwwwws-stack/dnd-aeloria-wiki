@@ -57,10 +57,14 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
   max-height:calc(100vh - 60px);padding-right:4px}
 .modal-right::-webkit-scrollbar{width:3px}
 .modal-right::-webkit-scrollbar-thumb{background:#2a2a4a;border-radius:2px}
-/* Format button row: wraps to two lines, compact sizing, no truncation */
-.mc-fmt-row{flex-wrap:wrap !important;overflow:visible}
-.mc-fmt-row .mbtn{flex:0 1 auto;white-space:nowrap;min-width:0;
-  font-size:13px;padding:3px 6px}
+/* Controls: two labelled sections, buttons never truncate */
+.mc-section-label{font-size:10px;color:#444;letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:3px;margin-top:6px}
+.mc-section-label:first-child{margin-top:0}
+.mc-style-row,.mc-fmt-row{display:flex;flex-wrap:wrap;gap:4px;overflow:visible}
+.mc-style-row .mbtn,.mc-fmt-row .mbtn{
+  flex:0 0 auto;white-space:nowrap;min-width:0 !important;
+  font-size:13px;padding:3px 8px}
 /* Narrow viewports: stack vertically */
 @media(max-width:560px){
   .modal{flex-direction:column;max-height:none;overflow:visible}
@@ -73,9 +77,8 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 .modal-meta span{display:inline-block;margin-right:14px}
 .mc{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
 .mc-row{display:flex;gap:4px;flex-wrap:wrap}
-.mc-fmt-row .mbtn{flex:1}
-.mbtn{flex:1;min-width:56px;background:#080812;border:1px solid #2a2a4a;color:#555;
-  padding:4px;border-radius:5px;cursor:pointer;font-size:15px;
+.mbtn{flex:0 0 auto;background:#080812;border:1px solid #2a2a4a;color:#555;
+  padding:4px 8px;border-radius:5px;cursor:pointer;font-size:14px;
   font-family:Georgia,serif;text-align:center;white-space:nowrap}
 .mbtn.active{border-color:#6060aa;color:#aac}
 .notation-big{font-family:monospace;font-size:15px;color:#445;background:#080812;
@@ -1357,13 +1360,17 @@ function setFmt(f,btn) {
 function buildControls() {
   const mc=document.getElementById('mControls');
   mc.innerHTML='';
-  const sr=document.createElement('div'); sr.className='mc-row';
+  const sl=document.createElement('div'); sl.className='mc-section-label';
+  sl.textContent='Line Style'; mc.appendChild(sl);
+  const sr=document.createElement('div'); sr.className='mc-style-row';
   STYLES.forEach(s=>{
     const d=document.createElement('div');
     d.className='mbtn'+(s===mStyle?' active':'');
     d.textContent=STYLE_LABELS[s]; d.onclick=()=>setMS(s,d); sr.appendChild(d);
   }); mc.appendChild(sr);
-  const fr=document.createElement('div'); fr.className='mc-row mc-fmt-row';
+  const fl=document.createElement('div'); fl.className='mc-section-label';
+  fl.textContent='Render Style'; mc.appendChild(fl);
+  const fr=document.createElement('div'); fr.className='mc-fmt-row';
   FORMATS.forEach(f=>{
     const d=document.createElement('div');
     d.className='mbtn'+(f===mFmt?' active':'');
@@ -1457,7 +1464,7 @@ function _resizeModalLeft(svgStr) {
 }
 function setMS(s,btn) {
   mStyle=s;
-  document.querySelectorAll('#mControls .mc-row:first-child .mbtn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#mControls .mc-style-row .mbtn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active'); updateModalGlyph();
 }
 function setMF(f,btn) {
