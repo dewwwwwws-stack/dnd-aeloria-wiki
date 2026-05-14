@@ -57,9 +57,10 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
   max-height:calc(100vh - 60px);padding-right:4px}
 .modal-right::-webkit-scrollbar{width:3px}
 .modal-right::-webkit-scrollbar-thumb{background:#2a2a4a;border-radius:2px}
-/* Format button row: scrollable so labels never truncate */
-.mc-fmt-row{overflow-x:auto;flex-wrap:nowrap !important;padding-bottom:2px}
-.mc-fmt-row .mbtn{flex:0 0 auto;white-space:nowrap}
+/* Format button row: wraps to two lines, compact sizing, no truncation */
+.mc-fmt-row{flex-wrap:wrap !important;overflow:visible}
+.mc-fmt-row .mbtn{flex:0 1 auto;white-space:nowrap;min-width:0;
+  font-size:13px;padding:3px 6px}
 /* Narrow viewports: stack vertically */
 @media(max-width:560px){
   .modal{flex-direction:column;max-height:none;overflow:visible}
