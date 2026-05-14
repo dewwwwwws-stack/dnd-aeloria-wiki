@@ -44,22 +44,28 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
   align-items:center;justify-content:center;padding:12px;overflow-y:auto}
 .modal-bg.open{display:flex}
 .modal{background:#0d0d1a;border:1px solid #2a2a4a;border-radius:12px;padding:18px;
-  max-width:860px;width:100%;margin:auto;
-  display:flex;flex-direction:row;gap:18px;align-items:flex-start;
+  max-width:960px;width:100%;margin:auto;
+  display:flex;flex-direction:row;gap:18px;align-items:stretch;
   max-height:calc(100vh - 24px);overflow:hidden}
-.modal-left{flex:0 0 auto;width:min(42%, 340px)}
-.modal-glyph svg{width:100%;height:auto;display:block;margin-bottom:0;
-  max-height:calc(100vh - 80px);object-fit:contain}
-.modal-right{flex:1 1 0;min-width:0;overflow-y:auto;
+/* modal-left width is set dynamically by JS based on glyph aspect ratio */
+.modal-left{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  min-width:120px}
+.modal-glyph{width:100%;height:100%;display:flex;align-items:center}
+.modal-glyph svg{width:100%;height:100%;max-height:calc(100vh - 60px);
+  object-fit:contain;display:block}
+.modal-right{flex:1 1 0;min-width:220px;overflow-y:auto;
   max-height:calc(100vh - 60px);padding-right:4px}
 .modal-right::-webkit-scrollbar{width:3px}
 .modal-right::-webkit-scrollbar-thumb{background:#2a2a4a;border-radius:2px}
+/* Format button row: scrollable so labels never truncate */
+.mc-fmt-row{overflow-x:auto;flex-wrap:nowrap !important;padding-bottom:2px}
+.mc-fmt-row .mbtn{flex:0 0 auto;white-space:nowrap}
 /* Narrow viewports: stack vertically */
-@media(max-width:600px){
+@media(max-width:560px){
   .modal{flex-direction:column;max-height:none;overflow:visible}
-  .modal-left{width:100%}
-  .modal-right{max-height:none;overflow-y:visible}
+  .modal-left{width:100% !important;height:auto}
   .modal-glyph svg{max-height:50vh}
+  .modal-right{max-height:none;overflow-y:visible}
 }
 .modal h2{font-style:italic;color:#ccc;font-size:28px;margin-bottom:4px}
 .modal-meta{font-size:16px;color:#555;margin-bottom:10px;line-height:1.6}
@@ -1422,6 +1428,31 @@ function updateModalGlyph() {
     .replace(/<text[^>]*y="52"[^>]*>[^<]*<\/text>\s*/, '')
     .replace(/<text[^>]*y="74"[^>]*>[^<]*<\/text>\s*/, '');
   document.getElementById('mGlyph').innerHTML = stripped;
+  // Resize modal-left based on glyph aspect ratio so it fills space properly
+  _resizeModalLeft(stripped);
+}
+
+function _resizeModalLeft(svgStr) {
+  const ml = document.querySelector('.modal-left');
+  if(!ml) return;
+  const vb = (svgStr.match(/viewBox="([^"]+)"/) || [])[1];
+  if(!vb) { ml.style.width = '42%'; return; }
+  const [,, w, h] = vb.split(/\s+/).map(Number);
+  const ratio = w / h;
+  // Landscape (linear ≈1.67): give glyph more width
+  // Square (≈1.0): standard 42%
+  // Portrait (div ≈0.8): less width
+  const vw = window.innerWidth || 900;
+  const vh = window.innerHeight || 700;
+  const modalW = Math.min(960, vw - 24);
+  const rightMinW = 260;
+  const pad = 36 + 18; // padding + gap
+  const maxGlyphW = modalW - rightMinW - pad;
+  const maxGlyphH = vh - 60;
+  // Fit glyph within maxGlyphW × maxGlyphH maintaining aspect ratio
+  let glyphW = Math.min(maxGlyphW, maxGlyphH * ratio);
+  glyphW = Math.max(120, glyphW);
+  ml.style.width = Math.round(glyphW) + 'px';
 }
 function setMS(s,btn) {
   mStyle=s;
