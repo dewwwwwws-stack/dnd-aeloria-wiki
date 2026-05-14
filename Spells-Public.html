@@ -1479,8 +1479,8 @@ function addSpell() {
     tags:'',color:SCHOOL_COLORS_MAP[school]||'#888',custom:true,
   };
   closeAddPanel(); filter();
-  document.getElementById('count').style.color='#6a9';
-  setTimeout(()=>document.getElementById('count').style.color='',1800);
+  document.getElementById('count')?.style && (document.getElementById('count').style.color='#6a9');
+  setTimeout(()=>{const c=document.getElementById('count');if(c)c.style.color='';},1800);
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────
@@ -1521,7 +1521,7 @@ function prewarmCache(cards) {
 
 function renderGrid(cards) {
   const grid = document.getElementById('grid');
-  document.getElementById('count').textContent = cards.length + ' spells';
+  const _cnt=document.getElementById('count');if(_cnt)_cnt.textContent=cards.length+' spells';
   grid.innerHTML = '';
   grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:12px;padding:14px 18px;';
   const cls = fmt + '-card';
