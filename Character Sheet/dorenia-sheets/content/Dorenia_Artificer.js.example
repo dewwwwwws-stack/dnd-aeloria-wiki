@@ -1,0 +1,102 @@
+/* Dorenia Homebrew - Artificer class
+   Tests the class detection path
+*/
+
+RequiredSheetVersion("13.2.3", 15);
+
+ClassList["artificer"] = {
+    name : "Artificer",
+    regExpSearch : /artificer/i,
+    source : [["DOR", 0]],
+    primaryAbility : "Intelligence",
+    abilitySave : 4,  // Int
+    prereqs : "Intelligence 13",
+    die : 8,
+    improvements : [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0],
+    saves : ["Con", "Int"],
+    skillstxt : "Choose two from Arcana, History, Investigation, Medicine, Nature, Perception, Sleight of Hand",
+    armor : [[true, true, false, true]],
+    weapons : [[true, false, ["light crossbow"]]],
+    equipment : "Studded leather, dungeoneer's pack, light crossbow + 20 bolts, thieves' tools, artisan's tools",
+    subclasses : ["Artificer Specialist", ["alchemist", "armorer", "artillerist", "battle smith"]],
+    spellcastingFactor : 2,
+    features : {
+        "magical tinkering" : {
+            name : "Magical Tinkering",
+            source : [["DOR", 0]],
+            minlevel : 1,
+            description : "I can imbue a tiny object with one of several minor magical properties — a faint light, a recorded message, a scent, a static visual effect, or a steady vibration.",
+            usages : "Int modifier"
+        },
+        "spellcasting" : {
+            name : "Spellcasting",
+            source : [["DOR", 0]],
+            minlevel : 1,
+            description : "I cast artificer spells using Intelligence. I prepare a number of spells equal to my Int mod + half my artificer level, rounded down (minimum 1)."
+        },
+        "infuse item" : {
+            name : "Infuse Item",
+            source : [["DOR", 0]],
+            minlevel : 2,
+            description : "I gain the ability to imbue mundane items with magic. I know 4 infusions and can have 2 infused items at once."
+        },
+        "the right tool for the job" : {
+            name : "The Right Tool for the Job",
+            source : [["DOR", 0]],
+            minlevel : 3,
+            description : "With thieves' tools or artisan's tools in hand, I can magically create one set of artisan's tools in an unoccupied space within 5 feet."
+        },
+        "tool expertise" : {
+            name : "Tool Expertise",
+            source : [["DOR", 0]],
+            minlevel : 6,
+            description : "My proficiency bonus is doubled for any ability check I make that uses my proficiency with a tool."
+        },
+        "flash of genius" : {
+            name : "Flash of Genius",
+            source : [["DOR", 0]],
+            minlevel : 7,
+            description : "When I or another creature within 30 feet makes an ability check or saving throw, I can use my reaction to add my Int modifier to the roll.",
+            usages : "Int modifier",
+            recovery : "long rest"
+        },
+        "magic item adept" : {
+            name : "Magic Item Adept",
+            source : [["DOR", 0]],
+            minlevel : 10,
+            description : "I can attune up to four magic items at once."
+        },
+        "spell-storing item" : {
+            name : "Spell-Storing Item",
+            source : [["DOR", 0]],
+            minlevel : 11,
+            description : "I can store a spell of 1st or 2nd level in an item, allowing others to cast it."
+        }
+    }
+};
+
+AddSubClass("artificer", "battle smith", {
+    regExpSearch : /^(?=.*battle)(?=.*smith).*$/i,
+    subname : "Battle Smith",
+    source : [["DOR", 5]],
+    features : {
+        "subclassfeature3" : {
+            name : "Battle Smith Magic",
+            source : [["DOR", 5]],
+            minlevel : 3,
+            description : "I gain the heroism and shield spells; they don't count against the number of spells I can prepare."
+        },
+        "subclassfeature3.1" : {
+            name : "Battle Ready",
+            source : [["DOR", 5]],
+            minlevel : 3,
+            description : "I gain proficiency with martial weapons. When attacking with a magic weapon, I can use Int instead of Str/Dex."
+        },
+        "subclassfeature3.2" : {
+            name : "Steel Defender",
+            source : [["DOR", 5]],
+            minlevel : 3,
+            description : "I summon a metal companion that obeys my commands. AC 15, HP = 2 + my Int mod + 5 × artificer level."
+        }
+    }
+});

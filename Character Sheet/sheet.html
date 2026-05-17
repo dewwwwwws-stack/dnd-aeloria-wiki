@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Sheet — Dorenia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Cinzel:wght@400;500;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Parchment + ink theme */
+    --paper: #f4ecd8;
+    --paper-shade: #ebe1c8;
+    --paper-deep: #d9cba5;
+    --ink: #2b1810;
+    --ink-soft: #4a3528;
+    --ink-faint: #7a6651;
+    --rule: #b8a577;
+    --accent: #8b1e1e;        /* heraldic crimson */
+    --accent-deep: #5e1212;
+    --gold: #a8852b;
+    --gold-pale: #d4b961;
+    --good: #4a6b3a;
+    --bad: #8b1e1e;
+    --shadow: 0 1px 2px rgba(43, 24, 16, 0.15), 0 2px 8px rgba(43, 24, 16, 0.08);
+    --shadow-deep: 0 4px 12px rgba(43, 24, 16, 0.18), 0 8px 24px rgba(43, 24, 16, 0.1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 17px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* Subtle paper texture via layered gradients */
+  body {
+    background-image:
+      radial-gradient(ellipse at 20% 30%, rgba(184, 165, 119, 0.08) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 70%, rgba(168, 133, 43, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 10%, rgba(139, 30, 30, 0.04) 0%, transparent 70%);
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* ============= LOADING / ERROR STATES ============= */
+  .state-msg {
+    text-align: center;
+    padding: 60px 20px;
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    color: var(--ink-faint);
+  }
+  .state-msg .glyph {
+    font-family: 'Cinzel', serif;
+    font-size: 48px;
+    color: var(--rule);
+    margin-bottom: 16px;
+  }
+
+  /* ============= HEADER / NAME PLATE ============= */
+  .nameplate {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 24px;
+    align-items: center;
+    padding: 24px 28px;
+    background: var(--paper-shade);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    box-shadow: var(--shadow-deep);
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .nameplate::before,
+  .nameplate::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 30px;
+    height: 1px;
+    background: linear-gradient(to var(--dir, right), var(--gold), transparent);
+  }
+  .nameplate::before { left: -16px; --dir: left; }
+  .nameplate::after { right: -16px; }
+
+  .portrait {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: var(--paper-deep) center / cover;
+    border: 2px solid var(--gold);
+    box-shadow: inset 0 0 0 2px var(--paper-shade), var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-faint);
+    font-family: 'Cinzel', serif;
+    font-size: 32px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .name-info h1 {
+    font-family: 'Cinzel', serif;
+    font-size: 36px;
+    margin: 0 0 4px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+  }
+  .name-info .subtitle {
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--ink-soft);
+  }
+
+  .level-badge {
+    background: var(--ink);
+    color: var(--paper);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cinzel', serif;
+    box-shadow: var(--shadow);
+  }
+  .level-badge .num {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .level-badge .lbl {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    margin-top: 2px;
+    color: var(--gold-pale);
+  }
+
+  /* ============= TABS ============= */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--rule);
+  }
+  .tab {
+    padding: 12px 24px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    transition: all 0.15s ease;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  /* ============= CARDS ============= */
+  .card {
+    background: var(--paper-shade);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  /* ============= GRID LAYOUTS ============= */
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 320px 1fr 280px;
+    gap: 20px;
+  }
+  @media (max-width: 1000px) {
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* ============= ABILITY SCORES ============= */
+  .ability-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .ability {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 10px 6px;
+    text-align: center;
+    position: relative;
+  }
+  .ability .name {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+  }
+  .ability .mod {
+    font-family: 'Cinzel', serif;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+    margin: 4px 0;
+  }
+  .ability .score {
+    font-family: 'IM Fell English', serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: var(--paper-shade);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 1px 8px;
+    display: inline-block;
+  }
+
+  /* ============= COMBAT STATS (AC/INIT/SPEED) ============= */
+  .combat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .combat-stat {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 10px;
+    text-align: center;
+  }
+  .combat-stat .lbl {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+  }
+  .combat-stat .val {
+    font-family: 'Cinzel', serif;
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.1;
+    margin-top: 3px;
+  }
+  .combat-stat .sub {
+    font-size: 11px;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+
+  /* ============= HP DISPLAY ============= */
+  .hp-card {
+    background: linear-gradient(180deg, var(--paper-shade) 0%, var(--paper) 100%);
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .hp-card .hp-label {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .hp-card .hp-value {
+    font-family: 'Cinzel', serif;
+    font-size: 38px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+    margin: 4px 0 2px;
+  }
+  .hp-card .hp-value .slash {
+    color: var(--rule);
+    margin: 0 4px;
+    font-weight: 400;
+  }
+  .hp-card .hp-value .max {
+    color: var(--ink-faint);
+    font-size: 26px;
+  }
+  .hp-card .hp-bar {
+    height: 6px;
+    background: var(--paper-deep);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .hp-card .hp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+    transition: width 0.3s ease;
+  }
+  .hp-card .hp-temp {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  /* ============= SAVES / SKILLS ============= */
+  .stat-list { list-style: none; padding: 0; margin: 0; }
+  .stat-list li {
+    display: flex;
+    align-items: center;
+    padding: 4px 4px;
+    font-size: 14px;
+    border-bottom: 1px dotted var(--paper-deep);
+  }
+  .stat-list li:last-child { border-bottom: none; }
+  .stat-list .prof-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--ink-soft);
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+  .stat-list .prof-dot.proficient {
+    background: var(--ink);
+  }
+  .stat-list .prof-dot.expertise {
+    background: var(--gold);
+    border-color: var(--gold);
+  }
+  .stat-list .stat-name { flex: 1; }
+  .stat-list .stat-sub {
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 8px;
+  }
+  .stat-list .stat-val {
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    color: var(--ink);
+    min-width: 30px;
+    text-align: right;
+  }
+
+  /* ============= SPELL CASTING CARDS ============= */
+  .spellcast-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .spellcast-stat {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .spellcast-stat .lbl {
+    font-family: 'Cinzel', serif;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    line-height: 1.2;
+  }
+  .spellcast-stat .val {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  /* ============= SPELL LIST ============= */
+  .spell-level-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 20px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .spell-level-header h3 {
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    margin: 0;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .spell-slots {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .spell-slot {
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--ink-soft);
+    border-radius: 50%;
+    background: var(--paper);
+  }
+  .spell-slot.used {
+    background: var(--ink-soft);
+  }
+  .spell-list-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .spell-list-items li {
+    padding: 6px 4px;
+    border-bottom: 1px dotted var(--paper-deep);
+    font-size: 15px;
+  }
+  .spell-list-items li:last-child { border-bottom: none; }
+  .spell-list-items .spell-name {
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+  .spell-list-items .spell-tag {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--ink-faint);
+    font-style: italic;
+    margin-left: 6px;
+  }
+
+  /* ============= INVENTORY ============= */
+  .inv-list { list-style: none; padding: 0; margin: 0; }
+  .inv-list li {
+    padding: 8px 6px;
+    border-bottom: 1px dotted var(--paper-deep);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .inv-list li:last-child { border-bottom: none; }
+  .inv-list .inv-qty {
+    font-family: 'IM Fell English', serif;
+    color: var(--ink-faint);
+    min-width: 24px;
+    text-align: right;
+  }
+  .inv-list .inv-name {
+    flex: 1;
+    text-transform: capitalize;
+  }
+  .inv-list .inv-name.homebrew::after {
+    content: 'DOR';
+    display: inline-block;
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    background: var(--accent);
+    color: var(--paper);
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .inv-list .inv-equipped {
+    font-size: 11px;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  .inv-list .inv-note {
+    flex-basis: 100%;
+    padding-left: 32px;
+    font-size: 12px;
+    color: var(--ink-faint);
+    font-style: italic;
+    margin-top: 2px;
+  }
+
+  /* ============= FEATURES LIST ============= */
+  .feature-item {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px dotted var(--paper-deep);
+  }
+  .feature-item:last-child { border-bottom: none; }
+  .feature-item h4 {
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    margin: 0 0 4px;
+    color: var(--ink);
+    letter-spacing: 0.05em;
+  }
+  .feature-item .feature-source {
+    font-size: 11px;
+    color: var(--ink-faint);
+    font-style: italic;
+    margin-bottom: 4px;
+  }
+  .feature-item .feature-uses {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .feature-item.feature-indent {
+    margin-left: 22px;
+    padding-left: 12px;
+    border-left: 2px solid var(--paper-deep);
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+  }
+  .feature-item.feature-indent h4 {
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .feature-note {
+    font-size: 13.5px;
+    color: var(--ink);
+    margin-top: 4px;
+    white-space: pre-line;
+    line-height: 1.45;
+  }
+  .hb-badge {
+    display: inline-block;
+    font-family: 'Cinzel', serif;
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    background: var(--accent);
+    color: var(--paper);
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-left: 6px;
+    vertical-align: middle;
+    font-weight: 500;
+  }
+
+  /* ============= HIDE TAB CONTENT ============= */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ============= SCROLLBAR ============= */
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: var(--paper); }
+  ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 5px; }
+
+  /* ============= CURRENCY ============= */
+  .currency-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .currency-cell {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 6px 4px;
+    text-align: center;
+  }
+  .currency-cell .c-lbl {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    color: var(--ink-faint);
+    letter-spacing: 0.1em;
+  }
+  .currency-cell .c-val {
+    font-family: 'IM Fell English', serif;
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* Two-column for combat tab */
+  .combat-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 800px) {
+    .combat-layout { grid-template-columns: 1fr; }
+  }
+
+  /* ============= CLICKABLE INVENTORY ITEM ============= */
+  .inv-list li.clickable {
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+  .inv-list li.clickable:hover {
+    background: var(--paper);
+  }
+
+  /* ============= CLICKABLE SPELL ROW ============= */
+  .spell-list-items li.clickable {
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 2px;
+  }
+  .spell-list-items li.clickable:hover {
+    background: var(--paper);
+  }
+
+  /* ============= SPELL MODAL STATS ============= */
+  .spell-stats {
+    background: var(--paper-shade);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 13.5px;
+  }
+  .spell-stat-row {
+    padding: 2px 0;
+  }
+  .spell-stat-row strong {
+    color: var(--accent-deep);
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: inline-block;
+    min-width: 110px;
+    margin-right: 6px;
+  }
+
+  /* ============= MODAL ============= */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(43, 24, 16, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+    animation: fadeIn 0.15s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .modal-content {
+    background: var(--paper);
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 32px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    position: relative;
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    color: var(--ink-faint);
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+  }
+  .modal-close:hover { color: var(--accent); }
+
+  .modal-header h2 {
+    font-family: 'Cinzel', serif;
+    font-size: 24px;
+    margin: 0 0 6px;
+    color: var(--ink);
+    letter-spacing: 0.04em;
+  }
+  .modal-meta {
+    font-family: 'IM Fell English', serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+  .modal-source {
+    font-size: 11px;
+    color: var(--ink-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .modal-body {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .modal-body p { margin: 0 0 12px; }
+  .modal-body strong {
+    color: var(--accent-deep);
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .modal-tags {
+    margin-top: 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .modal-tags .tag {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: var(--paper-shade);
+    border: 1px solid var(--rule);
+    padding: 2px 8px;
+    border-radius: 2px;
+    color: var(--ink-faint);
+  }
+
+  .rarity {
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  .rarity-common { color: #444; }
+  .rarity-uncommon { color: #1f7a1f; }
+  .rarity-rare { color: #1a5fb4; }
+  .rarity-very-rare { color: #7a1a9c; }
+  .rarity-legendary { color: #c46a16; }
+  .rarity-artifact { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="container" id="root">
+  <div class="state-msg" id="loading">
+    <div class="glyph">✦</div>
+    <div>Unfurling the character record...</div>
+  </div>
+</div>
+
+<script>
+// =============================================================
+// CHARACTER SHEET VIEWER
+// =============================================================
+// Reads ?char=<id> from URL, fetches characters/<id>.json,
+// computes derived values, renders.
+// =============================================================
+
+const ABILITIES = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+const ABILITY_NAMES = {
+  str: 'Strength', dex: 'Dexterity', con: 'Constitution',
+  int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma'
+};
+
+// Skills indexed by which ability they use
+const SKILLS = {
+  acrobatics: 'dex', 'animal handling': 'wis', arcana: 'int',
+  athletics: 'str', deception: 'cha', history: 'int',
+  insight: 'wis', intimidation: 'cha', investigation: 'int',
+  medicine: 'wis', nature: 'int', perception: 'wis',
+  performance: 'cha', persuasion: 'cha', religion: 'int',
+  'sleight of hand': 'dex', stealth: 'dex', survival: 'wis'
+};
+
+// Class save proficiencies (2024 PHB)
+const CLASS_SAVES = {
+  barbarian: ['str', 'con'], bard: ['dex', 'cha'],
+  cleric: ['wis', 'cha'], druid: ['int', 'wis'],
+  fighter: ['str', 'con'], monk: ['str', 'dex'],
+  paladin: ['wis', 'cha'], ranger: ['str', 'dex'],
+  rogue: ['dex', 'int'], sorcerer: ['con', 'cha'],
+  warlock: ['wis', 'cha'], wizard: ['int', 'wis']
+};
+
+// Warlock pact magic slot tables
+const WARLOCK_SLOTS = {
+  1: { level: 1, count: 1 }, 2: { level: 1, count: 2 },
+  3: { level: 2, count: 2 }, 4: { level: 2, count: 2 },
+  5: { level: 3, count: 2 }, 6: { level: 3, count: 2 },
+  7: { level: 4, count: 2 }, 8: { level: 4, count: 2 },
+  9: { level: 5, count: 2 }, 10: { level: 5, count: 2 },
+  11: { level: 5, count: 3 }, 12: { level: 5, count: 3 },
+  13: { level: 5, count: 3 }, 14: { level: 5, count: 3 },
+  15: { level: 5, count: 3 }, 16: { level: 5, count: 3 },
+  17: { level: 5, count: 4 }, 18: { level: 5, count: 4 },
+  19: { level: 5, count: 4 }, 20: { level: 5, count: 4 }
+};
+
+// =============================================================
+// LOAD & RENDER
+// =============================================================
+// Global homebrew library, populated at startup
+let HOMEBREW = {
+  magicItems: {}, feats: {}, subclasses: {},
+  classes: {}, races: {}, backgrounds: {}, spells: {}
+};
+
+// =============================================================
+// CONFIG — set these to enable GitHub script auto-discovery
+// =============================================================
+// When configured, the viewer scans this folder of your GitHub repo for
+// .js MPMB scripts on every load and parses each one into the homebrew
+// library. This means saving a script in MPMBScriptGen, pushing it to
+// GitHub, and refreshing the sheet is the entire workflow — no JSON
+// intermediary, no copy step.
+//
+// To disable, set GITHUB_USER to null. The viewer will fall back to
+// reading content/mpmb_library.json from the local filesystem.
+const GITHUB_CONFIG = {
+  user: 'YOUR_GITHUB_USERNAME',   // ← change me
+  repo: 'dorenia-sheets',         // ← repo name
+  branch: 'main',                  // ← branch to read from
+  scriptsPath: 'content',          // ← folder containing .js scripts
+  cacheKey: 'dorenia_homebrew_cache_v1'  // sessionStorage cache key
+};
+
+// =============================================================
+// GITHUB SCRIPT DISCOVERY
+// =============================================================
+// Hit GitHub's contents API to enumerate .js files in a folder.
+// Unauthenticated: 60 requests/hour per IP — plenty for normal use.
+// Returns an array of { name, download_url } objects.
+async function listGitHubScripts(cfg) {
+  const url = `https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/${cfg.scriptsPath}?ref=${cfg.branch}`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    if (resp.status === 403) {
+      console.warn('GitHub API rate-limited. Cached results (if any) will be used.');
+    } else if (resp.status === 404) {
+      console.warn(`GitHub folder not found: ${cfg.user}/${cfg.repo}/${cfg.scriptsPath}`);
+    }
+    throw new Error(`GitHub API HTTP ${resp.status}`);
+  }
+  const items = await resp.json();
+  if (!Array.isArray(items)) {
+    throw new Error('GitHub API returned non-array (was the path a folder?)');
+  }
+  return items
+    .filter(it => it.type === 'file' && it.name.toLowerCase().endsWith('.js'))
+    .map(it => ({ name: it.name, downloadUrl: it.download_url, sha: it.sha }));
+}
+
+// =============================================================
+// MPMB SCRIPT PARSER (sandboxed eval)
+// =============================================================
+// MPMB scripts assign to globals: SourceList, MagicItemsList, FeatsList,
+// SpellsList, RaceList, etc., and call AddSubClass(parent, key, def).
+// We run the script inside a sandbox that defines these as stubs which
+// capture the data, then return what was captured.
+//
+// Why eval and not regex parsing? MPMB scripts use real JS — function
+// bodies, string concatenation, helper calls like desc() and toUni() —
+// that text-based parsing breaks on. eval handles arbitrary JS.
+//
+// Security: we only run scripts from your own GitHub repo. If someone
+// pushes malicious code there, that's a repo-security problem, not an
+// eval problem.
+function parseMPMBScript(jsText, fileName) {
+  const result = {
+    magicItems: {},
+    feats: {},
+    subclasses: {},
+    classes: {},
+    races: {},
+    backgrounds: {},
+    spells: {},
+    sources: {}
+  };
+
+  // Stub helpers MPMB scripts call
+  const stubDesc = (lines) => Array.isArray(lines) ? lines.join('\n') : String(lines);
+  const stubToUni = (s) => String(s);  // MPMB uses this for table headers — we just pass through
+  const stubNewObj = (proto) => Object.assign({}, proto);
+
+  // Catch-all proxy so we don't crash on unknown MPMB helpers
+  const noopProxy = new Proxy(function() {}, {
+    get: () => noopProxy,
+    apply: () => undefined
+  });
+
+  // Wrapper for AddSubClass
+  function AddSubClass(parent, key, def) {
+    result.subclasses[key] = { ...def, parentClass: parent };
+  }
+
+  // Stub for the version check — MPMB calls this at the top of every script
+  function RequiredSheetVersion(v, b) { /* no-op */ }
+
+  // Define lists as plain objects; assignments to them will be captured
+  const MagicItemsList = {};
+  const FeatsList = {};
+  const SourceList = {};
+  const SpellsList = {};
+  const RaceList = {};
+  const BackgroundList = {};
+  const ClassList = {};
+
+  // Build the sandbox and run the script
+  try {
+    const fn = new Function(
+      'AddSubClass', 'RequiredSheetVersion', 'desc', 'toUni', 'newObj',
+      'MagicItemsList', 'FeatsList', 'SourceList', 'SpellsList', 'RaceList',
+      'BackgroundList', 'ClassList', 'How', 'What', 'GetFeatureChoice',
+      jsText + '\nreturn { MagicItemsList, FeatsList, SourceList, SpellsList, RaceList, BackgroundList, ClassList };'
+    );
+    const captured = fn(
+      AddSubClass, RequiredSheetVersion, stubDesc, stubToUni, stubNewObj,
+      MagicItemsList, FeatsList, SourceList, SpellsList, RaceList,
+      BackgroundList, ClassList, noopProxy, noopProxy, noopProxy
+    );
+    // Copy whatever was assigned to the lists
+    Object.assign(result.magicItems, captured.MagicItemsList);
+    Object.assign(result.feats, captured.FeatsList);
+    Object.assign(result.sources, captured.SourceList);
+    Object.assign(result.spells, captured.SpellsList);
+    Object.assign(result.races, captured.RaceList);
+    Object.assign(result.backgrounds, captured.BackgroundList);
+    Object.assign(result.classes, captured.ClassList);
+  } catch (e) {
+    console.warn(`MPMB script parse failed for ${fileName}:`, e.message);
+    return null;
+  }
+
+  return result;
+}
+
+// =============================================================
+// SCRIPT-FORMAT ADAPTER
+// =============================================================
+// Convert what we got from parseMPMBScript() into the viewer's shape.
+// MPMB stores fields as `description`, `descriptionLong`, etc. already —
+// so the mapping is mostly direct, but we normalize keys for lookup.
+function adaptParsedScripts(parsed) {
+  const out = {
+    magicItems: {},
+    feats: {},
+    subclasses: {},
+    classes: {},
+    races: {},
+    backgrounds: {},
+    spells: {}
+  };
+
+  for (const [key, item] of Object.entries(parsed.magicItems)) {
+    const normKey = normKeyOf(key);
+    out.magicItems[normKey] = {
+      name: item.name || key,
+      source: extractSourceAbbrev(item.source),
+      type: item.type || 'Wondrous Item',
+      rarity: item.rarity || 'common',
+      attunement: item.attunement === true ? (item.prerequisite || 'requires attunement') : (item.attunement || null),
+      description: item.description || '',
+      descriptionLong: item.descriptionLong || item.descriptionFull || '',
+      weight: item.weight || null,
+      magicItemTable: item.magicItemTable || null,
+      allowDuplicates: !!item.allowDuplicates,
+      usages: item.usages != null ? String(item.usages) : null,
+      recovery: item.recovery || null,
+      tags: []
+    };
+  }
+
+  for (const [key, feat] of Object.entries(parsed.feats)) {
+    const normKey = normKeyOf(key);
+    out.feats[normKey] = {
+      name: feat.name || key,
+      source: extractSourceAbbrev(feat.source),
+      prerequisite: feat.prerequisite || null,
+      description: feat.description || '',
+      descriptionFull: feat.descriptionFull || '',
+      action: feat.action || null,
+      usages: feat.usages != null ? String(feat.usages) : null,
+      recovery: feat.recovery || null
+    };
+  }
+
+  for (const [key, sc] of Object.entries(parsed.subclasses)) {
+    const normKey = normKeyOf(key);
+    out.subclasses[normKey] = {
+      name: sc.subname || sc.fullname || key,
+      source: extractSourceAbbrev(sc.source),
+      parentClass: sc.parentClass || '',
+      fullname: sc.fullname || sc.subname || '',
+      extraSpells: Array.isArray(sc.spellcastingExtra) ? sc.spellcastingExtra : [],
+      features: extractLevelKeyedFeatures(sc.features)
+    };
+  }
+
+  // === NEW CLASSES (Artificer, Psion, etc.) ===
+  // An MPMB ClassList entry is a full class definition with hit die,
+  // saving throws, skill list, weapon/armor profs, ASIs, spellcasting
+  // factor, and a dict of features keyed by name with minlevel inside.
+  for (const [key, cls] of Object.entries(parsed.classes)) {
+    const normKey = normKeyOf(key);
+    out.classes[normKey] = {
+      name: cls.name || key,
+      source: extractSourceAbbrev(cls.source),
+      hitDie: cls.die || 8,
+      primaryAbility: cls.primaryAbility || '',
+      prereqs: cls.prereqs || '',
+      saves: Array.isArray(cls.saves) ? cls.saves : [],
+      skills: cls.skillstxt || '',
+      // Equipment proficiencies — these vary in MPMB by-level form;
+      // we just capture them as-is for display
+      armorText: extractArmorText(cls.armor),
+      weaponText: extractWeaponText(cls.weapons),
+      // Equipment string for starting gear
+      equipment: cls.equipment || '',
+      // Spellcasting (factor 0=none, 1=full, 2=half, 3=third)
+      spellcastingFactor: cls.spellcastingFactor || 0,
+      spellcastingAbility: cls.abilitySave ? abilityFromIndex(cls.abilitySave) : null,
+      // Subclass framing: an array like ["Specialist Name", [subkey, subkey, ...]]
+      subclassLabel: Array.isArray(cls.subclasses) ? cls.subclasses[0] : '',
+      subclassKeys: Array.isArray(cls.subclasses) && Array.isArray(cls.subclasses[1]) ? cls.subclasses[1] : [],
+      // Features dict — each value has minlevel + description
+      features: extractClassFeatures(cls.features),
+      // ASI levels (if MPMB has improvements array, those nonzero entries are ASI levels)
+      asiLevels: extractASILevels(cls.improvements)
+    };
+  }
+
+  // === RACES ===
+  for (const [key, race] of Object.entries(parsed.races)) {
+    const normKey = normKeyOf(key);
+    out.races[normKey] = {
+      name: race.name || key,
+      source: extractSourceAbbrev(race.source),
+      size: race.size || '',
+      speed: race.speed || {},
+      languages: Array.isArray(race.languageProfs) ? race.languageProfs : [],
+      vision: race.vision || [],
+      scoresAdvantages: race.savetxt || {},
+      features: extractClassFeatures(race.trait || race.features)
+    };
+  }
+
+  // === BACKGROUNDS ===
+  for (const [key, bg] of Object.entries(parsed.backgrounds)) {
+    const normKey = normKeyOf(key);
+    out.backgrounds[normKey] = {
+      name: bg.name || key,
+      source: extractSourceAbbrev(bg.source),
+      skills: bg.skills || '',
+      toolProfs: bg.toolProfs || '',
+      languageProfs: Array.isArray(bg.languageProfs) ? bg.languageProfs : [],
+      gold: bg.gold || null,
+      equipment: bg.equipment || '',
+      featureName: bg.feature || '',
+      featureDescription: bg.trait || ''
+    };
+  }
+
+  // === SPELLS ===
+  // An MPMB SpellsList entry has the full mechanical info — school, level,
+  // casting time, range, components, duration, save, and a short/long
+  // description. The viewer's lookup-by-name works against this directly.
+  for (const [key, sp] of Object.entries(parsed.spells)) {
+    const normKey = normKeyOf(key);
+    out.spells[normKey] = {
+      name: sp.name || key,
+      source: extractSourceAbbrev(sp.source),
+      level: typeof sp.level === 'number' ? sp.level : 0,
+      school: expandSchool(sp.school || ''),
+      time: sp.time || '',
+      range: sp.range || '',
+      components: sp.components || '',
+      compMaterial: sp.compMaterial || '',
+      duration: sp.duration || '',
+      classes: Array.isArray(sp.classes) ? sp.classes : [],
+      ritual: !!sp.ritual,
+      concentration: !!sp.concentration || (sp.duration || '').toLowerCase().includes('concentration'),
+      save: sp.save || null,
+      description: sp.description || '',
+      descriptionFull: sp.descriptionFull || sp.descriptionMetric || ''
+    };
+  }
+
+  return out;
+}
+
+// MPMB uses short school codes ("Evoc", "Abjur", "Trans" etc.)
+function expandSchool(s) {
+  const map = {
+    Abjur: 'Abjuration', Conj: 'Conjuration', Div: 'Divination',
+    Ench: 'Enchantment', Evoc: 'Evocation', Illus: 'Illusion',
+    Necro: 'Necromancy', Trans: 'Transmutation'
+  };
+  return map[s] || s;
+}
+
+function normKeyOf(s) {
+  return String(s).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+// MPMB source fields look like [["DOR", 5]] or [["PHB24", 0]]
+function extractSourceAbbrev(src) {
+  if (typeof src === 'string') return src;
+  if (Array.isArray(src) && Array.isArray(src[0])) return src[0][0] || 'HB';
+  return 'HB';
+}
+
+// Convert MPMB feature dicts (keyed like "subclassfeature3" or "magical tinkering")
+// into a flat array with name, minLevel, and description.
+function extractLevelKeyedFeatures(feats) {
+  if (!feats || typeof feats !== 'object') return [];
+  return Object.entries(feats).map(([k, f]) => ({
+    key: k,
+    name: f.name || k,
+    minLevel: f.minlevel || 1,
+    description: f.description || '',
+    action: Array.isArray(f.action) ? f.action.join(' ') : (f.action || null),
+    usages: f.usages != null ? String(f.usages) : null,
+    recovery: f.recovery || null
+  }));
+}
+
+// Class features in MPMB use the same structure as subclass features —
+// keyed by name with a minlevel field. Reuse the same extractor.
+const extractClassFeatures = extractLevelKeyedFeatures;
+// Keep the legacy export name working for any code that referenced it.
+const extractSubclassFeatures = extractLevelKeyedFeatures;
+
+// MPMB stores ability-by-save as a 1-indexed number:
+// 1=Str, 2=Dex, 3=Con, 4=Int, 5=Wis, 6=Cha
+function abilityFromIndex(i) {
+  return ['', 'str', 'dex', 'con', 'int', 'wis', 'cha'][i] || null;
+}
+
+// MPMB's armor field is a per-level array of [light, medium, heavy, shield] booleans.
+// Just look at level 0 (initial proficiencies) and stringify.
+function extractArmorText(armor) {
+  if (!Array.isArray(armor) || !Array.isArray(armor[0])) return '';
+  const [l, m, h, s] = armor[0];
+  const parts = [];
+  if (l) parts.push('Light');
+  if (m) parts.push('Medium');
+  if (h) parts.push('Heavy');
+  if (s) parts.push('Shields');
+  return parts.join(', ');
+}
+
+// MPMB's weapons field is a per-level array. Element 0 is the initial profs.
+// Each element is [simple, martial, [specific weapon keys]]
+function extractWeaponText(weapons) {
+  if (!Array.isArray(weapons) || !Array.isArray(weapons[0])) return '';
+  const [simple, martial, specific] = weapons[0];
+  const parts = [];
+  if (simple) parts.push('Simple weapons');
+  if (martial) parts.push('Martial weapons');
+  if (Array.isArray(specific) && specific.length) parts.push(specific.join(', '));
+  return parts.join('; ');
+}
+
+// MPMB's `improvements` array marks ASI-eligible levels with nonzero values.
+// e.g. [0, 0, 1, 0, 1, 0, 0, 1, ...] means ASIs at levels 3, 5, 8, ...
+function extractASILevels(improvements) {
+  if (!Array.isArray(improvements)) return [];
+  const out = [];
+  improvements.forEach((v, i) => {
+    if (v && v > 0) out.push(i + 1);
+  });
+  return out;
+}
+
+// =============================================================
+// MPMB LIBRARY ADAPTER (for JSON library files, kept for backwards compat)
+// =============================================================
+// The MPMBScriptGen tool writes its library to mpmb_library.json
+// in its internal form-state shape: an array of envelope objects:
+//   [ { id, type: "magicitem"|"feat"|"subclass", label, data: {...form state} } ]
+//
+// The viewer needs a keyed shape:
+//   { magicItems: { key: {...} }, feats: { key: {...} }, subclasses: { key: {...} } }
+//
+// This adapter detects which format we got and translates if needed.
+
+function adaptLibrary(raw) {
+  const empty = { magicItems: {}, feats: {}, subclasses: {}, classes: {}, races: {}, backgrounds: {}, spells: {} };
+  if (!raw) return empty;
+
+  // Already in viewer format? (has magicItems/feats/subclasses keys at top level)
+  if (raw.magicItems || raw.feats || raw.subclasses || raw.classes || raw.spells) {
+    return {
+      magicItems: raw.magicItems || {},
+      feats: raw.feats || {},
+      subclasses: raw.subclasses || {},
+      classes: raw.classes || {},
+      races: raw.races || {},
+      backgrounds: raw.backgrounds || {},
+      spells: raw.spells || {}
+    };
+  }
+
+  // MPMB internal format: an array of envelope objects
+  if (!Array.isArray(raw)) {
+    console.warn('Unknown homebrew library format', raw);
+    return empty;
+  }
+
+  const out = { ...empty };
+
+  for (const entry of raw) {
+    if (!entry || !entry.type || !entry.data) continue;
+    const key = (entry.data.key || entry.label || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    if (!key) continue;
+
+    if (entry.type === 'magicitem') {
+      out.magicItems[key] = adaptMagicItem(entry.data);
+    } else if (entry.type === 'feat') {
+      out.feats[key] = adaptFeat(entry.data);
+    } else if (entry.type === 'subclass') {
+      out.subclasses[key] = adaptSubclass(entry.data);
+    }
+  }
+
+  return out;
+}
+
+function adaptMagicItem(d) {
+  // Map MPMB's internal field names to the viewer's expected shape
+  // MPMB uses 'type2' for item type (since 'type' is the envelope type)
+  // MPMB uses 'desc' for short description, 'desclong' for long, 'descfull' for tooltip
+  // MPMB uses 'attune' (bool) + 'prereq' (text) for attunement requirements
+  return {
+    name: d.name || d.label || '',
+    source: 'DOR',
+    type: capitalize(d.type2 || 'wondrous item'),
+    rarity: d.rarity || 'common',
+    attunement: d.attune ? (d.prereq || 'requires attunement') : null,
+    description: d.desc || '',
+    descriptionLong: d.desclong || d.descfull || '',
+    weight: d.weight ? parseFloat(d.weight) : null,
+    magicItemTable: d.table || null,
+    allowDuplicates: !!d.allowdup,
+    usages: d.usages || null,
+    recovery: d.recovery || null,
+    // Carry forward weapon bonus info if present
+    weaponBonus: d.wpnbonus ? parseInt(d.wpnbonus) : null,
+    // Tags for searchability (not user-set in MPMB form, so empty)
+    tags: []
+  };
+}
+
+function adaptFeat(d) {
+  const catSuffix = {
+    origin: ' [Origin]',
+    fighting: ' [Fighting Style]',
+    epic: ' [Epic Boon]',
+    general: ''
+  }[d.category] || '';
+  return {
+    name: (d.name || d.label || '') + catSuffix,
+    source: 'DOR',
+    category: d.category || 'general',
+    prerequisite: d.prereq || null,
+    description: d.desc || '',
+    descriptionFull: d.descfull || '',
+    action: d.action || null,
+    usages: d.usages || null,
+    recovery: d.recovery || null
+  };
+}
+
+function adaptSubclass(d) {
+  return {
+    name: d.name || d.label || '',
+    source: 'DOR',
+    parentClass: d.parent || '',
+    fullname: d.fullname || d.name || '',
+    extraSpells: (d.spellsextra || '').split(',').map(s => s.trim()).filter(Boolean),
+    features: (d.features || []).map(f => ({
+      name: f.name || '',
+      minLevel: f.minlevel || 1,
+      description: f.description || '',
+      action: f.action || null,
+      usages: f.usages || null,
+      recovery: f.recovery || null,
+      grantedSpells: f.sbEnabled ? (f.sbSpells || '').split(',').map(s => s.trim()).filter(Boolean) : []
+    }))
+  };
+}
+
+// =============================================================
+// HOMEBREW LOADER (GitHub-first, JSON fallback)
+// =============================================================
+async function loadHomebrew() {
+  const cfg = GITHUB_CONFIG;
+
+  // If GitHub isn't configured, fall back to local JSON only.
+  if (!cfg.user || cfg.user === 'YOUR_GITHUB_USERNAME') {
+    return loadHomebrewLocal();
+  }
+
+  // Check session cache first — avoids hammering GitHub on every page nav.
+  // Cache busts whenever a script's sha changes.
+  let cached = null;
+  try {
+    const raw = sessionStorage.getItem(cfg.cacheKey);
+    if (raw) cached = JSON.parse(raw);
+  } catch (e) { /* ignore */ }
+
+  let scripts;
+  try {
+    scripts = await listGitHubScripts(cfg);
+  } catch (err) {
+    console.warn('GitHub script listing failed, using cache or local fallback:', err.message);
+    if (cached) return cached.library;
+    return loadHomebrewLocal();
+  }
+
+  // If the cache is still valid (same shas), reuse it.
+  if (cached && cached.shas && scriptsMatch(scripts, cached.shas)) {
+    return cached.library;
+  }
+
+  // Fetch and parse each script.
+  const merged = {
+    magicItems: {}, feats: {}, subclasses: {},
+    classes: {}, races: {}, backgrounds: {}, spells: {}
+  };
+  const fetched = [];
+  for (const script of scripts) {
+    try {
+      const r = await fetch(script.downloadUrl);
+      if (!r.ok) {
+        console.warn(`Could not fetch ${script.name}: HTTP ${r.status}`);
+        continue;
+      }
+      const text = await r.text();
+      const parsed = parseMPMBScript(text, script.name);
+      if (!parsed) continue;
+      const adapted = adaptParsedScripts(parsed);
+      // Merge — later files override earlier ones on key collision
+      Object.assign(merged.magicItems, adapted.magicItems);
+      Object.assign(merged.feats, adapted.feats);
+      Object.assign(merged.subclasses, adapted.subclasses);
+      Object.assign(merged.classes, adapted.classes);
+      Object.assign(merged.races, adapted.races);
+      Object.assign(merged.backgrounds, adapted.backgrounds);
+      Object.assign(merged.spells, adapted.spells);
+      fetched.push({ name: script.name, sha: script.sha });
+    } catch (e) {
+      console.warn(`Error processing ${script.name}:`, e);
+    }
+  }
+
+  console.log(`Loaded ${fetched.length} MPMB script(s) from GitHub:`,
+    fetched.map(f => f.name).join(', '));
+
+  // Cache for the rest of the session
+  try {
+    sessionStorage.setItem(cfg.cacheKey, JSON.stringify({
+      library: merged,
+      shas: fetched.map(f => f.sha),
+      cachedAt: Date.now()
+    }));
+  } catch (e) { /* ignore quota errors */ }
+
+  return merged;
+}
+
+function scriptsMatch(currentScripts, cachedShas) {
+  const currentShas = currentScripts.map(s => s.sha).sort();
+  const sorted = [...cachedShas].sort();
+  if (currentShas.length !== sorted.length) return false;
+  return currentShas.every((s, i) => s === sorted[i]);
+}
+
+async function loadHomebrewLocal() {
+  const empty = { magicItems: {}, feats: {}, subclasses: {}, classes: {}, races: {}, backgrounds: {}, spells: {} };
+  try {
+    const r = await fetch('content/mpmb_library.json');
+    if (!r.ok) return empty;
+    const lib = await r.json();
+    return adaptLibrary(lib);
+  } catch (e) {
+    return empty;
+  }
+}
+
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const charId = params.get('char') || 'klein';
+
+  try {
+    // Load character and homebrew library in parallel
+    const [charResp, homebrew] = await Promise.all([
+      fetch(`characters/${charId}.json`),
+      loadHomebrew()
+    ]);
+
+    if (!charResp.ok) throw new Error(`HTTP ${charResp.status}`);
+    const char = await charResp.json();
+    HOMEBREW = homebrew;
+
+    render(char);
+  } catch (err) {
+    renderError(err.message, charId);
+  }
+}
+
+function renderError(msg, charId) {
+  document.getElementById('root').innerHTML = `
+    <div class="state-msg">
+      <div class="glyph">✦</div>
+      <div><strong>The scroll is illegible.</strong></div>
+      <div style="margin-top: 8px; font-size: 14px;">
+        Could not load <code>characters/${charId}.json</code><br>
+        ${msg}
+      </div>
+    </div>
+  `;
+}
+
+// =============================================================
+// COMPUTATIONS
+// =============================================================
+function mod(score) { return Math.floor((score - 10) / 2); }
+function modStr(score) {
+  const m = mod(score);
+  return m >= 0 ? `+${m}` : `${m}`;
+}
+
+function computeAbilities(char) {
+  const a = char.build.abilityScores;
+  const result = {};
+  for (const ab of ABILITIES) {
+    result[ab] =
+      (a.base[ab] || 0) +
+      (a.speciesBonuses[ab] || 0) +
+      (a.backgroundBonuses[ab] || 0) +
+      (a.featBonuses[ab] || 0);
+  }
+  // Magic overrides (e.g., Amulet of Health)
+  for (const ov of (a.magicOverrides || [])) {
+    if (result[ov.ability] < ov.value) {
+      result[ov.ability] = ov.value;
+    }
+  }
+  return result;
+}
+
+function totalLevel(char) {
+  return char.build.classes.reduce((s, c) => s + c.level, 0);
+}
+
+function profBonus(char) {
+  const lv = totalLevel(char);
+  return Math.ceil(lv / 4) + 1;
+}
+
+function spellcastingClass(char) {
+  // Primary spellcasting class - first one with a spellcastingAbility
+  return char.build.classes.find(c => c.spellcastingAbility);
+}
+
+function spellSaveDC(char, abil) {
+  const sc = spellcastingClass(char);
+  if (!sc) return null;
+  return 8 + profBonus(char) + mod(abil[sc.spellcastingAbility]);
+}
+
+function spellAttack(char, abil) {
+  const sc = spellcastingClass(char);
+  if (!sc) return null;
+  return profBonus(char) + mod(abil[sc.spellcastingAbility]);
+}
+
+function maxHP(char) {
+  if (char.state.hp.maxOverride !== null && char.state.hp.maxOverride !== undefined) {
+    return char.state.hp.maxOverride;
+  }
+  return char.state.hp.maxBase;
+}
+
+function getProficientSaves(char) {
+  // Only the FIRST class grants save proficiencies in 5e/5.5e multiclassing
+  const firstClass = char.build.classes[0];
+  return CLASS_SAVES[firstClass.key] || [];
+}
+
+function collectSkillProfs(char) {
+  // Skills from species, background, and feats
+  const set = new Set();
+  const expertise = new Set();
+
+  for (const s of (char.build.species.skillProficiencies || [])) set.add(s);
+  for (const s of (char.build.background.skillProficiencies || [])) set.add(s);
+
+  for (const ft of (char.build.feats || [])) {
+    if (ft.choices && ft.choices.skills) {
+      for (const s of ft.choices.skills) set.add(s);
+    }
+    if (ft.choices && ft.choices.expertise) {
+      for (const s of ft.choices.expertise) expertise.add(s);
+    }
+  }
+
+  return { proficient: set, expertise };
+}
+
+// =============================================================
+// RENDER
+// =============================================================
+function render(char) {
+  const abil = computeAbilities(char);
+  const lv = totalLevel(char);
+  const prof = profBonus(char);
+  const hp = maxHP(char);
+  const current = char.state.hp.current;
+  const temp = char.state.hp.temp;
+  const hpPct = Math.max(0, Math.min(100, (current / hp) * 100));
+
+  const profSaves = getProficientSaves(char);
+  const skillProfs = collectSkillProfs(char);
+  const sc = spellcastingClass(char);
+
+  // Class summary
+  const classSummary = char.build.classes
+    .map(c => {
+      const subname = c.subclass ? ` (${c.subclass.name})` : '';
+      return `${capitalize(c.key)} ${c.level}${subname}`;
+    })
+    .join(' / ');
+
+  const speciesName = capitalize(char.build.species.key);
+  const bgName = capitalize(char.build.background.key);
+
+  document.getElementById('root').innerHTML = `
+    <!-- ============= NAMEPLATE ============= -->
+    <div class="nameplate">
+      <div class="portrait">${getInitials(char.identity.name)}</div>
+      <div class="name-info">
+        <h1>${escapeHTML(char.identity.name)}</h1>
+        <div class="subtitle">${escapeHTML(speciesName)} · ${escapeHTML(classSummary)} · ${escapeHTML(bgName)}</div>
+      </div>
+      <div class="level-badge">
+        <div class="num">${lv}</div>
+        <div class="lbl">LEVEL</div>
+      </div>
+    </div>
+
+    <!-- ============= TABS ============= -->
+    <div class="tabs">
+      <button class="tab active" data-tab="combat">Combat</button>
+      <button class="tab" data-tab="spells">Spells</button>
+      <button class="tab" data-tab="inventory">Inventory</button>
+      <button class="tab" data-tab="features">Features</button>
+      <button class="tab" data-tab="notes">Notes</button>
+    </div>
+
+    <!-- ============= COMBAT TAB ============= -->
+    <div class="tab-content active" data-tab-content="combat">
+      <div class="grid-3">
+
+        <!-- LEFT COLUMN: Abilities, Saves -->
+        <div>
+          <div class="card">
+            <div class="card-title">Ability Scores</div>
+            <div class="ability-grid">
+              ${ABILITIES.map(ab => `
+                <div class="ability">
+                  <div class="name">${ab.toUpperCase()}</div>
+                  <div class="mod">${modStr(abil[ab])}</div>
+                  <div class="score">${abil[ab]}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Saving Throws</div>
+            <ul class="stat-list">
+              ${ABILITIES.map(ab => {
+                const isProf = profSaves.includes(ab);
+                const total = mod(abil[ab]) + (isProf ? prof : 0);
+                return `
+                  <li>
+                    <span class="prof-dot ${isProf ? 'proficient' : ''}"></span>
+                    <span class="stat-name">${ABILITY_NAMES[ab]}</span>
+                    <span class="stat-val">${total >= 0 ? '+' : ''}${total}</span>
+                  </li>
+                `;
+              }).join('')}
+            </ul>
+          </div>
+        </div>
+
+        <!-- MIDDLE COLUMN: HP, Combat stats, Skills -->
+        <div>
+          <div class="hp-card">
+            <div class="hp-label">Hit Points</div>
+            <div class="hp-value">
+              <span>${current}</span><span class="slash">/</span><span class="max">${hp}</span>
+            </div>
+            <div class="hp-bar"><div class="hp-bar-fill" style="width: ${hpPct}%"></div></div>
+            ${temp > 0 ? `<div class="hp-temp">+${temp} temporary</div>` : ''}
+          </div>
+
+          <div class="combat-row">
+            <div class="combat-stat">
+              <div class="lbl">Armor Class</div>
+              <div class="val">${computeAC(char, abil)}</div>
+              <div class="sub">Mage Armor: 13+Dex</div>
+            </div>
+            <div class="combat-stat">
+              <div class="lbl">Initiative</div>
+              <div class="val">${modStr(abil.dex)}</div>
+              <div class="sub">${ABILITY_NAMES.dex} mod</div>
+            </div>
+            <div class="combat-stat">
+              <div class="lbl">Speed</div>
+              <div class="val">30</div>
+              <div class="sub">feet</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span>Skills</span>
+              <span style="font-size: 9px; color: var(--ink-faint);">Prof Bonus +${prof}</span>
+            </div>
+            <ul class="stat-list">
+              ${Object.keys(SKILLS).map(skill => {
+                const ab = SKILLS[skill];
+                const isProf = skillProfs.proficient.has(skill);
+                const isExp = skillProfs.expertise.has(skill);
+                const profMod = isExp ? prof * 2 : (isProf ? prof : 0);
+                const total = mod(abil[ab]) + profMod;
+                const dotClass = isExp ? 'expertise' : (isProf ? 'proficient' : '');
+                return `
+                  <li>
+                    <span class="prof-dot ${dotClass}"></span>
+                    <span class="stat-name">${capitalize(skill)}</span>
+                    <span class="stat-sub">${ab}</span>
+                    <span class="stat-val">${total >= 0 ? '+' : ''}${total}</span>
+                  </li>
+                `;
+              }).join('')}
+            </ul>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Spellcasting, Hit dice, Resources -->
+        <div>
+          ${sc ? `
+            <div class="card">
+              <div class="card-title">Spellcasting</div>
+              <div class="spellcast-grid">
+                <div class="spellcast-stat">
+                  <div class="lbl">Save DC</div>
+                  <div class="val">${spellSaveDC(char, abil)}</div>
+                </div>
+                <div class="spellcast-stat">
+                  <div class="lbl">Atk Bonus</div>
+                  <div class="val">+${spellAttack(char, abil)}</div>
+                </div>
+                <div class="spellcast-stat">
+                  <div class="lbl">Ability</div>
+                  <div class="val" style="font-size: 14px; padding-top: 6px;">${sc.spellcastingAbility.toUpperCase()}</div>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="card">
+            <div class="card-title">Hit Dice</div>
+            ${Object.entries(char.state.hitDice).map(([cls, hd]) => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+                <span>${capitalize(cls)}</span>
+                <span class="stat-val">${hd.current} / ${hd.max} d${getHitDie(cls)}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="card">
+            <div class="card-title">Feature Uses</div>
+            ${char.state.featureUses
+              .filter(f => !f.minLevel || lv >= f.minLevel)
+              .map(f => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dotted var(--paper-deep);">
+                  <div>
+                    <div style="font-size: 14px;">${escapeHTML(f.name)}</div>
+                    <div style="font-size: 11px; color: var(--ink-faint); font-style: italic;">${escapeHTML(f.recovery)}</div>
+                  </div>
+                  <div style="display: flex; gap: 3px;">
+                    ${Array.from({length: f.max}, (_, i) => `
+                      <div style="width: 14px; height: 14px; border: 1.5px solid var(--ink-soft); border-radius: 3px; background: ${i < (f.max - f.current) ? 'var(--ink-soft)' : 'var(--paper)'};"></div>
+                    `).join('')}
+                  </div>
+                </div>
+              `).join('')}
+          </div>
+
+          <div class="card">
+            <div class="card-title">Currency</div>
+            <div class="currency-row">
+              <div class="currency-cell"><div class="c-lbl">CP</div><div class="c-val">${char.state.currency.cp}</div></div>
+              <div class="currency-cell"><div class="c-lbl">SP</div><div class="c-val">${char.state.currency.sp}</div></div>
+              <div class="currency-cell"><div class="c-lbl">EP</div><div class="c-val">${char.state.currency.ep}</div></div>
+              <div class="currency-cell"><div class="c-lbl">GP</div><div class="c-val">${char.state.currency.gp}</div></div>
+              <div class="currency-cell"><div class="c-lbl">PP</div><div class="c-val">${char.state.currency.pp}</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============= SPELLS TAB ============= -->
+    <div class="tab-content" data-tab-content="spells">
+      ${renderSpellsTab(char, abil)}
+    </div>
+
+    <!-- ============= INVENTORY TAB ============= -->
+    <div class="tab-content" data-tab-content="inventory">
+      <div class="card">
+        <div class="card-title">
+          <span>Inventory</span>
+          <span style="font-size: 10px; font-style: italic; color: var(--ink-faint);">
+            Attunement: ${char.state.attunement.items.length} / ${char.state.attunement.max}
+          </span>
+        </div>
+        <ul class="inv-list">
+          ${char.state.inventory.map((item, idx) => {
+            const isClickable = item.homebrew && findHomebrewItem(item.key);
+            return `
+            <li ${isClickable ? `class="clickable" data-item-key="${escapeHTML(item.key)}"` : ''}>
+              <span class="inv-qty">${item.qty > 1 ? '×' + item.qty : ''}</span>
+              <span class="inv-name ${item.homebrew ? 'homebrew' : ''}">${escapeHTML(item.name)}</span>
+              ${item.equipped ? '<span class="inv-equipped">equipped</span>' : ''}
+              ${item.attuned ? '<span class="inv-equipped">attuned</span>' : ''}
+              ${isClickable ? '<span class="inv-equipped" style="color: var(--accent);">view ›</span>' : ''}
+              ${item.note ? `<div class="inv-note">${escapeHTML(item.note)}</div>` : ''}
+            </li>
+          `;}).join('')}
+        </ul>
+      </div>
+    </div>
+
+    <!-- ============= FEATURES TAB ============= -->
+    <div class="tab-content" data-tab-content="features">
+      ${renderFeaturesTab(char)}
+    </div>
+
+    <!-- ============= NOTES TAB ============= -->
+    <div class="tab-content" data-tab-content="notes">
+      <div class="card">
+        <div class="card-title">Personal Notes</div>
+        <div style="white-space: pre-wrap; min-height: 60px; color: ${char.notes.personal ? 'var(--ink)' : 'var(--ink-faint)'}; font-style: ${char.notes.personal ? 'normal' : 'italic'};">
+          ${escapeHTML(char.notes.personal) || 'No notes yet.'}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Backstory</div>
+        <div style="white-space: pre-wrap; min-height: 60px; color: ${char.notes.backstory ? 'var(--ink)' : 'var(--ink-faint)'}; font-style: ${char.notes.backstory ? 'normal' : 'italic'};">
+          ${escapeHTML(char.notes.backstory) || 'No backstory written yet.'}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Wire up tabs
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelector(`[data-tab-content="${t.dataset.tab}"]`).classList.add('active');
+    });
+  });
+
+  // Wire up homebrew item clicks
+  document.querySelectorAll('.inv-list li.clickable').forEach(li => {
+    li.addEventListener('click', () => {
+      const key = li.dataset.itemKey;
+      openItemModal(key);
+    });
+  });
+
+  // Wire up homebrew spell clicks
+  document.querySelectorAll('.spell-list-items li.clickable').forEach(li => {
+    li.addEventListener('click', () => {
+      const name = li.dataset.spellName;
+      openSpellModal(name);
+    });
+  });
+}
+
+// =============================================================
+// HOMEBREW ITEM MODAL
+// =============================================================
+// Resilient lookup — tries several key normalizations so an inventory
+// entry's "key" field doesn't have to match the library key character-perfect.
+// This matters because MPMBScriptGen accepts free-form keys ("azeros' shard")
+// which the adapter normalizes ("azeros-shard"), and a player's character
+// JSON may use either.
+function findHomebrewItem(key) {
+  if (!key) return null;
+  const tries = [
+    key,
+    key.toLowerCase(),
+    key.toLowerCase().replace(/\s+/g, '-'),
+    key.toLowerCase().replace(/['\u2019]/g, '').replace(/\s+/g, '-'),
+    key.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-')
+  ];
+  for (const k of tries) {
+    if (HOMEBREW.magicItems[k]) return HOMEBREW.magicItems[k];
+  }
+  // Last resort: search by name match (case-insensitive)
+  const target = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (const k of Object.keys(HOMEBREW.magicItems)) {
+    const itemName = (HOMEBREW.magicItems[k].name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (itemName === target) return HOMEBREW.magicItems[k];
+  }
+  return null;
+}
+
+function openItemModal(itemKey) {
+  const item = findHomebrewItem(itemKey);
+  if (!item) return;
+  showModal(renderItemModalContent(item));
+}
+
+function openSpellModal(spellName) {
+  const spell = findHomebrewSpell(spellName);
+  if (!spell) return;
+  showModal(renderSpellModalContent(spell));
+}
+
+// Shared modal scaffolding — accepts the inner content HTML.
+function showModal(contentHtml) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <button class="modal-close">×</button>
+      ${contentHtml}
+    </div>
+  `;
+  modal.addEventListener('click', () => modal.remove());
+  modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+  document.body.appendChild(modal);
+
+  const escHandler = (e) => {
+    if (e.key === 'Escape') {
+      modal.remove();
+      document.removeEventListener('keydown', escHandler);
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+}
+
+function renderItemModalContent(item) {
+  return `
+    <div class="modal-header">
+      <h2>${escapeHTML(item.name)}</h2>
+      <div class="modal-meta">
+        ${escapeHTML(item.type || 'Item')} ·
+        <span class="rarity rarity-${(item.rarity || 'common').replace(/\s+/g, '-')}">${escapeHTML(item.rarity || 'common')}</span>
+        ${item.attunement ? ` · <em>${escapeHTML(item.attunement)}</em>` : ''}
+      </div>
+      <div class="modal-source">Source: ${escapeHTML(item.source || 'Unknown')}</div>
+    </div>
+    <div class="modal-body">
+      <p>${escapeHTML(item.description || '')}</p>
+      ${item.descriptionLong ? `<p>${escapeHTML(item.descriptionLong)}</p>` : ''}
+      ${item.usages ? `<p><strong>Usages:</strong> ${escapeHTML(item.usages)} · <strong>Recovery:</strong> ${escapeHTML(item.recovery || '—')}</p>` : ''}
+      ${item.weight ? `<p><strong>Weight:</strong> ${item.weight} lb</p>` : ''}
+      ${item.tags && item.tags.length ? `<div class="modal-tags">${item.tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('')}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderSpellModalContent(spell) {
+  // Spell level header line: "3rd-level Evocation" or "Evocation Cantrip"
+  let levelLine;
+  if (spell.level === 0) {
+    levelLine = `${spell.school || 'Spell'} Cantrip`;
+  } else {
+    const ord = ordinal(spell.level);
+    levelLine = `${ord}-level ${spell.school || 'Spell'}`;
+  }
+  if (spell.ritual) levelLine += ' (ritual)';
+
+  const classList = (spell.classes || []).map(c => capitalize(c)).join(', ');
+
+  // Stat rows
+  const stats = [];
+  if (spell.time) stats.push(['Casting Time', spell.time]);
+  if (spell.range) stats.push(['Range', spell.range]);
+  if (spell.components) {
+    let comp = spell.components;
+    if (spell.compMaterial) comp += ` (${spell.compMaterial})`;
+    stats.push(['Components', comp]);
+  }
+  if (spell.duration) stats.push(['Duration', spell.duration + (spell.concentration && !/concentration/i.test(spell.duration) ? ' (concentration)' : '')]);
+  if (spell.save) stats.push(['Save', spell.save]);
+
+  return `
+    <div class="modal-header">
+      <h2>${escapeHTML(spell.name)}</h2>
+      <div class="modal-meta"><em>${escapeHTML(levelLine)}</em></div>
+      <div class="modal-source">
+        Source: ${escapeHTML(spell.source || 'Unknown')}${classList ? ' · Classes: ' + escapeHTML(classList) : ''}
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="spell-stats">
+        ${stats.map(([k, v]) => `<div class="spell-stat-row"><strong>${escapeHTML(k)}:</strong> ${escapeHTML(v)}</div>`).join('')}
+      </div>
+      <p>${escapeHTML(spell.description || '')}</p>
+      ${spell.descriptionFull && spell.descriptionFull !== spell.description ? `<p>${escapeHTML(spell.descriptionFull)}</p>` : ''}
+    </div>
+  `;
+}
+
+function ordinal(n) {
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+}
+
+// =============================================================
+// SUB-RENDERERS
+// =============================================================
+function renderSpellsTab(char, abil) {
+  const sc = spellcastingClass(char);
+  if (!sc) return '<div class="card"><div class="card-title">No Spellcasting</div></div>';
+
+  const knownData = char.state.spellsKnown[sc.key];
+  if (!knownData) return '<div class="card">No spells listed.</div>';
+
+  // Warlock pact slots
+  let slotsHtml = '';
+  if (sc.key === 'warlock') {
+    const slotInfo = WARLOCK_SLOTS[sc.level];
+    const stored = char.state.spellSlots[`level${slotInfo.level}`];
+    const used = stored ? slotInfo.count - stored.current : 0;
+
+    slotsHtml = `
+      <div class="spell-level-header">
+        <h3>Pact Magic — Level ${slotInfo.level}</h3>
+        <div class="spell-slots">
+          ${Array.from({length: slotInfo.count}, (_, i) =>
+            `<div class="spell-slot ${i < used ? 'used' : ''}"></div>`
+          ).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // Group leveled spells by their actual level (from homebrew lookup).
+  // Spells without a homebrew entry land in "Other Known Spells".
+  const buckets = { unknown: [] };
+  for (const name of knownData.level1to5) {
+    const hb = findHomebrewSpell(name);
+    if (hb && typeof hb.level === 'number' && hb.level > 0) {
+      const lv = hb.level;
+      if (!buckets[lv]) buckets[lv] = [];
+      buckets[lv].push({ name, hb });
+    } else {
+      buckets.unknown.push({ name, hb });
+    }
+  }
+
+  const knownLevels = Object.keys(buckets)
+    .filter(k => k !== 'unknown')
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  // Build the leveled groups (if any)
+  let leveledHtml = '';
+  for (const lv of knownLevels) {
+    leveledHtml += `
+      <div class="spell-level-header" style="margin-top: 16px;">
+        <h3>Level ${lv}</h3>
+      </div>
+      ${renderSpellListItems(buckets[lv])}
+    `;
+  }
+
+  // Anything we couldn't classify by level
+  const unknownHtml = buckets.unknown.length ? `
+    <div class="spell-level-header" style="margin-top: 16px;">
+      <h3>${slotsHtml ? 'Other Known Spells' : 'Known Spells'}</h3>
+    </div>
+    ${renderSpellListItems(buckets.unknown)}
+  ` : '';
+
+  // Cantrips with homebrew lookup
+  const cantripEntries = knownData.cantrips.map(name => ({
+    name,
+    hb: findHomebrewSpell(name)
+  }));
+
+  return `
+    <div class="card">
+      <div class="card-title">Spellcasting Stats</div>
+      <div class="spellcast-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="spellcast-stat">
+          <div class="lbl">Save DC</div>
+          <div class="val">${spellSaveDC(char, abil)}</div>
+        </div>
+        <div class="spellcast-stat">
+          <div class="lbl">Atk Bonus</div>
+          <div class="val">+${spellAttack(char, abil)}</div>
+        </div>
+        <div class="spellcast-stat">
+          <div class="lbl">Ability</div>
+          <div class="val" style="font-size: 14px; padding-top: 6px;">${sc.spellcastingAbility.toUpperCase()}</div>
+        </div>
+        <div class="spellcast-stat">
+          <div class="lbl">Class</div>
+          <div class="val" style="font-size: 14px; padding-top: 6px;">${capitalize(sc.key)}</div>
+        </div>
+      </div>
+
+      <div class="spell-level-header">
+        <h3>Cantrips</h3>
+      </div>
+      ${renderSpellListItems(cantripEntries)}
+
+      ${slotsHtml}
+      ${leveledHtml}
+      ${unknownHtml}
+    </div>
+  `;
+}
+
+// Resilient lookup for spells, mirroring findHomebrewItem.
+function findHomebrewSpell(name) {
+  if (!name || !HOMEBREW.spells) return null;
+  const tries = [
+    name,
+    name.toLowerCase(),
+    name.toLowerCase().replace(/\s+/g, '-'),
+    name.toLowerCase().replace(/['\u2019]/g, '').replace(/\s+/g, '-'),
+    name.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/\s+/g, '-')
+  ];
+  for (const k of tries) {
+    if (HOMEBREW.spells[k]) return HOMEBREW.spells[k];
+  }
+  // Name match fallback
+  const target = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (const k of Object.keys(HOMEBREW.spells)) {
+    const itemName = (HOMEBREW.spells[k].name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (itemName === target) return HOMEBREW.spells[k];
+  }
+  return null;
+}
+
+function renderSpellListItems(entries) {
+  if (!entries || entries.length === 0) return '<ul class="spell-list-items"><li><span class="spell-tag" style="margin: 0;">(none)</span></li></ul>';
+  // Sort alphabetically within a level
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  return `
+    <ul class="spell-list-items">
+      ${entries.map(e => {
+        const clickable = !!e.hb;
+        const tags = [];
+        if (e.hb) {
+          if (e.hb.school) tags.push(e.hb.school);
+          if (e.hb.ritual) tags.push('ritual');
+          if (e.hb.concentration) tags.push('concentration');
+          if (e.hb.save) tags.push(`${e.hb.save} save`);
+        }
+        return `
+          <li ${clickable ? `class="clickable" data-spell-name="${escapeHTML(e.name)}"` : ''}>
+            <span class="spell-name">${escapeHTML(e.hb ? e.hb.name : e.name)}</span>
+            ${e.hb ? '<span class="hb-badge">DOR</span>' : ''}
+            ${tags.length ? `<span class="spell-tag"> · ${tags.map(escapeHTML).join(' · ')}</span>` : ''}
+            ${clickable ? '<span class="spell-tag" style="float: right; color: var(--accent);">view ›</span>' : ''}
+          </li>
+        `;
+      }).join('')}
+    </ul>
+  `;
+}
+
+function renderFeaturesTab(char) {
+  const items = [];
+
+  // Species
+  const speciesKey = normKeyOf(char.build.species.key);
+  const hbRace = HOMEBREW.races[speciesKey];
+  items.push({
+    name: (hbRace?.name || capitalize(char.build.species.key)) + (char.build.species.variant ? ` (${char.build.species.variant})` : ''),
+    source: 'Species · ' + (hbRace?.source || char.build.species.source),
+    note: '',
+    homebrew: !!hbRace
+  });
+  // Race features (if homebrew)
+  if (hbRace && hbRace.features) {
+    for (const f of hbRace.features) {
+      items.push({
+        name: f.name,
+        source: `Racial Trait`,
+        note: f.description,
+        indent: true,
+        homebrew: true
+      });
+    }
+  }
+
+  // Background
+  const bgKey = normKeyOf(char.build.background.key);
+  const hbBg = HOMEBREW.backgrounds[bgKey];
+  items.push({
+    name: hbBg?.name || capitalize(char.build.background.key),
+    source: 'Background · ' + (hbBg?.source || char.build.background.source),
+    note: hbBg ? hbBg.featureDescription : '',
+    homebrew: !!hbBg
+  });
+
+  // Classes — with homebrew class features filtered by level
+  for (const c of char.build.classes) {
+    const classKey = normKeyOf(c.key);
+    const hbClass = HOMEBREW.classes[classKey];
+
+    // The class header
+    items.push({
+      name: `${hbClass?.name || capitalize(c.key)} ${c.level}`,
+      source: 'Class · ' + (hbClass?.source || c.source),
+      note: hbClass ? buildClassSummary(hbClass) : '',
+      homebrew: !!hbClass
+    });
+
+    // If this is a homebrew class, list every feature the character has access to
+    if (hbClass && hbClass.features) {
+      const earned = hbClass.features.filter(f => f.minLevel <= c.level);
+      // Sort by minLevel, then by name
+      earned.sort((a, b) => a.minLevel - b.minLevel || a.name.localeCompare(b.name));
+      for (const f of earned) {
+        items.push({
+          name: `L${f.minLevel}: ${f.name}`,
+          source: `${hbClass.name} feature`,
+          note: f.description + (f.usages ? `\nUsages: ${f.usages}` + (f.recovery ? ` (recover: ${f.recovery})` : '') : ''),
+          indent: true,
+          homebrew: true
+        });
+      }
+    }
+
+    // Subclass — try to look up by key, then fall back to embedded data
+    if (c.subclass) {
+      const scKey = normKeyOf(c.subclass.key || c.subclass.name || '');
+      const hbSc = HOMEBREW.subclasses[scKey];
+      const extra = c.subclass.genieKind ? ` — ${capitalize(c.subclass.genieKind)} (${c.subclass.damageType})` : '';
+      items.push({
+        name: (hbSc?.name || c.subclass.name) + extra,
+        source: 'Subclass · ' + (hbSc?.source || c.subclass.source),
+        note: '',
+        homebrew: !!hbSc
+      });
+
+      if (hbSc && hbSc.features) {
+        const earned = hbSc.features.filter(f => f.minLevel <= c.level);
+        earned.sort((a, b) => a.minLevel - b.minLevel);
+        for (const f of earned) {
+          items.push({
+            name: `L${f.minLevel}: ${f.name}`,
+            source: `${hbSc.name} feature`,
+            note: f.description,
+            indent: true,
+            homebrew: true
+          });
+        }
+      }
+    }
+  }
+
+  // Pact boon
+  if (char.build.pactBoon) {
+    const extras = (char.build.pactBoon.cantripsAdded || []).join(', ');
+    items.push({
+      name: char.build.pactBoon.name,
+      source: 'Pact Boon · ' + char.build.pactBoon.source,
+      note: extras ? `Adds cantrips: ${extras}` : ''
+    });
+  }
+
+  // Feats — look up full description from homebrew library if available
+  for (const ft of (char.build.feats || [])) {
+    const featKey = normKeyOf(ft.key || ft.name);
+    const hbFeat = HOMEBREW.feats[featKey];
+    let extras = '';
+    if (ft.choices && ft.choices.skills) extras = 'Skills: ' + ft.choices.skills.map(capitalize).join(', ');
+    const noteParts = [];
+    if (extras) noteParts.push(extras);
+    if (hbFeat) {
+      if (hbFeat.descriptionFull) noteParts.push(hbFeat.descriptionFull);
+      else if (hbFeat.description) noteParts.push(hbFeat.description);
+      if (hbFeat.prerequisite) noteParts.push(`Prerequisite: ${hbFeat.prerequisite}`);
+    }
+    items.push({
+      name: (hbFeat?.name || ft.name) + (ft.origin ? ` [${ft.origin}]` : ''),
+      source: 'Feat · ' + (hbFeat?.source || ft.source),
+      note: noteParts.join('\n\n'),
+      homebrew: !!hbFeat
+    });
+  }
+
+  // Invocations
+  for (const inv of (char.build.invocations || [])) {
+    items.push({
+      name: dashCaseToTitle(inv.key),
+      source: 'Eldritch Invocation · ' + inv.source,
+      note: ''
+    });
+  }
+
+  return `
+    <div class="card">
+      <div class="card-title">Build Choices & Features</div>
+      ${items.map(i => `
+        <div class="feature-item ${i.indent ? 'feature-indent' : ''}">
+          <h4>${escapeHTML(i.name)}${i.homebrew ? ' <span class="hb-badge">DOR</span>' : ''}</h4>
+          <div class="feature-source">${escapeHTML(i.source)}</div>
+          ${i.note ? `<div class="feature-note">${escapeHTML(i.note)}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function buildClassSummary(cls) {
+  const parts = [];
+  parts.push(`Hit die: d${cls.hitDie}`);
+  if (cls.primaryAbility) parts.push(`Primary: ${cls.primaryAbility}`);
+  if (cls.saves && cls.saves.length) parts.push(`Saves: ${cls.saves.join(', ')}`);
+  if (cls.spellcastingFactor) {
+    const tiers = { 1: 'Full caster', 2: 'Half caster', 3: 'Third caster' };
+    parts.push(tiers[cls.spellcastingFactor] || 'Caster');
+  }
+  return parts.join(' · ');
+}
+
+// =============================================================
+// AC COMPUTATION
+// =============================================================
+function computeAC(char, abil) {
+  // Naive AC: assume unarmored (10 + dex). If Mage Armor cast, use 13 + dex.
+  // For now, just show unarmored. A real impl would check inventory for armor.
+  return 10 + mod(abil.dex);
+}
+
+function getHitDie(classKey) {
+  const dice = {
+    barbarian: 12, fighter: 10, paladin: 10, ranger: 10,
+    bard: 8, cleric: 8, druid: 8, monk: 8, rogue: 8, warlock: 8,
+    sorcerer: 6, wizard: 6
+  };
+  return dice[classKey] || 8;
+}
+
+// =============================================================
+// UTILITIES
+// =============================================================
+function capitalize(s) {
+  if (!s) return '';
+  return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function dashCaseToTitle(s) {
+  return s.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.split(' ');
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function escapeHTML(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Go!
+init();
+</script>
+
+</body>
+</html>
