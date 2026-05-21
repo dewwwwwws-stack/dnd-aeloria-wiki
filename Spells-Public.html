@@ -1838,17 +1838,36 @@ function exportGlyph() {
     ctx.drawImage(img, 0, 0, W, H);
     URL.revokeObjectURL(url);
 
-    // Try PNG download
+    // Try PNG download — use data URL + new tab as the most reliable cross-iframe method
     try {
       canvas.toBlob(pngBlob => {
-        const pngUrl = URL.createObjectURL(pngBlob);
-        const a = document.createElement('a');
-        a.href = pngUrl; a.download = spellName + '_glyph.png';
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(pngUrl);
-        btn.textContent = '✓ Downloaded';
-        setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
+        const reader = new FileReader();
+        reader.onload = function() {
+          const dataUrl = reader.result;
+          // Try direct download via <a> first
+          try {
+            const a = document.createElement('a');
+            a.href = dataUrl; a.download = spellName + '_glyph.png';
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+            btn.textContent = '✓ Downloaded';
+            setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
+          } catch(dlErr) {
+            // Open as data URL in new tab — user can right-click → Save Image As
+            const w = window.open('', '_blank');
+            if(w) {
+              w.document.write(`<html><body style="margin:0;background:#0d0d1a">
+                <img src="${dataUrl}" style="max-width:100%;display:block"/>
+                <p style="color:#aaa;font-family:sans-serif;padding:8px">
+                  Right-click → Save Image As… to download</p>
+                </body></html>`);
+              w.document.close();
+            }
+            btn.textContent = '✓ Opened in tab';
+            setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
+          }
+        };
+        reader.readAsDataURL(pngBlob);
       }, 'image/png');
     } catch(e) {
       // Obsidian sandbox fallback — copy PNG as data URL to clipboard via ClipboardItem
