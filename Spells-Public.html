@@ -94,6 +94,12 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 .section-title{font-size:15px;color:#556;text-transform:uppercase;letter-spacing:.08em;
   margin:10px 0 4px;border-top:1px solid #1a1a2a;padding-top:8px}
 .close-btn{float:right;background:none;border:none;color:#444;font-size:28px;cursor:pointer;line-height:1}
+.export-btn{display:block;width:100%;margin-top:12px;padding:6px 8px;
+  background:#080812;border:1px solid #2a2a4a;border-radius:6px;
+  color:#556;font-size:12px;cursor:pointer;font-family:Georgia,serif;
+  letter-spacing:.08em;text-align:center}
+.export-btn:hover{border-color:#4a4a7a;color:#99b}
+.export-btn.copied{border-color:#4a7a5a;color:#8bc}
 .panel h2{font-style:italic;color:#8bc;font-size:23px;margin-bottom:14px}
 .cb-label input{width:auto}
 .err{color:#e86;font-size:15px;margin-top:4px}
@@ -114,7 +120,11 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 <button class="tbtn" onclick="setStyle('chaotic',this)">Chaotic</button>
 <button class="tbtn" onclick="setStyle('psionic',this)">Psionic</button>
 <button class="tbtn" onclick="setStyle('natural',this)">Natural</button>
-<button class="tbtn" onclick="setStyle('scriptural',this)">Scriptural</button></div>
+<button class="tbtn" onclick="setStyle('scriptural',this)">Scriptural</button>
+<button class="tbtn" onclick="setStyle('calligraphic',this)">Calligraphic</button>
+<button class="tbtn" onclick="setStyle('dancing',this)">Dancing</button>
+<button class="tbtn" onclick="setStyle('constellation',this)">Constellation</button>
+<button class="tbtn" onclick="setStyle('pulse',this)">Pulse</button></div>
     <div class="section-label">Render Style</div>
     <div class="btn-row" id="fmtBtns"><button class="tbtn active" onclick="setFmt('arcane',this)">Arcane</button>
 <button class="tbtn" onclick="setFmt('linear',this)">Arcane (Short.)</button>
@@ -148,6 +158,7 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
       <div class="detail-row" id="mClasses"></div>
       <div class="detail-row" id="mComponents"></div>
       <div class="detail-row" id="mTags"></div>
+    <button class="export-btn" id="exportBtn" onclick="exportGlyph()">⬇ Export PNG</button>
     </div>
   </div>
 </div>
@@ -857,6 +868,121 @@ const LIN = (() => {
       case 'natural':
         return lineNatural(x1,CY,x2,CY,color,seed+99999);
 
+      case 'calligraphic': {
+        // Two interweaving strands along the arc, alternating over/under at crossings
+        const cycles=Math.max(1,Math.round(span/160));
+        const amp=Math.min(22,span*0.10);
+        const n=Math.max(60,Math.floor(span/3));
+        const strandA=[], strandB=[];
+        for(let k=0;k<=n;k++){
+          const t=k/n;
+          const bx=(1-t)*(1-t)*x1+2*(1-t)*t*mx+t*t*x2;
+          const by=(1-t)*(1-t)*CY+2*(1-t)*t*my+t*t*CY;
+          const tdx=2*(1-t)*(mx-x1)+2*t*(x2-mx);
+          const tdy=2*(1-t)*(my-CY)+2*t*(CY-my);
+          const tl=Math.hypot(tdx,tdy)||1;
+          const ppx=-tdy/tl, ppy=tdx/tl;
+          const taper=Math.pow(Math.sin(t*Math.PI),0.6);
+          const wave=Math.sin(t*Math.PI*2*cycles)*amp*taper;
+          strandA.push([bx+ppx*wave, by+ppy*wave]);
+          strandB.push([bx-ppx*wave, by-ppy*wave]);
+        }
+        function sp(pts){
+          let d=`M${f(pts[0][0])},${f(pts[0][1])}`;
+          for(let i=0;i<pts.length-1;i++){
+            const p0=pts[Math.max(0,i-1)],p1=pts[i],p2=pts[i+1],p3=pts[Math.min(pts.length-1,i+2)];
+            const ten=0.4;
+            const cp1x=p1[0]+(p2[0]-p0[0])*ten/2,cp1y=p1[1]+(p2[1]-p0[1])*ten/2;
+            const cp2x=p2[0]-(p3[0]-p1[0])*ten/2,cp2y=p2[1]-(p3[1]-p1[1])*ten/2;
+            d+=` C${f(cp1x)},${f(cp1y)} ${f(cp2x)},${f(cp2y)} ${f(p2[0])},${f(p2[1])}`;
+          }
+          return d;
+        }
+        const crossings=[];
+        for(let k=1;k<2*cycles;k++) crossings.push(k/(2*cycles));
+        const splits=[0,...crossings,1];
+        let out=`<path d="${sp(strandA)}" fill="none" stroke="${color}" stroke-width="18" stroke-linecap="round" opacity="0.14"/>`;
+        out+=`<path d="${sp(strandB)}" fill="none" stroke="${color}" stroke-width="18" stroke-linecap="round" opacity="0.14"/>`;
+        for(let seg=0;seg<splits.length-1;seg++){
+          const i0=Math.round(splits[seg]*n), i1=Math.round(splits[seg+1]*n);
+          if(i1<=i0) continue;
+          const pA=sp(strandA.slice(i0,i1+1)), pB=sp(strandB.slice(i0,i1+1));
+          if(seg%2===0){
+            out+=`<path d="${pB}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.72"/>`;
+            out+=`<path d="${pA}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.95"/>`;
+          } else {
+            out+=`<path d="${pA}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.72"/>`;
+            out+=`<path d="${pB}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.95"/>`;
+          }
+        }
+        return out;
+      }
+
+      case 'dancing': {
+        // Sinusoidal wave along the arc — taper at endpoints
+        const steps=Math.max(40,Math.floor(span/4));
+        const cycles=Math.max(2,Math.floor(span/60));
+        const amp=Math.min(14,span*0.06);
+        const rng=seededRng(seed);
+        const phase=rng.uniform(0,Math.PI*2);
+        const pts=[];
+        for(let k=0;k<=steps;k++){
+          const t=k/steps;
+          const bx=(1-t)*(1-t)*x1 + 2*(1-t)*t*mx + t*t*x2;
+          const by=(1-t)*(1-t)*CY + 2*(1-t)*t*my + t*t*CY;
+          const tdx=2*(1-t)*(mx-x1)+2*t*(x2-mx);
+          const tdy=2*(1-t)*(my-CY)+2*t*(CY-my);
+          const tl=Math.hypot(tdx,tdy)||1;
+          const px=-tdy/tl, py=tdx/tl;
+          const taper=Math.sin(t*Math.PI);
+          const wave=Math.sin(t*Math.PI*2*cycles+phase)*amp*taper;
+          pts.push([bx+px*wave,by+py*wave]);
+        }
+        const pd='M'+pts.map(p=>`${f(p[0])},${f(p[1])}`).join(' L');
+        return `<path d="${pd}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" opacity="0.18"/>
+<path d="${pd}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" opacity="0.92"/>`;
+      }
+
+      case 'constellation': {
+        // Dots scattered along the arc, no continuous stroke
+        const arcPath=`M${f(x1)},${f(CY)} Q${f(mx)},${f(my)} ${f(x2)},${f(CY)}`;
+        let out=`<path d="${arcPath}" fill="none" stroke="${color}" stroke-width="1" stroke-dasharray="1,4" opacity="0.18"/>`;
+        const n=Math.max(5,Math.floor(span/22));
+        const rng=seededRng(seed);
+        for(let k=1;k<n;k++){
+          const t=k/n;
+          const bx=(1-t)*(1-t)*x1 + 2*(1-t)*t*mx + t*t*x2;
+          const by=(1-t)*(1-t)*CY + 2*(1-t)*t*my + t*t*CY;
+          const r=rng.uniform(1.4,2.6);
+          out+=`<circle cx="${f(bx)}" cy="${f(by)}" r="${f(r*2.4)}" fill="${color}" opacity="0.18"/>`;
+          out+=`<circle cx="${f(bx)}" cy="${f(by)}" r="${f(r)}" fill="${color}" opacity="0.95"/>`;
+          if(rng.next()<0.18){
+            const sp=r*3;
+            out+=`<line x1="${f(bx-sp)}" y1="${f(by)}" x2="${f(bx+sp)}" y2="${f(by)}" stroke="${color}" stroke-width="0.6" opacity="0.5"/>`;
+            out+=`<line x1="${f(bx)}" y1="${f(by-sp)}" x2="${f(bx)}" y2="${f(by+sp)}" stroke="${color}" stroke-width="0.6" opacity="0.5"/>`;
+          }
+        }
+        return out;
+      }
+
+      case 'pulse': {
+        // Ripple dots along the arc — grow from x1, peak at midpoint, shrink into x2
+        const n=Math.max(4,Math.floor(span/14));
+        const rMin=1.2, rMax=7.5;
+        let out='';
+        for(let k=0;k<=n;k++){
+          const t=k/n;
+          const bx=(1-t)*(1-t)*x1 + 2*(1-t)*t*mx + t*t*x2;
+          const by=(1-t)*(1-t)*CY + 2*(1-t)*t*my + t*t*CY;
+          const envelope=Math.sin(t*Math.PI);
+          const r=rMin+envelope*(rMax-rMin);
+          const opacity=0.35+envelope*0.6;
+          out+=`<circle cx="${f(bx)}" cy="${f(by)}" r="${f(r*2.2)}" fill="${color}" opacity="${f(opacity*0.22)}"/>`;
+          out+=`<circle cx="${f(bx)}" cy="${f(by)}" r="${f(r)}" fill="${color}" opacity="${f(opacity)}"/>`;
+        }
+        return out;
+      }
+
       default: {
         const steps = Math.max(6, Math.floor(span / 60));
         let d = `M${f(x1)},${f(CY)}`;
@@ -926,19 +1052,182 @@ function applyLineStyle(style,x1,y1,x2,y2,color,seed,cx,cy){
 }
 function _applyLineStyleInner(style,x1,y1,x2,y2,color,seed,cx,cy){
   switch(style){
-    case 'skilled':    return lineSkilled(x1,y1,x2,y2,color,seed,cx,cy);
-    case 'novice':     return lineNovice(x1,y1,x2,y2,color);
-    case 'chaotic':    return lineChaotic(x1,y1,x2,y2,color,seed);
-    case 'psionic':    return linePsionic(x1,y1,x2,y2,color,seed,cx,cy);
-    case 'natural':    return lineNatural(x1,y1,x2,y2,color,seed);
-    case 'scriptural': return lineScriptural(x1,y1,x2,y2,color,seed);
-    default:           return lineSkilled(x1,y1,x2,y2,color,seed,cx,cy);
+    case 'skilled':      return lineSkilled(x1,y1,x2,y2,color,seed,cx,cy);
+    case 'novice':       return lineNovice(x1,y1,x2,y2,color);
+    case 'chaotic':      return lineChaotic(x1,y1,x2,y2,color,seed);
+    case 'psionic':      return linePsionic(x1,y1,x2,y2,color,seed,cx,cy);
+    case 'natural':      return lineNatural(x1,y1,x2,y2,color,seed);
+    case 'scriptural':   return lineScriptural(x1,y1,x2,y2,color,seed);
+    case 'calligraphic': return lineCalligraphic(x1,y1,x2,y2,color,seed);
+    case 'dancing':      return lineDancing(x1,y1,x2,y2,color,seed);
+    case 'constellation':return lineConstellation(x1,y1,x2,y2,color,seed);
+    case 'pulse':        return linePulse(x1,y1,x2,y2,color,seed);
+    default:             return lineSkilled(x1,y1,x2,y2,color,seed,cx,cy);
   }
+}
+
+// ── CALLIGRAPHIC ─────────────────────────────────────────────────────
+// Brush-stroke effect: line is built from many small slices whose
+// width varies along the length (thin at ends, thick mid-stroke).
+function lineCalligraphic(x1,y1,x2,y2, color, seed) {
+  const rng = seededRng(seed);
+  const dx=x2-x1, dy=y2-y1, dist=Math.hypot(dx,dy);
+  if(dist===0) return '';
+  const ux=dx/dist, uy=dy/dist, px=-uy, py=ux;
+
+  // Two strands that weave over/under each other along the line.
+  // Each strand follows a sinusoidal path offset by half a wavelength.
+  // Where they cross, one strand is drawn "over" (rendered after) the other.
+  const cycles = Math.max(1, Math.round(dist / 160)); // one crossing per ~160px — slow, lazy
+  const amp = Math.min(22, dist * 0.10);              // wide amplitude — thick pen feel
+  const n = Math.max(60, Math.floor(dist / 3));
+
+  // Build point arrays for both strands
+  const strandA = [], strandB = [];
+  for(let i=0;i<=n;i++){
+    const t = i/n;
+    // Taper amplitude to 0 at endpoints so strands meet cleanly at nodes
+    const taper = Math.pow(Math.sin(t * Math.PI), 0.6);
+    const wave = Math.sin(t * Math.PI * 2 * cycles) * amp * taper;
+    const bx = x1+t*dx, by = y1+t*dy;
+    strandA.push([bx + px*wave,  by + py*wave]);
+    strandB.push([bx - px*wave,  by - py*wave]);
+  }
+
+  // Helper: build smooth SVG path from point array using catmull-rom
+  function smoothPath(pts) {
+    let d = `M${f(pts[0][0])},${f(pts[0][1])}`;
+    for(let i=0;i<pts.length-1;i++){
+      const p0=pts[Math.max(0,i-1)], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(pts.length-1,i+2)];
+      const ten=0.4;
+      const cp1x=p1[0]+(p2[0]-p0[0])*ten/2, cp1y=p1[1]+(p2[1]-p0[1])*ten/2;
+      const cp2x=p2[0]-(p3[0]-p1[0])*ten/2, cp2y=p2[1]-(p3[1]-p1[1])*ten/2;
+      d+=` C${f(cp1x)},${f(cp1y)} ${f(cp2x)},${f(cp2y)} ${f(p2[0])},${f(p2[1])}`;
+    }
+    return d;
+  }
+
+  // Split strands into segments between crossings, alternating which is "on top".
+  // Crossings happen every half-cycle — at t = k/(2*cycles) for k=1..2*cycles-1
+  const crossings = [];
+  for(let k=1;k<2*cycles;k++) crossings.push(k/(2*cycles));
+  const splits = [0, ...crossings, 1];
+
+  let out = '';
+  // Soft glow underlayer for both strands
+  const pdA = smoothPath(strandA), pdB = smoothPath(strandB);
+  out += `<path d="${pdA}" fill="none" stroke="${color}" stroke-width="18" stroke-linecap="round" opacity="0.14"/>`;
+  out += `<path d="${pdB}" fill="none" stroke="${color}" stroke-width="18" stroke-linecap="round" opacity="0.14"/>`;
+
+  // Draw segments alternating which strand is on top
+  for(let seg=0;seg<splits.length-1;seg++){
+    const t0 = splits[seg], t1 = splits[seg+1];
+    const i0 = Math.round(t0*n), i1 = Math.round(t1*n);
+    if(i1<=i0) continue;
+    const sliceA = strandA.slice(i0, i1+1);
+    const sliceB = strandB.slice(i0, i1+1);
+    const pA = smoothPath(sliceA), pB = smoothPath(sliceB);
+    // Alternate: even segments have A on top, odd have B on top
+    if(seg % 2 === 0){
+      // B drawn first (underneath), then A on top
+      out += `<path d="${pB}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.72"/>`;
+      out += `<path d="${pA}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.95"/>`;
+    } else {
+      // A drawn first (underneath), then B on top
+      out += `<path d="${pA}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.72"/>`;
+      out += `<path d="${pB}" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round" opacity="0.95"/>`;
+    }
+  }
+  return out;
+}
+
+// ── DANCING ──────────────────────────────────────────────────────────
+// Smooth sinusoidal wave along the line axis with regular wavelength.
+// Tapers at the endpoints so connections to dots are clean.
+function lineDancing(x1,y1,x2,y2, color, seed) {
+  const rng = seededRng(seed);
+  const dx=x2-x1, dy=y2-y1, dist=Math.hypot(dx,dy);
+  if(dist===0) return '';
+  const ux=dx/dist, uy=dy/dist, px=-uy, py=ux;
+  const n = Math.max(40, Math.floor(dist/4));
+  const cycles = Math.max(2, Math.floor(dist/60));  // wavelength scales with length
+  const amp = Math.min(16, dist*0.08);
+  const phase = rng.uniform(0, Math.PI*2);
+  const pts = [];
+  for(let i=0;i<=n;i++){
+    const t = i/n;
+    // Taper amplitude to zero at endpoints
+    const taper = Math.sin(t*Math.PI);
+    const wave = Math.sin(t*Math.PI*2*cycles + phase) * amp * taper;
+    pts.push([x1+t*dx+px*wave, y1+t*dy+py*wave]);
+  }
+  const pd = 'M'+pts.map(p=>`${f(p[0])},${f(p[1])}`).join(' L');
+  return `<path d="${pd}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round" opacity="0.18"/>
+<path d="${pd}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" opacity="0.92"/>`;
+}
+
+// ── CONSTELLATION ────────────────────────────────────────────────────
+// No continuous stroke — just bright dots at regular intervals along
+// the line axis, like connecting stars.
+function lineConstellation(x1,y1,x2,y2, color, seed) {
+  const rng = seededRng(seed);
+  const dx=x2-x1, dy=y2-y1, dist=Math.hypot(dx,dy);
+  if(dist===0) return '';
+  // Faint guide line so the path is still readable
+  let s = `<line x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}" stroke="${color}" stroke-width="1" stroke-dasharray="1,4" opacity="0.18"/>`;
+  // Dots along the path — denser near middle, sparser at ends
+  const n = Math.max(5, Math.floor(dist/22));
+  for(let i=1;i<n;i++){
+    const t = i/n;
+    const dx2 = x1+t*dx, dy2 = y1+t*dy;
+    // Vary dot size to feel star-like
+    const r = rng.uniform(1.4, 2.6);
+    const glow = r * 2.4;
+    s += `<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${f(glow)}" fill="${color}" opacity="0.18"/>`;
+    s += `<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${f(r)}" fill="${color}" opacity="0.95"/>`;
+    // Occasional twinkle (cross sparkle)
+    if(rng.next() < 0.18){
+      const sp = r * 3;
+      s += `<line x1="${f(dx2-sp)}" y1="${f(dy2)}" x2="${f(dx2+sp)}" y2="${f(dy2)}" stroke="${color}" stroke-width="0.6" opacity="0.5"/>`;
+      s += `<line x1="${f(dx2)}" y1="${f(dy2-sp)}" x2="${f(dx2)}" y2="${f(dy2+sp)}" stroke="${color}" stroke-width="0.6" opacity="0.5"/>`;
+    }
+  }
+  return s;
+}
+
+// ── PULSE ────────────────────────────────────────────────────────────
+// Thin line with periodic thick "beats" — like a heartbeat trace.
+// Beats are evenly spaced bulges along the line.
+function linePulse(x1,y1,x2,y2, color, seed) {
+  const dx=x2-x1, dy=y2-y1, dist=Math.hypot(dx,dy);
+  if(dist===0) return '';
+  // Propagating ripple: evenly-spaced dots whose radius follows a sine wave
+  // that's pinned to zero at both endpoints and peaks in the middle —
+  // like a ripple expanding from x1 and contracting into x2.
+  const spacing = 14;
+  const n = Math.max(4, Math.floor(dist / spacing));
+  const rMin = 1.2;   // dot radius at endpoints
+  const rMax = 7.5;   // dot radius at midpoint
+  let s = '';
+  for(let i=0;i<=n;i++){
+    const t = i/n;
+    const bx = x1+t*dx, by = y1+t*dy;
+    // Sine envelope: 0 at t=0 and t=1, peak at t=0.5
+    const envelope = Math.sin(t * Math.PI);
+    const r = rMin + envelope * (rMax - rMin);
+    const glow = r * 2.2;
+    const opacity = 0.35 + envelope * 0.6;  // also fade in/out with the ripple
+    s += `<circle cx="${f(bx)}" cy="${f(by)}" r="${f(glow)}" fill="${color}" opacity="${f(opacity*0.22)}"/>`;
+    s += `<circle cx="${f(bx)}" cy="${f(by)}" r="${f(r)}" fill="${color}" opacity="${f(opacity)}"/>`;
+  }
+  return s;
 }
 
 const _RLABELS={skilled:'Skilled — Elegant & Learned',novice:'Novice — Simple & Direct',
   chaotic:'Chaotic — Raw & Unstable',psionic:'Psionic — Orthogonal & Alien',
-  natural:'Natural — Organic & Druidic',scriptural:'Scriptural — Mathematical Notation'};
+  natural:'Natural — Organic & Druidic',scriptural:'Scriptural — Mathematical Notation',
+  calligraphic:'Calligraphic — Brushstroke & Inked',dancing:'Dancing — Rhythmic & Sinuous',
+  constellation:'Constellation — Stellar & Discrete',pulse:'Pulse — Beating & Vital'};
 
 function labels(name,level,school,style,w,h=null){
   if(!h) h=w;
@@ -1192,6 +1481,18 @@ function renderInwardSpiral(name,level,school,notation,style){
     } else if(style==='scriptural'){
       // Scriptural: straight line + tick marks (exact lineScriptural)
       s+=lineScriptural(p1.x,p1.y,p2.x,p2.y,sc,seed);
+
+    } else if(style==='calligraphic'){
+      s+=lineCalligraphic(p1.x,p1.y,p2.x,p2.y,sc,seed);
+
+    } else if(style==='dancing'){
+      s+=lineDancing(p1.x,p1.y,p2.x,p2.y,sc,seed);
+
+    } else if(style==='constellation'){
+      s+=lineConstellation(p1.x,p1.y,p2.x,p2.y,sc,seed);
+
+    } else if(style==='pulse'){
+      s+=linePulse(p1.x,p1.y,p2.x,p2.y,sc,seed);
     }
   }
   for(const p of pts) s+=renderDot(p.x,p.y,_SC[p.school],p.dot!==null,DOT_R);
@@ -1338,8 +1639,8 @@ const BASE_CARDS    = [{"name": "Abi-Dalzim's Horrid Wilting", "level": "Level 8
 const SCHOOLS       = ["Evocation", "Conjuration", "Divination", "Abjuration", "Enchantment", "Transmutation", "Illusion", "Necromancy"];
 const SCHOOL_COLORS_MAP = {"Evocation": "#FF2600", "Conjuration": "#0080FF", "Divination": "#FFF800", "Abjuration": "#F0F0F0", "Enchantment": "#6DFF61", "Transmutation": "#FF9500", "Illusion": "#ED00FF", "Necromancy": "#54A173"};
 const SCHOOL_ABBREV = {"Evocation": "Ev", "Conjuration": "Co", "Divination": "Di", "Abjuration": "Ab", "Enchantment": "En", "Transmutation": "Tr", "Illusion": "Il", "Necromancy": "Ne"};
-const STYLES        = ["skilled", "novice", "chaotic", "psionic", "natural", "scriptural"];
-const STYLE_LABELS  = {"skilled": "Skilled", "novice": "Novice", "chaotic": "Chaotic", "psionic": "Psionic", "natural": "Natural", "scriptural": "Scriptural"};
+const STYLES        = ["skilled", "novice", "chaotic", "psionic", "natural", "scriptural", "calligraphic", "dancing", "constellation", "pulse"];
+const STYLE_LABELS  = {"skilled": "Skilled", "novice": "Novice", "chaotic": "Chaotic", "psionic": "Psionic", "natural": "Natural", "scriptural": "Scriptural", "calligraphic": "Calligraphic", "dancing": "Dancing", "constellation": "Constellation", "pulse": "Pulse"};
 const FORMATS       = ["arcane", "linear", "venn", "divine", "pact", "octagon", "dring", "spokes", "spiral"];
 const FORMAT_LABELS = {"arcane": "Arcane", "linear": "Arcane (Short.)", "venn": "Arcane (Alt.)", "divine": "Divine", "pact": "Pact Magic", "octagon": "Glyphic", "dring": "Orbital", "spokes": "Planar", "spiral": "Vortex"};
 
@@ -1506,6 +1807,81 @@ function setMF(f,btn) {
   mFmt=f;
   document.querySelectorAll('#mControls .mc-fmt-row .mbtn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active'); updateModalGlyph();
+}
+function exportGlyph() {
+  const glyphDiv = document.getElementById('mGlyph');
+  const svg = glyphDiv.querySelector('svg');
+  if(!svg) return;
+  const btn = document.getElementById('exportBtn');
+  const spellName = (mCard && mCard.name ? mCard.name : 'glyph').replace(/[^a-z0-9]/gi,'_');
+  const svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg.outerHTML;
+
+  // Get canvas dimensions from viewBox for high-res PNG
+  const vb = svg.getAttribute('viewBox');
+  const [,, vw, vh] = vb ? vb.split(/\s+/).map(Number) : [0,0,1000,1000];
+  const scale = 2; // 2× for crisp export
+  const W = vw * scale, H = vh * scale;
+
+  btn.textContent = '⏳ Exporting…';
+
+  const img = new Image();
+  const blob = new Blob([svgStr], {type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+
+  img.onload = function() {
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    // Fill dark background (SVG bg is part of SVG so this is just a safety net)
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(img, 0, 0, W, H);
+    URL.revokeObjectURL(url);
+
+    // Try PNG download
+    try {
+      canvas.toBlob(pngBlob => {
+        const pngUrl = URL.createObjectURL(pngBlob);
+        const a = document.createElement('a');
+        a.href = pngUrl; a.download = spellName + '_glyph.png';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(pngUrl);
+        btn.textContent = '✓ Downloaded';
+        setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
+      }, 'image/png');
+    } catch(e) {
+      // Obsidian sandbox fallback — copy PNG as data URL to clipboard via ClipboardItem
+      try {
+        canvas.toBlob(pngBlob => {
+          const item = new ClipboardItem({'image/png': pngBlob});
+          navigator.clipboard.write([item]).then(()=>{
+            btn.textContent = '✓ Copied PNG';
+            btn.classList.add('copied');
+            setTimeout(()=>{ btn.textContent='⬇ Export PNG'; btn.classList.remove('copied'); }, 2000);
+          });
+        }, 'image/png');
+      } catch(e2) {
+        // Final fallback — SVG text to clipboard
+        navigator.clipboard.writeText(svgStr).then(()=>{
+          btn.textContent = '✓ Copied SVG';
+          btn.classList.add('copied');
+          setTimeout(()=>{ btn.textContent='⬇ Export PNG'; btn.classList.remove('copied'); }, 2000);
+        }).catch(()=>{
+          btn.textContent = '⚠ Failed'; 
+          setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2000);
+        });
+      }
+    }
+  };
+
+  img.onerror = function() {
+    URL.revokeObjectURL(url);
+    btn.textContent = '⚠ Failed';
+    setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2000);
+  };
+
+  img.src = url;
 }
 function closeModal() { unpinOverlay(document.getElementById('modalBg')); }
 function closeOutside(e) { if(e.target===document.getElementById('modalBg')) closeModal(); }
