@@ -1816,92 +1816,86 @@ function exportGlyph() {
   const spellName = (mCard && mCard.name ? mCard.name : 'glyph').replace(/[^a-z0-9]/gi,'_');
   const svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg.outerHTML;
 
-  // Get canvas dimensions from viewBox for high-res PNG
   const vb = svg.getAttribute('viewBox');
   const [,, vw, vh] = vb ? vb.split(/\s+/).map(Number) : [0,0,1000,1000];
-  const scale = 2; // 2× for crisp export
+  const scale = 2;
   const W = vw * scale, H = vh * scale;
 
   btn.textContent = '⏳ Exporting…';
 
+  // Use base64 data URL instead of blob URL — works inside sandboxed iframes
+  const svgB64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
   const img = new Image();
-  const blob = new Blob([svgStr], {type:'image/svg+xml'});
-  const url = URL.createObjectURL(blob);
 
   img.onload = function() {
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
-    // Fill dark background (SVG bg is part of SVG so this is just a safety net)
     ctx.fillStyle = '#0d0d1a';
     ctx.fillRect(0, 0, W, H);
     ctx.drawImage(img, 0, 0, W, H);
-    URL.revokeObjectURL(url);
 
-    // Try PNG download — use data URL + new tab as the most reliable cross-iframe method
-    try {
-      canvas.toBlob(pngBlob => {
-        const reader = new FileReader();
-        reader.onload = function() {
-          const dataUrl = reader.result;
-          // Try direct download via <a> first
-          try {
-            const a = document.createElement('a');
-            a.href = dataUrl; a.download = spellName + '_glyph.png';
-            document.body.appendChild(a); a.click();
-            document.body.removeChild(a);
-            btn.textContent = '✓ Downloaded';
-            setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
-          } catch(dlErr) {
-            // Open as data URL in new tab — user can right-click → Save Image As
-            const w = window.open('', '_blank');
-            if(w) {
-              w.document.write(`<html><body style="margin:0;background:#0d0d1a">
-                <img src="${dataUrl}" style="max-width:100%;display:block"/>
-                <p style="color:#aaa;font-family:sans-serif;padding:8px">
-                  Right-click → Save Image As… to download</p>
-                </body></html>`);
-              w.document.close();
-            }
-            btn.textContent = '✓ Opened in tab';
-            setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
-          }
-        };
-        reader.readAsDataURL(pngBlob);
-      }, 'image/png');
-    } catch(e) {
-      // Obsidian sandbox fallback — copy PNG as data URL to clipboard via ClipboardItem
-      try {
-        canvas.toBlob(pngBlob => {
-          const item = new ClipboardItem({'image/png': pngBlob});
-          navigator.clipboard.write([item]).then(()=>{
-            btn.textContent = '✓ Copied PNG';
-            btn.classList.add('copied');
-            setTimeout(()=>{ btn.textContent='⬇ Export PNG'; btn.classList.remove('copied'); }, 2000);
-          });
-        }, 'image/png');
-      } catch(e2) {
-        // Final fallback — SVG text to clipboard
-        navigator.clipboard.writeText(svgStr).then(()=>{
-          btn.textContent = '✓ Copied SVG';
-          btn.classList.add('copied');
-          setTimeout(()=>{ btn.textContent='⬇ Export PNG'; btn.classList.remove('copied'); }, 2000);
-        }).catch(()=>{
-          btn.textContent = '⚠ Failed'; 
-          setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2000);
-        });
-      }
+    // Get PNG as data URL — no blobs needed
+    let pngDataUrl;
+    try { pngDataUrl = canvas.toDataURL('image/png'); }
+    catch(e) {
+      btn.textContent = '⚠ Failed'; 
+      setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2000);
+      return;
     }
+
+    // 1. Try <a download> with data URL
+    try {
+      const a = document.createElement('a');
+      a.href = pngDataUrl; a.download = spellName + '_glyph.png';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      btn.textContent = '✓ Downloaded';
+      setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
+      return;
+    } catch(e) { /* fall through */ }
+
+    // 2. Try clipboard (image/png via ClipboardItem)
+    if(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      fetch(pngDataUrl).then(r=>r.blob()).then(pngBlob=>{
+        const item = new ClipboardItem({'image/png': pngBlob});
+        return navigator.clipboard.write([item]);
+      }).then(()=>{
+        btn.textContent = '✓ Copied image';
+        btn.classList.add('copied');
+        setTimeout(()=>{ btn.textContent='⬇ Export PNG'; btn.classList.remove('copied'); }, 3000);
+      }).catch(()=> openTab(pngDataUrl, spellName));
+      return;
+    }
+
+    // 3. Open in new tab — right-click to save
+    openTab(pngDataUrl, spellName);
   };
 
   img.onerror = function() {
-    URL.revokeObjectURL(url);
     btn.textContent = '⚠ Failed';
     setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2000);
   };
 
-  img.src = url;
+  function openTab(dataUrl, name) {
+    const w = window.open('', '_blank');
+    if(w) {
+      w.document.write(`<html><body style="margin:0;background:#0d0d1a">
+        <img src="${dataUrl}" style="max-width:100%;display:block"/>
+        <p style="color:#aaa;font-family:sans-serif;padding:8px;font-size:14px">
+          Right-click the image → <b>Save Image As</b> to download as PNG</p>
+        </body></html>`);
+      w.document.close();
+      btn.textContent = '✓ Opened in tab';
+    } else {
+      btn.textContent = '⚠ Popup blocked';
+    }
+    setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 3000);
+  }
+
+  img.src = svgB64;
 }
+
 function closeModal() { unpinOverlay(document.getElementById('modalBg')); }
 function closeOutside(e) { if(e.target===document.getElementById('modalBg')) closeModal(); }
 
