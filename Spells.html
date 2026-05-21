@@ -158,7 +158,7 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
       <div class="detail-row" id="mClasses"></div>
       <div class="detail-row" id="mComponents"></div>
       <div class="detail-row" id="mTags"></div>
-    <button class="export-btn" id="exportBtn" onclick="exportGlyph()">⬇ Export PNG</button>
+    <button class="export-btn" id="exportBtn" onclick="exportGlyph()">↗ Open PNG in Tab</button>
     </div>
   </div>
 </div>
@@ -1840,9 +1840,13 @@ function exportGlyph() {
     try { pngDataUrl = canvas.toDataURL('image/png'); }
     catch(e) {
       btn.textContent = '⚠ Failed'; 
-      setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2000);
+      setTimeout(()=>{ btn.textContent='↗ Open PNG in Tab'; }, 2000);
       return;
     }
+
+    // Obsidian Publish iframes block downloads — open in new tab directly
+    openTab(pngDataUrl, spellName);
+    return;
 
     // 1. Try <a download> with data URL
     try {
@@ -1851,7 +1855,7 @@ function exportGlyph() {
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       btn.textContent = '✓ Downloaded';
-      setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2500);
+      setTimeout(()=>{ btn.textContent='↗ Open PNG in Tab'; }, 2500);
       return;
     } catch(e) { /* fall through */ }
 
@@ -1863,7 +1867,7 @@ function exportGlyph() {
       }).then(()=>{
         btn.textContent = '✓ Copied image';
         btn.classList.add('copied');
-        setTimeout(()=>{ btn.textContent='⬇ Export PNG'; btn.classList.remove('copied'); }, 3000);
+        setTimeout(()=>{ btn.textContent='↗ Open PNG in Tab'; btn.classList.remove('copied'); }, 3000);
       }).catch(()=> openTab(pngDataUrl, spellName));
       return;
     }
@@ -1874,7 +1878,7 @@ function exportGlyph() {
 
   img.onerror = function() {
     btn.textContent = '⚠ Failed';
-    setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 2000);
+    setTimeout(()=>{ btn.textContent='↗ Open PNG in Tab'; }, 2000);
   };
 
   function openTab(dataUrl, name) {
@@ -1890,7 +1894,7 @@ function exportGlyph() {
     } else {
       btn.textContent = '⚠ Popup blocked';
     }
-    setTimeout(()=>{ btn.textContent='⬇ Export PNG'; }, 3000);
+    setTimeout(()=>{ btn.textContent='↗ Open PNG in Tab'; }, 3000);
   }
 
   img.src = svgB64;
