@@ -232,8 +232,9 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
       <div class="meas-val" style="flex-direction:column;align-items:center;gap:2px">
         <select id="measSpeedSelect" style="font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.06em;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);border-radius:2px;padding:2px 4px;cursor:pointer;text-align:center">
           <optgroup label="— Land —" style="font-family:'Cinzel',serif">
-            <option value="walk">🚶 Walking</option>
-            <option value="carriage">🐴 Carriage</option>
+            <option value="land_fast">🚶 Fast Pace (4mph)</option>
+            <option value="land_normal" selected>🚶 Normal Pace (3mph)</option>
+            <option value="land_slow">🚶 Slow Pace (2mph)</option>
           </optgroup>
           <optgroup label="— Waterborne —" style="font-family:'Cinzel',serif">
             <option value="rowboat">🚣 Rowboat (1.5mph)</option>
@@ -686,8 +687,9 @@ function calcMeasureDist(pts) {
 
 // 2024 PHB travel speeds — land uses 8hr day, water/air travel 24hr
 const TRAVEL_SPEEDS = {
-  walk:     { label:'Walking',      milesPerDay: 24,   hoursPerDay: 8  },
-  carriage: { label:'Carriage',     milesPerDay: 36,   hoursPerDay: 12 },
+  land_fast:   { label:'Fast Pace',    milesPerDay: 32,  hoursPerDay: 8 }, // 4mph
+  land_normal: { label:'Normal Pace',  milesPerDay: 24,  hoursPerDay: 8 }, // 3mph
+  land_slow:   { label:'Slow Pace',    milesPerDay: 16,  hoursPerDay: 8 }, // 2mph
   // Waterborne (continuous travel, 24hr day)
   rowboat:  { label:'Rowboat',      milesPerDay: 36,   hoursPerDay: 24 }, // 1.5mph
   keelboat: { label:'Keelboat',     milesPerDay: 24,   hoursPerDay: 24 }, // 1mph
