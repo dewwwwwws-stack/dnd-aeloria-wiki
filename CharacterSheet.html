@@ -154,6 +154,51 @@ a { color: var(--accent3); }
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+
+/* ── RESPONSIVE BREAKPOINTS ───────────────────────────── */
+@media (max-width: 1100px) {
+  .sheet-grid {
+    grid-template-columns: 180px 1fr 240px;
+  }
+}
+@media (max-width: 900px) {
+  /* Collapse to 2 columns: left panel stacks under middle */
+  .sheet-grid {
+    grid-template-columns: 1fr 220px;
+  }
+  .sheet-grid > div:first-child {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .sheet-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 650px) {
+  /* Single column */
+  .sheet-grid {
+    grid-template-columns: 1fr;
+  }
+  .sheet-grid > div:first-child {
+    grid-column: 1;
+    grid-template-columns: 1fr 1fr;
+  }
+  .sheet-grid-2col {
+    grid-template-columns: 1fr;
+  }
+  /* Ability scores in a row */
+  .ability-block {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  /* Stat trio stays horizontal */
+  .stat-trio {
+    display: flex;
+  }
+}
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -190,8 +235,23 @@ a { color: var(--accent3); }
   background: var(--bg3); border: 1px solid var(--border);
   border-radius: 4px; padding: 4px; font-size: 22px; font-weight: 700;
   color: var(--text); outline: none;
+  /* Hide native browser number spinner */
+  -moz-appearance: textfield;
 }
+.ability-input::-webkit-outer-spin-button,
+.ability-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .ability-input:focus { border-color: var(--gold); }
+.ability-stepper {
+  display: flex; flex-direction: column; gap: 1px;
+}
+.ability-stepper button {
+  width: 18px; height: 16px; border-radius: 3px;
+  border: 1px solid var(--border2); background: var(--bg2);
+  color: var(--text2); font-size: 10px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .12s; padding: 0;
+}
+.ability-stepper button:hover { border-color: var(--gold); color: var(--gold); background: var(--bg3); }
 .ability-mod {
   font-size: 13px; font-weight: 700;
   color: var(--gold); min-width: 28px; text-align: center;
@@ -679,7 +739,7 @@ a { color: var(--accent3); }
               <div class="panel-title">Saving Throws</div>
               <div id="saves-block"></div>
             </div>
-            <div class="panel" style="max-height:280px;overflow-y:auto">
+            <div class="panel">
               <div class="panel-title">Skills</div>
               <div id="skills-block"></div>
             </div>
@@ -687,14 +747,19 @@ a { color: var(--accent3); }
 
           <!-- Attacks -->
           <div class="panel">
-            <div class="panel-title">Attacks & Weapons</div>
+            <div class="panel-title">Attacks & Weapons
+              <span style="float:right;display:flex;gap:6px">
+                <button class="topbar-btn" style="font-size:10px;padding:2px 8px" onclick="openWeaponPicker()">+ Weapon</button>
+                <button class="topbar-btn" style="font-size:10px;padding:2px 8px" onclick="openCantripPicker()">+ Cantrip</button>
+                <button class="topbar-btn" style="font-size:10px;padding:2px 8px" onclick="addAttack()">+ Custom</button>
+              </span>
+            </div>
             <table class="attacks-table" id="attacks-table">
               <thead><tr>
                 <th>Name</th><th>ATK Bonus</th><th>Damage</th><th>Type</th><th>Range</th><th>Notes</th><th></th>
               </tr></thead>
               <tbody id="attacks-body"></tbody>
             </table>
-            <button class="attack-add-btn" onclick="addAttack()">+ Add Attack</button>
           </div>
         </div>
 
@@ -1037,6 +1102,26 @@ a { color: var(--accent3); }
   </div>
 </div>
 
+<!-- ── WEAPON PICKER MODAL ───────────────────────────────── -->
+<div class="modal-overlay hidden" id="weapon-picker-modal" style="z-index:1500">
+  <div class="modal-box" style="width:560px;max-height:80vh">
+    <div class="modal-title">Add Weapon <span class="modal-close" onclick="closeModal('weapon-picker-modal')">✕</span></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Attack bonus and damage auto-calculated from your ability scores and proficiency.</div>
+    <input class="spell-search" id="weapon-search" placeholder="Search weapons…" oninput="filterWeaponPicker()" style="margin-bottom:10px"/>
+    <div id="weapon-picker-grid" style="display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- ── CANTRIP PICKER MODAL ──────────────────────────────── -->
+<div class="modal-overlay hidden" id="cantrip-picker-modal" style="z-index:1500">
+  <div class="modal-box" style="width:500px;max-height:80vh">
+    <div class="modal-title">Add Cantrip Attack <span class="modal-close" onclick="closeModal('cantrip-picker-modal')">✕</span></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Damaging cantrips only. Spell attack bonus auto-calculated from your spellcasting ability.</div>
+    <input class="spell-search" id="cantrip-search" placeholder="Search cantrips…" oninput="filterCantripPicker()" style="margin-bottom:10px"/>
+    <div id="cantrip-picker-grid" style="display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- ── BACKGROUND BOOST MODAL ────────────────────────── -->
 <div class="modal-overlay hidden" id="bg-boost-modal" style="z-index:1500">
   <div class="modal-box" style="width:460px">
@@ -1074,7 +1159,7 @@ const PHB = {"classes":{"barbarian":{"name":"Barbarian","hit_die":12,"saves":["S
 // CONSTANTS
 // ═══════════════════════════════════════════════════════
 const STORAGE_PREFIX = 'dorenia_';
-const DM_PIN = '158340'; // Change this!
+const DM_PIN = 'dm1189'; // Change this!
 const ABILITY_NAMES = ['Strength','Dexterity','Constitution','Intelligence','Wisdom','Charisma'];
 const ABILITY_SHORT = ['Str','Dex','Con','Int','Wis','Cha'];
 const ABILITY_KEYS = ['str','dex','con','int','wis','cha'];
@@ -1476,10 +1561,23 @@ function renderAbilityScores() {
       <div class="ability-value-wrap">
         <input class="ability-input" id="ab-input-${k}" type="number" value="${val}" min="1" max="30"
           onchange="onAbilityChange('${k}')" />
+        <div class="ability-stepper">
+          <button onclick="stepAbility('${k}',1)" tabindex="-1">▲</button>
+          <button onclick="stepAbility('${k}',-1)" tabindex="-1">▼</button>
+        </div>
         <div class="ability-mod" id="ab-mod-${k}">${sign(mval)}</div>
       </div>`;
     cont.appendChild(div);
   });
+}
+
+function stepAbility(k, delta) {
+  const el = document.getElementById('ab-input-'+k);
+  if (!el) return;
+  const cur = parseInt(el.value)||10;
+  const next = Math.max(1, Math.min(30, cur + delta));
+  el.value = next;
+  onAbilityChange(k);
 }
 
 function onAbilityChange(k) {
@@ -1497,6 +1595,7 @@ function onAbilityChange(k) {
   const newAC = calcAC();
   document.getElementById('char-ac').value = newAC;
   char.ac = newAC;
+  recalcAutoAttacks();
 }
 
 function renderAbilityDerived() {
@@ -1743,28 +1842,214 @@ function renderExhaustion() {
   }
 }
 
+// ── Attack auto-calc helpers ─────────────────────────────────
+function calcAttackBonus(atk) {
+  // Auto-calculated attacks have _auto:true and an ability key
+  if (!atk._auto) return atk.atk || '';
+  const ab = atk._ability || 'str';
+  const abMod = getAbilityMod(ab);
+  const pb = profBonus();
+  const bonus = abMod + (atk._proficient !== false ? pb : 0);
+  return sign(bonus);
+}
+
+function calcAttackDamage(atk) {
+  if (!atk._auto) return atk.dmg || '';
+  const ab = atk._ability || 'str';
+  const abMod = getAbilityMod(ab);
+  // e.g. "1d8" + mod, or cantrip "1d10" (no mod added for cantrips unless Evoker)
+  const mod = atk._noMod ? '' : (abMod >= 0 ? '+'+abMod : ''+abMod);
+  return (atk._baseDmg || '1d6') + mod + ' ' + (atk._dmgType || '');
+}
+
 function renderAttacks() {
   const tbody = document.getElementById('attacks-body');
   tbody.innerHTML = '';
   attackRows.forEach((atk, idx) => {
+    const isAuto = atk._auto;
+    const displayAtk = isAuto ? calcAttackBonus(atk) : (atk.atk || '');
+    const displayDmg = isAuto ? calcAttackDamage(atk) : (atk.dmg || '');
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><input value="${atk.name||''}" placeholder="Attack name" onchange="attackRows[${idx}].name=this.value"/></td>
-      <td><input value="${atk.atk||''}" placeholder="+5" style="width:50px" onchange="attackRows[${idx}].atk=this.value"/></td>
-      <td><input value="${atk.dmg||''}" placeholder="1d8+3" onchange="attackRows[${idx}].dmg=this.value"/></td>
-      <td><input value="${atk.type||''}" placeholder="Slashing" onchange="attackRows[${idx}].type=this.value"/></td>
-      <td><input value="${atk.range||''}" placeholder="Melee" style="width:60px" onchange="attackRows[${idx}].range=this.value"/></td>
-      <td><input value="${atk.notes||''}" placeholder="..." onchange="attackRows[${idx}].notes=this.value"/></td>
-      <td><button class="equip-del" onclick="removeAttack(${idx})">✕</button></td>
-    `;
+
+    if (isAuto) {
+      // Auto-calc row — show computed values with override option
+      const sourceBadge = atk._source === 'cantrip'
+        ? '<span style="font-size:9px;color:var(--accent2);background:rgba(123,94,167,.15);padding:1px 5px;border-radius:3px;margin-left:4px">cantrip</span>'
+        : atk._source === 'weapon'
+        ? '<span style="font-size:9px;color:var(--accent3);background:rgba(74,144,217,.15);padding:1px 5px;border-radius:3px;margin-left:4px">weapon</span>'
+        : '';
+      tr.innerHTML = `
+        <td style="font-weight:600;color:var(--text)">${atk.name||''}${sourceBadge}</td>
+        <td style="color:var(--gold);font-weight:700;font-size:13px">${displayAtk}</td>
+        <td style="color:var(--text)">${displayDmg}</td>
+        <td style="color:var(--text2);font-size:11px">${atk._dmgType||atk.type||''}</td>
+        <td style="color:var(--text2);font-size:11px">${atk.range||'Melee'}</td>
+        <td style="color:var(--text3);font-size:11px">${atk.notes||''}</td>
+        <td><button class="equip-del" onclick="removeAttack(${idx})">✕</button></td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td><input value="${atk.name||''}" placeholder="Attack name" onchange="attackRows[${idx}].name=this.value"/></td>
+        <td><input value="${atk.atk||''}" placeholder="+5" style="width:50px" onchange="attackRows[${idx}].atk=this.value"/></td>
+        <td><input value="${atk.dmg||''}" placeholder="1d8+3" onchange="attackRows[${idx}].dmg=this.value"/></td>
+        <td><input value="${atk.type||''}" placeholder="Slashing" onchange="attackRows[${idx}].type=this.value"/></td>
+        <td><input value="${atk.range||''}" placeholder="Melee" style="width:60px" onchange="attackRows[${idx}].range=this.value"/></td>
+        <td><input value="${atk.notes||''}" placeholder="..." onchange="attackRows[${idx}].notes=this.value"/></td>
+        <td><button class="equip-del" onclick="removeAttack(${idx})">✕</button></td>
+      `;
+    }
     tbody.appendChild(tr);
   });
 }
+
 function addAttack() {
-  attackRows.push({name:'',atk:'',dmg:'',type:'',range:'Melee',notes:''});
+  attackRows.push({name:'',atk:'',dmg:'',type:'',range:'Melee',notes:'',_auto:false});
   renderAttacks();
 }
-function removeAttack(idx) { attackRows.splice(idx,1); renderAttacks(); }
+function removeAttack(idx) {
+  attackRows.splice(idx, 1);
+  renderAttacks();
+}
+
+function filterWeaponPicker() {
+  const q = document.getElementById('weapon-search')?.value.toLowerCase() || '';
+  document.querySelectorAll('#weapon-picker-grid > div').forEach(card => {
+    card.style.display = (!q || card.textContent.toLowerCase().includes(q)) ? '' : 'none';
+  });
+}
+
+function filterCantripPicker() {
+  const q = document.getElementById('cantrip-search')?.value.toLowerCase() || '';
+  document.querySelectorAll('#cantrip-picker-grid > div').forEach(card => {
+    card.style.display = (!q || card.textContent.toLowerCase().includes(q)) ? '' : 'none';
+  });
+}
+
+// ── Recalc auto-attacks when ability scores or level change ──────────────
+function recalcAutoAttacks() {
+  // Auto attacks recompute dynamically in renderAttacks()
+  // so just re-render if any auto rows exist
+  if (attackRows.some(a => a && a._auto)) renderAttacks();
+}
+function openWeaponPicker() {
+  const modal = document.getElementById('weapon-picker-modal');
+  if (!modal) return;
+  // Populate weapon list
+  const grid = document.getElementById('weapon-picker-grid');
+  grid.innerHTML = '';
+  // PHB weapons + any imported
+  const allWeapons = Object.assign({}, PHB.weapons, PHB.magic_items
+    ? Object.fromEntries(Object.entries(PHB.magic_items).filter(([,v]) => v.type?.includes('weapon')))
+    : {});
+  Object.entries(allWeapons).sort(([,a],[,b]) => (a.type||'').localeCompare(b.type||'')||a.name.localeCompare(b.name)).forEach(([key, w]) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:8px;';
+    card.innerHTML = `
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:700;color:var(--text)">${w.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${w.type||''} · ${w.damage||''} · ${w.range||'Melee'}</div>
+      </div>
+      <span style="font-size:9px;color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">${w.ability||'Str'}</span>
+    `;
+    card.onmouseenter = () => card.style.borderColor = 'var(--accent3)';
+    card.onmouseleave = () => card.style.borderColor = 'var(--border)';
+    card.onclick = () => addWeaponAttack(key, w);
+    grid.appendChild(card);
+  });
+  openModal('weapon-picker-modal');
+}
+
+function addWeaponAttack(key, w) {
+  // Determine ability: Finesse weapons can use Str or Dex (pick best)
+  const isFinesse = (w.properties||'').toLowerCase().includes('finesse');
+  const isRanged  = (w.range||'').includes('/') && !w.range.toLowerCase().includes('melee');
+  let ab = (w.ability||'Str').toLowerCase();
+  if (isFinesse) ab = getAbilityMod('str') >= getAbilityMod('dex') ? 'str' : 'dex';
+  if (isRanged)  ab = 'dex';
+
+  // Parse damage: "1d8 slashing" → baseDmg="1d8", dmgType="slashing"
+  const dmgParts = (w.damage||'1d4').split(' ');
+  const baseDmg = dmgParts[0] || '1d4';
+  const dmgType = dmgParts.slice(1).join(' ') || '';
+
+  attackRows.push({
+    _auto: true,
+    _source: 'weapon',
+    _ability: ab,
+    _baseDmg: baseDmg,
+    _dmgType: dmgType,
+    _proficient: true,
+    name: w.name,
+    range: w.range || 'Melee',
+    notes: w.properties || '',
+    // Store raw for display
+    atk: '', dmg: '', type: dmgType,
+  });
+  renderAttacks();
+  closeModal('weapon-picker-modal');
+  toast('Added ' + w.name, 'success');
+}
+
+// ── Cantrip picker ────────────────────────────────────────
+function openCantripPicker() {
+  const modal = document.getElementById('cantrip-picker-modal');
+  if (!modal) return;
+  const grid = document.getElementById('cantrip-picker-grid');
+  grid.innerHTML = '';
+  // Get all cantrips (level 0 spells) that deal damage
+  const damagingCantrips = Object.entries(PHB.spells).filter(([k,s]) => {
+    if (s.level !== 0) return false;
+    const d = (s.description||'').toLowerCase();
+    // Has an attack roll or save + damage
+    return d.includes('spell atk') || d.includes('spell attack') || d.includes('save') && (d.includes('dmg') || d.includes('damage'));
+  });
+
+  damagingCantrips.sort(([,a],[,b]) => a.name.localeCompare(b.name)).forEach(([key, sp]) => {
+    // Extract damage die from description heuristic
+    const dieMatch = (sp.description||'').match(/(\d+d\d+)/);
+    const dmgTypeMatch = (sp.description||'').match(/(acid|cold|fire|force|lightning|necrotic|poison|psychic|radiant|thunder|piercing|slashing|bludgeoning)/i);
+    const isAttack = (sp.description||'').toLowerCase().includes('spell atk') || (sp.description||'').toLowerCase().includes('spell attack');
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;cursor:pointer;transition:all .15s;';
+    card.innerHTML = `
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">${sp.name}</div>
+      <div style="font-size:11px;color:var(--text3)">${dieMatch?dieMatch[1]:'—'} ${dmgTypeMatch?dmgTypeMatch[1]:''} · ${isAttack?'Spell attack':'Save'} · ${sp.range}</div>
+    `;
+    card.onmouseenter = () => card.style.borderColor = 'var(--accent2)';
+    card.onmouseleave = () => card.style.borderColor = 'var(--border)';
+    card.onclick = () => addCantripAttack(key, sp);
+    grid.appendChild(card);
+  });
+  openModal('cantrip-picker-modal');
+}
+
+function addCantripAttack(key, sp) {
+  const cls = getActiveClass();
+  const spellAbility = getActiveSubclass()?.mechanics?.spellcasting_ability
+    || cls?.spellcasting_ability || 'Int';
+  const ab = spellAbility.toLowerCase();
+
+  const dieMatch = (sp.description||'').match(/(\d+d\d+)/);
+  const dmgTypeMatch = (sp.description||'').match(/(acid|cold|fire|force|lightning|necrotic|poison|psychic|radiant|thunder|piercing|slashing|bludgeoning)/i);
+  const isAttack = (sp.description||'').toLowerCase().includes('spell atk') || (sp.description||'').toLowerCase().includes('spell attack');
+
+  attackRows.push({
+    _auto: true,
+    _source: 'cantrip',
+    _ability: ab,
+    _baseDmg: dieMatch ? dieMatch[1] : '1d6',
+    _dmgType: dmgTypeMatch ? dmgTypeMatch[1] : '',
+    _noMod: !isAttack, // saves don't add ability mod to damage
+    _proficient: true,
+    name: sp.name,
+    range: sp.range || '—',
+    notes: isAttack ? 'Spell attack' : 'Save',
+    atk: '', dmg: '', type: dmgTypeMatch ? dmgTypeMatch[1] : '',
+  });
+  renderAttacks();
+  closeModal('cantrip-picker-modal');
+  toast('Added ' + sp.name, 'success');
+}
 
 function renderEquip() {
   const cont = document.getElementById('equip-list');
@@ -2190,6 +2475,7 @@ function onLevelChange() {
   renderSpellSlots(); renderSpellStats(); renderLimitedFeatures();
   document.getElementById('hd-count').textContent = `/ ${getLevel()} total`;
   updateSubraceForLevel();
+  recalcAutoAttacks();
   // Suggest new max HP
   const cls = PHB.classes[char.class];
   if (cls) {
