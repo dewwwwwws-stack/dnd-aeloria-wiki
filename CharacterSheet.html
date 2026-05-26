@@ -1488,6 +1488,8 @@ function renderAll() {
     document.getElementById('char-subrace').value = char.subrace;
     applySubraceEffects(char.subrace);
   }
+  // Sync cantrip attacks from prepared spells (catches manual prep + loaded state)
+  syncCantripAttacks();
 }
 
 function buildDropdowns() {
@@ -2347,10 +2349,65 @@ function renderSpellList(search='', levelFilter='', classFilter='', preparedOnly
 }
 
 function togglePrepared(key) {
-  if (preparedSpells[key] === 'subclass') return; // Can't unprepare subclass spells
+  if (preparedSpells[key] === 'subclass') return;
+  if (preparedSpells[key] === 'subrace') return;
   preparedSpells[key] = !preparedSpells[key] ? true : false;
   if (!preparedSpells[key]) delete preparedSpells[key];
+  syncCantripAttacks();
   filterSpells();
+}
+
+// ── Cantrip ↔ Attacks auto-sync ──────────────────────────────────────────
+// Called whenever prepared spells change: toggle, subclass/subrace apply, load
+function syncCantripAttacks() {
+  const allSpells = PHB.spells;
+
+  // All currently prepared cantrips that deal damage
+  const preparedDamagingCantrips = Object.entries(preparedSpells)
+    .filter(([, val]) => !!val)
+    .map(([key]) => key)
+    .filter(key => {
+      const sp = allSpells[key];
+      if (!sp || sp.level !== 0) return false;
+      const d = (sp.description || '').toLowerCase();
+      return d.includes('spell atk') || d.includes('spell attack') ||
+             (d.includes('save') && (d.includes('dmg') || d.includes('damage')));
+    });
+
+  // Remove attack rows for cantrips that are no longer prepared
+  attackRows = attackRows.filter(a => {
+    if (!a || a._source !== 'cantrip') return true;
+    return preparedDamagingCantrips.includes(a._key);
+  });
+
+  // Add attack rows for newly prepared cantrips
+  preparedDamagingCantrips.forEach(key => {
+    if (attackRows.some(a => a && a._source === 'cantrip' && a._key === key)) return;
+    const sp = allSpells[key];
+    if (!sp) return;
+    const cls = getActiveClass();
+    const spellAbility = getActiveSubclass()?.mechanics?.spellcasting_ability
+      || cls?.spellcasting_ability || 'Int';
+    const ab = spellAbility.toLowerCase();
+    const dieM    = (sp.description||'').match(/(\d+d\d+)/);
+    const dmgTypeM= (sp.description||'').match(/(acid|cold|fire|force|lightning|necrotic|poison|psychic|radiant|thunder|piercing|slashing|bludgeoning)/i);
+    const isAttack= (sp.description||'').toLowerCase().includes('spell atk') ||
+                    (sp.description||'').toLowerCase().includes('spell attack');
+    attackRows.push({
+      _auto: true, _source: 'cantrip', _key: key,
+      _ability: ab,
+      _baseDmg: dieM ? dieM[1] : '1d6',
+      _dmgType: dmgTypeM ? dmgTypeM[1] : '',
+      _noMod: !isAttack,
+      _proficient: true,
+      name: sp.name,
+      range: sp.range || '—',
+      notes: isAttack ? 'Spell attack' : 'Save',
+      atk: '', dmg: '', type: dmgTypeM ? dmgTypeM[1] : '',
+    });
+  });
+
+  renderAttacks();
 }
 
 function showSpellModal(key, sp) {
@@ -3651,9 +3708,10 @@ function renderSubclassAlwaysPrepared() {
   // Mark them in prepared spells with a subclass flag
   sub.extra_spells.forEach(sp => {
     if (!preparedSpells[sp]) {
-      preparedSpells[sp] = 'subclass'; // 'subclass' = always prepared, can't toggle
+      preparedSpells[sp] = 'subclass';
     }
   });
+  syncCantripAttacks();
   filterSpells();
 }
 
@@ -3926,6 +3984,7 @@ function applySubraceEffects(key) {
   Object.entries(sr.spells_by_level || {}).forEach(([reqLvl, sp]) => {
     if (level >= parseInt(reqLvl)) preparedSpells[sp] = 'subrace';
   });
+  syncCantripAttacks();
   filterSpells();
 
   // ── Skill profs ─────────────────────────────────────
