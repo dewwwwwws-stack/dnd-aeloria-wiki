@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dorenia Character Sheet</title>
+<title>Character Sheet</title>
 <style>
 /* ── ROOT VARIABLES ───────────────────────────────────── */
 :root {
@@ -177,27 +177,215 @@ a { color: var(--accent3); }
   }
 }
 @media (max-width: 650px) {
-  /* Single column */
-  .sheet-grid {
-    grid-template-columns: 1fr;
+  /* ── Layout ──────────────────────────────────── */
+  .sheet-grid              { grid-template-columns: 1fr; }
+  .sheet-grid > div:first-child { grid-column:1; grid-template-columns: 1fr 1fr; }
+  .sheet-grid-2col         { grid-template-columns: 1fr; }
+  /* Ability scores 3-across */
+  .ability-block           { display: grid; grid-template-columns: repeat(3,1fr); gap:6px; }
+  .stat-trio               { display: flex; }
+}
+
+/* ── MOBILE: phone portrait ───────────────────────── */
+@media (max-width: 480px) {
+  /* ── Topbar ────────────────────────────────────── */
+  #topbar {
+    height: auto; min-height: 44px;
+    flex-wrap: wrap; padding: 6px 10px; gap: 6px;
   }
-  .sheet-grid > div:first-child {
-    grid-column: 1;
-    grid-template-columns: 1fr 1fr;
+  #topbar .app-title { font-size: 14px; }
+  #topbar .char-summary { display: none; } /* hidden — too cluttered */
+  #topbar .topbar-right { gap: 5px; }
+  #topbar .topbar-btn { font-size: 11px; padding: 4px 8px; }
+  #sync-indicator { display: none !important; }
+
+  /* ── Page tabs — scrollable row ───────────────── */
+  #page-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    padding: 0 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
-  .sheet-grid-2col {
-    grid-template-columns: 1fr;
+  #page-tabs::-webkit-scrollbar { display: none; }
+  .page-tab {
+    white-space: nowrap;
+    font-size: 11px;
+    padding: 7px 12px;
+    flex-shrink: 0;
   }
-  /* Ability scores in a row */
-  .ability-block {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+
+  /* ── Content padding ───────────────────────────── */
+  #content { padding: 10px; }
+
+  /* ── Login ─────────────────────────────────────── */
+  .login-box { width: calc(100vw - 32px); padding: 24px 16px; }
+  .login-logo { font-size: 20px; }
+
+  /* ── Panels ────────────────────────────────────── */
+  .panel { padding: 10px; }
+  .panel-title { font-size: 9px; }
+
+  /* ── Character header row ──────────────────────── */
+  /* Class/Subclass/Race/Level row wraps on mobile */
+  #page-main .sheet-grid > div:nth-child(2) > .panel:first-child > div {
+    grid-template-columns: 1fr 1fr !important;
     gap: 6px;
   }
-  /* Stat trio stays horizontal */
-  .stat-trio {
-    display: flex;
+
+  /* ── Character header row wraps to 2 cols ───────── */
+  #char-info-grid {
+    grid-template-columns: 1fr 1fr !important;
   }
+
+  /* ── Ability scores — 2×3 on phones ───────────── */
+  .ability-block {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .ability-input { font-size: 18px; width: 44px; }
+  .ability-score { padding: 7px 5px; }
+
+  /* ── HP grid — stack on very small screens ─────── */
+  .hp-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .hp-input { font-size: 15px; padding: 6px; }
+
+  /* ── Stat trio — keep horizontal, shrink ───────── */
+  .stat-trio { gap: 5px; }
+  .stat-box-val { font-size: 16px; }
+  .stat-box-label { font-size: 8px; }
+
+  /* ── Saves + Skills side-by-side grid → stack ──── */
+  #page-main .sheet-grid > div:nth-child(2) > div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Attacks table → card layout ──────────────── */
+  .attacks-table thead { display: none; }
+  .attacks-table, .attacks-table tbody,
+  .attacks-table tr, .attacks-table td { display: block; width: 100%; }
+  .attacks-table tr {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px;
+    margin-bottom: 6px;
+    position: relative;
+  }
+  .attacks-table td {
+    padding: 2px 4px;
+    border: none;
+    font-size: 12px;
+  }
+  .attacks-table td:before {
+    content: attr(data-label);
+    font-size: 9px;
+    color: var(--text3);
+    text-transform: uppercase;
+    display: block;
+    letter-spacing: .8px;
+  }
+  .attacks-table td:last-child {
+    position: absolute; top: 6px; right: 6px;
+    width: auto; padding: 0;
+  }
+
+  /* ── Spell slots — 3 per row ───────────────────── */
+  .spell-slots-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px;
+  }
+
+  /* ── Spell list — hide less critical columns ───── */
+  .spell-list-header > span:nth-child(4),  /* school */
+  .spell-list-header > span:nth-child(5),  /* casting time */
+  .spell-list-header > span:nth-child(7) { /* duration */
+    display: none;
+  }
+  .spell-row > span:nth-child(4),
+  .spell-row > span:nth-child(5),
+  .spell-row > span:nth-child(7) {
+    display: none;
+  }
+  .spell-list-header,
+  .spell-row {
+    grid-template-columns: 20px 1fr 36px 70px !important;
+  }
+
+  /* ── Currency — 3+2 layout ─────────────────────── */
+  .currency-grid { grid-template-columns: repeat(3, 1fr); }
+  .currency-grid > div:nth-child(4),
+  .currency-grid > div:nth-child(5) {
+    grid-column: span 1;
+  }
+
+  /* ── Feats grid — single column ────────────────── */
+  .feats-grid { grid-template-columns: 1fr !important; }
+
+  /* ── Modals — full screen on mobile ────────────── */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 16px;
+  }
+  /* Picker grids — single column on mobile */
+  #feat-picker-grid,
+  #mi-picker-grid,
+  #ability-method-body > div[style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Ability score modal tabs wrap */
+  #ability-method-tabs { gap: 4px; }
+  #ability-method-tabs button { flex: 1 1 calc(50% - 4px); font-size: 11px; padding: 6px 4px; }
+
+  /* ── DM panel ───────────────────────────────────── */
+  .dm-panel { width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
+  /* ── Spell page sidebar → below ────────────────── */
+  #page-spells > div[style*="grid-template-columns:1fr 380px"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Spellcasting stat row ──────────────────────── */
+  #page-spells .panel > div[style*="display:flex"] {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #spell-ability, #spell-dc, #spell-atk { width: 80px !important; }
+
+  /* ── BG boost modal ─────────────────────────────── */
+  #bg-boost-body > div:first-child { flex-direction: column; }
+  #bg-boost-body > div:first-child > button { width: 100%; }
+
+  /* ── Subrace field in character row ────────────── */
+  #subrace-field { grid-column: 1 / -1; }
+
+  /* ── Death saves ────────────────────────────────── */
+  .death-saves { flex-wrap: wrap; gap: 8px; }
+
+  /* ── HP buttons ─────────────────────────────────── */
+  .hp-buttons { gap: 4px; }
+  .hp-btn { font-size: 11px; padding: 6px; }
+
+  /* ── Exhaustion pips — bigger touch targets ─────── */
+  .exh-pip { width: 24px; height: 24px; border-radius: 4px; }
+}
+
+/* ── Touch: larger tap targets for dots/pips ──────── */
+@media (hover: none) and (pointer: coarse) {
+  .prof-dot, .ds-dot, .slot-pip, .spell-prep-dot {
+    width: 16px; height: 16px;
+  }
+  .ability-stepper button { width: 24px; height: 22px; font-size: 12px; }
+  .topbar-btn { min-height: 36px; }
+  .hp-btn     { min-height: 40px; }
 }
 .panel {
   background: var(--panel);
@@ -572,7 +760,7 @@ a { color: var(--accent3); }
 <!-- ── LOGIN SCREEN ────────────────────────────── -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo">⚔ Dorenia</div>
+    <div class="login-logo">⚔ Character Sheet</div>
     <div class="login-sub">Character Sheet • 2024 Rules</div>
     <label for="login-player-select">Select Character</label>
     <select id="login-player-select">
@@ -590,7 +778,7 @@ a { color: var(--accent3); }
 <div id="app">
   <!-- Top Bar -->
   <div id="topbar">
-    <div class="app-title">⚔ Dorenia</div>
+    <div class="app-title">⚔</div>
     <div class="char-summary" id="char-summary"></div>
     <div class="topbar-right">
       <button class="topbar-btn" onclick="saveChar()" id="save-btn">💾 Save</button>
@@ -634,7 +822,7 @@ a { color: var(--accent3); }
           <!-- Core Info Row -->
           <div class="panel">
             <div class="panel-title">Character</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 80px 80px;gap:8px">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 80px 80px;gap:8px;flex-wrap:wrap" id="char-info-grid">
               <div class="info-field" style="margin:0">
                 <label>Class</label>
                 <select class="info-select" id="char-class" onchange="onClassChange()"></select>
@@ -774,7 +962,11 @@ a { color: var(--accent3); }
           <div class="panel">
             <div class="panel-title">Class Features</div>
             <div id="limited-features"></div>
-            <textarea class="feat-textarea" id="char-features" placeholder="Class features, racial traits..." data-save="features" style="min-height:100px;margin-top:8px"></textarea>
+            <textarea class="feat-textarea" id="char-features" placeholder="Class features, racial traits..." data-save="features" style="min-height:80px;margin-top:8px"></textarea>
+          </div>
+          <div class="panel" id="class-choices-panel" style="display:none">
+            <div class="panel-title" id="class-choices-title">Class Choices</div>
+            <div id="class-choices-body"></div>
           </div>
           <div class="panel">
             <div class="panel-title">Conditions</div>
@@ -863,9 +1055,14 @@ a { color: var(--accent3); }
         </div>
         <div>
           <div class="panel">
-            <div class="panel-title">Attuned Magic Items (max 3)</div>
+            <div class="panel-title">Magic Items
+              <span style="float:right;display:flex;gap:6px">
+                <button class="topbar-btn" style="font-size:10px;padding:2px 8px" onclick="openMagicItemPicker()">+ From Library</button>
+                <button class="topbar-btn" style="font-size:10px;padding:2px 8px" onclick="addMagicItem()">+ Custom</button>
+              </span>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-bottom:8px">Attuned items count toward the 3-item attunement limit.</div>
             <div id="magic-items-list" style="display:flex;flex-direction:column;gap:8px"></div>
-            <button class="attack-add-btn" onclick="addMagicItem()" style="margin-top:8px">+ Add Magic Item</button>
           </div>
           <div class="panel" style="margin-top:10px">
             <div class="panel-title">Other Holdings</div>
@@ -1099,6 +1296,46 @@ a { color: var(--accent3); }
       <button class="btn-primary" onclick="applyAbilityScores()" style="flex:1">Apply Scores</button>
       <button class="topbar-btn" onclick="closeModal('ability-modal')">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- ── MAGIC ITEM PICKER MODAL ──────────────────────────── -->
+<div class="modal-overlay hidden" id="mi-picker-modal" style="z-index:1500">
+  <div class="modal-box" style="width:700px;max-height:88vh;display:flex;flex-direction:column">
+    <div class="modal-title">Magic Item Library <span class="modal-close" onclick="closeModal('mi-picker-modal')">✕</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <input id="mi-search" class="spell-search" placeholder="Search items…" oninput="filterMagicItemPicker()" style="flex:1;min-width:180px"/>
+      <select id="mi-filter-rarity" class="info-select" onchange="filterMagicItemPicker()" style="width:110px;padding:7px 8px;font-size:12px">
+        <option value="">All Rarities</option>
+        <option value="common">Common</option>
+        <option value="uncommon">Uncommon</option>
+        <option value="rare">Rare</option>
+        <option value="very rare">Very Rare</option>
+        <option value="legendary">Legendary</option>
+        <option value="artifact">Artifact</option>
+      </select>
+      <select id="mi-filter-attune" class="info-select" onchange="filterMagicItemPicker()" style="width:120px;padding:7px 8px;font-size:12px">
+        <option value="">All Items</option>
+        <option value="yes">Requires Attunement</option>
+        <option value="no">No Attunement</option>
+      </select>
+    </div>
+    <div id="mi-picker-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;overflow-y:auto;flex:1;max-height:60vh"></div>
+  </div>
+</div>
+
+<!-- ── CLASS CHOICE PICKER MODAL ───────────────────────── -->
+<div class="modal-overlay hidden" id="choice-picker-modal" style="z-index:1500">
+  <div class="modal-box" style="width:680px;max-height:88vh;display:flex;flex-direction:column">
+    <div class="modal-title">
+      <span id="choice-picker-title">Choose</span>
+      <span class="modal-close" onclick="closeModal('choice-picker-modal')">✕</span>
+    </div>
+    <div id="choice-picker-count" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+    <input id="choice-picker-search" class="spell-search" placeholder="Search…"
+      oninput="renderChoicePicker(this.value.toLowerCase())" style="margin-bottom:10px"/>
+    <div id="choice-picker-grid"
+      style="display:grid;grid-template-columns:1fr 1fr;gap:8px;overflow-y:auto;flex:1;max-height:60vh"></div>
   </div>
 </div>
 
@@ -1378,6 +1615,7 @@ function defaultChar() {
     spell_slots_used:{}, prepared_spells:{}, conditions:{}, exhaustion:0,
     limited_features:[], subclass_feature_uses:{}, cantrip_affinity_type:'',
     bg_boost_mode:'2plus1', bg_boost_assigned:{},
+    class_choices:{},
     cur_cp:0, cur_sp:0, cur_ep:0, cur_gp:0, cur_pp:0,
   };
 }
@@ -1437,6 +1675,7 @@ function gatherCharData() {
   char.limited_features = limitedFeatures;
   const cantripSel = document.getElementById('cantrip-affinity-type');
   if (cantripSel) char.cantrip_affinity_type = cantripSel.value;
+  // class_choices is modified in-place on char so no gather needed
 }
 
 function saveChar() {
@@ -1490,6 +1729,8 @@ function renderAll() {
   }
   // Sync cantrip attacks from prepared spells (catches manual prep + loaded state)
   syncCantripAttacks();
+  // Render class choice systems (invocations, metamagic etc.)
+  renderClassChoices();
 }
 
 function buildDropdowns() {
@@ -1881,22 +2122,22 @@ function renderAttacks() {
         ? '<span style="font-size:9px;color:var(--accent3);background:rgba(74,144,217,.15);padding:1px 5px;border-radius:3px;margin-left:4px">weapon</span>'
         : '';
       tr.innerHTML = `
-        <td style="font-weight:600;color:var(--text)">${atk.name||''}${sourceBadge}</td>
-        <td style="color:var(--gold);font-weight:700;font-size:13px">${displayAtk}</td>
-        <td style="color:var(--text)">${displayDmg}</td>
-        <td style="color:var(--text2);font-size:11px">${atk._dmgType||atk.type||''}</td>
-        <td style="color:var(--text2);font-size:11px">${atk.range||'Melee'}</td>
-        <td style="color:var(--text3);font-size:11px">${atk.notes||''}</td>
+        <td data-label="Name" style="font-weight:600;color:var(--text)">${atk.name||''}${sourceBadge}</td>
+        <td data-label="ATK" style="color:var(--gold);font-weight:700;font-size:13px">${displayAtk}</td>
+        <td data-label="Damage" style="color:var(--text)">${displayDmg}</td>
+        <td data-label="Type" style="color:var(--text2);font-size:11px">${atk._dmgType||atk.type||''}</td>
+        <td data-label="Range" style="color:var(--text2);font-size:11px">${atk.range||'Melee'}</td>
+        <td data-label="Notes" style="color:var(--text3);font-size:11px">${atk.notes||''}</td>
         <td><button class="equip-del" onclick="removeAttack(${idx})">✕</button></td>
       `;
     } else {
       tr.innerHTML = `
-        <td><input value="${atk.name||''}" placeholder="Attack name" onchange="attackRows[${idx}].name=this.value"/></td>
-        <td><input value="${atk.atk||''}" placeholder="+5" style="width:50px" onchange="attackRows[${idx}].atk=this.value"/></td>
-        <td><input value="${atk.dmg||''}" placeholder="1d8+3" onchange="attackRows[${idx}].dmg=this.value"/></td>
-        <td><input value="${atk.type||''}" placeholder="Slashing" onchange="attackRows[${idx}].type=this.value"/></td>
-        <td><input value="${atk.range||''}" placeholder="Melee" style="width:60px" onchange="attackRows[${idx}].range=this.value"/></td>
-        <td><input value="${atk.notes||''}" placeholder="..." onchange="attackRows[${idx}].notes=this.value"/></td>
+        <td data-label="Name"><input value="${atk.name||''}" placeholder="Attack name" onchange="attackRows[${idx}].name=this.value"/></td>
+        <td data-label="ATK"><input value="${atk.atk||''}" placeholder="+5" style="width:50px" onchange="attackRows[${idx}].atk=this.value"/></td>
+        <td data-label="Damage"><input value="${atk.dmg||''}" placeholder="1d8+3" onchange="attackRows[${idx}].dmg=this.value"/></td>
+        <td data-label="Type"><input value="${atk.type||''}" placeholder="Slashing" onchange="attackRows[${idx}].type=this.value"/></td>
+        <td data-label="Range"><input value="${atk.range||''}" placeholder="Melee" style="width:60px" onchange="attackRows[${idx}].range=this.value"/></td>
+        <td data-label="Notes"><input value="${atk.notes||''}" placeholder="..." onchange="attackRows[${idx}].notes=this.value"/></td>
         <td><button class="equip-del" onclick="removeAttack(${idx})">✕</button></td>
       `;
     }
@@ -2070,33 +2311,156 @@ function renderEquip() {
 function addEquipItem() { equipItems.push({name:'',qty:1}); renderEquip(); }
 function removeEquipItem(idx) { equipItems.splice(idx,1); renderEquip(); }
 
+// Rarity colour map
+const RARITY_COLORS = {
+  'common':    'var(--text3)',
+  'uncommon':  'var(--green)',
+  'rare':      'var(--accent3)',
+  'very rare': 'var(--accent2)',
+  'legendary': 'var(--gold)',
+  'artifact':  'var(--red)',
+  'unknown':   'var(--text3)',
+};
+
 function renderMagicItems() {
   const cont = document.getElementById('magic-items-list');
   cont.innerHTML = '';
   magicItems.forEach((mi, idx) => {
+    const rarity = (mi.rarity||'').toLowerCase();
+    const rarityColor = RARITY_COLORS[rarity] || 'var(--text3)';
+    const attunedWarning = mi.attuned && magicItems.filter(m=>m.attuned).length > 3
+      ? '<span style="color:var(--red);font-size:10px">⚠ over limit</span>' : '';
     const div = document.createElement('div');
-    div.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;';
+    div.style.cssText = `background:var(--bg2);border:1px solid ${mi.attuned?'rgba(200,164,90,.4)':'var(--border)'};border-radius:var(--radius);padding:10px;`;
     div.innerHTML = `
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <input value="${mi.name||''}" placeholder="Magic item name" style="flex:1;background:none;border:none;outline:none;color:var(--gold);font-weight:700;font-size:13px" onchange="magicItems[${idx}].name=this.value"/>
-        <label style="font-size:11px;color:var(--text2);display:flex;gap:4px;align-items:center">
-          <input type="checkbox" ${mi.attuned?'checked':''} onchange="magicItems[${idx}].attuned=this.checked"/> Attuned
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+        <input value="${mi.name||''}" placeholder="Item name"
+          style="flex:1;background:none;border:none;outline:none;color:var(--gold);font-weight:700;font-size:13px"
+          onchange="magicItems[${idx}].name=this.value"/>
+        ${mi.rarity ? `<span style="font-size:10px;color:${rarityColor};background:var(--bg3);padding:1px 6px;border-radius:3px;white-space:nowrap">${mi.rarity}</span>` : ''}
+        ${mi.type   ? `<span style="font-size:10px;color:var(--text3);white-space:nowrap">${mi.type}</span>` : ''}
+        ${attunedWarning}
+        <label style="font-size:11px;color:var(--text2);display:flex;gap:4px;align-items:center;white-space:nowrap;cursor:pointer">
+          <input type="checkbox" ${mi.attuned?'checked':''} onchange="magicItems[${idx}].attuned=this.checked;renderMagicItems()"/> Attuned
         </label>
+        <button class="topbar-btn" style="font-size:10px;padding:1px 6px" onclick="openMagicItemPicker(${idx})">↺</button>
         <button class="equip-del" onclick="removeMagicItem(${idx})">✕</button>
       </div>
-      <textarea style="width:100%;min-height:50px;background:none;border:none;outline:none;color:var(--text2);resize:none;font-size:12px" placeholder="Properties..." onchange="magicItems[${idx}].desc=this.value">${mi.desc||''}</textarea>
+      <textarea
+        style="width:100%;min-height:48px;background:none;border:none;outline:none;color:var(--text2);resize:none;font-size:11px;line-height:1.5"
+        placeholder="Properties, notes..."
+        onchange="magicItems[${idx}].desc=this.value">${mi.desc||''}</textarea>
     `;
     cont.appendChild(div);
   });
-}
-function addMagicItem() {
-  if (magicItems.filter(m=>m.attuned).length >= 3) {
-    toast('Max 3 attuned items!','error'); return;
+
+  // Attunement counter
+  const attuned = magicItems.filter(m=>m.attuned).length;
+  if (magicItems.length > 0) {
+    const counter = document.createElement('div');
+    counter.style.cssText = `font-size:11px;color:${attuned>3?'var(--red)':attuned===3?'var(--gold)':'var(--text3)'};margin-top:6px;text-align:right`;
+    counter.textContent = `Attuned: ${attuned}/3`;
+    cont.appendChild(counter);
   }
-  magicItems.push({name:'',desc:'',attuned:false});
+}
+
+function addMagicItem() {
+  magicItems.push({name:'',desc:'',attuned:false,rarity:'',type:''});
   renderMagicItems();
 }
 function removeMagicItem(idx) { magicItems.splice(idx,1); renderMagicItems(); }
+
+// ── Magic Item Picker ─────────────────────────────────────
+let _miPickerTargetIdx = null;
+
+function openMagicItemPicker(idx) {
+  _miPickerTargetIdx = idx !== undefined ? idx : null;
+  document.getElementById('mi-search').value = '';
+  document.getElementById('mi-filter-rarity').value = '';
+  document.getElementById('mi-filter-attune').value = '';
+  filterMagicItemPicker();
+  openModal('mi-picker-modal');
+  setTimeout(() => document.getElementById('mi-search').focus(), 100);
+}
+
+function filterMagicItemPicker() {
+  const query   = document.getElementById('mi-search').value.toLowerCase();
+  const rarity  = document.getElementById('mi-filter-rarity').value.toLowerCase();
+  const attune  = document.getElementById('mi-filter-attune').value;
+  const grid    = document.getElementById('mi-picker-grid');
+  grid.innerHTML = '';
+
+  // Merge PHB magic items + any imported
+  const allItems = Object.assign({}, PHB.magic_items || {});
+  let entries = Object.entries(allItems);
+
+  if (query)  entries = entries.filter(([,v]) => v.name.toLowerCase().includes(query) || (v.description||'').toLowerCase().includes(query));
+  if (rarity) entries = entries.filter(([,v]) => (v.rarity||'').toLowerCase() === rarity);
+  if (attune === 'yes') entries = entries.filter(([,v]) => v.attunement);
+  if (attune === 'no')  entries = entries.filter(([,v]) => !v.attunement);
+
+  // Sort: rarity order then name
+  const rarityOrder = {'artifact':0,'legendary':1,'very rare':2,'rare':3,'uncommon':4,'common':5,'unknown':6};
+  entries.sort(([,a],[,b]) => {
+    const ro = (rarityOrder[(a.rarity||'unknown').toLowerCase()]||6) - (rarityOrder[(b.rarity||'unknown').toLowerCase()]||6);
+    return ro !== 0 ? ro : a.name.localeCompare(b.name);
+  });
+
+  if (!entries.length) {
+    grid.innerHTML = '<div style="color:var(--text3);padding:16px;text-align:center;grid-column:1/-1">No items found. Import the DMG to populate the library.</div>';
+    return;
+  }
+
+  entries.slice(0, 200).forEach(([key, item]) => {
+    const rarity = (item.rarity||'unknown').toLowerCase();
+    const rc = RARITY_COLORS[rarity] || 'var(--text3)';
+    const card = document.createElement('div');
+    card.style.cssText = `background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;cursor:pointer;transition:all .15s;`;
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:12px;font-weight:700;color:var(--text);flex:1">${item.name}</span>
+        <span style="font-size:9px;color:${rc};background:var(--bg3);padding:1px 5px;border-radius:3px;white-space:nowrap">${item.rarity||'?'}</span>
+        ${item.attunement ? '<span style="font-size:9px;color:var(--gold)">⟡ Attune</span>' : ''}
+      </div>
+      ${item.type ? `<div style="font-size:10px;color:var(--text3);margin-bottom:4px">${item.type}</div>` : ''}
+      <div style="font-size:11px;color:var(--text2);line-height:1.5;max-height:52px;overflow:hidden">${item.description||'See sourcebook.'}</div>
+      <button style="margin-top:8px;width:100%;padding:4px;border-radius:var(--radius);border:1px solid ${rc};background:transparent;color:${rc};font-size:11px;cursor:pointer;font-weight:600"
+        onclick="selectMagicItem('${key.replace(/'/g,"\'")}');event.stopPropagation()">+ Add to Sheet</button>
+    `;
+    card.onmouseenter = () => card.style.borderColor = rc;
+    card.onmouseleave = () => card.style.borderColor = 'var(--border)';
+    card.onclick = () => selectMagicItem(key);
+    grid.appendChild(card);
+  });
+
+  if (entries.length > 200) {
+    const more = document.createElement('div');
+    more.style.cssText = 'color:var(--text3);font-size:11px;text-align:center;padding:8px;grid-column:1/-1';
+    more.textContent = `Showing 200 of ${entries.length} — refine your search`;
+    grid.appendChild(more);
+  }
+}
+
+function selectMagicItem(key) {
+  const item = (PHB.magic_items || {})[key];
+  if (!item) return;
+  const entry = {
+    name: item.name,
+    desc: item.description || '',
+    rarity: item.rarity || '',
+    type: item.type || '',
+    attuned: false,
+    _key: key,
+  };
+  if (_miPickerTargetIdx !== null && _miPickerTargetIdx < magicItems.length) {
+    magicItems[_miPickerTargetIdx] = entry;
+  } else {
+    magicItems.push(entry);
+  }
+  renderMagicItems();
+  closeModal('mi-picker-modal');
+  toast('Added: ' + item.name, 'success');
+}
 
 function renderLimitedFeatures() {
   const cont = document.getElementById('limited-features');
@@ -2463,6 +2827,7 @@ function onClassChange() {
   renderSpellStats();
   renderSpellList();
   renderLimitedFeatures();
+  renderClassChoices();
   filterSpells();
   updateCharSummary();
 }
@@ -2533,6 +2898,7 @@ function onLevelChange() {
   document.getElementById('hd-count').textContent = `/ ${getLevel()} total`;
   updateSubraceForLevel();
   recalcAutoAttacks();
+  renderClassChoices();
   // Suggest new max HP
   const cls = PHB.classes[char.class];
   if (cls) {
@@ -2904,34 +3270,198 @@ function importMPMBFile() {
       });
       counts.subraces = Object.keys(newSubraces).length;
 
-      // ── 6. ClassList (new classes) ────────────────────────────────────
+      // ── 6. ClassList (new classes) + embedded subclasses ─────────────
       const classRe = /legacyClassRefactor\("([^"]+)"/g;
       const classPositions = [...src.matchAll(classRe)];
       const newClasses = {};
+      const newSubclasses = {};
+      // Find a reliable end-of-classes marker
+      const classEndMarkers = ['legacyRaceRefactor', 'RaceSubList[', 'BackgroundList[', 'FeatsList[', 'SpellsList[', 'WeaponsList[', 'MagicItemsList['];
+      let classesEndIdx = src.length;
+      const lastClassStart = classPositions.length ? classPositions[classPositions.length-1].index : 0;
+      for (const marker of classEndMarkers) {
+        const idx = src.indexOf(marker, lastClassStart); // search AFTER last class start
+        if (idx > 0 && idx < classesEndIdx) classesEndIdx = idx;
+      }
+
       classPositions.forEach((m, i) => {
         const key = m[1];
-        const block = src.slice(m.index, (classPositions[i+1]?.index || m.index + 4000));
+        // Use next class start OR end-of-classes marker — whichever comes first
+        const nextClassIdx = classPositions[i+1]?.index || classesEndIdx;
+        const block = src.slice(m.index, nextClassIdx);
+
         const nameM  = block.match(/name:\s*"([^"]+)"/);
         const dieM   = block.match(/die:\s*(\d+)/);
         const savesM = block.match(/saves:\s*\[([^\]]+)\]/);
-        // Fall back to abilitySave if no explicit spellcastingAbility
         const spellM = block.match(/spellcastingAbility:\s*(\d+)/) ||
                        block.match(/abilitySave:\s*(\d+)/);
         const udM    = block.match(/unarmored_defense:\s*"([^"]+)"/);
         const atkM   = block.match(/attacks:\s*\[([^\]]+)\]/);
+        const halfProfInitM = block.match(/half_proficiency_initiative:\s*(true|false)/);
+
+        // Determine caster type from slot table presence
+        const hasSlotTable = /spellcastingTable/.test(block) || /spellcastingFactor/.test(block);
+        const casterType = spellM ? (hasSlotTable ? 'full' : 'half') : 'none';
+
         newClasses[key] = {
           name: nameM ? nameM[1] : key,
           hit_die: dieM ? parseInt(dieM[1]) : 8,
           saves: savesM ? savesM[1].split(',').map(s=>s.trim().replace(/"/g,'')) : [],
           spellcasting_ability: spellM ? spellMap[parseInt(spellM[1])] : null,
-          caster_type: 'none',
+          caster_type: casterType,
           slot_table: Array(21).fill(Array(9).fill(0)),
           attacks_per_level: atkM ? atkM[1].split(',').map(n=>parseInt(n)||1) : Array(20).fill(1),
           source: sourceKey,
           ...(udM ? {unarmored_defense: udM[1]} : {}),
+          ...(halfProfInitM ? {half_proficiency_initiative: halfProfInitM[1]==='true'} : {}),
         };
+
+        // ── Extract subclasses within this class block ──────────────
+        const subRe = /subname:\s*"([^"]+)"/g;
+        const subMatches = [...block.matchAll(subRe)];
+        subMatches.forEach((sm, si) => {
+          const subname = sm[1];
+          const subStart = sm.index;
+          const subEnd = subMatches[si+1]?.index || block.length;
+          const subBlock = block.slice(subStart, subEnd);
+
+          const spellsM  = subBlock.match(/spellcastingExtra:\s*\[([^\]]+)\]/);
+          const spellAbM = subBlock.match(/spellcastingAbility:\s*(\d+)/);
+          const acFormM  = subBlock.match(/ac_formula:\s*"([^"]+)"/);
+          const hpBonusM = subBlock.match(/hp_bonus_per_level:\s*(\d+)/);
+          const cantripDmgM = subBlock.match(/cantrip_damage_bonus:\s*"([^"]+)"/);
+          const cantripTypeM = subBlock.match(/cantrip_damage_type:\s*"([^"]+)"/);
+
+          // Build a key: lowercase, spaces to underscores
+          const subKey = key + '_' + subname.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+
+          // Extract features
+          const featRe = /name:\s*"([^"]+)"[^}]*?minlevel:\s*(\d+)/g;
+          const featMatches = [...subBlock.matchAll(featRe)];
+          const features = [];
+          const seenNames = new Set();
+          for (const fm of featMatches) {
+            if (!seenNames.has(fm[1]) && parseInt(fm[2]) > 0) {
+              seenNames.add(fm[1]);
+              const usagesM = subBlock.slice(fm.index, fm.index+300).match(/usages:\s*(\d+)/);
+              const recoverM = subBlock.slice(fm.index, fm.index+300).match(/recovery:\s*"([^"]+)"/);
+              const descM = subBlock.slice(fm.index, fm.index+500).match(/description[^:]*:\s*"([^"]{0,400})"/);
+              features.push({
+                name: fm[1],
+                level: parseInt(fm[2]),
+                usages: usagesM ? parseInt(usagesM[1]) : null,
+                recovery: recoverM ? recoverM[1] : null,
+                desc: descM ? descM[1].replace(/\\n/g,' ').replace(/\\u[\da-f]{4}/gi, c=>String.fromCharCode(parseInt(c.slice(2),16))) : '',
+              });
+              if (features.length >= 8) break;
+            }
+          }
+
+          newSubclasses[subKey] = {
+            name: subname,
+            class: key,
+            source: sourceKey,
+            extra_spells: spellsM
+              ? spellsM[1].split(',').map(s=>s.trim().replace(/"/g,'')).filter(s=>s&&!s.startsWith('OPT'))
+              : [],
+            features,
+            mechanics: {
+              ...(spellAbM ? {spellcasting_ability: spellMap[parseInt(spellAbM[1])]} : {}),
+              ...(acFormM  ? {ac_formula: acFormM[1]} : {}),
+              ...(hpBonusM ? {hp_bonus_per_level: parseInt(hpBonusM[1])} : {}),
+              ...(cantripDmgM  ? {cantrip_damage_bonus: cantripDmgM[1]} : {}),
+              ...(cantripTypeM ? {cantrip_damage_type: cantripTypeM[1]} : {}),
+            },
+          };
+        });
       });
       counts.classes = Object.keys(newClasses).length;
+      counts.subclasses = Object.keys(newSubclasses).length;
+
+      // ── 6b. AddSubClass("parentClass","key",{...}) — addon subclasses ──
+      // This is how FRHoF/homebrew books add subclasses to EXISTING classes
+      const addSubRe = /AddSubClass\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*\{/g;
+      const addSubMatches = [...src.matchAll(addSubRe)];
+      addSubMatches.forEach((m, i) => {
+        const parentCls = m[1];
+        const subKey    = parentCls + '_' + m[2].replace(/[^a-z0-9]+/gi,'_').toLowerCase();
+        const nextMatch = addSubMatches[i+1]?.index || m.index + 8000;
+        const block = src.slice(m.index, nextMatch);
+
+        const subnameM  = block.match(/subname:\s*"([^"]+)"/);
+        const spellsM   = block.match(/spellcastingExtra:\s*\[([^\]]+)\]/);
+        const spellAbM  = block.match(/spellcastingAbility:\s*(\d+)/);
+        const acFormM   = block.match(/ac_formula:\s*"([^"]+)"/);
+        const hpBonusM  = block.match(/hp_bonus_per_level:\s*(\d+)/);
+
+        // Extract features
+        const featRe2 = /name:\s*"([^"]+)"[^}]*?minlevel:\s*(\d+)/g;
+        const featMatches2 = [...block.matchAll(featRe2)];
+        const features2 = [];
+        const seen2 = new Set();
+        for (const fm of featMatches2) {
+          if (!seen2.has(fm[1]) && parseInt(fm[2]) > 0) {
+            seen2.add(fm[1]);
+            const usagesM2 = block.slice(fm.index, fm.index+300).match(/usages:\s*(\d+)/);
+            const recoverM2 = block.slice(fm.index, fm.index+300).match(/recovery:\s*"([^"]+)"/);
+            const descM2 = block.slice(fm.index, fm.index+500).match(/description[^:]*:\s*"([^"]{0,400})"/);
+            features2.push({
+              name: fm[1], level: parseInt(fm[2]),
+              usages: usagesM2 ? parseInt(usagesM2[1]) : null,
+              recovery: recoverM2 ? recoverM2[1] : null,
+              desc: descM2 ? descM2[1].replace(/\\n/g,' ').replace(/\\u[\da-f]{4}/gi, c=>String.fromCharCode(parseInt(c.slice(2),16))) : '',
+            });
+            if (features2.length >= 8) break;
+          }
+        }
+
+        if (subnameM) {
+          newSubclasses[subKey] = {
+            name: subnameM[1],
+            class: parentCls,
+            source: sourceKey,
+            extra_spells: spellsM
+              ? spellsM[1].split(',').map(s=>s.trim().replace(/"/g,'')).filter(s=>s&&!s.startsWith('OPT'))
+              : [],
+            features: features2,
+            mechanics: {
+              ...(spellAbM ? {spellcasting_ability: spellMap[parseInt(spellAbM[1])]} : {}),
+              ...(acFormM  ? {ac_formula: acFormM[1]} : {}),
+              ...(hpBonusM ? {hp_bonus_per_level: parseInt(hpBonusM[1])} : {}),
+            },
+          };
+        }
+      });
+
+      // ── 6c. ClassSubList["class-subname"] = {...} — legacy addon format ──
+      const classSubListRe = /ClassSubList\["([^"]+)"\]\s*=\s*\{/g;
+      const classSubListMatches = [...src.matchAll(classSubListRe)];
+      classSubListMatches.forEach((m, i) => {
+        const listKey = m[1]; // e.g. "artificer-armorer"
+        // Parent class is everything before the first dash (best heuristic)
+        const parentCls = listKey.split('-')[0];
+        const nextMatch = classSubListMatches[i+1]?.index || m.index + 4000;
+        const block = src.slice(m.index, nextMatch);
+
+        const subnameM = block.match(/subname:\s*"([^"]+)"/);
+        const spellsM  = block.match(/spellcastingExtra:\s*\[([^\]]+)\]/);
+        const subKey   = parentCls + '_' + listKey.replace(/[^a-z0-9]+/gi,'_').toLowerCase();
+
+        if (subnameM) {
+          newSubclasses[subKey] = {
+            name: subnameM[1],
+            class: parentCls,
+            source: sourceKey,
+            extra_spells: spellsM
+              ? spellsM[1].split(',').map(s=>s.trim().replace(/"/g,'')).filter(s=>s&&!s.startsWith('OPT'))
+              : [],
+            features: [],
+            mechanics: {},
+          };
+        }
+      });
+
+      counts.subclasses = Object.keys(newSubclasses).length;
 
       // ── 7. MagicItemsList ─────────────────────────────────────────────
       const itemRe = /MagicItemsList\["([^"]+)"\]\s*=\s*\{/g;
@@ -2971,6 +3501,7 @@ function importMPMBFile() {
       if (counts.races)       Object.assign(existing.races        || (existing.races={}),        newRaces);
       if (counts.subraces)    Object.assign(existing.subraces     || (existing.subraces={}),     newSubraces);
       if (counts.classes)     Object.assign(existing.classes      || (existing.classes={}),      newClasses);
+      if (counts.subclasses)  Object.assign(existing.subclasses   || (existing.subclasses={}),   newSubclasses);
       if (counts.magic_items) Object.assign(existing.magic_items  || (existing.magic_items={}),  newMagicItems);
       lsSave('extra_content', existing);
 
@@ -2988,6 +3519,14 @@ function importMPMBFile() {
         if (!RACE_SUBRACES[sub.parent]) RACE_SUBRACES[sub.parent] = [];
         if (!RACE_SUBRACES[sub.parent].includes(key)) RACE_SUBRACES[sub.parent].push(key);
       });
+      // Subclasses go into the global SUBCLASSES object + CLASS_SUBCLASSES mapping
+      if (counts.subclasses) {
+        Object.assign(SUBCLASSES, newSubclasses);
+        Object.entries(newSubclasses).forEach(([key, sub]) => {
+          if (!CLASS_SUBCLASSES[sub.class]) CLASS_SUBCLASSES[sub.class] = [];
+          if (!CLASS_SUBCLASSES[sub.class].includes(key)) CLASS_SUBCLASSES[sub.class].push(key);
+        });
+      }
 
       // Rebuild dropdowns, spell filter, background dropdown
       buildDropdowns();
@@ -3021,6 +3560,8 @@ function showContentList() {
       data.spells      && Object.values(data.spells).filter(f=>f.source===k).length + ' spells',
       data.races       && Object.values(data.races).filter(f=>f.source===k).length + ' races',
       data.subraces    && Object.values(data.subraces).filter(f=>f.source===k).length + ' subraces',
+      data.classes     && Object.values(data.classes).filter(f=>f.source===k).length + ' classes',
+      data.subclasses  && Object.values(data.subclasses).filter(f=>f.source===k).length + ' subclasses',
       data.magic_items && Object.values(data.magic_items).filter(f=>f.source===k).length + ' magic items',
     ].filter(s => s && !s.startsWith('0')).join(', ');
     return `<div style="margin:3px 0">• <strong>${v}</strong> [${k}]<span style="color:var(--text3);margin-left:8px">${counts}</span></div>`;
@@ -3046,6 +3587,31 @@ function dmDeleteChar() {
   lsSave('char_'+id, null);
   toast(`Deleted ${player.name}`, 'success');
   renderDMPanel();
+}
+
+// ═══════════════════════════════════════════════════════
+// CLASS CHOICE SYSTEMS (Invocations, Metamagic, etc.)
+// ═══════════════════════════════════════════════════════
+const CLASS_CHOICES = {"warlock":[{"key":"eldritch_invocations","name":"Eldritch Invocations","min_class_level":1,"times_by_level":[1,3,3,3,5,5,6,6,7,7,7,8,8,8,9,9,9,10,10,10],"options":{"Agonizing Blast [Chill Touch] (2+)":{"name":"Agonizing Blast [Chill Touch] (2+)","min_level":2,"pact_req":null,"desc":""},"Agonizing Blast [Eldritch Blast] (2+)":{"name":"Agonizing Blast [Eldritch Blast] (2+)","min_level":2,"pact_req":null,"desc":""},"Agonizing Blast [Mind Sliver] (2+)":{"name":"Agonizing Blast [Mind Sliver] (2+)","min_level":2,"pact_req":null,"desc":""},"Agonizing Blast [Poison Spray] (2+)":{"name":"Agonizing Blast [Poison Spray] (2+)","min_level":2,"pact_req":null,"desc":""},"Agonizing Blast [True Strike] (2+)":{"name":"Agonizing Blast [True Strike] (2+)","min_level":2,"pact_req":null,"desc":""},"Armor of Shadows":{"name":"Armor of Shadows","min_level":1,"pact_req":null,"desc":""},"Ascendant Step (5+)":{"name":"Ascendant Step (5+)","min_level":5,"pact_req":null,"desc":""},"Devil's Sight (2+)":{"name":"Devil's Sight (2+)","min_level":2,"pact_req":null,"desc":""},"Devouring Blade (PoB, 12+)":{"name":"Devouring Blade (PoB, 12+)","min_level":1,"pact_req":"blade","desc":""},"Eldritch Mind":{"name":"Eldritch Mind","min_level":1,"pact_req":null,"desc":""},"Eldritch Smite (PoB, 5+)":{"name":"Eldritch Smite (PoB, 5+)","min_level":1,"pact_req":"blade","desc":""},"Eldritch Spear [Eldritch Blast] (2+)":{"name":"Eldritch Spear [Eldritch Blast] (2+)","min_level":2,"pact_req":null,"desc":""},"Eldritch Spear [Mind Sliver] (2+)":{"name":"Eldritch Spear [Mind Sliver] (2+)","min_level":2,"pact_req":null,"desc":""},"Eldritch Spear [Poison Spray] (2+)":{"name":"Eldritch Spear [Poison Spray] (2+)","min_level":2,"pact_req":null,"desc":""},"Fiendish Vigor (2+)":{"name":"Fiendish Vigor (2+)","min_level":2,"pact_req":null,"desc":""},"Gaze of Two Minds (5+)":{"name":"Gaze of Two Minds (5+)","min_level":5,"pact_req":null,"desc":""},"Gift of the Depths (5+)":{"name":"Gift of the Depths (5+)","min_level":5,"pact_req":null,"desc":""},"Gift of the Protectors (PoT, 9+)":{"name":"Gift of the Protectors (PoT, 9+)","min_level":1,"pact_req":"tome","desc":""},"Investment of the Chain Master (PoC, 5+)":{"name":"Investment of the Chain Master (PoC, 5+)","min_level":1,"pact_req":"chain","desc":""},"Lessons of the First Ones (2+)":{"name":"Lessons of the First Ones (2+)","min_level":2,"pact_req":null,"desc":""},"Lifedrinker (PoB, 9+)":{"name":"Lifedrinker (PoB, 9+)","min_level":1,"pact_req":"blade","desc":""},"Mask of Many Faces (2+)":{"name":"Mask of Many Faces (2+)","min_level":2,"pact_req":null,"desc":""},"Master of Myriad Forms (5+)":{"name":"Master of Myriad Forms (5+)","min_level":5,"pact_req":null,"desc":""},"Misty Visions (2+)":{"name":"Misty Visions (2+)","min_level":2,"pact_req":null,"desc":""},"One with Shadows (5+)":{"name":"One with Shadows (5+)","min_level":5,"pact_req":null,"desc":""},"Otherworldly Leap (2+)":{"name":"Otherworldly Leap (2+)","min_level":2,"pact_req":null,"desc":""},"Pact of the Blade":{"name":"Pact of the Blade","min_level":1,"pact_req":null,"desc":""},"Pact of the Chain":{"name":"Pact of the Chain","min_level":1,"pact_req":null,"desc":""},"Pact of the Tome":{"name":"Pact of the Tome","min_level":1,"pact_req":null,"desc":""},"Repelling Blast [Chill Touch] (2+)":{"name":"Repelling Blast [Chill Touch] (2+)","min_level":2,"pact_req":null,"desc":""},"Repelling Blast [Eldritch Blast] (2+)":{"name":"Repelling Blast [Eldritch Blast] (2+)","min_level":2,"pact_req":null,"desc":""},"Repelling Blast [Poison Spray] (2+)":{"name":"Repelling Blast [Poison Spray] (2+)","min_level":2,"pact_req":null,"desc":""},"Repelling Blast [True Strike] (2+)":{"name":"Repelling Blast [True Strike] (2+)","min_level":2,"pact_req":null,"desc":""},"Thirsting Blade (PoB, 5+)":{"name":"Thirsting Blade (PoB, 5+)","min_level":1,"pact_req":"blade","desc":""},"Visions of Distant Realms (9+)":{"name":"Visions of Distant Realms (9+)","min_level":9,"pact_req":null,"desc":""},"Whispers of the Grave (7+)":{"name":"Whispers of the Grave (7+)","min_level":7,"pact_req":null,"desc":""},"Witch Sight (15+)":{"name":"Witch Sight (15+)","min_level":15,"pact_req":null,"desc":""}},"type":"multi_pick"}],"sorcerer":[{"key":"metamagic","name":"Metamagic","min_class_level":2,"times_by_level":[0,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,6,6,6,6],"options":{"Careful Spell":{"name":"Careful Spell","desc":"","cost":"1 Sorcery Point"},"Distant Spell":{"name":"Distant Spell","desc":"","cost":"1 Sorcery Point"},"Empowered Spell":{"name":"Empowered Spell","desc":"","cost":"1+ Sorcery Points"},"Extended Spell":{"name":"Extended Spell","desc":"","cost":"1 Sorcery Point"},"Heightened Spell":{"name":"Heightened Spell","desc":"","cost":"1 Sorcery Point"},"Quickened Spell":{"name":"Quickened Spell","desc":"","cost":"1 Sorcery Point"},"Seeking Spell":{"name":"Seeking Spell","desc":"","cost":"1 Sorcery Point"},"Subtle Spell":{"name":"Subtle Spell","desc":"","cost":"1 Sorcery Point"},"Transmuted Spell":{"name":"Transmuted Spell","desc":"","cost":"1 Sorcery Point"},"Twinned Spell":{"name":"Twinned Spell","desc":"","cost":"1 Sorcery Point"}},"type":"multi_pick"}],"cleric":[{"key":"divine_order","name":"Divine Order","min_class_level":1,"times_by_level":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"options":{"Protector":{"name":"Protector","desc":"Gain proficiency with Martial Weapons and Heavy Armor.","type":"single_pick"},"Thaumaturge":{"name":"Thaumaturge","desc":"Gain proficiency in Arcana or Religion (your choice). Your Cantrip count increases by 2.","type":"single_pick"}},"type":"single_pick"}],"fighter":[{"key":"maneuvers","name":"Battle Master Maneuvers","min_class_level":3,"subclass_required":"battle_master","times_by_level":[3,3,3,3,3,3,5,5,5,7,7,7,7,7,9,9,9,9,9,9],"options":{"Ambush":{"name":"Ambush","desc":""},"Bait and Switch":{"name":"Bait and Switch","desc":""},"Commander's Strike":{"name":"Commander's Strike","desc":""},"Commanding Presence":{"name":"Commanding Presence","desc":""},"Disarming Attack":{"name":"Disarming Attack","desc":""},"Distracting Strike":{"name":"Distracting Strike","desc":""},"Evasive Footwork":{"name":"Evasive Footwork","desc":""},"Feinting Attack":{"name":"Feinting Attack","desc":""},"Goading Attack":{"name":"Goading Attack","desc":""},"Lunging Attack":{"name":"Lunging Attack","desc":""},"Maneuvering Attack":{"name":"Maneuvering Attack","desc":""},"Menacing Attack":{"name":"Menacing Attack","desc":""},"Parry":{"name":"Parry","desc":""},"Precision Attack":{"name":"Precision Attack","desc":""},"Pushing Attack":{"name":"Pushing Attack","desc":""},"Rally":{"name":"Rally","desc":""},"Riposte":{"name":"Riposte","desc":""},"Sweeping Attack":{"name":"Sweeping Attack","desc":""},"Tactical Assessment":{"name":"Tactical Assessment","desc":""},"Trip Attack":{"name":"Trip Attack","desc":""}},"type":"multi_pick"},{"key":"weapon_mastery","name":"Weapon Mastery","min_class_level":1,"times_by_level":[3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,6,6,6,6,6],"options":{"Club":{"name":"Club","desc":"Apply Club Weapon Mastery property."},"Dagger":{"name":"Dagger","desc":"Apply Dagger Weapon Mastery property."},"Greatclub":{"name":"Greatclub","desc":"Apply Greatclub Weapon Mastery property."},"Handaxe":{"name":"Handaxe","desc":"Apply Handaxe Weapon Mastery property."},"Javelin":{"name":"Javelin","desc":"Apply Javelin Weapon Mastery property."},"Light Hammer":{"name":"Light Hammer","desc":"Apply Light Hammer Weapon Mastery property."},"Mace":{"name":"Mace","desc":"Apply Mace Weapon Mastery property."},"Quarterstaff":{"name":"Quarterstaff","desc":"Apply Quarterstaff Weapon Mastery property."},"Sickle":{"name":"Sickle","desc":"Apply Sickle Weapon Mastery property."},"Spear":{"name":"Spear","desc":"Apply Spear Weapon Mastery property."},"Dart":{"name":"Dart","desc":"Apply Dart Weapon Mastery property."},"Light Crossbow":{"name":"Light Crossbow","desc":"Apply Light Crossbow Weapon Mastery property."},"Shortbow":{"name":"Shortbow","desc":"Apply Shortbow Weapon Mastery property."},"Sling":{"name":"Sling","desc":"Apply Sling Weapon Mastery property."},"Battleaxe":{"name":"Battleaxe","desc":"Apply Battleaxe Weapon Mastery property."},"Flail":{"name":"Flail","desc":"Apply Flail Weapon Mastery property."},"Glaive":{"name":"Glaive","desc":"Apply Glaive Weapon Mastery property."},"Greataxe":{"name":"Greataxe","desc":"Apply Greataxe Weapon Mastery property."},"Greatsword":{"name":"Greatsword","desc":"Apply Greatsword Weapon Mastery property."},"Halberd":{"name":"Halberd","desc":"Apply Halberd Weapon Mastery property."},"Lance":{"name":"Lance","desc":"Apply Lance Weapon Mastery property."},"Longsword":{"name":"Longsword","desc":"Apply Longsword Weapon Mastery property."},"Maul":{"name":"Maul","desc":"Apply Maul Weapon Mastery property."},"Morningstar":{"name":"Morningstar","desc":"Apply Morningstar Weapon Mastery property."},"Pike":{"name":"Pike","desc":"Apply Pike Weapon Mastery property."},"Rapier":{"name":"Rapier","desc":"Apply Rapier Weapon Mastery property."},"Scimitar":{"name":"Scimitar","desc":"Apply Scimitar Weapon Mastery property."},"Shortsword":{"name":"Shortsword","desc":"Apply Shortsword Weapon Mastery property."},"Trident":{"name":"Trident","desc":"Apply Trident Weapon Mastery property."},"Warhammer":{"name":"Warhammer","desc":"Apply Warhammer Weapon Mastery property."},"War Pick":{"name":"War Pick","desc":"Apply War Pick Weapon Mastery property."},"Whip":{"name":"Whip","desc":"Apply Whip Weapon Mastery property."},"Blowgun":{"name":"Blowgun","desc":"Apply Blowgun Weapon Mastery property."},"Hand Crossbow":{"name":"Hand Crossbow","desc":"Apply Hand Crossbow Weapon Mastery property."},"Heavy Crossbow":{"name":"Heavy Crossbow","desc":"Apply Heavy Crossbow Weapon Mastery property."},"Longbow":{"name":"Longbow","desc":"Apply Longbow Weapon Mastery property."},"Musket":{"name":"Musket","desc":"Apply Musket Weapon Mastery property."},"Pistol":{"name":"Pistol","desc":"Apply Pistol Weapon Mastery property."}},"type":"multi_pick"}],"barbarian":[{"key":"weapon_mastery","name":"Weapon Mastery","min_class_level":1,"times_by_level":[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],"options":{"Club":{"name":"Club","desc":""},"Dagger":{"name":"Dagger","desc":""},"Greatclub":{"name":"Greatclub","desc":""},"Handaxe":{"name":"Handaxe","desc":""},"Javelin":{"name":"Javelin","desc":""},"Light Hammer":{"name":"Light Hammer","desc":""},"Mace":{"name":"Mace","desc":""},"Quarterstaff":{"name":"Quarterstaff","desc":""},"Sickle":{"name":"Sickle","desc":""},"Spear":{"name":"Spear","desc":""},"Battleaxe":{"name":"Battleaxe","desc":""},"Flail":{"name":"Flail","desc":""},"Glaive":{"name":"Glaive","desc":""},"Greataxe":{"name":"Greataxe","desc":""},"Greatsword":{"name":"Greatsword","desc":""},"Halberd":{"name":"Halberd","desc":""},"Lance":{"name":"Lance","desc":""},"Longsword":{"name":"Longsword","desc":""},"Maul":{"name":"Maul","desc":""},"Morningstar":{"name":"Morningstar","desc":""},"Pike":{"name":"Pike","desc":""},"Rapier":{"name":"Rapier","desc":""},"Scimitar":{"name":"Scimitar","desc":""},"Shortsword":{"name":"Shortsword","desc":""},"Trident":{"name":"Trident","desc":""},"Warhammer":{"name":"Warhammer","desc":""},"War Pick":{"name":"War Pick","desc":""},"Whip":{"name":"Whip","desc":""}},"type":"multi_pick"}],"rogue":[{"key":"rogue_expertise","name":"Expertise","min_class_level":1,"times_by_level":[2,2,2,2,2,2,4,4,4,4,4,4,4,4,4,4,4,4,4,4],"options":{"Acrobatics":{"name":"Acrobatics Expertise","desc":"Gain Expertise in Acrobatics."},"Animal Handling":{"name":"Animal Handling Expertise","desc":"Gain Expertise in Animal Handling."},"Arcana":{"name":"Arcana Expertise","desc":"Gain Expertise in Arcana."},"Athletics":{"name":"Athletics Expertise","desc":"Gain Expertise in Athletics."},"Deception":{"name":"Deception Expertise","desc":"Gain Expertise in Deception."},"History":{"name":"History Expertise","desc":"Gain Expertise in History."},"Insight":{"name":"Insight Expertise","desc":"Gain Expertise in Insight."},"Intimidation":{"name":"Intimidation Expertise","desc":"Gain Expertise in Intimidation."},"Investigation":{"name":"Investigation Expertise","desc":"Gain Expertise in Investigation."},"Medicine":{"name":"Medicine Expertise","desc":"Gain Expertise in Medicine."},"Nature":{"name":"Nature Expertise","desc":"Gain Expertise in Nature."},"Perception":{"name":"Perception Expertise","desc":"Gain Expertise in Perception."},"Performance":{"name":"Performance Expertise","desc":"Gain Expertise in Performance."},"Persuasion":{"name":"Persuasion Expertise","desc":"Gain Expertise in Persuasion."},"Religion":{"name":"Religion Expertise","desc":"Gain Expertise in Religion."},"Sleight of Hand":{"name":"Sleight of Hand Expertise","desc":"Gain Expertise in Sleight of Hand."},"Stealth":{"name":"Stealth Expertise","desc":"Gain Expertise in Stealth."},"Survival":{"name":"Survival Expertise","desc":"Gain Expertise in Survival."}},"type":"multi_pick"},{"key":"weapon_mastery","name":"Weapon Mastery","min_class_level":1,"times_by_level":[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],"options":{"Club":{"name":"Club","desc":""},"Dagger":{"name":"Dagger","desc":""},"Greatclub":{"name":"Greatclub","desc":""},"Handaxe":{"name":"Handaxe","desc":""},"Javelin":{"name":"Javelin","desc":""},"Light Hammer":{"name":"Light Hammer","desc":""},"Mace":{"name":"Mace","desc":""},"Quarterstaff":{"name":"Quarterstaff","desc":""},"Sickle":{"name":"Sickle","desc":""},"Spear":{"name":"Spear","desc":""},"Dart":{"name":"Dart","desc":""},"Light Crossbow":{"name":"Light Crossbow","desc":""},"Shortbow":{"name":"Shortbow","desc":""},"Sling":{"name":"Sling","desc":""},"Rapier":{"name":"Rapier","desc":""},"Scimitar":{"name":"Scimitar","desc":""},"Shortsword":{"name":"Shortsword","desc":""},"Whip":{"name":"Whip","desc":""},"Hand Crossbow":{"name":"Hand Crossbow","desc":""}},"type":"multi_pick"}],"ranger":[{"key":"ranger_expertise","name":"Expertise","min_class_level":2,"times_by_level":[0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],"options":{"Acrobatics":{"name":"Acrobatics Expertise","desc":"Gain Expertise in Acrobatics."},"Animal Handling":{"name":"Animal Handling Expertise","desc":"Gain Expertise in Animal Handling."},"Arcana":{"name":"Arcana Expertise","desc":"Gain Expertise in Arcana."},"Athletics":{"name":"Athletics Expertise","desc":"Gain Expertise in Athletics."},"Deception":{"name":"Deception Expertise","desc":"Gain Expertise in Deception."},"History":{"name":"History Expertise","desc":"Gain Expertise in History."},"Insight":{"name":"Insight Expertise","desc":"Gain Expertise in Insight."},"Intimidation":{"name":"Intimidation Expertise","desc":"Gain Expertise in Intimidation."},"Investigation":{"name":"Investigation Expertise","desc":"Gain Expertise in Investigation."},"Medicine":{"name":"Medicine Expertise","desc":"Gain Expertise in Medicine."},"Nature":{"name":"Nature Expertise","desc":"Gain Expertise in Nature."},"Perception":{"name":"Perception Expertise","desc":"Gain Expertise in Perception."},"Performance":{"name":"Performance Expertise","desc":"Gain Expertise in Performance."},"Persuasion":{"name":"Persuasion Expertise","desc":"Gain Expertise in Persuasion."},"Religion":{"name":"Religion Expertise","desc":"Gain Expertise in Religion."},"Sleight of Hand":{"name":"Sleight of Hand Expertise","desc":"Gain Expertise in Sleight of Hand."},"Stealth":{"name":"Stealth Expertise","desc":"Gain Expertise in Stealth."},"Survival":{"name":"Survival Expertise","desc":"Gain Expertise in Survival."}},"type":"multi_pick"},{"key":"weapon_mastery","name":"Weapon Mastery","min_class_level":1,"times_by_level":[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],"options":{"Club":{"name":"Club","desc":""},"Dagger":{"name":"Dagger","desc":""},"Greatclub":{"name":"Greatclub","desc":""},"Handaxe":{"name":"Handaxe","desc":""},"Javelin":{"name":"Javelin","desc":""},"Light Hammer":{"name":"Light Hammer","desc":""},"Mace":{"name":"Mace","desc":""},"Quarterstaff":{"name":"Quarterstaff","desc":""},"Sickle":{"name":"Sickle","desc":""},"Spear":{"name":"Spear","desc":""},"Dart":{"name":"Dart","desc":""},"Light Crossbow":{"name":"Light Crossbow","desc":""},"Shortbow":{"name":"Shortbow","desc":""},"Sling":{"name":"Sling","desc":""},"Battleaxe":{"name":"Battleaxe","desc":""},"Flail":{"name":"Flail","desc":""},"Glaive":{"name":"Glaive","desc":""},"Greataxe":{"name":"Greataxe","desc":""},"Greatsword":{"name":"Greatsword","desc":""},"Halberd":{"name":"Halberd","desc":""},"Lance":{"name":"Lance","desc":""},"Longsword":{"name":"Longsword","desc":""},"Maul":{"name":"Maul","desc":""},"Morningstar":{"name":"Morningstar","desc":""},"Pike":{"name":"Pike","desc":""},"Rapier":{"name":"Rapier","desc":""},"Scimitar":{"name":"Scimitar","desc":""},"Shortsword":{"name":"Shortsword","desc":""},"Trident":{"name":"Trident","desc":""},"Warhammer":{"name":"Warhammer","desc":""},"War Pick":{"name":"War Pick","desc":""},"Whip":{"name":"Whip","desc":""},"Blowgun":{"name":"Blowgun","desc":""},"Hand Crossbow":{"name":"Hand Crossbow","desc":""},"Heavy Crossbow":{"name":"Heavy Crossbow","desc":""},"Longbow":{"name":"Longbow","desc":""},"Musket":{"name":"Musket","desc":""},"Pistol":{"name":"Pistol","desc":""}},"type":"multi_pick"}],"paladin":[{"key":"weapon_mastery","name":"Weapon Mastery","min_class_level":1,"times_by_level":[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],"options":{"Club":{"name":"Club","desc":""},"Dagger":{"name":"Dagger","desc":""},"Greatclub":{"name":"Greatclub","desc":""},"Handaxe":{"name":"Handaxe","desc":""},"Javelin":{"name":"Javelin","desc":""},"Light Hammer":{"name":"Light Hammer","desc":""},"Mace":{"name":"Mace","desc":""},"Quarterstaff":{"name":"Quarterstaff","desc":""},"Sickle":{"name":"Sickle","desc":""},"Spear":{"name":"Spear","desc":""},"Dart":{"name":"Dart","desc":""},"Light Crossbow":{"name":"Light Crossbow","desc":""},"Shortbow":{"name":"Shortbow","desc":""},"Sling":{"name":"Sling","desc":""},"Battleaxe":{"name":"Battleaxe","desc":""},"Flail":{"name":"Flail","desc":""},"Glaive":{"name":"Glaive","desc":""},"Greataxe":{"name":"Greataxe","desc":""},"Greatsword":{"name":"Greatsword","desc":""},"Halberd":{"name":"Halberd","desc":""},"Lance":{"name":"Lance","desc":""},"Longsword":{"name":"Longsword","desc":""},"Maul":{"name":"Maul","desc":""},"Morningstar":{"name":"Morningstar","desc":""},"Pike":{"name":"Pike","desc":""},"Rapier":{"name":"Rapier","desc":""},"Scimitar":{"name":"Scimitar","desc":""},"Shortsword":{"name":"Shortsword","desc":""},"Trident":{"name":"Trident","desc":""},"Warhammer":{"name":"Warhammer","desc":""},"War Pick":{"name":"War Pick","desc":""},"Whip":{"name":"Whip","desc":""},"Blowgun":{"name":"Blowgun","desc":""},"Hand Crossbow":{"name":"Hand Crossbow","desc":""},"Heavy Crossbow":{"name":"Heavy Crossbow","desc":""},"Longbow":{"name":"Longbow","desc":""},"Musket":{"name":"Musket","desc":""},"Pistol":{"name":"Pistol","desc":""}},"type":"multi_pick"}],"wizard":[{"key":"scholar_expertise","name":"Scholar Expertise","min_class_level":2,"times_by_level":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"options":{"Arcana":{"name":"Arcana Expertise","desc":"Gain Expertise in Arcana."},"History":{"name":"History Expertise","desc":"Gain Expertise in History."},"Investigation":{"name":"Investigation Expertise","desc":"Gain Expertise in Investigation."},"Medicine":{"name":"Medicine Expertise","desc":"Gain Expertise in Medicine."},"Nature":{"name":"Nature Expertise","desc":"Gain Expertise in Nature."},"Religion":{"name":"Religion Expertise","desc":"Gain Expertise in Religion."}},"type":"multi_pick"},{"key":"spell_mastery","name":"Spell Mastery","min_class_level":18,"times_by_level":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],"options":{},"type":"spell_pick","spell_levels":[1,2],"desc":"Choose one 1st-level and one 2nd-level spell from your spellbook. They are always prepared and can be cast at their lowest level without a spell slot."},{"key":"signature_spells","name":"Signature Spells","min_class_level":20,"times_by_level":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],"options":{},"type":"spell_pick","spell_levels":[3,3],"desc":"Choose two 3rd-level spells from your spellbook. They are always prepared and can be cast once per rest without a spell slot."}],"bard":[{"key":"bard_expertise","name":"Expertise","min_class_level":2,"times_by_level":[0,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,4,4,4],"options":{"Acrobatics":{"name":"Acrobatics Expertise","desc":"Gain Expertise in Acrobatics."},"Animal Handling":{"name":"Animal Handling Expertise","desc":"Gain Expertise in Animal Handling."},"Arcana":{"name":"Arcana Expertise","desc":"Gain Expertise in Arcana."},"Athletics":{"name":"Athletics Expertise","desc":"Gain Expertise in Athletics."},"Deception":{"name":"Deception Expertise","desc":"Gain Expertise in Deception."},"History":{"name":"History Expertise","desc":"Gain Expertise in History."},"Insight":{"name":"Insight Expertise","desc":"Gain Expertise in Insight."},"Intimidation":{"name":"Intimidation Expertise","desc":"Gain Expertise in Intimidation."},"Investigation":{"name":"Investigation Expertise","desc":"Gain Expertise in Investigation."},"Medicine":{"name":"Medicine Expertise","desc":"Gain Expertise in Medicine."},"Nature":{"name":"Nature Expertise","desc":"Gain Expertise in Nature."},"Perception":{"name":"Perception Expertise","desc":"Gain Expertise in Perception."},"Performance":{"name":"Performance Expertise","desc":"Gain Expertise in Performance."},"Persuasion":{"name":"Persuasion Expertise","desc":"Gain Expertise in Persuasion."},"Religion":{"name":"Religion Expertise","desc":"Gain Expertise in Religion."},"Sleight of Hand":{"name":"Sleight of Hand Expertise","desc":"Gain Expertise in Sleight of Hand."},"Stealth":{"name":"Stealth Expertise","desc":"Gain Expertise in Stealth."},"Survival":{"name":"Survival Expertise","desc":"Gain Expertise in Survival."}},"type":"multi_pick"}],"monk":[{"key":"monk_discipline","name":"Monk Discipline","min_class_level":1,"times_by_level":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],"options":{"Body and Mind":{"name":"Body and Mind","desc":"Your STR and DEX scores increase by 4 each, to a maximum of 25."}},"type":"info_only","desc":"Monk discipline features are granted by your subclass. See Class Features panel."}]};
+
+// Player's selected choices — stored per system key
+// char.class_choices = { warlock_eldritch_invocations: ['Agonizing Blast','Devils Sight',...], ... }
+
+function getChoiceSystem(cls, subclass) {
+  const systems = [...(CLASS_CHOICES[cls] || [])];
+  // Add subclass-specific systems from SUBCLASSES data
+  if (subclass && SUBCLASSES[subclass]) {
+    // Future: subclass-added choice systems
+  }
+  return systems.filter(s => {
+    if (!s.subclass_required) return true;
+    return s.subclass_required === subclass;
+  });
+}
+
+function getChoiceCount(system, level) {
+  const times = system.times_by_level || [];
+  return times[level - 1] || times[times.length - 1] || 0;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3666,6 +4232,7 @@ function onSubclassChange() {
   renderSubclassAlwaysPrepared();
   renderLimitedFeatures();
   renderSubclassCantrip();
+  renderClassChoices();
   updateCharSummary();
 }
 
@@ -5129,6 +5696,315 @@ function scheduleAutoSync(id, charData) {
 }
 
 // ═══════════════════════════════════════════════════════
+// CLASS CHOICES ENGINE
+// ═══════════════════════════════════════════════════════
+
+function renderClassChoices() {
+  const cls = char.class;
+  const subclass = char.subclass;
+  const level = getLevel();
+  const panel = document.getElementById('class-choices-panel');
+  const body  = document.getElementById('class-choices-body');
+  if (!panel || !body) return;
+
+  const systems = getChoiceSystem(cls, subclass);
+  if (!systems.length) { panel.style.display = 'none'; return; }
+
+  panel.style.display = '';
+  body.innerHTML = '';
+
+  if (!char.class_choices) char.class_choices = {};
+
+  systems.forEach(system => {
+    const storageKey = cls + '_' + system.key;
+    const maxPicks   = getChoiceCount(system, level);
+    const selected   = char.class_choices[storageKey] || [];
+    const isSingle   = system.type === 'single_pick';
+    const isSpellPick = system.type === 'spell_pick';
+
+    const section = document.createElement('div');
+    section.style.marginBottom = '12px';
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+    const title = document.createElement('span');
+    title.style.cssText = 'font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;flex:1;';
+    title.textContent = system.name;
+    const counter = document.createElement('span');
+    counter.style.cssText = `font-size:10px;color:${selected.length > maxPicks ? 'var(--red)' : selected.length === maxPicks ? 'var(--green)' : 'var(--text3)'};`;
+
+    if (isSpellPick) {
+      const spellLevels = system.spell_levels || [];
+      const filled = selected.filter(Boolean).length;
+      counter.textContent = `${filled}/${spellLevels.length}`;
+      counter.style.color = filled === spellLevels.length ? 'var(--green)' : 'var(--text3)';
+    } else {
+      counter.textContent = isSingle ? (selected.length ? '✓' : '—') : `${selected.length}/${maxPicks}`;
+    }
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'topbar-btn';
+    editBtn.style.cssText = 'font-size:10px;padding:2px 8px;';
+    editBtn.textContent = isSpellPick ? '↺ Choose Spells'
+      : isSingle ? (selected.length ? '↺ Change' : '+ Choose') : '+ Edit';
+    editBtn.onclick = () => openChoicePicker(storageKey, system, maxPicks, isSingle);
+    header.appendChild(title);
+    header.appendChild(counter);
+    header.appendChild(editBtn);
+    section.appendChild(header);
+
+    // Selected choices display
+    if (isSpellPick) {
+      const spellLevels = system.spell_levels || [];
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-direction:column;gap:3px;';
+      spellLevels.forEach((spellLevel, idx) => {
+        const spellKey = selected[idx];
+        const sp = spellKey ? PHB.spells[spellKey] : null;
+        const slot = document.createElement('div');
+        slot.style.cssText = 'font-size:11px;display:flex;align-items:center;gap:6px;';
+        slot.innerHTML = `<span style="color:var(--text3);min-width:50px">L${spellLevel} slot:</span>`
+          + (sp ? `<span style="color:var(--gold);font-weight:600">${sp.name}</span>`
+                : `<span style="color:var(--text3);font-style:italic">not chosen</span>`);
+        list.appendChild(slot);
+      });
+      section.appendChild(list);
+    } else if (selected.length) {
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;';
+      selected.forEach(choice => {
+        const opt = system.options[choice] || {name: choice, desc: ''};
+        const pill = document.createElement('div');
+        pill.style.cssText = 'background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:3px 8px;font-size:11px;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:4px;';
+        pill.title = opt.desc || '';
+
+        // Invocation prereq display
+        const minLvl = opt.min_level || 0;
+        const pact   = opt.pact_req;
+        let badges = '';
+        if (minLvl > 1) badges += `<span style="font-size:9px;color:var(--text3)">${minLvl}+</span>`;
+        if (pact) badges += `<span style="font-size:9px;color:var(--accent3)">PoB</span>`;
+
+        pill.innerHTML = `<span>${opt.name || choice}</span>${badges}<span style="color:var(--text3);font-size:11px;margin-left:2px;cursor:pointer" onclick="removeChoice('${storageKey}','${choice.replace(/'/g,"\\'")}')">✕</span>`;
+        list.appendChild(pill);
+      });
+      section.appendChild(list);
+    } else {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:11px;color:var(--text3);font-style:italic;';
+      empty.textContent = isSingle ? 'No option chosen.' : `No ${system.name.toLowerCase()} selected.`;
+      section.appendChild(empty);
+    }
+
+    body.appendChild(section);
+  });
+}
+
+function removeChoice(storageKey, choice) {
+  if (!char.class_choices) char.class_choices = {};
+  const arr = char.class_choices[storageKey] || [];
+  char.class_choices[storageKey] = arr.filter(c => c !== choice);
+  renderClassChoices();
+}
+
+// ── Choice Picker Modal ───────────────────────────────
+let _choicePickerKey = null;
+let _choicePickerSystem = null;
+let _choicePickerMax = 0;
+let _choicePickerSingle = false;
+
+function openChoicePicker(storageKey, system, max, isSingle) {
+  _choicePickerKey    = storageKey;
+  _choicePickerSystem = system;
+  _choicePickerMax    = max;
+  _choicePickerSingle = isSingle;
+
+  const modal = document.getElementById('choice-picker-modal');
+  if (!modal) return;
+  document.getElementById('choice-picker-title').textContent = system.name;
+  document.getElementById('choice-picker-search').value = '';
+
+  const countEl = document.getElementById('choice-picker-count');
+  if (system.type === 'spell_pick') {
+    const spellLevels = system.spell_levels || [];
+    const levelCounts = {};
+    spellLevels.forEach(l => levelCounts[l] = (levelCounts[l]||0)+1);
+    const parts = Object.entries(levelCounts).map(([l,n]) =>
+      n > 1 ? `${n} level-${l} spells` : `one level-${l} spell`);
+    countEl.textContent = (system.desc || '') + ` Choose: ${parts.join(' and ')}.`;
+  } else if (isSingle) {
+    countEl.textContent = 'Choose one option.';
+  } else {
+    countEl.textContent = `Select up to ${max} option${max !== 1 ? 's' : ''} at level ${getLevel()}.`;
+  }
+
+  renderChoicePicker('');
+  openModal('choice-picker-modal');
+  setTimeout(() => document.getElementById('choice-picker-search').focus(), 100);
+}
+
+function renderChoicePicker(query) {
+  const system  = _choicePickerSystem;
+  const key     = _choicePickerKey;
+  const grid    = document.getElementById('choice-picker-grid');
+  const level   = getLevel();
+  const selected = (char.class_choices || {})[key] || [];
+
+  // ── Spell pick type (Spell Mastery, Signature Spells) ────────────────
+  if (system.type === 'spell_pick') {
+    grid.innerHTML = '';
+    const spellLevels = system.spell_levels || [];
+    const allSpells = PHB.spells;
+
+    // Group by which slot we're filling
+    spellLevels.forEach((spellLevel, slotIdx) => {
+      const slotKey = `slot_${slotIdx}`;
+      const currentSelection = selected[slotIdx] || null;
+
+      const slotDiv = document.createElement('div');
+      slotDiv.style.cssText = 'grid-column:1/-1;';
+
+      const slotHeader = document.createElement('div');
+      slotHeader.style.cssText = 'font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:6px;padding-top:8px;border-top:1px solid var(--border);';
+      slotHeader.textContent = `Slot ${slotIdx+1}: Level ${spellLevel} Spell`;
+      slotDiv.appendChild(slotHeader);
+
+      // Filter: spells of correct level that are prepared or in PHB
+      let candidates = Object.entries(allSpells).filter(([k,s]) => {
+        if (s.level !== spellLevel) return false;
+        if (query && !s.name.toLowerCase().includes(query)) return false;
+        // Must be a wizard spell
+        return s.classes.includes('wizard') || (preparedSpells[k] && preparedSpells[k] !== false);
+      });
+      candidates.sort(([,a],[,b]) => a.name.localeCompare(b.name));
+
+      const innerGrid = document.createElement('div');
+      innerGrid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;';
+
+      candidates.slice(0, 50).forEach(([spellKey, sp]) => {
+        const isSelected = currentSelection === spellKey;
+        const card = document.createElement('div');
+        card.style.cssText = `background:var(--bg2);border:1px solid ${isSelected?'var(--gold)':'var(--border)'};border-radius:var(--radius);padding:8px;cursor:pointer;transition:all .15s;`;
+        card.innerHTML = `
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+            <span style="font-size:12px;font-weight:700;color:${isSelected?'var(--gold)':'var(--text)'};flex:1">${sp.name}</span>
+            ${isSelected?'<span style="font-size:9px;color:var(--gold)">✓</span>':''}
+          </div>
+          <div style="font-size:10px;color:var(--text3)">${sp.school} · ${sp.time} · ${sp.range}</div>
+          <button style="margin-top:6px;width:100%;padding:3px;border-radius:var(--radius);border:1px solid ${isSelected?'var(--red)':'var(--gold)'};background:transparent;color:${isSelected?'var(--red)':'var(--gold)'};font-size:10px;cursor:pointer"
+            onclick="toggleSpellMasteryChoice(${slotIdx},'${spellKey.replace(/'/g,"\\'")}')">${isSelected?'Remove':'Select'}</button>
+        `;
+        innerGrid.appendChild(card);
+      });
+      slotDiv.appendChild(innerGrid);
+      grid.appendChild(slotDiv);
+    });
+    return;
+  }
+
+  // ── Standard multi/single pick ────────────────────────────────────────
+  grid.innerHTML = '';
+  let entries = Object.entries(system.options);
+  if (query) {
+    entries = entries.filter(([k, v]) =>
+      (v.name || k).toLowerCase().includes(query) ||
+      (v.desc || '').toLowerCase().includes(query)
+    );
+  }
+  if (system.key === 'eldritch_invocations') {
+    entries = entries.filter(([k, v]) => (v.min_level || 1) <= level);
+    const pact = _getPactBoon();
+    entries = entries.filter(([k, v]) => {
+      if (!v.pact_req) return true;
+      return v.pact_req === pact;
+    });
+  }
+  if (!entries.length) {
+    grid.innerHTML = '<div style="color:var(--text3);padding:12px;text-align:center;grid-column:1/-1">No options available at your current level.</div>';
+    return;
+  }
+  entries.forEach(([optKey, opt]) => {
+    const isSelected = selected.includes(optKey);
+    const card = document.createElement('div');
+    card.style.cssText = `background:var(--bg2);border:1px solid ${isSelected ? 'var(--gold)' : 'var(--border)'};border-radius:var(--radius);padding:10px;cursor:pointer;transition:all .15s;`;
+    const minLvl = opt.min_level || 0;
+    const pact   = opt.pact_req;
+    const prereqBadges = [
+      minLvl > 1 ? `<span style="font-size:9px;color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">${minLvl}+ level</span>` : '',
+      pact ? `<span style="font-size:9px;color:var(--accent3);background:rgba(74,144,217,.15);padding:1px 5px;border-radius:3px">Pact of the ${pact.charAt(0).toUpperCase()+pact.slice(1)}</span>` : '',
+    ].filter(Boolean).join(' ');
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:12px;font-weight:700;color:${isSelected?'var(--gold)':'var(--text)'};flex:1">${opt.name || optKey}</span>
+        ${isSelected ? '<span style="font-size:9px;color:var(--gold);background:rgba(200,164,90,.15);padding:1px 5px;border-radius:3px">✓ Selected</span>' : ''}
+      </div>
+      ${prereqBadges ? `<div style="margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">${prereqBadges}</div>` : ''}
+      ${opt.desc ? `<div style="font-size:11px;color:var(--text2);line-height:1.5;max-height:52px;overflow:hidden">${opt.desc}</div>` : ''}
+      <button style="margin-top:7px;width:100%;padding:4px;border-radius:var(--radius);border:1px solid ${isSelected?'var(--red)':'var(--accent2)'};background:transparent;color:${isSelected?'var(--red)':'var(--accent2)'};font-size:11px;cursor:pointer;font-weight:600"
+        onclick="toggleChoice('${optKey.replace(/'/g,"\\'")}');event.stopPropagation()">
+        ${isSelected ? '− Remove' : '+ Select'}
+      </button>
+    `;
+    card.onmouseenter = () => card.style.borderColor = isSelected ? 'var(--gold)' : 'var(--accent2)';
+    card.onmouseleave = () => card.style.borderColor = isSelected ? 'var(--gold)' : 'var(--border)';
+    card.onclick = () => toggleChoice(optKey);
+    grid.appendChild(card);
+  });
+}
+
+function toggleSpellMasteryChoice(slotIdx, spellKey) {
+  if (!char.class_choices) char.class_choices = {};
+  const key = _choicePickerKey;
+  const arr = [...((char.class_choices[key]) || [])];
+  // Ensure array is long enough
+  while (arr.length <= slotIdx) arr.push(null);
+  arr[slotIdx] = arr[slotIdx] === spellKey ? null : spellKey;
+  char.class_choices[key] = arr;
+  renderChoicePicker(document.getElementById('choice-picker-search')?.value?.toLowerCase() || '');
+  renderClassChoices();
+}
+
+function toggleChoice(optKey) {
+  if (!char.class_choices) char.class_choices = {};
+  const key     = _choicePickerKey;
+  const max     = _choicePickerMax;
+  const isSingle= _choicePickerSingle;
+  let selected  = [...(char.class_choices[key] || [])];
+
+  if (selected.includes(optKey)) {
+    // Deselect
+    selected = selected.filter(c => c !== optKey);
+  } else {
+    if (isSingle) {
+      selected = [optKey]; // single pick replaces
+    } else if (selected.length >= max) {
+      toast(`Maximum ${max} selections for this feature`, 'error');
+      return;
+    } else {
+      selected.push(optKey);
+    }
+  }
+
+  char.class_choices[key] = selected;
+  // Re-render picker and panel
+  renderChoicePicker(document.getElementById('choice-picker-search')?.value?.toLowerCase() || '');
+  renderClassChoices();
+
+  // Auto-close single-pick after selection
+  if (isSingle && selected.length) closeModal('choice-picker-modal');
+}
+
+function _getPactBoon() {
+  // Check if character has Pact of the Blade/Chain/Tome selected
+  const invocations = (char.class_choices || {})['warlock_eldritch_invocations'] || [];
+  if (invocations.some(i => i.toLowerCase().includes('pact of the blade') || i === 'Pact of the Blade')) return 'blade';
+  if (invocations.some(i => i === 'Pact of the Chain')) return 'chain';
+  if (invocations.some(i => i === 'Pact of the Tome')) return 'tome';
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
 window.addEventListener('load', () => {
@@ -5147,6 +6023,14 @@ window.addEventListener('load', () => {
     Object.entries(extra.subraces).forEach(([key, sub]) => {
       if (!RACE_SUBRACES[sub.parent]) RACE_SUBRACES[sub.parent] = [];
       if (!RACE_SUBRACES[sub.parent].includes(key)) RACE_SUBRACES[sub.parent].push(key);
+    });
+  }
+  // Restore subclasses into SUBCLASSES and CLASS_SUBCLASSES
+  if (extra?.subclasses) {
+    Object.assign(SUBCLASSES, extra.subclasses);
+    Object.entries(extra.subclasses).forEach(([key, sub]) => {
+      if (!CLASS_SUBCLASSES[sub.class]) CLASS_SUBCLASSES[sub.class] = [];
+      if (!CLASS_SUBCLASSES[sub.class].includes(key)) CLASS_SUBCLASSES[sub.class].push(key);
     });
   }
 
