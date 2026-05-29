@@ -1566,12 +1566,13 @@ select:not([multiple]) {
           </div>
           <div class="panel" style="margin-top:10px">
             <div class="panel-title">Quick Stats</div>
-            <div class="qs-row"><span class="qs-label">Proficiency Bonus</span><span class="qs-val" id="qs-prof">+2</span></div>
+            <div class="qs-row" style="background:var(--accent-bg);border-radius:var(--radius);padding:4px 8px;margin-bottom:2px"><span class="qs-label" style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px;text-transform:uppercase">Prof Bonus</span><span class="qs-val" style="font-size:18px;color:var(--accent)" id="qs-prof">+2</span></div>
             <div class="qs-row"><span class="qs-label">Initiative</span><span class="qs-val" id="qs-init">+0</span></div>
             <div class="qs-formula" id="qs-init-formula"></div>
             <div class="qs-row"><span class="qs-label">Passive Perception</span><span class="qs-val" id="qs-pp">10</span></div>
             <div class="qs-formula" id="qs-pp-formula"></div>
-            <div class="qs-row" style="border-bottom:none"><span class="qs-label">Carry Capacity</span><span class="qs-val" id="qs-carry">150 lb</span></div>
+            <div class="qs-row"><span class="qs-label">Carry Capacity</span><span class="qs-val" id="qs-carry">150 lb</span></div>
+            <div class="qs-row" id="qs-extra-attacks-row" style="border-bottom:none;display:none"><span class="qs-label">Extra Attacks</span><span class="qs-val" id="qs-extra-attacks">—</span></div>
           </div>
         </div>
 
@@ -3497,7 +3498,7 @@ const PHB_SUBCLASSES = {
       {
         "name": "Nature's Ward",
         "level": 10,
-        "desc": "",
+        "desc": "I can't be Charmed or Frightened by elementals or fey, and I'm immune to poison and disease.",
         "usages": null,
         "recovery": null,
         "choices": [
@@ -4045,7 +4046,7 @@ const PHB_SUBCLASSES = {
       {
         "name": "Aura of Devotion",
         "level": 7,
-        "desc": "",
+        "desc": "While I'm not incapacitated, I and all friendly creatures within 10 feet (30 feet at level 18) are immune to the Charmed condition.",
         "usages": null,
         "recovery": null,
         "choices": []
@@ -4141,7 +4142,7 @@ const PHB_SUBCLASSES = {
       {
         "name": "Channel Divinity: Nature's Wrath",
         "level": 3,
-        "desc": "",
+        "desc": "Use Channel Divinity to conjure spectral vines. A creature I can see within 10 feet must succeed on a Strength or Dexterity save (target's choice) or be Restrained until the start of my next turn.",
         "usages": null,
         "recovery": null,
         "choices": []
@@ -4157,7 +4158,7 @@ const PHB_SUBCLASSES = {
       {
         "name": "Undying Sentinel",
         "level": 15,
-        "desc": "",
+        "desc": "When I would be reduced to 0 HP, I drop to 1 HP instead. I can't use this feature again until after a Long Rest. Additionally, I no longer suffer the drawbacks of old age and can't be aged magically.",
         "usages": 1,
         "recovery": "long rest",
         "choices": []
@@ -4209,7 +4210,7 @@ const PHB_SUBCLASSES = {
       {
         "name": "Soul of Vengeance",
         "level": 15,
-        "desc": "",
+        "desc": "When the target of my Vow of Enmity makes an attack, I can use my Reaction to make one melee weapon attack against them if they are within range.",
         "usages": null,
         "recovery": null,
         "choices": []
@@ -14334,6 +14335,22 @@ function recalcQuickStats() {
   const carry = abs.str * 15;
   const el_carry = document.getElementById('qs-carry');
   if (el_carry) { el_carry.textContent = carry + ' lb'; el_carry.title = `STR ${abs.str} × 15 = ${carry} lb`; }
+
+  // Extra attacks
+  const extraAtk = parseInt(currentChar?._extraAttacks) || 0;
+  const atkRow = document.getElementById('qs-extra-attacks-row');
+  const atkVal = document.getElementById('qs-extra-attacks');
+  if (atkRow && atkVal) {
+    if (extraAtk > 0) {
+      atkRow.style.display = '';
+      const totalAttacks = extraAtk + 1;
+      const labels = ['','twice','three times','four times'];
+      atkVal.textContent = `${totalAttacks}× (attack ${labels[extraAtk] || totalAttacks + ' times'})`;
+      atkVal.title = `${totalAttacks} attacks per Attack action`;
+    } else {
+      atkRow.style.display = 'none';
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -16186,14 +16203,39 @@ function applyChoiceEffects() {
     }
   }
 
-  // ── Extra attacks from Warlock invocations ───────────────
+  // ── Extra attacks from class features ───────────────────────
   currentChar._extraAttacks = 0;
+
+  // Warlock invocations (Thirsting Blade / Devouring Blade)
   const invocations = Array.isArray(choices.eldritch_invocations) ? choices.eldritch_invocations : [];
-  if (invocations.some(i => i.includes('Thirsting Blade'))) {
-    currentChar._extraAttacks = 1;
-  }
-  if (invocations.some(i => i.includes('Devouring Blade'))) {
-    currentChar._extraAttacks = 2;
+  if (invocations.some(i => i.includes('Thirsting Blade')))  currentChar._extraAttacks = 1;
+  if (invocations.some(i => i.includes('Devouring Blade')))  currentChar._extraAttacks = 2;
+
+  // Class feature extra attacks (Fighter, Paladin, Ranger, Barbarian, Monk, Bard Valor/Swords)
+  // These override warlock invocations; fighter gets higher values at 11/20
+  const EXTRA_ATTACK_CLASSES = {
+    'barbarian': { 5: 1 },
+    'bard':      { 6: 1 },  // College of Valor / Swords only — subclass check below
+    'fighter':   { 5: 1, 11: 2, 20: 3 },
+    'monk':      { 5: 1 },
+    'paladin':   { 5: 1 },
+    'ranger':    { 5: 1 },
+  };
+  const extraByClass = EXTRA_ATTACK_CLASSES[cls];
+  if (extraByClass) {
+    // Bard: only Valor and Swords subclasses get Extra Attack
+    if (cls === 'bard') {
+      const bardSub = sub.toLowerCase();
+      if (!bardSub.includes('valor') && !bardSub.includes('sword')) {
+        // skip — bard doesn't get extra attack without subclass
+      } else {
+        const bardLevels = Object.keys(extraByClass).map(Number).filter(l => l <= level);
+        if (bardLevels.length) currentChar._extraAttacks = Math.max(currentChar._extraAttacks, extraByClass[Math.max(...bardLevels)]);
+      }
+    } else {
+      const validLevels = Object.keys(extraByClass).map(Number).filter(l => l <= level);
+      if (validLevels.length) currentChar._extraAttacks = Math.max(currentChar._extraAttacks, extraByClass[Math.max(...validLevels)]);
+    }
   }
 
   // ── Elemental affinity (Draconic Sorcerer) ───────────────
@@ -18689,12 +18731,22 @@ function populateFeaturesTab() {
 
   // ── Subclass features ─────────────────────────────────────
   if (subData) {
-    // Bonus spells at level 1
+    // Bonus spells — format as "Always prepared" grouped by spell level pairs
     if (subData.bonusSpells?.length) {
+      const spellPairs = [];
+      const spells = subData.bonusSpells;
+      // Group into pairs (1st+2nd level = pair 1, etc.) — standard Paladin/Cleric domain pattern
+      for (let i = 0; i < spells.length; i += 2) {
+        const pair = spells.slice(i, i+2).map(s => s.split(' ').map(w => w[0].toUpperCase()+w.slice(1)).join(' '));
+        spellPairs.push(pair.join(', '));
+      }
+      const spellLevelLabels = ['1st/2nd','3rd/4th','5th/6th','7th/8th','9th/10th'];
+      const desc = spellPairs.map((p,i) => `[${spellLevelLabels[i]||''}] ${p}`).join(' · ');
       entries.push({
-        level: 1, id: 'sub_bonusspells', name: 'Bonus Spells',
+        level: 1, id: 'sub_bonusspells', name: 'Bonus Spells (Always Prepared)',
         source: sub, sourceType: 'Subclass',
-        desc: subData.bonusSpells.join(', '), usages: null, recovery: null,
+        desc: `These spells are always prepared and don't count against your prepared spells limit. · ${desc}`,
+        usages: null, recovery: null,
       });
     }
     (subData.features || []).filter(f => f.level <= level).forEach((f, i) => {
