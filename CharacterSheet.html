@@ -433,7 +433,7 @@ select:not([multiple]) {
 #content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
 .page { display: none; }
-.page.active { display: block; }
+.page.active { display: block; height: 100%; overflow-y: auto; }
 
 /* ── PANELS ──────────────────────────────────────────────── */
 .panel {
@@ -568,6 +568,7 @@ select:not([multiple]) {
 }
 .toast-msg.ok    { border-color: var(--accent); color: var(--accent); }
 .toast-msg.error { border-color: var(--red);   color: var(--red); }
+.toast-msg.warn  { border-color: var(--amber);  color: var(--amber); }
 @keyframes toastIn  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translateY(-6px); } }
 
@@ -1391,6 +1392,90 @@ select:not([multiple]) {
   font-family: var(--font-label); font-size: 10px; color: var(--text3);
   text-transform: uppercase; letter-spacing: .5px;
 }
+
+/* ── FEATURES TAB ────────────────────────────────────────── */
+.feat-card {
+  background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px;
+  margin-bottom: 8px; transition: border-color .2s, background .3s;
+}
+.feat-card:last-child { margin-bottom: 0; }
+.feat-card:hover { border-color: var(--border2); }
+.feat-card-highlight {
+  border-color: var(--accent) !important;
+  background: var(--accent-bg) !important;
+}
+.feat-card-header {
+  display: flex; align-items: baseline;
+  justify-content: space-between; gap: 8px;
+  margin-bottom: 6px;
+}
+.feat-card-name {
+  font-family: var(--font-label); font-size: 14px;
+  font-weight: 700; color: var(--text); flex: 1;
+}
+.feat-card-meta {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.feat-card-level {
+  font-family: var(--font-label); font-size: 10px; font-weight: 600;
+  color: var(--text3); text-transform: uppercase; letter-spacing: .5px;
+}
+.feat-card-usage {
+  font-family: var(--font-label); font-size: 10px; font-weight: 600;
+  color: var(--accent); background: var(--accent-bg);
+  padding: 1px 7px; border-radius: 10px;
+}
+.feat-card-source {
+  font-family: var(--font-label); font-size: 10px; font-weight: 600;
+  color: var(--accent3); background: rgba(91,168,212,.12);
+  padding: 1px 7px; border-radius: 10px;
+}
+.feat-card-desc {
+  font-family: var(--font-body); font-size: 13px; color: var(--text2);
+  line-height: 1.6;
+}
+.feat-card-level-header {
+  font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text3); margin: 14px 0 6px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--border);
+}
+.feat-card-level-header:first-child { margin-top: 0; }
+.feat-card-section-title {
+  font-family: var(--font-title); font-size: 15px; font-weight: 600;
+  color: var(--accent); margin-bottom: 10px;
+}
+.feat-card-stats-row {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  font-family: var(--font-label); font-size: 12px; color: var(--text2);
+  margin-bottom: 8px;
+}
+.feat-card-stats-row strong { color: var(--text); }
+.feat-card-asi-note {
+  font-family: var(--font-body); font-size: 12px; color: var(--text3);
+  margin-bottom: 12px; line-height: 1.5;
+  padding: 6px 10px; background: var(--bg3);
+  border-radius: var(--radius); border-left: 3px solid var(--accent);
+}
+
+/* ── FEATURES UNIFIED LIST ──────────────────────────────── */
+.feat-unified-header {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 14px 0 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.feat-unified-header:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+.feat-unified-level {
+  font-family: var(--font-label); font-size: 12px; font-weight: 700;
+  color: var(--text); text-transform: uppercase; letter-spacing: .5px;
+  flex-shrink: 0;
+}
+.feat-unified-source {
+  font-family: var(--font-label); font-size: 11px; font-weight: 500;
+}
+
 /* ── PLACEHOLDER ─────────────────────────────────────────── */
 .placeholder-page {
   display: flex; align-items: center; justify-content: center;
@@ -1461,6 +1546,7 @@ select:not([multiple]) {
 
   <div id="page-tabs">
     <div class="page-tab active" data-page="main">Main Sheet</div>
+    <div class="page-tab" data-page="features">Features</div>
     <div class="page-tab" data-page="background">Background</div>
     <div class="page-tab" data-page="feats">Feats &amp; Items</div>
     <div class="page-tab" data-page="spells">Spells</div>
@@ -1662,6 +1748,17 @@ select:not([multiple]) {
         </div>
       </div>
     </div>
+    <div class="page" id="page-features">
+      <div style="padding:16px;max-width:760px;margin:0 auto">
+        <div class="panel">
+          <div class="panel-title">Features &amp; Traits</div>
+          <div id="feat-unified-list">
+            <div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Select a class and race on the Main Sheet to see features.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-background">
       <div class="tab-grid-2col">
 
@@ -2076,6 +2173,20 @@ select:not([multiple]) {
     <!-- Summary row -->
     <div id="asi-summary" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:16px;display:flex;gap:6px;flex-wrap:wrap"></div>
 
+    <!-- Magical Overrides -->
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Magical Overrides</div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">
+        <strong style="color:var(--text2)">Override Cap</strong> raises the 20 cap for additive bonuses (e.g. an item granting +2 WIS beyond 20).
+        <strong style="color:var(--text2)">Hard Set</strong> forces an ability to a fixed value, ignoring all other calculations (e.g. Belt of Giant Strength).
+      </div>
+      <div id="asi-override-grid" style="display:grid;grid-template-columns:80px 1fr 1fr;gap:6px 10px;align-items:center">
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase"></div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">Magical Override Cap</div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">Hard Set</div>
+      </div>
+    </div>
+
     <!-- Actions -->
     <div style="display:flex;gap:8px">
       <button class="btn-primary" onclick="applyASI()">Apply Scores</button>
@@ -2124,28 +2235,50 @@ select:not([multiple]) {
 
 <!-- ── AC METHOD MODAL ──────────────────────────────────── -->
 <div class="modal-overlay hidden" id="ac-modal">
-  <div class="modal-box" style="max-width:460px">
+  <div class="modal-box" style="max-width:420px">
     <div class="modal-title">
       AC Calculation
       <span class="modal-close" onclick="closeModal('ac-modal')">&#x2715;</span>
     </div>
-    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text2);margin-bottom:16px;letter-spacing:.5px;line-height:1.6">
-      Select how your AC is calculated. Shield (+2) is applied on top of the selected method.
+
+    <!-- Method dropdown -->
+    <div class="info-field" style="margin-bottom:12px">
+      <label class="field-label">Calculation Method</label>
+      <select class="info-input" id="ac-method-select" onchange="selectACMethod(this.value)" style="font-size:13px">
+      </select>
     </div>
-    <div id="ac-method-options" style="display:flex;flex-direction:column;gap:8px"></div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+
+    <!-- Armor base (shown for armored methods) -->
+    <div id="ac-armor-row" style="display:none;margin-bottom:12px">
+      <label class="field-label">Armor Base AC</label>
+      <input class="info-input" id="ac-armor-input" type="number" min="10" max="20" value="10"
+        style="font-size:14px" oninput="currentChar.ac_armor_base=parseInt(this.value)||10;onACChange()"/>
+    </div>
+
+    <!-- Override value (shown for override method) -->
+    <div id="ac-override-row" style="display:none;margin-bottom:12px">
+      <label class="field-label">AC Value</label>
+      <input class="info-input" id="ac-override-input" type="number" min="1" max="30" value="10"
+        style="font-size:14px" oninput="currentChar.ac_override=parseInt(this.value)||10;onACChange()"/>
+    </div>
+
+    <!-- Bonus -->
+    <div class="info-field" style="margin-bottom:12px">
       <label class="field-label">AC Bonus (magic items, spells, etc.)</label>
       <input class="info-input" id="ac-bonus-input" type="number" value="0" min="0"
-        style="font-size:14px;padding:6px 10px" oninput="onACChange()"/>
+        style="font-size:14px" oninput="onACChange()"/>
     </div>
-    <div style="margin-top:16px">
-      <div style="font-family:var(--font-ui);font-size:11px;color:var(--text2);margin-bottom:10px">
-        Current AC: <strong id="ac-preview" style="color:var(--gold)">10</strong>
+
+    <!-- Formula -->
+    <div style="padding:10px 12px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:14px">
+      <div style="font-family:var(--font-label);font-size:11px;color:var(--text3);margin-bottom:4px">FORMULA</div>
+      <div id="ac-formula" style="font-family:var(--font-label);font-size:13px;color:var(--text2);line-height:1.8">—</div>
+      <div style="font-family:var(--font-label);font-size:12px;color:var(--text3);margin-top:4px">
+        Current AC: <strong id="ac-preview" style="color:var(--accent);font-size:16px">10</strong>
       </div>
-      <div id="ac-formula" style="font-family:var(--font-ui);font-size:10px;color:var(--text2);margin-top:6px;letter-spacing:.5px;line-height:1.8">—
-      </div>
-      <button class="btn-primary" onclick="closeModal('ac-modal')">Done</button>
     </div>
+
+    <button class="btn-primary" onclick="closeModal('ac-modal')">Done</button>
   </div>
 </div>
 
@@ -2707,6 +2840,7 @@ function enterApp() {
   initBackgroundDropdown();
   renderClassChoices();
   renderResourceTracker();
+  populateFeaturesTab();
 }
 
 const _origOpenModal = openModal;
@@ -5596,41 +5730,72 @@ const PHB_CLASS_CHOICES = {
       "label": "Weapon Masteries",
       "minLevel": 1,
       "type": "multi-select",
-      "count": [
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2,
-        2
-      ],
       "options": [
-        "Cleave",
-        "Graze",
-        "Nick",
-        "Push",
-        "Sap",
-        "Slow",
-        "Topple",
-        "Vex"
+        "Club",
+        "Dagger",
+        "Greatclub",
+        "Handaxe",
+        "Javelin",
+        "Light Hammer",
+        "Mace",
+        "Quarterstaff",
+        "Sickle",
+        "Spear",
+        "Dart",
+        "Light Crossbow",
+        "Shortbow",
+        "Sling",
+        "Battleaxe",
+        "Flail",
+        "Glaive",
+        "Greataxe",
+        "Greatsword",
+        "Halberd",
+        "Lance",
+        "Longsword",
+        "Maul",
+        "Morningstar",
+        "Pike",
+        "Rapier",
+        "Scimitar",
+        "Shortsword",
+        "Trident",
+        "Warhammer",
+        "War Pick",
+        "Whip",
+        "Blowgun",
+        "Hand Crossbow",
+        "Heavy Crossbow",
+        "Longbow",
+        "Musket",
+        "Pistol"
       ],
-      "desc": "Choose weapon mastery properties you can use (count scales with level).",
+      "desc": "Choose weapons to gain mastery with. Count scales with level (3\u21924\u21925\u21926).",
       "wires": [
         "display"
+      ],
+      "countByLevel": [
+        0,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        6,
+        6,
+        6,
+        6,
+        6
       ]
     },
     {
@@ -5644,20 +5809,40 @@ const PHB_CLASS_CHOICES = {
   "monk": [
     {
       "id": "weapon_mastery_monk",
-      "label": "Weapon Mastery",
+      "label": "Weapon Mastery (1 weapon)",
       "minLevel": 1,
       "type": "dropdown",
       "options": [
-        "Cleave",
-        "Graze",
-        "Nick",
-        "Push",
-        "Sap",
-        "Slow",
-        "Topple",
-        "Vex"
+        "Club",
+        "Dagger",
+        "Greatclub",
+        "Handaxe",
+        "Javelin",
+        "Light Hammer",
+        "Mace",
+        "Quarterstaff",
+        "Sickle",
+        "Spear",
+        "Battleaxe",
+        "Flail",
+        "Glaive",
+        "Greataxe",
+        "Greatsword",
+        "Halberd",
+        "Lance",
+        "Longsword",
+        "Maul",
+        "Morningstar",
+        "Pike",
+        "Rapier",
+        "Scimitar",
+        "Shortsword",
+        "Trident",
+        "Warhammer",
+        "War Pick",
+        "Whip"
       ],
-      "desc": "Choose one weapon mastery property you can use.",
+      "desc": "Choose one simple or martial melee weapon to gain mastery with.",
       "wires": [
         "display"
       ]
@@ -5686,21 +5871,52 @@ const PHB_CLASS_CHOICES = {
       "id": "weapon_mastery_paladin",
       "label": "Weapon Mastery",
       "minLevel": 1,
-      "type": "dropdown",
+      "type": "multi-select",
       "options": [
-        "Cleave",
-        "Graze",
-        "Nick",
-        "Push",
-        "Sap",
-        "Slow",
-        "Topple",
-        "Vex"
+        "Club",
+        "Dagger",
+        "Greatclub",
+        "Handaxe",
+        "Javelin",
+        "Light Hammer",
+        "Mace",
+        "Quarterstaff",
+        "Sickle",
+        "Spear",
+        "Dart",
+        "Light Crossbow",
+        "Shortbow",
+        "Sling",
+        "Battleaxe",
+        "Flail",
+        "Glaive",
+        "Greataxe",
+        "Greatsword",
+        "Halberd",
+        "Lance",
+        "Longsword",
+        "Maul",
+        "Morningstar",
+        "Pike",
+        "Rapier",
+        "Scimitar",
+        "Shortsword",
+        "Trident",
+        "Warhammer",
+        "War Pick",
+        "Whip",
+        "Blowgun",
+        "Hand Crossbow",
+        "Heavy Crossbow",
+        "Longbow",
+        "Musket",
+        "Pistol"
       ],
       "desc": "Choose one weapon mastery property.",
       "wires": [
         "display"
-      ]
+      ],
+      "count": 2
     }
   ],
   "ranger": [
@@ -5725,21 +5941,52 @@ const PHB_CLASS_CHOICES = {
       "id": "weapon_mastery_ranger",
       "label": "Weapon Mastery",
       "minLevel": 1,
-      "type": "dropdown",
+      "type": "multi-select",
       "options": [
-        "Cleave",
-        "Graze",
-        "Nick",
-        "Push",
-        "Sap",
-        "Slow",
-        "Topple",
-        "Vex"
+        "Club",
+        "Dagger",
+        "Greatclub",
+        "Handaxe",
+        "Javelin",
+        "Light Hammer",
+        "Mace",
+        "Quarterstaff",
+        "Sickle",
+        "Spear",
+        "Dart",
+        "Light Crossbow",
+        "Shortbow",
+        "Sling",
+        "Battleaxe",
+        "Flail",
+        "Glaive",
+        "Greataxe",
+        "Greatsword",
+        "Halberd",
+        "Lance",
+        "Longsword",
+        "Maul",
+        "Morningstar",
+        "Pike",
+        "Rapier",
+        "Scimitar",
+        "Shortsword",
+        "Trident",
+        "Warhammer",
+        "War Pick",
+        "Whip",
+        "Blowgun",
+        "Hand Crossbow",
+        "Heavy Crossbow",
+        "Longbow",
+        "Musket",
+        "Pistol"
       ],
       "desc": "Choose one weapon mastery property.",
       "wires": [
         "display"
-      ]
+      ],
+      "count": 2
     }
   ],
   "rogue": [
@@ -5771,21 +6018,52 @@ const PHB_CLASS_CHOICES = {
       "id": "weapon_mastery_rogue",
       "label": "Weapon Mastery",
       "minLevel": 1,
-      "type": "dropdown",
+      "type": "multi-select",
       "options": [
-        "Cleave",
-        "Graze",
-        "Nick",
-        "Push",
-        "Sap",
-        "Slow",
-        "Topple",
-        "Vex"
+        "Club",
+        "Dagger",
+        "Greatclub",
+        "Handaxe",
+        "Javelin",
+        "Light Hammer",
+        "Mace",
+        "Quarterstaff",
+        "Sickle",
+        "Spear",
+        "Dart",
+        "Light Crossbow",
+        "Shortbow",
+        "Sling",
+        "Battleaxe",
+        "Flail",
+        "Glaive",
+        "Greataxe",
+        "Greatsword",
+        "Halberd",
+        "Lance",
+        "Longsword",
+        "Maul",
+        "Morningstar",
+        "Pike",
+        "Rapier",
+        "Scimitar",
+        "Shortsword",
+        "Trident",
+        "Warhammer",
+        "War Pick",
+        "Whip",
+        "Blowgun",
+        "Hand Crossbow",
+        "Heavy Crossbow",
+        "Longbow",
+        "Musket",
+        "Pistol"
       ],
       "desc": "Choose one weapon mastery property.",
       "wires": [
         "display"
-      ]
+      ],
+      "count": 2
     }
   ],
   "sorcerer": [
@@ -5869,6 +6147,7 @@ const PHB_CLASS_CHOICES = {
       "minLevel": 1,
       "type": "invocation-select",
       "countByLevel": [
+        0,
         1,
         3,
         3,
@@ -6561,7 +6840,7 @@ const PHB_SUBCLASS_RESOURCES  = {
       "desc": "Cast one Circle spell without using a spell slot once per Long Rest."
     }
   ],
-  "fighter/battle_master": [
+  "fighter/battle master": [
     {
       "id": "superiority_dice",
       "name": "Superiority Dice",
@@ -6623,7 +6902,7 @@ const PHB_SUBCLASS_RESOURCES  = {
       "desc": "Gain Heroic Inspiration at start of turn if you have none (during combat)."
     }
   ],
-  "fighter/psi_warrior": [
+  "fighter/psi warrior": [
     {
       "id": "psionic_dice",
       "name": "Psionic Energy Dice",
@@ -6654,7 +6933,7 @@ const PHB_SUBCLASS_RESOURCES  = {
       "desc": "Fuel psionic powers. Recover 1 die on Short Rest; all on Long Rest."
     }
   ],
-  "monk/open_hand": [
+  "monk/open hand": [
     {
       "id": "wholeness_of_body",
       "name": "Wholeness of Body",
@@ -6716,7 +6995,7 @@ const PHB_SUBCLASS_RESOURCES  = {
       "desc": "Imbue weapon with divine energy for 10 minutes."
     }
   ],
-  "ranger/gloom_stalker": [
+  "ranger/gloom stalker": [
     {
       "id": "dread_ambusher",
       "name": "Dread Ambusher",
@@ -6987,6 +7266,7 @@ const PHB_SUBCLASS_RESOURCES  = {
 
 const LAYER_KEYS = ['base','background','featSlots','featDetail'];
 const AB_ZERO    = () => ({str:0,dex:0,con:0,int:0,wis:0,cha:0});
+const AB_SCORE_DEFAULT_CAP = 20;
 
 function ensureLayers() {
   if (!currentChar) return;
@@ -7003,6 +7283,85 @@ function ensureLayers() {
   for (const k of LAYER_KEYS) {
     if (!currentChar.abilityLayers[k]) currentChar.abilityLayers[k] = AB_ZERO();
   }
+  // Ensure cap and hardSet layers exist
+  if (!currentChar.abilityLayers.cap)     currentChar.abilityLayers.cap     = {};
+  if (!currentChar.abilityLayers.hardSet) currentChar.abilityLayers.hardSet = {};
+}
+
+// Returns the effective cap for a given ability (default 20)
+function getAbilityCap(ab) {
+  ensureLayers();
+  const v = currentChar.abilityLayers.cap?.[ab];
+  return (v !== null && v !== undefined && v !== '' && !isNaN(parseInt(v)))
+    ? Math.max(1, parseInt(v))
+    : AB_SCORE_DEFAULT_CAP;
+}
+
+// Returns the hard-set value for an ability, or null if not set
+function getAbilityHardSet(ab) {
+  ensureLayers();
+  const v = currentChar.abilityLayers.hardSet?.[ab];
+  return (v !== null && v !== undefined && v !== '' && !isNaN(parseInt(v)))
+    ? Math.max(1, Math.min(30, parseInt(v)))
+    : null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAGICAL OVERRIDE UI (in ASI modal)
+// ═══════════════════════════════════════════════════════════
+
+function renderASIOverrides() {
+  const grid = document.getElementById('asi-override-grid');
+  if (!grid || !currentChar) return;
+  ensureLayers();
+  // Clear rows after the header row (first child)
+  while (grid.children.length > 3) grid.removeChild(grid.lastChild);
+
+  const cap     = currentChar.abilityLayers.cap     || {};
+  const hardSet = currentChar.abilityLayers.hardSet || {};
+
+  for (const ab of ABILITIES) {
+    const capVal     = cap[ab]     ?? '';
+    const hardSetVal = hardSet[ab] ?? '';
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-family:var(--font-ui);font-size:11px;color:var(--text2);font-weight:600;letter-spacing:.5px;text-transform:uppercase';
+    label.textContent = ABILITY_LABELS[ab];
+
+    const capInput = document.createElement('input');
+    capInput.type = 'number'; capInput.min = '20'; capInput.max = '30';
+    capInput.value = capVal;
+    capInput.placeholder = '20';
+    capInput.style.cssText = 'width:100%;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg2);color:var(--text);font-family:var(--font-ui);font-size:12px';
+    capInput.title = `Override cap for ${ABILITY_LABELS[ab]} (default 20)`;
+    capInput.addEventListener('input', () => {
+      ensureLayers();
+      const v = capInput.value.trim();
+      currentChar.abilityLayers.cap[ab] = v === '' ? null : Math.max(20, Math.min(30, parseInt(v)||20));
+      computeAbilities();
+      renderAbilityBlock();
+      recalcAll();
+    });
+
+    const hardSetInput = document.createElement('input');
+    hardSetInput.type = 'number'; hardSetInput.min = '1'; hardSetInput.max = '30';
+    hardSetInput.value = hardSetVal;
+    hardSetInput.placeholder = '—';
+    hardSetInput.style.cssText = 'width:100%;padding:4px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg2);color:var(--amber);font-family:var(--font-ui);font-size:12px';
+    hardSetInput.title = `Hard set ${ABILITY_LABELS[ab]} to a fixed value (bypasses all calculations)`;
+    hardSetInput.addEventListener('input', () => {
+      ensureLayers();
+      const v = hardSetInput.value.trim();
+      currentChar.abilityLayers.hardSet[ab] = v === '' ? null : Math.max(1, Math.min(30, parseInt(v)||1));
+      computeAbilities();
+      renderAbilityBlock();
+      recalcAll();
+    });
+
+    grid.appendChild(label);
+    grid.appendChild(capInput);
+    grid.appendChild(hardSetInput);
+  }
 }
 
 function computeAbilities() {
@@ -7011,11 +7370,19 @@ function computeAbilities() {
   const layers = currentChar.abilityLayers;
   const result = {};
   for (const ab of ABILITIES) {
+    // Hard set bypasses all layers and the cap
+    const hardSet = getAbilityHardSet(ab);
+    if (hardSet !== null) {
+      result[ab] = hardSet;
+      continue;
+    }
     let total = 0;
     for (const k of LAYER_KEYS) {
       total += parseInt(layers[k][ab]) || 0;
     }
-    result[ab] = Math.max(1, Math.min(30, total));
+    // Clamp to per-ability cap (default 20), absolute max 30
+    const cap = getAbilityCap(ab);
+    result[ab] = Math.max(1, Math.min(cap, Math.min(30, total)));
   }
   currentChar.abilities = result;
   return result;
@@ -7044,6 +7411,13 @@ function getAbilityBreakdown(ab) {
   if (!currentChar) return '';
   ensureLayers();
   const layers = currentChar.abilityLayers;
+  const total  = parseInt(currentChar.abilities[ab]) || 0;
+
+  const hardSet = getAbilityHardSet(ab);
+  if (hardSet !== null) {
+    return `Hard Set ${hardSet} (magical override)`;
+  }
+
   const parts  = [];
   const base   = parseInt(layers.base[ab]) || 0;
   parts.push(`Base ${base}`);
@@ -7053,8 +7427,13 @@ function getAbilityBreakdown(ab) {
     const v = parseInt(layers[k][ab]) || 0;
     if (v !== 0) parts.push(`${LAYER_LABELS[k]} ${v > 0 ? '+' : ''}${v}`);
   }
-  const total = parseInt(currentChar.abilities[ab]) || 0;
-  return parts.join(' + ').replace('+ -','- ') + ` = ${total}`;
+
+  const cap = getAbilityCap(ab);
+  const rawSum = LAYER_KEYS.reduce((s,k) => s + (parseInt(layers[k][ab])||0), 0);
+  let formula = parts.join(' + ').replace('+ -','- ') + ` = ${total}`;
+  if (cap !== AB_SCORE_DEFAULT_CAP) formula += ` (cap ${cap})`;
+  else if (rawSum > cap)            formula += ` (capped at ${cap})`;
+  return formula;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -8283,37 +8662,6 @@ const PHB_FEATS_FULL    = {
     "desc": "As a Bonus Action, The spirit magically teleports up to 30 feet to an unoccupied space it can see. Then one of the following effects occur, based on the spirit's chosen mood: | Fuming. The spirit has Advantage on the next attack roll it makes before the end of this turn"
   }
 };
-const FEAT_ASI_CHOICES  = {
-  "charger": [
-    "str",
-    "dex"
-  ],
-  "chef": [
-    "con",
-    "wis"
-  ],
-  "dual wielder": [
-    "str",
-    "dex"
-  ],
-  "weapon master": [
-    "str",
-    "dex"
-  ],
-  "elemental adept": [
-    "int",
-    "wis",
-    "cha"
-  ],
-  "skill expert": [
-    "str",
-    "dex",
-    "con",
-    "int",
-    "wis",
-    "cha"
-  ]
-};
 const FEAT_EXTRA_CHOICES= {
   "skilled [origin]": {
     "type": "skilled",
@@ -8491,7 +8839,7 @@ const CLASS_SKILL_COUNTS= {
   "fighter": 2,
   "monk": 2,
   "paladin": 2,
-  "ranger": 2,
+  "ranger": 3,
   "rogue": 4,
   "sorcerer": 2,
   "warlock": 2,
@@ -8713,25 +9061,25 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
       "maxByLevel": [
         0,
         2,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
       ],
       "desc": "Boost spell save DC and spell attack by 1 for 1 min. Uses 2/Long Rest."
     },
@@ -8807,25 +9155,25 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
       "maxByLevel": [
         0,
         1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
       ],
       "desc": "Cast one ritual spell without expending a spell slot per Long Rest."
     }
@@ -9829,8 +10177,10 @@ const CLASS_ASI_LEVELS = {
 
 // Feat categories for filtering
 const ORIGIN_FEATS = [
-  'Alert','Crafter','Healer','Lucky','Magic Initiate (Cleric)','Magic Initiate (Druid)',
-  'Magic Initiate (Wizard)','Musician','Savage Attacker','Skilled','Tavern Brawler','Tough'
+  'Alert [Origin]','Crafter [Origin]','Healer [Origin]','Lucky [Origin]',
+  'Magic Initiate (Cleric) [Origin]','Magic Initiate (Druid) [Origin]',
+  'Magic Initiate (Wizard) [Origin]','Musician [Origin]','Savage Attacker [Origin]',
+  'Skilled [Origin]','Tavern Brawler [Origin]','Tough [Origin]'
 ];
 function getEpicBoonFeats() {
   return Object.keys(PHB_FEATS).filter(k =>
@@ -14019,47 +14369,33 @@ function calcSpeed() {
 // ═══════════════════════════════════════════════════════════
 
 function renderACMethods() {
-  const container = document.getElementById('ac-method-options');
-  if (!container) return;
-  if (!currentChar.ac_method)  currentChar.ac_method  = 'base';
+  if (!currentChar) return;
+  if (!currentChar.ac_method)    currentChar.ac_method    = 'base';
   if (!currentChar.ac_armor_base) currentChar.ac_armor_base = 10;
-  if (!currentChar.ac_bonus)   currentChar.ac_bonus   = 0;
-  container.innerHTML = '';
+  if (!currentChar.ac_bonus)     currentChar.ac_bonus     = 0;
 
-  for (const m of AC_METHODS) {
-    const isSelected = currentChar.ac_method === m.key;
-    const div = document.createElement('div');
-    div.style.cssText = `display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid ${isSelected ? 'var(--gold)' : 'var(--border)'};border-radius:var(--radius);background:${isSelected ? 'var(--gold-faint)' : 'var(--bg3)'};cursor:pointer;transition:all .15s`;
-    div.innerHTML = `
-      <input type="radio" name="ac-method" value="${m.key}" ${isSelected ? 'checked' : ''}
-        style="margin-top:2px;accent-color:var(--gold)" onchange="selectACMethod('${m.key}')"/>
-      <div>
-        <div style="font-family:var(--font-ui);font-size:11px;color:${isSelected ? 'var(--gold)' : 'var(--text)'};letter-spacing:.5px">${m.label}</div>
-        <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:2px">${m.desc}</div>
-        ${(m.key !== 'base' && m.key !== 'unarmored' && m.key !== 'unarmored_wis' && m.key !== 'override')
-          ? `<div style="margin-top:6px;display:flex;align-items:center;gap:6px">
-              <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Armor Base AC:</span>
-              <input type="number" id="ac-armor-${m.key}" value="${currentChar.ac_armor_base||10}" min="10" max="20"
-                style="width:50px;padding:3px 5px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;color:var(--text);font-size:12px;outline:none;text-align:center"
-                oninput="currentChar.ac_armor_base=parseInt(this.value)||10;onACChange()"/>
-            </div>`
-          : ''}
-        ${m.key === 'override'
-          ? `<div style="margin-top:6px;display:flex;align-items:center;gap:6px">
-              <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">AC Value:</span>
-              <input type="number" id="ac-override-val" value="${currentChar.ac_override||10}" min="1" max="30"
-                style="width:50px;padding:3px 5px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;color:var(--text);font-size:12px;outline:none;text-align:center"
-                oninput="currentChar.ac_override=parseInt(this.value)||10;onACChange()"/>
-            </div>`
-          : ''}
-      </div>
-    `;
-    div.onclick = (e) => {
-      if (e.target.tagName === 'INPUT' && e.target.type === 'number') return;
-      selectACMethod(m.key);
-    };
-    container.appendChild(div);
+  // Populate dropdown
+  const sel = document.getElementById('ac-method-select');
+  if (sel) {
+    sel.innerHTML = AC_METHODS.map(m =>
+      `<option value="${m.key}" ${currentChar.ac_method === m.key ? 'selected' : ''}>${m.label} — ${m.desc}</option>`
+    ).join('');
   }
+
+  // Show/hide conditional rows
+  const method     = currentChar.ac_method;
+  const needsArmor = ['light','medium','heavy','natural'].includes(method);
+  const needsOverride = method === 'override';
+
+  const armorRow    = document.getElementById('ac-armor-row');
+  const overrideRow = document.getElementById('ac-override-row');
+  if (armorRow)    armorRow.style.display    = needsArmor    ? 'block' : 'none';
+  if (overrideRow) overrideRow.style.display = needsOverride ? 'block' : 'none';
+
+  const armorInput    = document.getElementById('ac-armor-input');
+  const overrideInput = document.getElementById('ac-override-input');
+  if (armorInput)    armorInput.value    = currentChar.ac_armor_base || 10;
+  if (overrideInput) overrideInput.value = currentChar.ac_override   || 10;
 
   const bonusEl = document.getElementById('ac-bonus-input');
   if (bonusEl) bonusEl.value = currentChar.ac_bonus || 0;
@@ -14093,7 +14429,14 @@ function calcAC() {
     case 'override':     base = currentChar.ac_override || 10; break;
     default:             base = 10 + abilityMod(abs.dex);
   }
-  return base + shield + bonus;
+  // Defense fighting style: +1 AC when wearing armor
+  const fightingStyle = currentChar.class_choices?.fighting_style
+    || currentChar.class_choices?.fighting_style_paladin
+    || currentChar.class_choices?.fighting_style_ranger || '';
+  const defenseBonus = (fightingStyle === 'Defense' && method !== 'base' && method !== 'unarmored'
+    && method !== 'unarmored_wis' && method !== 'unarmored_cha') ? 1 : 0;
+
+  return base + shield + bonus + defenseBonus;
 }
 
 function calcACBreakdown() {
@@ -14506,6 +14849,7 @@ function onLevelChange() {
   renderResourceTracker();
   renderRacialTraits();
   renderFeatSlotsPanel();
+  populateFeaturesTab();
   if (document.getElementById('skill-setup-modal') && !document.getElementById('skill-setup-modal').classList.contains('hidden')) renderSkillSetupBody();
   updateCharSummary();
 }
@@ -14739,29 +15083,6 @@ function removeMagicItem(i) {
   renderMagicItems();
 }
 
-// ── Feats ────────────────────────────────────────────────
-function renderFeatsList() {
-  const list = document.getElementById('feats-list');
-  if (!list || !currentChar) return;
-  if (!currentChar.feats) currentChar.feats = [];
-  list.innerHTML = '';
-
-  currentChar.feats.forEach((feat, i) => {
-    const div = document.createElement('div');
-    div.className = 'feat-row';
-    div.innerHTML = `
-      <div class="feat-row-top">
-        <input class="feat-name-input" type="text" value="${feat.name||''}" placeholder="Feat name…"
-          oninput="currentChar.feats[${i}].name=this.value"/>
-        <button class="row-del-btn" onclick="removeFeat(${i})">✕</button>
-      </div>
-      <textarea class="feat-desc-input" placeholder="Description, bonuses, notes…"
-        oninput="currentChar.feats[${i}].desc=this.value"
-        rows="2">${feat.desc||''}</textarea>
-    `;
-    list.appendChild(div);
-  });
-}
 
 function addFeat() {
   if (!currentChar) return;
@@ -15505,7 +15826,7 @@ function renderClassFeatures() {
             : ` <span style="color:var(--text3)">[${f.usages}/${f.recovery || '—'}]</span>`)
         : (f.recovery ? ` <span style="color:var(--text3)">[${f.recovery}]</span>` : '');
 
-      html += `<div class="class-feature-entry" title="${f.desc ? f.desc.replace(/"/g,'&quot;') : ''}">
+      html += `<div class="class-feature-entry" title="${f.desc ? f.desc.replace(/"/g,'&quot;') : ''}" style="cursor:pointer" onclick="jumpToFeature('class_${lvl}_${available.filter(x=>x.level<=parseInt(lvl)).indexOf(f)}')">
         <span class="class-feature-name">${f.name}</span>${usageStr}
       </div>`;
     });
@@ -15998,7 +16319,8 @@ function renderResourceEntry(def, level, prof) {
   const recLabel = recovery === 'short' ? 'SR' : recovery === 'long' ? 'LR' : 'N/A';
 
   let html = `<div class="resource-header">
-    <span class="resource-name" title="${def.desc||''}">${def.name}</span>
+    <span class="resource-name" title="Click to find in Features tab" style="cursor:pointer"
+      onclick="jumpToFeatureByName(${JSON.stringify(def.name)})">${def.name}</span>
     <span class="resource-recovery ${recovery}">${recLabel}</span>
   </div>`;
 
@@ -16048,6 +16370,23 @@ function adjustResource(id, delta, max) {
   const used  = parseInt(currentChar.resources[id]) || 0;
   // delta -1 = use one (increase used), +1 = restore one (decrease used)
   currentChar.resources[id] = Math.max(0, Math.min(max, used - delta));
+
+  // ── Sorcerous Restoration side-effect ─────────────────────
+  // When a charge is spent (delta === -1), restore SP = floor(level / 2)
+  if (id === 'sorcerous_restoration' && delta === -1) {
+    const level   = getLevel();
+    const restore = Math.floor(level / 2);
+    if (restore > 0) {
+      // Find current SP max from resource definitions
+      const spDef = (PHB_CLASS_RESOURCES['sorcerer'] || []).find(r => r.id === 'sorcery_points');
+      const spMax = spDef ? getResourceMax(spDef, level, getProf()) : 0;
+      const spUsed = parseInt(currentChar.resources['sorcery_points']) || 0;
+      const actualRestore = Math.min(restore, spUsed); // can't restore more than spent
+      currentChar.resources['sorcery_points'] = Math.max(0, spUsed - actualRestore);
+      toast(`Sorcerous Restoration: +${actualRestore} Sorcery Point${actualRestore !== 1 ? 's' : ''} restored`, 'ok');
+    }
+  }
+
   renderResourceTracker();
 }
 
@@ -16246,6 +16585,7 @@ function onRaceChange() {
   applyRaceDefaults(currentChar.race, null);
   renderFeatSlotsPanel();
   renderResourceTracker();
+  populateFeaturesTab();
   updateCharSummary();
 }
 
@@ -16480,6 +16820,7 @@ function onBackgroundChange() {
   currentChar.background = key;
   applyBackgroundDefaults(key);
   renderFeatSlotsPanel();
+  populateFeaturesTab();
 }
 
 function applyBackgroundDefaults(bgKey) {
@@ -16823,7 +17164,7 @@ function renderBGASIAssigns() {
     const curScore = (parseInt(currentChar?.abilityLayers?.base?.[slot.ability])||10)
                    + (parseInt(currentChar?.abilityLayers?.featSlots?.[slot.ability])||0)
                    + (parseInt(currentChar?.abilityLayers?.featDetail?.[slot.ability])||0);
-    const newScore = Math.min(20, curScore + slot.bonus);
+    const newScore = Math.min(getAbilityCap(slot.ability || 'str'), curScore + slot.bonus);
     preview.textContent = slot.ability ? `${curScore} → ${newScore}` : '';
 
     row.appendChild(badge);
@@ -16894,6 +17235,22 @@ applyASI = function() {
   ensureLayers();
   const bgLayer = AB_ZERO();
   _bgASISlots.forEach(slot => { bgLayer[slot.ability] = (bgLayer[slot.ability]||0) + slot.bonus; });
+
+  // Warn for any capped abilities
+  const cappedAbs = [];
+  _bgASISlots.forEach(slot => {
+    if (!slot.ability) return;
+    const ab  = slot.ability;
+    const base = (parseInt(currentChar.abilityLayers.base?.[ab])||0)
+               + (parseInt(currentChar.abilityLayers.featSlots?.[ab])||0)
+               + (parseInt(currentChar.abilityLayers.featDetail?.[ab])||0);
+    const cap  = getAbilityCap(ab);
+    if (base >= cap && !cappedAbs.includes(ab)) cappedAbs.push(ab);
+  });
+  if (cappedAbs.length) {
+    toast(`${cappedAbs.map(a=>ABILITY_LABELS[a]).join(', ')} already at cap — bonus reduced or wasted.`, 'warn');
+  }
+
   setLayer('background', bgLayer);
   // Save method so we can restore it next open
   currentChar._bgASIMethod = _bgASIMethod;
@@ -16923,6 +17280,7 @@ onBackgroundChange = function() {
 const _origOpenASIModal = openASIModal;
 openASIModal = function() {
   _origOpenASIModal();
+  renderASIOverrides();
   if (currentChar?.background && PHB_BACKGROUNDS[currentChar.background]) {
     // Restore previously saved background ASI choices
     restoreBGASISlots();
@@ -17030,8 +17388,8 @@ function renderFeatSlotsPanel() {
 
   // ── Summary pills ──────────────────────────────────────
   const total    = slots.length;
-  const decided  = slots.filter(s => decisions[s.id]?.choice).length;
-  const featCount= slots.filter(s => decisions[s.id]?.choice === 'feat').length;
+  const decided  = slots.filter(s => s.locked || decisions[s.id]?.choice).length;
+  const featCount= slots.filter(s => s.locked || decisions[s.id]?.choice === 'feat').length;
   const asiCount = slots.filter(s => decisions[s.id]?.choice === 'asi').length;
   const pending  = total - decided;
 
@@ -17106,18 +17464,18 @@ function renderFeatSlotsPanel() {
 }
 
 function renderOriginFeatPicker(slot, dec) {
-  const ORIGIN_OPTS = Object.values(PHB_FEATS)
-    .filter(f => ORIGIN_FEATS.includes(f.name) || f.type === 'origin')
+  const ORIGIN_OPTS = Object.values(PHB_FEATS_FULL)
+    .filter(f => ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]'))
     .map(f => f.name).sort();
 
   const val = dec.feat || '';
-  const phb = val ? Object.values(PHB_FEATS).find(f => f.name === val) : null;
+  const phb = val ? Object.values(PHB_FEATS_FULL).find(f => f.name === val) : null;
 
   return `
     <div style="margin-top:6px">
       <select class="choice-select" onchange="onFeatSlotFeatChange('${slot.id}', this.value)">
         <option value="">— Choose origin feat —</option>
-        ${ORIGIN_OPTS.map(n => `<option value="${n}" ${val===n?'selected':''}>${n}</option>`).join('')}
+        ${ORIGIN_OPTS.map(n => `<option value="${n}" ${val===n?'selected':''}>${featOptionLabelForDropdown(n)}</option>`).join('')}
       </select>
       ${phb?.desc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:5px;line-height:1.5">${phb.desc.replace(/\|/g,' · ')}</div>` : ''}
     </div>
@@ -17132,13 +17490,13 @@ function renderFeatPicker(slot, dec) {
   // Filter feats by type
   let opts = Object.values(PHB_FEATS).filter(f => {
     if (isEpic) return getEpicBoonFeats().includes(f.name);
-    if (ORIGIN_FEATS.includes(f.name)) return false; // origin feats not available here
+    if (ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]')) return false;
     if (f.name.startsWith('Boon of') || f.name === 'Boon of Truesight') return false; // epic not available before 19
     return true;
   }).map(f => f.name).sort();
 
   const val      = dec.feat || '';
-  const phb      = val ? Object.values(PHB_FEATS).find(f => f.name === val) : null;
+  const phb      = val ? (Object.values(PHB_FEATS_FULL).find(f => f.name === val) || Object.values(PHB_FEATS).find(f => f.name === val)) : null;
   const prereq   = phb?.prereq || '';
   const needsCfg = val && featNeedsModal(val);
   const hasCfg   = needsCfg && !!dec.featDetail;
@@ -17148,7 +17506,7 @@ function renderFeatPicker(slot, dec) {
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <select class="choice-select" style="flex:1" onchange="onFeatSlotFeatChange('${slot.id}', this.value)">
           <option value="">— Choose feat —</option>
-          ${opts.map(n => `<option value="${n}" ${val===n?'selected':''}>${n}</option>`).join('')}
+          ${opts.map(n => `<option value="${n}" ${val===n?'selected':''}>${featOptionLabelForDropdown(n)}</option>`).join('')}
         </select>
         ${needsCfg ? `<button class="tbtn" style="font-size:9px;padding:2px 8px;${hasCfg?'border-color:var(--gold);color:var(--gold)':''}" onclick="openFeatDetailModal('${slot.id}','${val.replace(/'/g,"\'")}')" title="${hasCfg?'Edit feat options':'Configure feat options'}">&#9881; ${hasCfg?'Edit':'Config'}</button>` : ''}
         <button class="tbtn" style="font-size:9px;padding:2px 7px;color:var(--text3)" onclick="chooseFeatSlot('${slot.id}', null)" title="Change to ASI">⇄ ASI</button>
@@ -17284,6 +17642,23 @@ function applyFeatSlotASIs() {
     if (ab1) slotLayer[ab1] = (slotLayer[ab1]||0) + (method === 'double' ? 2 : 1);
     if (method === 'split' && ab2) slotLayer[ab2] = (slotLayer[ab2]||0) + 1;
   });
+
+  // Warn for any ASI that will be capped
+  const cappedAbs = [];
+  for (const ab of ABILITIES) {
+    if (!slotLayer[ab]) continue;
+    const cap    = getAbilityCap(ab);
+    const layers = currentChar.abilityLayers;
+    const base   = (parseInt(layers.base?.[ab])||0)
+                 + (parseInt(layers.background?.[ab])||0)
+                 + (parseInt(layers.featDetail?.[ab])||0);
+    const after  = base + slotLayer[ab];
+    if (after > cap && !cappedAbs.includes(ab)) cappedAbs.push(ab);
+  }
+  if (cappedAbs.length) {
+    toast(`${cappedAbs.map(a=>ABILITY_LABELS[a]).join(', ')} will be capped at ${cappedAbs.map(a=>getAbilityCap(a)).join('/')}.`, 'warn');
+  }
+
   setLayer('featSlots', slotLayer);
   renderAbilityBlock();
   recalcAll();
@@ -17306,6 +17681,83 @@ function applyFeatSlotEffects() {
 
 
 // ═══════════════════════════════════════════════════════════
+// FEAT ASI CHOICE POOLS (corrected from PHB file errors)
+// ═══════════════════════════════════════════════════════════
+const FEAT_ASI_CHOICES = {
+  // ── Strength / Dexterity ──
+  'athlete':                       ['str','dex'],
+  'charger':                       ['str','dex'],
+  'crusher':                       ['str','dex'],
+  'dual wielder':                  ['str','dex'],
+  'lightly armored':               ['str','dex'],
+  'medium armor master':           ['str','dex'],
+  'piercer':                       ['str','dex'],
+  'slasher':                       ['str','dex'],
+  'weapon master':                 ['str','dex'],
+  // ── Strength only ──
+  'great weapon master':           ['str'],
+  'heavily armored':               ['str'],
+  'heavy armor master':            ['str'],
+  'polearm master':                ['str'],
+  'shield master':                 ['str'],
+  // ── Dexterity only ──
+  'crossbow expert':               ['dex'],
+  'mobile':                        ['dex'],
+  'sharpshooter':                  ['dex'],
+  'skulker':                       ['dex'],
+  // ── Constitution only ──
+  'durable':                       ['con'],
+  // ── Dexterity / Constitution ──
+  'speedy':                        ['dex','con'],
+  // ── Strength / Dexterity / Constitution ──
+  'sentinel':                      ['str','dex','con'],
+  // ── Charisma only ──
+  'actor':                         ['cha'],
+  // ── Wisdom / Charisma ──
+  'inspiring leader':              ['wis','cha'],
+  // ── Constitution / Wisdom ──
+  'chef':                          ['con','wis'],
+  // ── Intelligence only ──
+  'keen mind':                     ['int'],
+  // ── Intelligence / Wisdom ──
+  'observant':                     ['int','wis'],
+  // ── Intelligence / Wisdom / Charisma ──
+  'elemental adept':               ['int','wis','cha'],
+  'fey touched':                   ['int','wis','cha'],
+  'ritual caster':                 ['int','wis','cha'],
+  'shadow touched':                ['int','wis','cha'],
+  'spell sniper':                  ['int','wis','cha'],
+  'telekinetic':                   ['int','wis','cha'],
+  'telepathic':                    ['int','wis','cha'],
+  'war caster':                    ['int','wis','cha'],
+  // ── PHB data corrections (asiScores wrong in source) ──
+  'grappler':                      ['str','dex'],
+  'mage slayer':                   ['str','dex'],
+  'martial weapon training':       ['str','dex'],
+  'moderately armored':            ['str','dex'],
+  'mounted combatant':             ['str','dex','wis'],
+  'poisoner':                      ['dex','int'],
+  // ── Any ability ──
+  'resilient':                     ['str','dex','con','int','wis','cha'],
+  'skill expert':                  ['str','dex','con','int','wis','cha'],
+  // ── Epic Boons ──
+  'boon of combat prowess':        ['str','dex'],
+  'boon of dimensional travel':    ['int','wis','cha'],
+  'boon of energy resistance':     ['con'],
+  'boon of fate':                  ['wis','cha'],
+  'boon of fortitude':             ['con'],
+  'boon of irresistible offense':  ['str','dex'],
+  'boon of night spirit':          ['dex'],
+  'boon of peerless aim':          ['dex'],
+  'boon of recovery':              ['con'],
+  'boon of skill':                 ['str','dex','con','int','wis','cha'],
+  'boon of speed':                 ['dex'],
+  'boon of spell recall':          ['int','wis','cha'],
+  'boon of the night spirit':      ['dex'],
+  'boon of truesight':             ['int','wis','cha'],
+};
+
+// ═══════════════════════════════════════════════════════════
 // HALF-FEAT ASI + FEAT EXTRA CHOICES
 // ═══════════════════════════════════════════════════════════
 
@@ -17315,6 +17767,14 @@ const AB_KEYS = ['str','dex','con','int','wis','cha'];
 let _featDetailSlotId  = null;  // which slot triggered this modal
 let _featDetailName    = null;  // which feat
 let _featDetailState   = {};    // current selections in the modal
+
+const _AB_ABBR_DROPDOWN = {str:'STR',dex:'DEX',con:'CON',int:'INT',wis:'WIS',cha:'CHA'};
+function featOptionLabelForDropdown(featName) {
+  const pool = getFeatAsiPool(featName);
+  if (!pool.length) return featName;
+  if (pool.length === 6) return featName + ' · +1 Any';
+  return featName + ' · +1 ' + pool.map(a => _AB_ABBR_DROPDOWN[a]).join('/');
+}
 
 function getFeatAsiPool(featName) {
   if (!featName) return [];
@@ -17579,6 +18039,30 @@ function applyFeatDetail() {
   }
   if (extra?.type === 'save_prof' && !_featDetailState.saveProf) {
     errEl.textContent = 'Please choose a saving throw.'; return;
+  }
+
+  // Warn if the chosen ASI +1 would be capped
+  if (_featDetailState.asiAb) {
+    const ab = _featDetailState.asiAb;
+    ensureLayers();
+    // Current total without this feat's +1 (remove old detail effects first)
+    const layers = currentChar.abilityLayers;
+    const oldDetail = parseInt(layers.featDetail?.[ab]) || 0;
+    // Rebuild detail layer excluding current slot
+    let detailSum = 0;
+    Object.entries(currentChar.featSlots || {}).forEach(([sid, dec]) => {
+      if (sid === slotId) return;
+      if (dec.choice !== 'feat' || !dec.featDetail?.asiAb) return;
+      if (dec.featDetail.asiAb === ab) detailSum++;
+    });
+    const sumWithout = (parseInt(layers.base?.[ab])||0)
+                     + (parseInt(layers.background?.[ab])||0)
+                     + (parseInt(layers.featSlots?.[ab])||0)
+                     + detailSum;
+    const cap = getAbilityCap(ab);
+    if (sumWithout >= cap) {
+      toast(`${ABILITY_LABELS[ab]} is already at its cap (${cap}) — the +1 will have no effect.`, 'warn');
+    }
   }
 
   // Remove previous feat detail effects for this slot
@@ -18131,6 +18615,266 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
   applyTheme(current === 'dark' ? 'light' : 'dark');
 }
+
+// ═══════════════════════════════════════════════════════════
+// FEATURES TAB
+// ═══════════════════════════════════════════════════════════
+
+function populateFeaturesTab() {
+  const el = document.getElementById('feat-unified-list');
+  if (!el || !currentChar) return;
+
+  const level   = getLevel();
+  const cls     = (currentChar.class    || '').toLowerCase().trim();
+  const race    = (currentChar.race     || '').toLowerCase().trim();
+  const sub     = currentChar.subclass  || '';
+  const subKey  = getSubclassKey(currentChar.class, sub);
+
+  const classData = getClassData(cls);
+  const rd        = getRaceData(race);
+  const srd       = currentChar.subrace ? getSubraceData(race, currentChar.subrace) : null;
+  const subData   = subKey ? PHB_SUBCLASSES[subKey] : null;
+
+  // Build unified entry list: { level, name, desc, source, sourceType, usages, recovery, id }
+  const entries = [];
+
+  // ── Racial traits (level 1) ──────────────────────────────
+  if (rd) {
+    const raceName = srd ? srd.name : rd.name;
+    // Stats summary as a pseudo-entry at level 0
+    const dv  = currentChar._darkvision || 0;
+    const res = currentChar._dmgres || [];
+    const statParts = [
+      `Speed ${rd.speed} ft`,
+      `Size ${rd.size}`,
+      dv ? `Darkvision ${dv} ft` : '',
+      res.length ? `Resist ${res.join(', ')}` : '',
+    ].filter(Boolean);
+    entries.push({
+      level: 0, id: 'racial_stats', name: raceName,
+      source: raceName, sourceType: 'Race',
+      desc: statParts.join(' · ') + ' · ' + rd.asiNote,
+      usages: null, recovery: null,
+    });
+
+    // Subrace trait
+    if (srd?.trait) {
+      entries.push({
+        level: 1, id: 'subrace_trait', name: srd.name + ' Traits',
+        source: srd.name, sourceType: 'Race',
+        desc: srd.trait, usages: null, recovery: null,
+      });
+    }
+
+    // Racial features
+    (rd.features || []).filter(f => f.level <= level).forEach((f, i) => {
+      entries.push({
+        level: f.level, id: `racial_${i}`, name: f.name,
+        source: raceName, sourceType: 'Race',
+        desc: f.desc, usages: f.usages, recovery: f.recovery,
+      });
+    });
+  }
+
+  // ── Class features ────────────────────────────────────────
+  if (classData) {
+    (classData.features || []).filter(f => f.level <= level).forEach((f, i) => {
+      entries.push({
+        level: f.level, id: `class_${f.level}_${i}`, name: f.name,
+        source: classData.name, sourceType: 'Class',
+        desc: f.desc, usages: f.usages, recovery: f.recovery,
+      });
+    });
+  }
+
+  // ── Subclass features ─────────────────────────────────────
+  if (subData) {
+    // Bonus spells at level 1
+    if (subData.bonusSpells?.length) {
+      entries.push({
+        level: 1, id: 'sub_bonusspells', name: 'Bonus Spells',
+        source: sub, sourceType: 'Subclass',
+        desc: subData.bonusSpells.join(', '), usages: null, recovery: null,
+      });
+    }
+    (subData.features || []).filter(f => f.level <= level).forEach((f, i) => {
+      entries.push({
+        level: f.level, id: `sub_${f.level}_${i}`, name: f.name,
+        source: sub, sourceType: 'Subclass',
+        desc: f.desc, usages: f.usages, recovery: f.recovery,
+      });
+    });
+  }
+
+  // ── Feats ─────────────────────────────────────────────────
+  const bgKey = currentChar.background;
+  const bg    = bgKey ? PHB_BACKGROUNDS[bgKey] : null;
+  if (bg?.originFeat) {
+    const phb = Object.values(PHB_FEATS_FULL).find(f => f.name === bg.originFeat);
+    entries.push({
+      level: 1, id: 'feat_bg', name: bg.originFeat,
+      source: bg.name, sourceType: 'Background Feat',
+      desc: phb?.desc || '', usages: null, recovery: null,
+    });
+  }
+  const slots = getFeatSlots();
+  slots.forEach((slot, si) => {
+    if (slot.locked) return;
+    const dec = currentChar.featSlots?.[slot.id];
+    if (dec?.choice === 'feat' && dec.feat) {
+      const phb = Object.values(PHB_FEATS_FULL).find(f => f.name === dec.feat);
+      entries.push({
+        level: slot.level, id: `feat_slot_${si}`, name: dec.feat,
+        source: `Level ${slot.level}`, sourceType: 'Feat',
+        desc: phb?.desc || '', usages: null, recovery: null,
+      });
+    }
+  });
+  (currentChar.feats || []).filter(f => !f._auto).forEach((f, i) => {
+    const phb = Object.values(PHB_FEATS_FULL).find(p => p.name === f.name);
+    entries.push({
+      level: null, id: `feat_manual_${i}`, name: f.name,
+      source: 'Manual', sourceType: 'Feat',
+      desc: phb?.desc || f.desc || '', usages: null, recovery: null,
+    });
+  });
+
+  // ── Sort: level 0 first (racial stats), then by level, then name ──
+  entries.sort((a, b) => {
+    const la = a.level ?? 999;
+    const lb = b.level ?? 999;
+    if (la !== lb) return la - lb;
+    return a.name.localeCompare(b.name);
+  });
+
+  if (!entries.length) {
+    el.innerHTML = '<div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Select a class and race on the Main Sheet to see features.</div>';
+    return;
+  }
+
+  // ── Render ────────────────────────────────────────────────
+  let html2 = '';
+  let lastGroupKey = null;
+
+  entries.forEach(e => {
+    // Group header: "Level N — Source (Type)" or "Background Feat", "Feat" etc
+    const lvlLabel    = e.level === 0 ? 'Racial' : e.level === null ? 'Additional' : `Level ${e.level}`;
+    const sourceLabel = `${e.source} (${e.sourceType})`;
+    const groupKey    = `${lvlLabel}__${sourceLabel}`;
+
+    if (groupKey !== lastGroupKey) {
+      lastGroupKey = groupKey;
+      const typeColour = {
+        'Race':             'var(--accent)',
+        'Class':            'var(--accent3)',
+        'Subclass':         'var(--accent2)',
+        'Background Feat':  'var(--amber)',
+        'Feat':             'var(--amber)',
+      }[e.sourceType] || 'var(--text3)';
+
+      html2 += `
+        <div class="feat-unified-header">
+          <span class="feat-unified-level">${lvlLabel}</span>
+          <span class="feat-unified-source" style="color:${typeColour}">${sourceLabel}</span>
+        </div>
+      `;
+    }
+
+    const usageStr = e.usages
+      ? (() => {
+          const u = Array.isArray(e.usages)
+            ? (e.usages[level-1] || e.usages[e.usages.length-1])
+            : e.usages;
+          return `<span class="feat-card-usage">${u}/${e.recovery||'—'}</span>`;
+        })()
+      : (e.recovery ? `<span class="feat-card-usage">${e.recovery}</span>` : '');
+
+    html2 += `
+      <div class="feat-card" id="feat-card-${e.id}" data-feat-id="${e.id}">
+        <div class="feat-card-header">
+          <span class="feat-card-name">${e.name}</span>
+          ${usageStr}
+        </div>
+        ${e.desc ? `<div class="feat-card-desc">${e.desc.replace(/\|/g,' · ').replace(/\n/g,' ')}</div>` : ''}
+      </div>
+    `;
+  });
+
+  el.innerHTML = html2;
+}
+
+// ── Shared feature card renderer ───────────────────────────
+function makeFeatureCard(id, name, level, desc, usages, recovery, source) {
+  const ORDINALS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th',
+    '11th','12th','13th','14th','15th','16th','17th','18th','19th','20th'];
+
+  const usageStr = usages
+    ? (() => {
+        const u = Array.isArray(usages) ? (usages[getLevel()-1] || usages[usages.length-1]) : usages;
+        return `<span class="feat-card-usage">${u}/${recovery || '—'}</span>`;
+      })()
+    : (recovery ? `<span class="feat-card-usage">${recovery}</span>` : '');
+
+  const levelStr = level ? `<span class="feat-card-level">${ORDINALS[level] || 'Lv'+level}</span>` : '';
+  const sourceStr = source ? `<span class="feat-card-source">${source}</span>` : '';
+  const descHtml = desc
+    ? `<div class="feat-card-desc">${desc.replace(/\|/g,' · ').replace(/\\n/g,' ')}</div>`
+    : '';
+
+  return `
+    <div class="feat-card" id="feat-card-${id}" data-feat-id="${id}">
+      <div class="feat-card-header">
+        <span class="feat-card-name">${name}</span>
+        <div class="feat-card-meta">${levelStr}${usageStr}${sourceStr}</div>
+      </div>
+      ${descHtml}
+    </div>
+  `;
+}
+
+// ── Racial traits section ──────────────────────────────────
+
+// ── Class features section ────────────────────────────────
+
+// ── Subclass features section ─────────────────────────────
+
+// ── Feats section ─────────────────────────────────────────
+
+// ── Jump to feature from main sheet ───────────────────────
+function jumpToFeatureByName(name) {
+  // Find a feat-card whose displayed name matches (case-insensitive)
+  const nameLower = name.toLowerCase().trim();
+  const cards = document.querySelectorAll('.feat-card');
+  let matchId = null;
+  for (const card of cards) {
+    const cardName = card.querySelector('.feat-card-name')?.textContent?.toLowerCase().trim();
+    if (cardName === nameLower) { matchId = card.id.replace('feat-card-', ''); break; }
+  }
+  if (matchId) {
+    jumpToFeature(matchId);
+  } else {
+    // Switch to features tab anyway so player can look manually
+    const tabEl = document.querySelector('.page-tab[data-page="features"]');
+    if (tabEl) tabEl.click();
+    toast(`"${name}" not found in Features tab`, 'warn');
+  }
+}
+
+function jumpToFeature(id) {
+  // Switch to features tab
+  const tabEl = document.querySelector('.page-tab[data-page="features"]');
+  if (tabEl) tabEl.click();
+
+  // After tab switches, scroll to and highlight the card
+  setTimeout(() => {
+    const card = document.getElementById('feat-card-' + id);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('feat-card-highlight');
+    setTimeout(() => card.classList.remove('feat-card-highlight'), 2000);
+  }, 80);
+}
+
 
 window.addEventListener('load', () => { initTheme(); populateLoginDropdown(); });
 </script>
