@@ -1796,6 +1796,7 @@ select:not([multiple]) {
     <div class="page-tab" data-page="feats">Feats &amp; Items</div>
     <div class="page-tab" data-page="spells">Spells</div>
     <div class="page-tab" id="tab-companion" data-page="companion" style="display:none">Companion</div>
+    <div class="page-tab" id="tab-wildshape" data-page="wildshape" style="display:none">Wild Shape</div>
   </div>
 
   <div id="content">
@@ -2386,8 +2387,75 @@ select:not([multiple]) {
       <div id="companion-blocks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px"></div>
     </div>
   </div>
+
+  <!-- ── WILD SHAPE PAGE ────────────────────────────── -->
+  <div class="page" id="page-wildshape">
+    <div style="padding:16px;max-width:960px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <span style="font-family:var(--font-heading);font-size:18px;color:var(--text);letter-spacing:1px">Wild Shape</span>
+        <div style="display:flex;gap:6px;align-items:center;flex:1;flex-wrap:wrap">
+          <input id="ws-search" type="text" placeholder="Search beast..." 
+            style="font-family:var(--font-ui);font-size:11px;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);width:160px"
+            oninput="renderWildShapeList()"/>
+          <select id="ws-cr-filter" onchange="renderWildShapeList()"
+            style="font-family:var(--font-ui);font-size:11px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+            <option value="">All CRs</option>
+            <option value="0">CR 0</option>
+            <option value="0.125">CR 1/8</option>
+            <option value="0.25">CR 1/4</option>
+            <option value="0.5">CR 1/2</option>
+            <option value="1">CR 1</option>
+            <option value="2">CR 2</option>
+            <option value="4">CR 4+</option>
+          </select>
+          <select id="ws-size-filter" onchange="renderWildShapeList()"
+            style="font-family:var(--font-ui);font-size:11px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+            <option value="">All Sizes</option>
+            <option value="Tiny">Tiny</option>
+            <option value="Small">Small</option>
+            <option value="Medium">Medium</option>
+            <option value="Large">Large</option>
+            <option value="Huge">Huge</option>
+          </select>
+          <label style="font-family:var(--font-ui);font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="ws-available-only" onchange="renderWildShapeList()" checked/>
+            Available only
+          </label>
+          <label style="font-family:var(--font-ui);font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="ws-known-only" onchange="renderWildShapeList()"/>
+            Known only
+          </label>
+        </div>
+        <div id="ws-uses" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)"></div>
+      </div>
+      <!-- Wild Companion section - always shown for druid lv2+ -->
+      <div id="ws-wildcompanion" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:var(--font-heading);font-size:14px;color:var(--text);letter-spacing:.5px">Wild Companion</span>
+          <span style="font-family:var(--font-body);font-size:10px;color:var(--text3)">Expend a Wild Shape use or spell slot to cast Find Familiar. Familiar is Fey. Disappears on Long Rest.</span>
+          <select id="ws-familiar-select"
+            style="font-family:var(--font-ui);font-size:11px;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+            <option value="">— Choose Familiar —</option>
+            <option value="bat">Bat</option>
+            <option value="cat">Cat</option>
+            <option value="frog">Frog</option>
+            <option value="hawk">Hawk</option>
+            <option value="lizard">Lizard</option>
+            <option value="octopus">Octopus</option>
+            <option value="owl">Owl</option>
+            <option value="rat">Rat</option>
+            <option value="raven">Raven</option>
+            <option value="spider">Spider</option>
+            <option value="weasel">Weasel</option>
+          </select>
+        </div>
+        <div id="ws-familiar-block" style="margin-top:12px"></div>
+      </div>
+      <div id="ws-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px"></div>
+    </div>
   </div>
 </div>
+
 
 <!-- ── CREATE CHARACTER MODAL ────────────────────────────── -->
 <div class="modal-overlay hidden" id="create-char-modal">
@@ -2998,6 +3066,7 @@ document.querySelectorAll('.page-tab').forEach(tab => {
     const p = document.getElementById('page-' + tab.dataset.page);
     if (p) p.classList.add('active');
     if (tab.dataset.page === 'companion') renderCompanionTab();
+    if (tab.dataset.page === 'wildshape') renderWildShapeList();
   });
 });
 
@@ -4170,6 +4239,11 @@ const PHB_MANEUVERS     = [
     "desc": "On hit, target makes STR save or falls Prone."
   }
 ];
+const PRIMAL_ORDER_DESCS = {
+  "Magician": "I know one extra Druid cantrip. I also gain proficiency in one of these skills: Arcana, History, Nature, or Religion.",
+  "Warden": "I gain proficiency with Martial weapons and training with Medium armor.",
+};
+
 const FIGHTING_STYLE_DESCS = {"Archery":"You gain a +2 bonus to attack rolls you make with Ranged weapons.","Blind Fighting":"You have Blindsight with a range of 10 feet.","Defense":"While you're wearing armor, you gain a +1 bonus to Armor Class.","Dueling":"When you're wielding a melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon.","Great Weapon Fighting":"When you roll damage for an attack you make with a melee weapon that you're holding with two hands, you can reroll any 1 or 2 and use the new result. The weapon must have the Two-Handed or Versatile property.","Interception":"When a creature you can see hits a target (other than you) within 5 feet of you with an attack roll, you can take a Reaction to reduce the damage dealt by 1d10 + your Proficiency Bonus.","Protection":"When a creature you can see attacks a target other than you that is within 5 feet of you, you can take a Reaction to impose Disadvantage on the attack roll. You must be wielding a Shield.","Thrown Weapon Fighting":"When you hit with a ranged attack roll using a weapon that has the Thrown property, you gain a +2 bonus to the damage roll.","Two-Weapon Fighting":"When you make an extra attack with a Light weapon as part of the Extra Attack feature or as part of your Bonus Action, you can add your ability modifier to the damage of that extra attack.","Unarmed Fighting":"When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 + your Strength modifier instead of the normal damage. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8.","Blessed Warrior":"You learn two Cleric cantrips of your choice. They count as Paladin spells for you, and Charisma is your spellcasting ability.","Superior Technique":"You learn one maneuver of your choice from the Battle Master subclass. If the maneuver requires a saving throw, the save DC equals 8 + your Proficiency Bonus + your Strength or Dexterity modifier (your choice). You gain one Superiority Die (d6).","Druidic Warrior":"You learn two Druid cantrips of your choice. They count as Ranger spells for you, and Wisdom is your spellcasting ability.","Tunnel Fighter":"As a Bonus Action, you can enter a defensive stance that lasts until the start of your next turn. While in the stance, you can make Opportunity Attacks without spending your Reaction, and you can use your Reaction to make a melee attack against a creature that moves more than 5 feet while within your reach."};
 
 const PHB_CLASS_CHOICES = {
@@ -4830,7 +4904,18 @@ const PHB_CLASS_CHOICES = {
     }
   ],
   "artificer": [{"id":"infusions_known","label":"Infusions Known","desc":"Choose infusions to learn. Count increases at higher levels. You can replicate half your known infusions simultaneously.","type":"multi-select","minLevel":2,"countByLevel":{"2":4,"3":4,"4":4,"5":4,"6":5,"7":5,"8":5,"9":5,"10":6,"11":6,"12":6,"13":6,"14":7,"15":7,"16":7,"17":7,"18":8,"19":8,"20":8},"options":["Boots of the Winding Path","Dazzling Weapon","Helm of Awareness","Manifold Tool","Mind Sharpener","Repeating Shot","Repulsion Shield","Returning Weapon","Spell-Refueling Ring"]},],
-  "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback \u2014 Cast Necro/Trans spell: expend up to INT mod dice, gain temp HP = total+INT mod","Bolstering Precognition \u2014 Cast Abj/Div spell: expend 1 die, give creature +roll to next d20","Destructive Thoughts \u2014 Cast Conj/Evoc save spell: expend up to INT mod dice, deal Psychic = total+INT mod","Devilish Tongue \u2014 Influence action: roll 1 die and add to check (expended on success)","Expanded Awareness \u2014 Search action: roll 1 die and add to check (expended on success)","Id Insinuation \u2014 Cast Ench/Illus save spell: expend 1 die, target subtracts roll from their save","Inerrant Aim \u2014 Miss with attack: roll 1 die and add to attack (expended if hit)","Observant Mind \u2014 Study action: roll 1 die and add to check (expended on success)","Psionic Backlash \u2014 Reaction when hit: expend 1 die, subtract roll from damage","Psionic Guards \u2014 Start of turn: expend 1 die until next turn \u2014 Psychic immune, Charmed/Frightened immune, INT saves +roll","Sharpened Mind \u2014 Start of turn: expend 1 die for 1 min \u2014 weapon attacks +roll Psychic, concentration saves +5"]}]
+  "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback \u2014 Cast Necro/Trans spell: expend up to INT mod dice, gain temp HP = total+INT mod","Bolstering Precognition \u2014 Cast Abj/Div spell: expend 1 die, give creature +roll to next d20","Destructive Thoughts \u2014 Cast Conj/Evoc save spell: expend up to INT mod dice, deal Psychic = total+INT mod","Devilish Tongue \u2014 Influence action: roll 1 die and add to check (expended on success)","Expanded Awareness \u2014 Search action: roll 1 die and add to check (expended on success)","Id Insinuation \u2014 Cast Ench/Illus save spell: expend 1 die, target subtracts roll from their save","Inerrant Aim \u2014 Miss with attack: roll 1 die and add to attack (expended if hit)","Observant Mind \u2014 Study action: roll 1 die and add to check (expended on success)","Psionic Backlash \u2014 Reaction when hit: expend 1 die, subtract roll from damage","Psionic Guards \u2014 Start of turn: expend 1 die until next turn \u2014 Psychic immune, Charmed/Frightened immune, INT saves +roll","Sharpened Mind \u2014 Start of turn: expend 1 die for 1 min \u2014 weapon attacks +roll Psychic, concentration saves +5"]}],
+  "druid": [
+    {
+      "id": "primal_order",
+      "label": "Primal Order",
+      "minLevel": 1,
+      "type": "radio",
+      "desc": "Magician: gain one extra cantrip and INT proficiency. Warden: gain martial weapon proficiency and medium armor proficiency.",
+      "wires": ["display"],
+      "options": ["Magician", "Warden"]
+    }
+  ]
 };
 const PHB_CLASS_RESOURCES     = {
   "barbarian": [
@@ -11196,6 +11281,8 @@ const COMPANION_DEFS = {
 ,
   "dhampir_boh": {"name":"Dhampir (BoH)","source":"ABoH","size":"Medium","speed":35,"scorestxt":"+2 and +1, or +1 to three from DEX, INT, and CHA","traits":"Speed 35 ft, Climb 35 ft \u00b7 Necrotic Resistance \u00b7 Spider Climb (Lv 3+) \u00b7 Vampiric Bite","features":[{"name":"Trace of Undeath","level":1,"desc":"Resistance to Necrotic damage.","usages":null,"recovery":null},{"name":"Spider Climb","level":3,"desc":"Climb Speed equal to Speed. At level 3+, can move on walls and ceilings while leaving hands free.","usages":null,"recovery":null},{"name":"Vampiric Bite","level":1,"desc":"Fangs are natural weapons (1d4 Piercing + Necrotic). On hit: regain HP = Proficiency Bonus (once per turn, limited uses). Target is Bloodied until start of your next turn.","usages":"prof_bonus","recovery":"long rest"}],"subraces":{}}};
 
+const WILD_SHAPE_BEASTS = [{"key":"badger","name":"Badger","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":11,"hp":5,"speed":"20 ft, Burrow 5 ft","scores":[10,11,16,2,12,5],"skills":{"perception":3},"senses":"Darkvision 30 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","ability":1}],"traits":[],"actions":[]},{"key":"bat","name":"Bat","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":12,"hp":1,"speed":"5 ft, Fly 30 ft","scores":[2,15,8,2,12,4],"skills":{},"senses":"Blindsight 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","ability":2}],"traits":[],"actions":[]},{"key":"cat","name":"Cat","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":12,"hp":2,"speed":"40 ft, Climb 40 ft","scores":[3,15,10,3,12,7],"skills":{"perception":3,"stealth":4},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Scratch","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Jumper","desc":"The cat"}],"actions":[]},{"key":"crab","name":"Crab","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":11,"hp":3,"speed":"20 ft, Swim 20 ft","scores":[6,11,12,1,8,2],"skills":{"stealth":2},"senses":"Blindsight 30 ft","proficiencyBonus":2,"attacks":[{"name":"Claw","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Amphibious","desc":"The crab can breathe air and water."}],"actions":[]},{"key":"frog","name":"Frog","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":11,"hp":1,"speed":"20 ft, Swim 20 ft","scores":[1,13,8,1,8,3],"skills":{"perception":1,"stealth":3},"senses":"Darkvision 30 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Amphibious","desc":"The frog can breathe air and water."},{"name":"Standing Leap","desc":"The Frog"}],"actions":[]},{"key":"goat","name":"Goat","cr":"0","crNum":0.0,"size":"Medium","type":"Beast","ac":10,"hp":4,"speed":"40 ft, Climb 30 ft","scores":[11,10,11,2,10,5],"skills":{"perception":2},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Ram","range":"Melee (5 ft)","desc":"If the goat moved at least 20 feet straight toward the target immediately before the hit, the target takes an extra 2 (1d4) Bludgeoning damage.","ability":1}],"traits":[],"actions":[]},{"key":"hawk","name":"Hawk","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":13,"hp":1,"speed":"10 ft, Fly 60 ft","scores":[5,16,8,2,14,6],"skills":{"perception":6},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Talons","range":"Melee (5 ft)","ability":2}],"traits":[],"actions":[]},{"key":"lizard","name":"Lizard","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":10,"hp":2,"speed":"20 ft, Climb 20 ft","scores":[2,11,10,1,8,3],"skills":{},"senses":"Darkvision 30 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Spider Climb","desc":"The lizard can climb difficult surfaces, including along ceilings, without needing to make an ability check."}],"actions":[]},{"key":"octopus","name":"Octopus","cr":"0","crNum":0.0,"size":"Small","type":"Beast","ac":12,"hp":3,"speed":"5 ft, Swim 30 ft","scores":[4,15,11,3,10,4],"skills":{"perception":2,"stealth":6},"senses":"Darkvision 30 ft","proficiencyBonus":2,"attacks":[{"name":"Tentacles","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Compression","desc":"The octopus can move through a space as narrow as 1 inch without squeezing."},{"name":"Water Breathing","desc":"The octopus can breathe only underwater."}],"actions":[]},{"key":"owl","name":"Owl","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":11,"hp":1,"speed":"5 ft, Fly 60 ft","scores":[3,13,8,2,12,7],"skills":{"perception":5,"stealth":5},"senses":"Darkvision 120 ft","proficiencyBonus":2,"attacks":[{"name":"Talons","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Flyby","desc":"The owl doesn"}],"actions":[]},{"key":"rat","name":"Rat","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":10,"hp":1,"speed":"20 ft, Climb 20 ft","scores":[2,11,9,2,10,4],"skills":{"perception":2},"senses":"Darkvision 30 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Agile","desc":"The rat doesn"}],"actions":[]},{"key":"raven","name":"Raven","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":12,"hp":2,"speed":"10 ft, Fly 50 ft","scores":[2,14,10,5,13,6],"skills":{"perception":3},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Beak","range":"Melee (5 ft)","ability":2}],"traits":[{"name":"Mimicry","desc":"The raven can mimic simple sounds it has heard, such as a whisper or chitter. A hearer can discern the sounds are imitations with a successful DC 10 Wisdom (Insight) check."}],"actions":[]},{"key":"scorpion","name":"Scorpion","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":11,"hp":1,"speed":"10 ft","scores":[2,11,8,1,8,2],"skills":{},"senses":"Blindsight 10 ft","proficiencyBonus":2,"attacks":[{"name":"Sting","range":"Melee (5 ft)","desc":"On a hit, target takes an additional 3 (1d6) Poison damage.","ability":1}],"traits":[],"actions":[]},{"key":"spider","name":"Spider","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":12,"hp":1,"speed":"20 ft, Climb 20 ft","scores":[2,14,8,1,10,2],"skills":{"stealth":4},"senses":"Darkvision 30 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","desc":"Plus 2 (1d4) Poison damage","ability":2}],"traits":[{"name":"Spider Climb","desc":"The spider can climb difficult surfaces including ceilings, without needing to make an ability check."},{"name":"Web Walker","desc":"The spider ignores movement restrictions caused by webs, and the spider knows the location of any other creature in contact with the same web."}],"actions":[]},{"key":"weasel","name":"Weasel","cr":"0","crNum":0.0,"size":"Tiny","type":"Beast","ac":13,"hp":1,"speed":"30 ft, Climb 30 ft","scores":[3,16,8,2,12,3],"skills":{"acrobatics":5,"perception":3,"stealth":5},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","ability":2}],"traits":[],"actions":[]},{"key":"camel","name":"Camel","cr":"1/8","crNum":0.125,"size":"Large","type":"Beast","ac":10,"hp":17,"speed":"50 ft","scores":[15,8,17,2,11,5],"skills":{},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d4 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","ability":1}],"traits":[],"actions":[]},{"key":"giant crab","name":"Giant Crab","cr":"1/8","crNum":0.125,"size":"Medium","type":"Beast","ac":15,"hp":13,"speed":"30 ft, Swim 30 ft","scores":[13,13,11,1,9,3],"skills":{"stealth":3},"senses":"Blindsight 30 ft","proficiencyBonus":2,"attacks":[{"name":"Claw","dmg":"1d6 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","desc":"Medium or smaller target is Grappled. Each of two claws can grapple one target. DC 11 Athletics check to escape.","ability":1}],"traits":[{"name":"Amphibious","desc":"The giant crab can breathe air and water."}],"actions":[]},{"key":"giant weasel","name":"Giant Weasel","cr":"1/8","crNum":0.125,"size":"Medium","type":"Beast","ac":13,"hp":9,"speed":"40 ft, Climb 30 ft","scores":[11,17,10,4,12,5],"skills":{"acrobatics":5,"perception":3,"stealth":5},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d4 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","ability":2}],"traits":[],"actions":[]},{"key":"mastiff","name":"Mastiff","cr":"1/8","crNum":0.125,"size":"Medium","type":"Beast","ac":12,"hp":5,"speed":"40 ft","scores":[13,14,12,3,12,7],"skills":{"perception":5},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d6 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"On a hit, a Large or smaller target has the Prone condition.","ability":1}],"traits":[],"actions":[]},{"key":"mule","name":"Mule","cr":"1/8","crNum":0.125,"size":"Medium","type":"Beast","ac":10,"hp":11,"speed":"40 ft","scores":[14,10,13,3,10,5],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Hooves","dmg":"1d4 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","ability":1}],"traits":[{"name":"Beast of Burden","desc":"The mule counts as one size larger for the purpose of determining its carrying capacity."}],"actions":[]},{"key":"pony","name":"Pony","cr":"1/8","crNum":0.125,"size":"Medium","type":"Beast","ac":10,"hp":11,"speed":"40 ft","scores":[15,10,13,2,11,7],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Hooves","dmg":"1d4 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","ability":1}],"traits":[],"actions":[]},{"key":"venomous snake","name":"Venomous Snake","cr":"1/8","crNum":0.125,"size":"Tiny","type":"Beast","ac":12,"hp":5,"speed":"30 ft, Swim 30 ft","scores":[2,15,11,1,10,3],"skills":{},"senses":"Blindsight 10 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","range":"Melee (5 ft)","desc":"Plus 3 (1d6) Poison damage","ability":2}],"traits":[],"actions":[]},{"key":"boar","name":"Boar","cr":"1/4","crNum":0.25,"size":"Medium","type":"Beast","ac":11,"hp":13,"speed":"40 ft","scores":[13,11,14,2,9,5],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Gore","dmg":"1d6 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"If moves 20 ft in straight line before hit, +3 (1d6) Pierc. dmg. If target is Large or smaller, it falls Prone","ability":1}],"traits":[{"name":"Bloodied Fury","desc":"While Bloodied, the boar has Advantage on attack rolls."}],"actions":[]},{"key":"constrictor snake","name":"Constrictor Snake","cr":"1/4","crNum":0.25,"size":"Large","type":"Beast","ac":13,"hp":13,"speed":"30 ft, Swim 30 ft","scores":[15,14,12,1,10,3],"skills":{"perception":2,"stealth":4},"senses":"Blindsight 10 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d8 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","ability":1},{"name":"Constrict","dmg":"3d4 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","desc":"Visible Medium or smaller creature in 5 ft, Str save. Fail: Damage + Grappled, Escape DC 12.","ability":1}],"traits":[],"actions":[]},{"key":"draft horse","name":"Draft Horse","cr":"1/4","crNum":0.25,"size":"Large","type":"Beast","ac":10,"hp":15,"speed":"40 ft","scores":[18,10,15,2,11,7],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Hooves","dmg":"1d4 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","ability":1}],"traits":[],"actions":[]},{"key":"elk","name":"Elk","cr":"1/4","crNum":0.25,"size":"Large","type":"Beast","ac":10,"hp":11,"speed":"50 ft","scores":[16,10,11,2,10,6],"skills":{"perception":2},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Ram","dmg":"1d6 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","desc":"If moved 20 ft straight toward target before hit, +3 (1d6) Bludgeoning. If Huge or smaller, target falls Prone.","ability":1}],"traits":[],"actions":[]},{"key":"giant badger","name":"Giant Badger","cr":"1/4","crNum":0.25,"size":"Medium","type":"Beast","ac":13,"hp":15,"speed":"30 ft, Burrow 10 ft","scores":[13,10,17,2,12,5],"skills":{"perception":3},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"2d4 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","ability":1}],"traits":[],"actions":[]},{"key":"panther","name":"Panther","cr":"1/4","crNum":0.25,"size":"Medium","type":"Beast","ac":12,"hp":13,"speed":"50 ft, Climb 40 ft","scores":[14,15,10,3,14,7],"skills":{"perception":4,"stealth":6},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Pounce","dmg":"1d4 Slashing","dmgType":"Slashing","range":"Melee (5 ft)","desc":"Deals 7 (2d4 +2) Slashing damage instead if Advantage on the attack. It makes one Pounce attack and uses Prowl.","ability":1}],"traits":[],"actions":[{"name":"Prowl","desc":"The panther moves up to half its Speed without provoking Opportunity Attacks. At the end of this movement, the panther can take the Hide action."},{"name":"Multiattack","desc":"The panther makes one Pounce attack and uses Prowl."}]},{"key":"riding horse","name":"Riding Horse","cr":"1/4","crNum":0.25,"size":"Large","type":"Beast","ac":11,"hp":13,"speed":"60 ft","scores":[16,13,12,2,11,7],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Hooves","dmg":"1d8 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","ability":1}],"traits":[],"actions":[]},{"key":"wolf","name":"Wolf","cr":"1/4","crNum":0.25,"size":"Medium","type":"Beast","ac":12,"hp":11,"speed":"40 ft","scores":[14,15,12,3,12,6],"skills":{"perception":5,"stealth":4},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d6 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"If the target is Medium or smaller, it has the Prone condition.","ability":1}],"traits":[{"name":"Pack Tactics","desc":"The wolf has Advantage on attack rolls against a creature if at least one of the wolf"}],"actions":[]},{"key":"ape","name":"Ape","cr":"1/2","crNum":0.5,"size":"Medium","type":"Beast","ac":12,"hp":19,"speed":"30 ft, Climb 30 ft","scores":[16,14,14,6,12,7],"skills":{"athletics":5,"perception":3},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Fist","dmg":"1d4 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","desc":"Two fist attacks as an Attack action","ability":1},{"name":"Rock (Recharge 6)","dmg":"2d6 Bludgeoning","dmgType":"Bludgeoning","range":"25/50 ft","ability":1}],"traits":[],"actions":[{"name":"Multiattack","desc":"The ape makes two Fist attacks."}]},{"key":"black bear","name":"Black Bear","cr":"1/2","crNum":0.5,"size":"Medium","type":"Beast","ac":11,"hp":19,"speed":"30 ft, Climb 30 ft, Swim 30 ft","scores":[15,12,14,2,12,7],"skills":{"perception":5},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Rend","dmg":"1d6 Slashing","dmgType":"Slashing","range":"Melee (5 ft)","desc":"Two Rend attacks as an Attack action","ability":1}],"traits":[],"actions":[{"name":"Multiattack","desc":"The black bear makes two Rend attacks."}]},{"key":"crocodile","name":"Crocodile","cr":"1/2","crNum":0.5,"size":"Large","type":"Beast","ac":12,"hp":13,"speed":"20 ft, Swim 30 ft","scores":[15,10,13,2,10,5],"skills":{"stealth":2},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d8 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"If target Medium or smaller, it","ability":1}],"traits":[{"name":"Hold Breath","desc":"The crocodile can hold its breath for 1 hour."}],"actions":[]},{"key":"giant goat","name":"Giant Goat","cr":"1/2","crNum":0.5,"size":"Large","type":"Beast","ac":11,"hp":19,"speed":"40 ft, Climb 30 ft","scores":[17,13,12,3,12,6],"skills":{"perception":3},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Ram","dmg":"1d6 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","desc":"If moves 20+ ft in straight line before hit, +5 (2d4) Blud. dmg. If target is Huge or smaller, it falls Prone.","ability":1}],"traits":[],"actions":[]},{"key":"giant seahorse","name":"Giant Seahorse","cr":"1/2","crNum":0.5,"size":"Large","type":"Beast","ac":14,"hp":16,"speed":"5 ft, Swim 40 ft","scores":[15,12,11,2,12,5],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Ram","dmg":"2d6 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","desc":"If moved at least 20 ft straight toward target before hit, 11 (2d8 + 2) Bludgeoning damage instead.","ability":1}],"traits":[{"name":"Water Breathing","desc":"The giant seahorse can breathe only underwater."}],"actions":[]},{"key":"reef shark","name":"Reef Shark","cr":"1/2","crNum":0.5,"size":"Medium","type":"Beast","ac":12,"hp":22,"speed":"5 ft, Swim 30 ft","scores":[14,15,13,1,10,4],"skills":{"perception":2},"senses":"Blindsight 30 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"2d4 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","ability":1}],"traits":[{"name":"Pack Tactics","desc":"The shark has Advantage on an attack roll against a creature if at least one of the shark"},{"name":"Water Breathing","desc":"The shark can breathe only underwater."}],"actions":[]},{"key":"warhorse","name":"Warhorse","cr":"1/2","crNum":0.5,"size":"Large","type":"Beast","ac":11,"hp":19,"speed":"60 ft","scores":[18,12,13,2,12,7],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Hooves","dmg":"2d4 Bludgeoning","dmgType":"Bludgeoning","desc":"If moved at least 20 ft straight toward target before hit, +5 (2d4) Bludgeoning damage. If target is Huge or smaller, falls Prone.","ability":1}],"traits":[],"actions":[]},{"key":"brown bear","name":"Brown Bear","cr":"1","crNum":1.0,"size":"Large","type":"Beast","ac":11,"hp":22,"speed":"40 ft, Climb 30 ft","scores":[17,12,15,2,13,7],"skills":{"perception":3},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d8 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"One Bite attack and One Claw attack as an Attack action","ability":1},{"name":"Claw","dmg":"1d4 Slashing","dmgType":"Slashing","range":"Melee (5 ft)","desc":"On a hit, a Huge or smaller target has the Prone condition.","ability":1}],"traits":[],"actions":[{"name":"Multiattack","desc":"The brown bear makes one Bite attack and one Claw attack."}]},{"key":"dire wolf","name":"Dire Wolf","cr":"1","crNum":1.0,"size":"Large","type":"Beast","ac":14,"hp":22,"speed":"50 ft","scores":[17,15,15,3,12,7],"skills":{"perception":5,"stealth":4},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d10 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"On a hit, a Huge or smaller target has the Prone condition.","ability":1}],"traits":[{"name":"Pack Tactics","desc":"The wolf has Advantage on an attack roll against a creature if at least one of the wolf"}],"actions":[]},{"key":"giant spider","name":"Giant Spider","cr":"1","crNum":1.0,"size":"Large","type":"Beast","ac":14,"hp":26,"speed":"30 ft, Climb 30 ft","scores":[14,16,12,2,11,4],"skills":{"perception":4,"stealth":7},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Bite","dmg":"1d8 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"On a hit, this attack deals an additional 7 (2d6) Poison damage.","ability":2}],"traits":[{"name":"Spider Climb","desc":"The spider can climb difficult surfaces, including along ceilings, without needing to make an ability check."},{"name":"Web Walker","desc":"The spider ignores movement restrictions caused by webs, and it knows the location of any other creature in contact with the same web."}],"actions":[]},{"key":"lion","name":"Lion","cr":"1","crNum":1.0,"size":"Large","type":"Beast","ac":12,"hp":22,"speed":"50 ft","scores":[17,15,11,3,12,8],"skills":{"perception":3,"stealth":4},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Rend","dmg":"1d8 Slashing","dmgType":"Slashing","range":"Melee (5 ft)","desc":"Two Rend attacks as an Attack action. Can replace one of these attacks with a use of Roar.","ability":1},{"name":"Roar","range":"15 ft","desc":"Fail: Frightened until start of lion","ability":5}],"traits":[{"name":"Pack Tactics","desc":"The lion has Advantage on an attack roll against a creature if at least one of the lion"},{"name":"Running Leap","desc":"With a 10-foot running start, the lion can Long Jump up to 25 feet."}],"actions":[{"name":"Multiattack","desc":"The lion makes two Rend attacks. It can replace one of these attacks with a use of Roar."}]},{"key":"tiger","name":"Tiger","cr":"1","crNum":1.0,"size":"Large","type":"Beast","ac":13,"hp":22,"speed":"40 ft","scores":[17,16,14,3,12,8],"skills":{"perception":3,"stealth":7},"senses":"Darkvision 60 ft","proficiencyBonus":2,"attacks":[{"name":"Pounce","dmg":"1d6 Slashing","dmgType":"Slashing","range":"Melee (5 ft)","desc":"Deals an extra 3 (1d6) Slashing damage if Advantage on the attack. If the target is Huge or smaller, it falls Prone. Also uses Prowl.","ability":1}],"traits":[],"actions":[{"name":"Prowl","desc":"The tiger moves up to half its Speed without provoking Opportunity Attacks. At the end of this movement, the tiger can take the Hide action."},{"name":"Multiattack","desc":"The tiger makes one Pounce attack and uses Prowl."}]},{"key":"elephant","name":"Elephant","cr":"4","crNum":4.0,"size":"Huge","type":"Beast","ac":12,"hp":76,"speed":"40 ft","scores":[22,9,17,3,11,6],"skills":{},"senses":"","proficiencyBonus":2,"attacks":[{"name":"Gore","dmg":"2d8 Piercing","dmgType":"Piercing","range":"Melee (5 ft)","desc":"If moved 20 ft straight toward target before hit, target falls Prone.","ability":1},{"name":"Trample","dmg":"2d10 Bludgeoning","dmgType":"Bludgeoning","range":"Melee (5 ft)","desc":"Bonus Action against Prone creature in 5 feet. Target makes Dex save, half damage on success.","ability":1}],"traits":[],"actions":[{"name":"Multiattack","desc":"The elephant makes two Gore attacks."}]}];
+
 const PHB_CLASSES = {
   "barbarian": {
     "name": "Barbarian",
@@ -14286,9 +14373,14 @@ const EK_AT_CANTRIPS = 2;
 
 // Feats that grant spells (key -> { cantrips, spells, ability, classSource })
 const SPELL_FEATS = {
+  // PHB 2024 Magic Initiate (class chosen via picker)
+  'magic initiate':            { cantrips: 2, spells: 1, spellLevel: 1, classSource: null, ability: null, classPick: true },
+  // Subclass variants
   'magic initiate (cleric)':  { cantrips: 2, spells: 1, spellLevel: 1, classSource: 'cleric',  ability: 'wis' },
   'magic initiate (druid)':   { cantrips: 2, spells: 1, spellLevel: 1, classSource: 'druid',   ability: 'wis' },
   'magic initiate (wizard)':  { cantrips: 2, spells: 1, spellLevel: 1, classSource: 'wizard',  ability: 'int' },
+  // Paladin fighting style - grants 2 Cleric cantrips
+  'blessed warrior':           { cantrips: 2, spells: 0, classSource: 'cleric', ability: 'cha', display: 'feature' },
   'ritual caster':            { cantrips: 0, spells: 2, spellLevel: null, classSource: null,   ritual: true },
   'fey touched':              { cantrips: 0, spells: 1, spellLevel: [1,2], classSource: null,  ability: null, fixed: ['misty_step'] },
   'shadow touched':           { cantrips: 0, spells: 1, spellLevel: [1,2], classSource: null,  ability: null, fixed: ['invisibility'] },
@@ -16057,6 +16149,8 @@ function populateAllTabs() {
 
   updateCompanionTabVisibility();
   renderCompanionTab();
+  updateWildShapeTabVisibility();
+  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -18678,6 +18772,8 @@ function onClassChange() {
   calcHPMax();
   updateCompanionTabVisibility();
   renderCompanionTab();
+  updateWildShapeTabVisibility();
+  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -18742,6 +18838,8 @@ function onSubclassChange() {
   calcHPMax();
   updateCompanionTabVisibility();
   renderCompanionTab();
+  updateWildShapeTabVisibility();
+  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -19347,7 +19445,17 @@ function onChoiceChange(id, value) {
   if (!currentChar.class_choices) currentChar.class_choices = {};
   currentChar.class_choices[id] = value;
   applyChoiceEffects();
-  renderClassChoices(); // Re-render (handles showIf conditions)
+  renderClassChoices();
+  renderKnownSpells();
+
+  // Trigger spell picker for choices that grant spells
+  const fk = value.toLowerCase().replace(/\s*\[.*?\]/g,'').trim();
+  const sf = SPELL_FEATS[fk];
+  if (sf) {
+    // Use a synthetic slot id based on the choice id
+    const slotId = 'choice_' + id;
+    setTimeout(() => openFeatSpellPicker(slotId, value, sf), 150);
+  }
 }
 
 function toggleChoicePill(id, value, maxCount) {
@@ -19951,6 +20059,8 @@ function onRaceChange() {
   calcHPMax();
   updateCompanionTabVisibility();
   renderCompanionTab();
+  updateWildShapeTabVisibility();
+  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -19974,6 +20084,8 @@ function onSubraceChange() {
   calcHPMax();
   updateCompanionTabVisibility();
   renderCompanionTab();
+  updateWildShapeTabVisibility();
+  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -20225,6 +20337,8 @@ function onBackgroundChange() {
   calcHPMax();
   updateCompanionTabVisibility();
   renderCompanionTab();
+  updateWildShapeTabVisibility();
+  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -22393,10 +22507,26 @@ function populateFeaturesTab() {
   });
   (currentChar.feats || []).filter(f => !f._auto).forEach((f, i) => {
     const phb = Object.values(PHB_FEATS_FULL).find(p => p.name === f.name);
+    // For feats that grant spells, add a Choose Spells button in the desc
+    const _featFk = (f.name||'').toLowerCase().replace(/\s*\[.*?\]/g,'').trim();
+    const _featSf = SPELL_FEATS[_featFk];
+    let _featDesc = phb?.desc || f.desc || '';
+    if (_featSf) {
+      const _featSlotId = 'feat_slot_' + i;
+      const _featSpellKey = 'feat_' + _featSlotId;
+      const _featExisting = currentChar.spells?.featSpells?.[_featSpellKey] || [];
+      if (_featExisting.length) {
+        const _names = _featExisting.map(k => { const s = PHB_SPELL_LIST.find(x=>x.key===k); return s?s.name:k; });
+        _featDesc += ' | Chosen: ' + _names.join(', ');
+      } else {
+        _featDesc += ' | <button class="btn-sm" style="font-size:9px;padding:2px 8px;cursor:pointer;background:var(--accent);border:none;border-radius:var(--radius);color:#000;font-weight:600" onclick="openFeatSpellPicker(\'' + _featSlotId + '\',\'' + f.name.replace(/'/g,"\'") + '\',SPELL_FEATS[\'' + _featFk + '\'])">✦ Choose Spells</button>';
+      }
+    }
     entries.push({
       level: null, id: `feat_manual_${i}`, name: f.name,
       source: 'Manual', sourceType: 'Feat',
-      desc: phb?.desc || f.desc || '', usages: null, recovery: null,
+      desc: _featDesc, usages: null, recovery: null,
+      isHtml: !!_featSf,
     });
   });
 
@@ -22430,17 +22560,41 @@ function populateFeaturesTab() {
         desc = def.optionDescs[saved];
       } else if (FIGHTING_STYLE_DESCS && FIGHTING_STYLE_DESCS[saved]) {
         desc = FIGHTING_STYLE_DESCS[saved];
+      } else if (PRIMAL_ORDER_DESCS && PRIMAL_ORDER_DESCS[saved]) {
+        desc = PRIMAL_ORDER_DESCS[saved];
+      } else if (!desc && def.desc) {
+        desc = def.desc;
+      }
+
+      // Check if this choice grants spells via SPELL_FEATS
+      const _fk = displayVal.toLowerCase().replace(/\s*\[.*?\]/g,'').trim();
+      const _sf = SPELL_FEATS[_fk];
+      const _slotId = 'choice_' + def.id;
+      const _featKey = 'feat_' + _slotId;
+      let _spellDesc = desc;
+      if (_sf) {
+        const _existing = currentChar.spells?.featSpells?.[_featKey] || [];
+        const _existingNames = _existing.map(k => {
+          const sp = PHB_SPELL_LIST.find(s => s.key === k);
+          return sp ? sp.name : k;
+        });
+        if (_existingNames.length) {
+          _spellDesc = (desc ? desc + ' | ' : '') + 'Chosen: ' + _existingNames.join(', ');
+        } else {
+          _spellDesc = (desc ? desc + ' | ' : '') + '<button class="btn-sm" style="font-size:9px;padding:2px 8px;cursor:pointer;background:var(--accent);border:none;border-radius:var(--radius);color:#000;font-weight:600" onclick="openFeatSpellPicker(\'' + _slotId + '\',\'' + displayVal.replace(/'/g,"\'") + '\',SPELL_FEATS[\'' + _fk + '\'])">✦ Choose Spells</button>';
+        }
       }
 
       entries.push({
         level: charLv,
         id: 'choice_display_' + def.id + '_' + ci,
         name: displayVal,
-        desc: desc,
+        desc: _spellDesc,
         source: def.label,
         sourceType: 'Class Choice',
         usages: null,
         recovery: null,
+        _hasSpellButton: !!_sf && !(currentChar.spells?.featSpells?.[_featKey]?.length),
       });
     }
   });
@@ -22547,7 +22701,7 @@ function makeFeatureCard(id, name, level, desc, usages, recovery, source) {
   const levelStr = level ? `<span class="feat-card-level">${ORDINALS[level] || 'Lv'+level}</span>` : '';
   const sourceStr = source ? `<span class="feat-card-source">${source}</span>` : '';
   const descHtml = desc
-    ? `<div class="feat-card-desc">${desc.replace(/\|/g,' · ').replace(/\\n/g,' ')}</div>`
+    ? `<div class="feat-card-desc">${desc.includes('<') ? desc.replace(/\\n/g,' ') : desc.replace(/\|/g,' · ').replace(/\\n/g,' ')}</div>`
     : '';
 
   return `
@@ -23343,6 +23497,333 @@ function setCompanionTempHP(id, val) {
 }
 window.setCompanionTempHP = setCompanionTempHP;
 
+
+// ═══════════════════════════════════════════════════════════
+// WILD SHAPE
+// ═══════════════════════════════════════════════════════════
+
+function getWildShapeMaxCR() {
+  if (!currentChar) return 0;
+  const cls = getPrimaryClass().toLowerCase();
+  if (cls !== 'druid') return 0;
+  return getWildShapeMaxCRNum();
+}
+
+function getWildShapeUsesMax() {
+  if (!currentChar) return 0;
+  const cls = getPrimaryClass().toLowerCase();
+  if (cls !== 'druid') return 0;
+  const lv = getLevel();
+  // PHB 2024: 2 uses lv2–5, 3 uses lv6–17, 4 uses lv18+
+  if (lv >= 18) return 4;
+  if (lv >= 6)  return 3;
+  if (lv >= 2)  return 2;
+  return 0;
+}
+
+function isMoonDruid() {
+  if (!currentChar) return false;
+  const classes = getAllClasses();
+  return classes.some(e =>
+    (e.class||'').toLowerCase() === 'druid' &&
+    (e.subclass||'').toLowerCase().includes('moon')
+  );
+}
+
+function canWildShapeFly() { return getLevel() >= 8; }
+
+function getWildShapeMaxCRNum() {
+  const lv = getLevel();
+  if (lv < 2) return 0;
+  // Circle of the Moon: CR = floor(level / 3), min 1 at level 3
+  if (isMoonDruid() && lv >= 3) return Math.max(1, Math.floor(lv / 3));
+  // Base druid
+  if (lv >= 8) return 1;
+  if (lv >= 4) return 0.5;
+  return 0.25;
+}
+
+function getWildShapeKnownFormsMax() {
+  const lv = getLevel();
+  if (lv >= 8) return 8;
+  if (lv >= 4) return 6;
+  if (lv >= 2) return 4;
+  return 0;
+}
+
+function updateWildShapeTabVisibility() {
+  const tab = document.getElementById('tab-wildshape');
+  if (!tab) return;
+  const cls = getPrimaryClass().toLowerCase();
+  const isWildShaper = cls === 'druid';
+  tab.style.display = isWildShaper ? '' : 'none';
+  if (!isWildShaper && document.getElementById('page-wildshape')?.classList.contains('active')) {
+    switchPage('main');
+  }
+}
+
+function crFraction(beast) {
+  const s = String(beast.cr);
+  if (s === '0' || s === '0.125') {
+    const map = {'0':'0','0.125':'1/8','0.25':'1/4','0.5':'1/2'};
+    return map[s] || s;
+  }
+  if (beast.crNum < 1) {
+    const map = {0:'0', 0.125:'1/8', 0.25:'1/4', 0.5:'1/2'};
+    return map[beast.crNum] || beast.cr;
+  }
+  return String(beast.cr);
+}
+
+function renderWildShapeList() {
+  const container = document.getElementById('ws-list');
+  const usesEl    = document.getElementById('ws-uses');
+  if (!container || !currentChar) return;
+
+  const maxCR     = getWildShapeMaxCR();
+  const usesMax   = getWildShapeUsesMax();
+  const usesUsed  = parseInt(currentChar._wsUsesUsed) || 0;
+  const usesLeft  = Math.max(0, usesMax - usesUsed);
+
+  // Wild Companion section
+  updateWildCompanionUI();
+
+  const knownForms = currentChar._wsKnownForms || [];
+  const knownMax   = getWildShapeKnownFormsMax();
+  const flyAllowed = canWildShapeFly();
+  if (usesEl) {
+    usesEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-family:var(--font-ui);font-size:10px">
+          <span style="color:var(--text3)">Uses: </span>
+          <span style="color:var(--accent);font-size:13px;font-weight:700">${usesLeft}</span>
+          <span style="color:var(--text3)"> / ${usesMax}</span>
+        </span>
+        <button onclick="useWildShape()" style="font-family:var(--font-ui);font-size:9px;padding:3px 8px;background:var(--accent);border:none;border-radius:var(--radius);color:#000;cursor:pointer;font-weight:600">Use</button>
+        <button onclick="resetWildShapeUses()" style="font-family:var(--font-ui);font-size:9px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text2);cursor:pointer">⟳ SR</button>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:6px">
+          Known: <span style="color:${knownForms.length >= knownMax ? 'var(--accent)' : 'var(--text)'};font-weight:600">${knownForms.length}</span> / ${knownMax}
+        </span>
+        ${!flyAllowed ? '<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:3px;padding:2px 5px">No fly (lv 8+)</span>' : ''}
+        ${isMoonDruid() ? '<span style="font-family:var(--font-ui);font-size:9px;color:var(--amber);background:var(--bg3);border-radius:3px;padding:2px 5px">Circle of the Moon · CR ' + maxCR + '</span>' : ''}
+      </div>
+    `;
+  }
+
+  const search   = (document.getElementById('ws-search')?.value||'').toLowerCase();
+  const crFilter = document.getElementById('ws-cr-filter')?.value || '';
+  const sizeFilter = document.getElementById('ws-size-filter')?.value || '';
+  const availOnly  = document.getElementById('ws-available-only')?.checked;
+  const knownOnly  = document.getElementById('ws-known-only')?.checked;
+
+  let beasts = WILD_SHAPE_BEASTS.filter(b => {
+    if (availOnly) {
+      if (b.crNum > maxCR) return false;
+      // Block flying forms below lv 8
+      const hasFly = (b.speed||'').toLowerCase().includes('fly');
+      if (hasFly && !flyAllowed) return false;
+    }
+    if (knownOnly && !(currentChar._wsKnownForms||[]).includes(b.key)) return false;
+    if (crFilter !== '') {
+      const cf = parseFloat(crFilter);
+      if (cf === 4 && b.crNum < 4) return false;
+      if (cf < 4 && b.crNum !== cf) return false;
+    }
+    if (sizeFilter && b.size !== sizeFilter) return false;
+    if (search && !b.name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  beasts.sort((a,b) => a.crNum - b.crNum || a.name.localeCompare(b.name));
+
+  if (!beasts.length) {
+    container.innerHTML = '<div style="color:var(--text3);font-family:var(--font-ui);font-size:11px;padding:20px;text-align:center">No beasts match filters.</div>';
+    return;
+  }
+
+  container.innerHTML = beasts.map(b => renderWildShapeCard(b, maxCR)).join('');
+}
+
+function modStr(score) {
+  const m = Math.floor((score-10)/2);
+  return (m>=0?'+':'')+m;
+}
+
+function renderWildShapeCard(b, maxCR) {
+  const available = b.crNum <= maxCR;
+  const scores = b.scores || [10,10,10,10,10,10];
+  const statNames = ['STR','DEX','CON','INT','WIS','CHA'];
+
+  const statsHtml = statNames.map((s,i) => `
+    <div style="text-align:center">
+      <div style="font-family:var(--font-ui);font-size:8px;color:var(--text3)">${s}</div>
+      <div style="font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--text)">${scores[i]}</div>
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--accent)">${modStr(scores[i])}</div>
+    </div>`).join('');
+
+  const prof = b.proficiencyBonus || 2;
+  const attacksHtml = (b.attacks||[]).map(a => {
+    const abilMod = a.ability === 2 ? Math.floor((scores[1]-10)/2) : Math.floor((scores[0]-10)/2);
+    const atkBonus = abilMod + prof;
+    const dmgBonus = abilMod;
+    const atkStr = (atkBonus >= 0 ? '+' : '') + atkBonus;
+    const dmgStr = a.dmg ? a.dmg + (dmgBonus !== 0 ? ' ' + (dmgBonus > 0 ? '+' : '') + dmgBonus : '') : '—';
+    return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:start;padding:3px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <span style="font-family:var(--font-ui);font-size:10px;font-weight:600;color:var(--text)">${a.name}</span>
+        <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-left:4px">${a.range||''}</span>
+        ${a.desc ? `<div style="font-family:var(--font-body);font-size:9px;color:var(--text3);margin-top:1px;line-height:1.3">${a.desc}</div>` : ''}
+      </div>
+      <div style="text-align:center;min-width:40px">
+        <div style="font-family:var(--font-ui);font-size:8px;color:var(--text3)">ATK</div>
+        <div style="font-family:var(--font-ui);font-size:11px;color:var(--accent)">${atkStr}</div>
+      </div>
+      <div style="text-align:right;min-width:80px">
+        <div style="font-family:var(--font-ui);font-size:8px;color:var(--text3)">DMG</div>
+        <div style="font-family:var(--font-body);font-size:10px;color:var(--text2)">${dmgStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const traitsHtml = [...(b.traits||[]), ...(b.actions||[])].map(t => `
+    <div style="font-family:var(--font-body);font-size:10px;color:var(--text2);margin-bottom:3px;line-height:1.4">
+      <strong style="font-family:var(--font-ui);font-size:9px;color:var(--text)">${t.name}.</strong> ${t.desc}
+    </div>`).join('');
+
+  const skillsHtml = Object.entries(b.skills||{}).map(([sk,bonus]) =>
+    `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${sk.charAt(0).toUpperCase()+sk.slice(1)} +${bonus}</span>`
+  ).join(' · ');
+
+  const crDisplay = crFraction(b);
+  const borderColor = available ? 'var(--border)' : 'var(--border)';
+  const opacity = available ? '1' : '0.45';
+
+  const isKnown = (currentChar._wsKnownForms||[]).includes(b.key);
+  const knownFormsNow = (currentChar._wsKnownForms||[]).length;
+  const knownMaxNow = getWildShapeKnownFormsMax();
+  const canAdd = isKnown || knownFormsNow < knownMaxNow;
+  const canFlyBeast = b.speed && b.speed.toLowerCase().includes('fly');
+  const flyBlocked = canFlyBeast && !canWildShapeFly();
+
+  return `<div style="background:var(--bg2);border:1px solid ${isKnown ? 'var(--accent)' : borderColor};border-radius:var(--radius);padding:12px;opacity:${opacity};position:relative">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="display:flex;align-items:center;gap:5px;cursor:${canAdd||isKnown?'pointer':'not-allowed'};opacity:${canAdd||isKnown?1:0.4}" title="${isKnown?'Remove from known forms':canAdd?'Add to known forms':'Known forms full'}">
+          <input type="checkbox" ${isKnown?'checked':''} ${(!canAdd&&!isKnown)||flyBlocked?'disabled':''}
+            onchange="toggleKnownWildShape('${b.key}', this.checked)"
+            style="width:13px;height:13px;accent-color:var(--accent);cursor:inherit"/>
+        </label>
+        <span style="font-family:var(--font-heading);font-size:15px;color:${isKnown?'var(--accent)':'var(--text)'};letter-spacing:.5px">${b.name}</span>
+        ${flyBlocked ? '<span style="font-family:var(--font-ui);font-size:8px;color:var(--accent);background:var(--bg3);border-radius:3px;padding:1px 4px">no fly</span>' : ''}
+      </div>
+      <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${b.size} Beast · CR ${crDisplay}</span>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px">
+      AC ${b.ac} · HP ${b.hp} · ${b.speed}${b.senses ? ' · '+b.senses : ''}
+    </div>
+
+    <!-- Ability Scores -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:3px;background:var(--bg3);border-radius:var(--radius);padding:6px;margin-bottom:8px">
+      ${statsHtml}
+    </div>
+
+    ${skillsHtml ? `<div style="margin-bottom:6px">${skillsHtml}</div>` : ''}
+
+    <!-- Attacks -->
+    ${attacksHtml ? `<div style="margin-bottom:6px">${attacksHtml}</div>` : ''}
+
+    <!-- Traits -->
+    ${traitsHtml ? `<div style="margin-top:4px">${traitsHtml}</div>` : ''}
+  </div>`;
+}
+
+function useWildShape() {
+  if (!currentChar) return;
+  const max = getWildShapeUsesMax();
+  const used = parseInt(currentChar._wsUsesUsed) || 0;
+  if (used >= max) return;
+  currentChar._wsUsesUsed = used + 1;
+  autoSave();
+  renderWildShapeList();
+}
+
+function resetWildShapeUses() {
+  if (!currentChar) return;
+  currentChar._wsUsesUsed = 0;
+  autoSave();
+  renderWildShapeList();
+}
+
+function toggleKnownWildShape(key, add) {
+  if (!currentChar) return;
+  if (!currentChar._wsKnownForms) currentChar._wsKnownForms = [];
+  if (add) {
+    if (!currentChar._wsKnownForms.includes(key)) {
+      currentChar._wsKnownForms.push(key);
+    }
+  } else {
+    currentChar._wsKnownForms = currentChar._wsKnownForms.filter(k => k !== key);
+  }
+  autoSave();
+  renderWildShapeList();
+}
+window.toggleKnownWildShape = toggleKnownWildShape;
+window.renderWildShapeList = renderWildShapeList;
+window.useWildShape = useWildShape;
+window.resetWildShapeUses = resetWildShapeUses;
+
+
+function onFamiliarChange() {
+  if (!currentChar) return;
+  const sel = document.getElementById('ws-familiar-select');
+  currentChar._familiarChoice = sel?.value || '';
+  autoSave();
+  renderFamiliarBlock();
+}
+window.onFamiliarChange = onFamiliarChange;
+
+function renderFamiliarBlock() {
+  const container = document.getElementById('ws-familiar-block');
+  if (!container) return;
+  const choice = currentChar?._familiarChoice || '';
+  if (!choice) { container.innerHTML = ''; return; }
+
+  const beast = WILD_SHAPE_BEASTS.find(b => b.key === choice);
+  if (!beast) { container.innerHTML = ''; return; }
+
+  // Familiar is Fey, not Beast, but uses beast stats
+  const feyBeast = { ...beast, type: 'Fey (Beast Form)' };
+  container.innerHTML = renderWildShapeCard(feyBeast, 99);
+}
+
+function updateWildCompanionUI() {
+  const section = document.getElementById('ws-wildcompanion');
+  if (!section || !currentChar) return;
+  const cls = getPrimaryClass().toLowerCase();
+  const level = getLevel();
+  const show = cls === 'druid' && level >= 2;
+  section.style.display = show ? '' : 'none';
+
+  if (show) {
+    const sel = document.getElementById('ws-familiar-select');
+    if (sel) {
+      // Set saved value without triggering change
+      if (currentChar._familiarChoice) sel.value = currentChar._familiarChoice;
+      // Wire change listener once
+      if (!sel._wired) {
+        sel.addEventListener('change', () => {
+          if (!currentChar) return;
+          currentChar._familiarChoice = sel.value;
+          autoSave();
+          renderFamiliarBlock();
+        });
+        sel._wired = true;
+      }
+    }
+    renderFamiliarBlock();
+  }
+}
 </script>
 </body>
 </html
