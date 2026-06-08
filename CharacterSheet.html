@@ -171,6 +171,12 @@ select:not([multiple]) {
   .login-sub { font-size: 10px; }
   .login-wrap { max-width: 100%; padding: 0 8px; width: 100%; }
   .login-btn { font-size: 14px; padding: 12px; }
+  /* Login footer: stack vertically on very small phones */
+  .login-footer { flex-direction: column; gap: 8px; align-items: stretch; }
+  .login-link { justify-content: center; }
+  /* Login select and input: bigger tap targets */
+  #login-select, #login-pin { font-size: 16px !important; min-height: 48px; }
+  #login-btn { min-height: 52px; font-size: 16px; }
 }
 
 .login-sigil {
@@ -281,18 +287,34 @@ select:not([multiple]) {
   margin-top: 18px;
   display: flex;
   justify-content: center;
-  gap: 24px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .login-link {
   font-family: var(--font-ui);
-  font-size: 10px;
-  letter-spacing: 1px;
+  font-size: 11px;
+  letter-spacing: .8px;
   text-transform: uppercase;
   color: var(--text3);
   cursor: pointer;
-  transition: color .15s;
+  transition: color .15s, background .15s;
+  /* Big touch target */
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  user-select: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
 }
-.login-link span { color: var(--accent3); }
+.login-link:hover, .login-link:active {
+  border-color: var(--accent3);
+  background: var(--accent-bg);
+}
+.login-link span { color: var(--accent3); font-weight: 600; }
 .login-link:hover span { color: var(--gold); }
 
 #login-status {
@@ -1914,12 +1936,12 @@ select:not([multiple]) {
       <div id="login-status" class="info"></div>
 
       <div class="login-footer">
-        <div class="login-link" onclick="openModal('create-char-modal')">
+        <button class="login-link" onclick="openModal('create-char-modal')" type="button">
           New character? <span>Create one</span>
-        </div>
-        <div class="login-link" onclick="openModal('dm-modal')">
+        </button>
+        <button class="login-link" onclick="openModal('dm-modal')" type="button">
           DM? <span>Admin panel</span>
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -24354,9 +24376,13 @@ function initMobileAdaptations() {
   updateTabLabels();
   window.addEventListener('resize', updateTabLabels);
 
-  // Prevent double-tap zoom on buttons/tabs on iOS
-  document.querySelectorAll('button, .page-tab, .slot-pip').forEach(el => {
-    el.addEventListener('touchend', e => { e.preventDefault(); el.click(); }, { passive: false });
+  // iOS double-tap zoom prevention: only on page tabs (not all buttons, 
+  // which causes double-fire issues on login buttons etc.)
+  document.querySelectorAll('.page-tab').forEach(el => {
+    el.addEventListener('touchend', e => {
+      e.preventDefault();
+      el.click();
+    }, { passive: false });
   });
 
   // Scroll active tab into view when switching tabs
