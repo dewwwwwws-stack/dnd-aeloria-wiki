@@ -4241,9 +4241,17 @@ function updateCharSummary() {
   if (classes.length) {
     classSummary = classes.map(entry => {
       const lv = entry.levels?.length || 0;
-      const name = entry.class ? (entry.class.charAt(0).toUpperCase() + entry.class.slice(1)) : '';
-      return `${name} ${lv}`;
-    }).join(' / ');
+      // Use the live dropdown value for primary class if it's more current
+      const rawClass = entry === classes[0]
+        ? (document.getElementById('ci-class')?.value || entry.class || '')
+        : (entry.class || '');
+      const name = rawClass ? (rawClass.charAt(0).toUpperCase() + rawClass.slice(1)) : '';
+      return name ? `${name} ${lv}` : '';
+    }).filter(Boolean).join(' / ');
+  } else if (currentChar.class) {
+    // Fallback to flat field
+    const name = currentChar.class.charAt(0).toUpperCase() + currentChar.class.slice(1);
+    classSummary = `${name} ${getLevel()}`;
   }
   const totalLv = getLevel();
   const parts = [
@@ -9364,48 +9372,39 @@ const CLASS_ASI_LEVELS = {
 
 // Feat categories for filtering
 const ORIGIN_FEATS = [
-  'Alert [Origin]','Crafter [Origin]','Healer [Origin]','Lucky [Origin]',
-  'Magic Initiate (Cleric) [Origin]','Magic Initiate (Druid) [Origin]',
-  'Magic Initiate (Wizard) [Origin]','Musician [Origin]','Savage Attacker [Origin]',
-  'Skilled [Origin]','Tavern Brawler [Origin]','Tough [Origin]',
-{"key":"cult_of_the_dragon_initiate","name":"Cult of the Dragon Initiate [Origin]","type":"origin","prereq":"","desc":"I know Draconic, or another language I choose if already known. As a Magic action, I can cause a crea in 30 ft to make a Wis save (DC=8+WIS+PB) or be Frightened until my next turn ends. On a success/effect end, the target is immune to the effect for ","source":"FRHoF","asiScores":[]},
-{"key":"harper_agent","name":"Harper Agent [Origin]","type":"origin","prereq":"","desc":"I know Thieves' Cant. I gain proficiency with a Musical Instrument of my choice. When I take the Help action to assist an ally's attack roll, the enemy I'm distracting can be within 30 ft as long as it can see or hear me.","source":"FRHoF","asiScores":[]},
-{"key":"lords__alliance_agent","name":"Lords' Alliance Agent [Origin]","type":"origin","prereq":"","desc":"Once per turn, when I score a Critical Hit, I can choose an ally in 30 ft who can see or hear me and give them Heroic Inspiration if they lack it. When an enemy deals dmg to an ally in 5 ft of me, I gain Adv on my next atk roll vs that enemy before m","source":"FRHoF","asiScores":[]},
-{"key":"purple_dragon_rook","name":"Purple Dragon Rook [Origin]","type":"origin","prereq":"","desc":"I gain proficiency in one of the following skills: Insight, Performance, or Persuasion. Once per Long Rest, when I roll for Initiative, I can give Heroic Inspiration to a number of visible crea in 30 ft up to my Prof Bonus.","source":"FRHoF","asiScores":[]},
-{"key":"spellfire_spark","name":"Spellfire Spark [Origin]","type":"origin","prereq":"","desc":"Once per turn, when I take dmg from a spell or magical effect, I reduce the dmg by 1d4 if I'm not Incapacitated. I learn the Sacred Flame cantrip. I can also cast it as a Bns my Prof Bonus times per Long Rest.","source":"FRHoF","asiScores":[]},
-{"key":"tyro_of_the_gauntlet","name":"Tyro of the Gauntlet [Origin]","type":"origin","prereq":"","desc":"As a Reaction, when an ally in 5 ft that isn't Incapacitated is subjected to an effect that pushes or pulls it, I can prevent that movement. When I take the Ready action, the next atk roll made against me before my next turn has Disadv.","source":"FRHoF","asiScores":[]},
-{"key":"zhentarim_ruffian","name":"Zhentarim Ruffian [Origin]","type":"origin","prereq":"","desc":"When I roll dmg for an Opportunity Atk, I can roll the damage twice and use either roll. If I have Heroic Inspiration when I roll Initiative, I can expend it to give myself and allies Adv on that Initiative roll.","source":"FRHoF","asiScores":[]},
-{"key":"cold_caster","name":"Cold Caster","type":"general","prereq":"Level 4+","desc":"I learn the Ray of Frost cantrip, or a different cantrip off the Wizard spell list if I already know it. Once per turn, when I hit a crea with an atk roll and deal Cold dmg, the crea subtracts 1d4 from the next saving throw it makes before my next tu","source":"FRHoF","asiScores":[]},
-{"key":"dragonscarred","name":"Dragonscarred","type":"general","prereq":"Level 4+, Cult of the Dragon Initiate feat","desc":"+1 Con or Cha. I gain resistance to Acid, Cold, Fire, Lightning, or Poison dmg. When I deal dmg as part of the Atk or Magic action on my turn, I can use the Dragon's Terror benefit of the Cult of the Dragon Initiate as a Bonus Action that turn.","source":"FRHoF","asiScores":[]},
-{"key":"enclave_magic","name":"Enclave Magic","type":"general","prereq":"Level 4+, Emerald Enclave Fledgling feat","desc":"I have Adv on ability checks when taking the Influence action with beasts. I always have the Beast Sense spell prepared. I can also cast it without expending a spell slot once per Long Rest. When cast in this way, the spell doesn't require Concentrat","source":"FRHoF","asiScores":[]},
-{"key":"fairy_trickster","name":"Fairy Trickster","type":"general","prereq":"Level 4+","desc":"When I take the Disengage action, I'm unhindered by Difficult Terrain for the rest of that turn. When I hit a crea with a atk roll, I can cause the crea to make a Wis save (DC=8+ASI+PB) or have Disadv on saves until my next turn ends. I can do this a","source":"FRHoF","asiScores":[]},
-{"key":"genie_magic","name":"Genie Magic","type":"general","prereq":"","desc":"","source":"FRHoF","asiScores":[]},
-{"key":"harper_teamwork","name":"Harper Teamwork","type":"general","prereq":"Level 4+, Harper Agent feat","desc":"When I take the Help action to aid an ally's atk roll against an enemy, that enemy has Disadv on its first saving throw before my next turn starts. If I succeed on a save to end the Frightened or Paralyzed condition on myself, I can end the same cond","source":"FRHoF","asiScores":[]},
-{"key":"lordly_resolve","name":"Lordly Resolve","type":"general","prereq":"Level 4+, Lords' Alliance Agent feat","desc":"As a Bns once per Long Rest, I can choose 3 crea in 60 ft that see me. Each target can use a Reac to end the Prone condition if its Speed isn't 0. I also bolster them for 1 min or until I'm Incapacitated. A bolstered crea can't be possessed, Charmed,","source":"FRHoF","asiScores":[]},
-{"key":"mythal_touched","name":"Mythal Touched","type":"general","prereq":"Level 4+","desc":"When I'm hit by a spell attack or fail a save vs a spell, I can use a Rea to roll on the Mythal-Touched Magic Table (See Notes Page) to create a magical effect. If the effect requires a save, the DC=8+ASI+PB. I can use this Rea a number of times equa","source":"FRHoF","asiScores":[]},
-{"key":"order_s_resilience","name":"Order's Resilience","type":"general","prereq":"Level 4+, Tyro of the Gauntlet feat","desc":"When I have the Prone condition, I can end it by spending 5 ft of movement. If within 5 ft of an ally, and neither of us has the Incapacitated condition, me and that ally have Adv on Str saves.","source":"FRHoF","asiScores":[]},
-{"key":"purple_dragon_commandant","name":"Purple Dragon Commandant","type":"general","prereq":"Level 4+, Purple Dragon Rook feat or Martial Weapon Proficiency","desc":"As a Bns, I can grant a visible ally in 30 ft Temp HP equal to 2d6+ASI. I can use this Bns a number of times equal to my Prof Bonus. While Bloodied, I gain Adv on atk rolls.","source":"FRHoF","asiScores":[]},
-{"key":"spellfire_adept","name":"Spellfire Adept","type":"general","prereq":"Level 4+, Spellfire Spark feat or the Spellcasting or Pact Magic Feature","desc":"Once per turn, when a spell I cast deals Radiant dmg, I can expend up to 2 HD, roll them, and add the total to one damage roll of the spell. My Radiant dmg ignores Resistance to Radiant dmg.","source":"FRHoF","asiScores":[]},
-{"key":"street_justice","name":"Street Justice","type":"general","prereq":"Level 4+","desc":"My allies have Adv on atk rolls against a crea Grappled by me. When I bind a crea with Chain, Manacles, or Rope, I can add my PB to the DC to escape or burst the bonds. A crea's Hostile attitude doesn't impose Disadv on my Cha (Intimidation) checks t","source":"FRHoF","asiScores":[]},
-{"key":"zhentarim_tactics","name":"Zhentarim Tactics","type":"general","prereq":"Level 4+, Zhentarim Ruffian feat","desc":"When a crea in 5 ft hits me with a melee atk, I can make an Opportunity Attack against that creature. When I finish a Long Rest, choose a skill in which I have Proficiency. I have Expertise in that skill until I finish my next Long Rest.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_bloodshed","name":"Boon of Bloodshed","type":"general","prereq":"Level 19+","desc":"+1 to Any. When visible enemy is reduced to 0 HP, I gain Adv on my next atk roll before my next turn ends. Once per turn, when I make an atk roll while Bloodied, I deal extra dmg equal to my PB. This extra dmg is the same as the atk's type.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_bountiful_health","name":"Boon of Bountiful Health","type":"general","prereq":"Level 19+","desc":"+1 to Any. When I gain Temp HP, increase the number of Temp HP by 5. When I spend one or more HD to regain HP, I can use the highest number possible for each die.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_communication","name":"Boon of Communication","type":"general","prereq":"Level 19+","desc":"+1 to Int, Wis, or Cha. I don't have Disadv on ability checks to influence Hostile creatures. I understand the literal meaning of any language I hear, see signed, or read. I also gain telepathy with a range of 120 ft.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_desperate_resilience","name":"Boon of Desperate Resilience","type":"general","prereq":"Level 19+","desc":"+1 to Str or Con. While I'm Bloodied, I have Resistance to every damage type except Force.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_exquisite_radiance","name":"Boon of Exquisite Radiance","type":"general","prereq":"Level 19+","desc":"+1 to Any. Crea I reduce to 0 HP can't become Undead. Once per Long Rest when I roll to deal Radiant dmg, I can use the maximum number for each damage die.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_fluid_forms","name":"Boon Of Fluid Forms","type":"general","prereq":"","desc":"","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_fortune_s_favor","name":"Boon of Fortune's Favor","type":"general","prereq":"Level 19+","desc":"+1 to Any. Once per turn when I fail a saving throw, I can reroll it and must use the new roll.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_poison_mastery","name":"Boon of Poison Mastery","type":"general","prereq":"Level 19+","desc":"+1 to Any. I'm Immune to Poison dmg and the Poisoned condition. Once per turn when I roll dice to determine Poison dmg from an attack, spell or feature, I can use the maximum number for each die.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_revelry","name":"Boon of Revelry","type":"general","prereq":"Level 19+","desc":"+1 to Int, Wis, or Cha. I always have Otto's Irresistible Dance prepared. It requires no components and taking dmg can't break my Concentration. I can also cast it once per Long Rest without a spell slot. While Charmed by my Otto's Irresistible Dance","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_terror","name":"Boon of Terror","type":"general","prereq":"Level 19+","desc":"I am Immune to the Frightened condition and gain Proficiency and Expertise in Intimidation. Once per rest, when a crea with the Frightened condition starts its turn in 60 ft, I can take a Rea to cause it to make a Wis save (DC=8+CHA+PB) or spend its ","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_the_bright_sun","name":"Boon of the Bright Sun","type":"general","prereq":"Level 19+","desc":"+1 to Con, Wis, or Cha. As a Bns, I radiate a 30-ft Emanation of Bright Light that is sunlight. If this Emanation overlaps with Darkness created by a spell, that spell is dispelled. The Emanation lasts until dismissed (no action needed), I die, or I'","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_the_furious_storm","name":"Boon of the Furious Storm","type":"general","prereq":"Level 19+, Spellcasting or Pact Magic Feature","desc":"+1 to Int, Wis, or Cha. I have Resistance to Lightning and Thunder dmg. While Bloodied, I'm Immune. Creatures also have Disadv on saves against my spells that deal Lightning or Thunder dmg.","source":"FRHoF","asiScores":[]},
-{"key":"boon_of_the_soul_drinker","name":"Boon of the Soul Drinker","type":"general","prereq":"Level 19+","desc":"+1 to Any. I gain Resistance to Cold and Necrotic dmg. Once per rest, when an enemy in 120 ft is reduced to 0 HP, I can regain 50 HP as a Reaction.","source":"FRHoF","asiScores":[]}
+  'Alert [Origin]',
+  'Child of the Sun [Origin]',
+  'Crafter [Origin]',
+  'Cult of the Dragon Initiate [Origin]',
+  'Emerald Enclave Fledgling [Origin]',
+  'Harper Agent [Origin]',
+  'Healer [Origin]',
+  "Lords' Alliance Agent [Origin]",
+  'Lucky [Origin]',
+  'Magic Initiate (Cleric) [Origin]',
+  'Magic Initiate (Druid) [Origin]',
+  'Magic Initiate (Wizard) [Origin]',
+  'Musician [Origin]',
+  'Purple Dragon Rook [Origin]',
+  'Savage Attacker [Origin]',
+  'Shadowmoor Hexer [Origin]',
+  'Sharp Eye [Origin]',
+  'Skilled [Origin]',
+  'Spellfire Spark [Origin]',
+  'Survivor [Origin]',
+  'Tavern Brawler [Origin]',
+  'Tireless Reveler [Origin]',
+  'Tough [Origin]',
+  'Tyro of the Gauntlet [Origin]',
+  'Vampire Hunter [Origin]',
+  "Vampire's Plaything [Origin]",
+  'Zhentarim Ruffian [Origin]'
 ];
 function getEpicBoonFeats() {
-  return Object.keys(PHB_FEATS).filter(k =>
-    PHB_FEATS[k].name.startsWith('Boon of') || PHB_FEATS[k].name === 'Boon of Truesight'
-  ).map(k => PHB_FEATS[k].name);
+  // Returns names of all epic-tier feats (boons + any type:'epic' feat)
+  return Object.values(PHB_FEATS)
+    .filter(f => f.type === 'epic')
+    .map(f => f.name);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -16621,6 +16620,7 @@ function populateAllTabs() {
   ensureMagicItems();
   renderFeatItemsWeapons();
   renderMagicItemsPanel();
+  renderClassChoices();
   const c = currentChar;
 
   // All data-key fields (flat keys and currency sub-keys)
@@ -19254,6 +19254,14 @@ function buildClassDropdown() {
   });
   sel.addEventListener('change', onClassChange);
   el.parentNode.replaceChild(sel, el);
+  // Sync classes array from the displayed class (fixes topbar stale data on load)
+  if (currentChar?.classes?.length && current) {
+    currentChar.classes[0].class = current.toLowerCase().trim();
+    if (!currentChar.classes[0].subclass && currentChar.subclass) {
+      currentChar.classes[0].subclass = currentChar.subclass;
+    }
+  }
+  updateCharSummary();
 }
 
 // ── Populate subclass dropdown ─────────────────────────────
@@ -21852,12 +21860,15 @@ function renderFeatPicker(slot, dec) {
   const AB_FULL = {str:'Strength',dex:'Dexterity',con:'Constitution',int:'Intelligence',wis:'Wisdom',cha:'Charisma'};
   const level  = getLevel();
 
-  // Filter feats by type
+  const isOrigin = slot.type === 'origin';
+  // Filter feats by slot type
   let opts = Object.values(PHB_FEATS).filter(f => {
-    if (!f.type || ['full','half','none','pact'].includes(f.type)) return false; // skip class/race stubs
-    if (isEpic) return getEpicBoonFeats().includes(f.name);
-    if (ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]')) return false;
-    if (f.name.startsWith('Boon of') || f.name === 'Boon of Truesight') return false;
+    if (!f.type || ['full','half','none','pact'].includes(f.type)) return false;
+    if (isEpic)   return f.type === 'epic';
+    if (isOrigin) return f.type === 'origin' || ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]');
+    // General feat slot: exclude origin, epic
+    if (f.type === 'origin' || ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]')) return false;
+    if (f.type === 'epic' || f.name.startsWith('Boon of')) return false;
     return true;
   }).map(f => f.name).sort();
 
@@ -21882,16 +21893,11 @@ function renderFeatPicker(slot, dec) {
   return `
     <div style="margin-top:6px">
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
-        ${[
-          ['all',       'All'],
-          ['origin',    'Origin'],
-          ['general',   'General'],
-          ['skill',     'Skill'],
-          ['path',      'Path'],
-          ['epic',      'Epic (Boon)'],
-          ['dark gift', 'Dark Gift'],
-          ['dragonmark','Dragonmark'],
-        ].map(([t,label]) => `<button class="tbtn" style="font-size:9px;padding:1px 7px;${activeFilter===t?'border-color:var(--accent);color:var(--accent);font-weight:600':''}" onclick="setFeatPickerFilter('${slot.id}','${t}');renderFeatSlotsPanel()">${label}</button>`).join('')}
+        ${(isEpic ? [['all','All'],['epic','Epic (Boon)']] :
+           isOrigin ? [['all','All'],['origin','Origin']] :
+           [['all','All'],['general','General'],['skill','Skill'],['path','Path'],
+            ['dark gift','Dark Gift'],['dragonmark','Dragonmark']]
+          ).map(([t,label]) => `<button class="tbtn" style="font-size:9px;padding:1px 7px;${activeFilter===t?'border-color:var(--accent);color:var(--accent);font-weight:600':''}" onclick="setFeatPickerFilter('${slot.id}','${t}');renderFeatSlotsPanel()">${label}</button>`).join('')}
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <div style="flex:1;position:relative" id="fp-wrap-${slot.id}">
@@ -23698,12 +23704,22 @@ function renderClassRows() {
       clsSel.appendChild(opt);
     });
     clsSel.addEventListener('change', () => {
-      entry.class = clsSel.value;
-      entry.subclass = '';
-      entry.levels = Array.from({length: lv}, (_, i) => i + 1);
-      // Update level plan
+      const newClass = clsSel.value;
+      if (!newClass) return;
+      const realEntry = currentChar.classes?.[idx];
+      if (realEntry) {
+        realEntry.class    = newClass;
+        realEntry.subclass = '';
+        realEntry.levels   = Array.from({length: lv}, (_, i) => i + 1);
+      }
+      // Sync legacy flat fields immediately
+      if (idx === 0) {
+        currentChar.class    = newClass;
+        currentChar.subclass = '';
+      }
       rebuildLevelPlan();
-      onMulticlassChange();
+      // Defer DOM rebuild to next tick so change event fully completes first
+      setTimeout(() => onMulticlassChange(), 0);
     });
 
     // Level input
@@ -23784,15 +23800,11 @@ function renderClassRows() {
         });
       }
       subSel.addEventListener('change', () => {
-        entry.subclass = subSel.value;
-        // Update legacy fields if primary
-        if (isPrimary) {
-          currentChar.subclass = subSel.value;
-        }
-        onMulticlassChange();
-        renderKnownSpells();
-        updateCompanionTabVisibility();
-        renderCompanionTab();
+        const newSub = subSel.value;
+        const realEntry = currentChar.classes?.[idx];
+        if (realEntry) realEntry.subclass = newSub;
+        if (isPrimary) currentChar.subclass = newSub;
+        setTimeout(() => onMulticlassChange(), 0);
       });
       subRow.appendChild(subSel);
       container.appendChild(subRow);
@@ -23815,6 +23827,7 @@ function addClassRow() {
   currentChar.classes.push({ class: '', subclass: '', levels: [0] }); // placeholder count of 1
   rebuildLevelPlan();
   renderClassRows();
+  renderClassChoices();
 }
 
 function syncLegacyClassFields() {
@@ -23866,7 +23879,11 @@ function syncClassRowsFromLevelPlan() {
   });
 }
 
+let _omcRunning = false;
 function onMulticlassChange() {
+  if (_omcRunning) return;
+  _omcRunning = true;
+  try {
   syncLegacyClassFields();
   // Recalculate HP if using an auto method
   if (currentChar.hp_method && currentChar.hp_method !== 'manual') {
@@ -23909,7 +23926,11 @@ function onMulticlassChange() {
   renderFeatSlotsPanel();
   updateCompanionTabVisibility();
   renderCompanionTab();
+  renderClassChoices();
   autoSave();
+  } finally {
+    _omcRunning = false;
+  }
 }
 
 // ── Level Plan Modal ──────────────────────────────────────
@@ -24068,6 +24089,7 @@ function applyLevelPlan() {
   syncClassRowsFromLevelPlan(); // keep level counts in sync
 
   closeModal('level-plan-modal');
+  renderClassChoices();
   onMulticlassChange();
   toast('Level plan applied', 'ok');
 }
