@@ -1266,11 +1266,18 @@ select:not([multiple]) {
   color: var(--gold); min-width: 30px; text-align: right;
 }
 .asi-score-chip {
+  cursor: grab;
   padding: 5px 12px;
   background: var(--bg2); border: 1px solid var(--border2);
   border-radius: var(--radius);
   font-family: var(--font-ui); font-size: 14px; font-weight: 700;
   color: var(--text); letter-spacing: .5px;
+}
+.asi-score-chip.dragging { opacity: .4; cursor: grabbing; }
+.asi-assign-row.asi-drop-hover {
+  background: rgba(var(--accent-rgb, 11,124,3), .15);
+  outline: 1px solid var(--accent);
+  border-radius: 4px;
 }
 .asi-score-chip.used { opacity: .35; text-decoration: line-through; }
 .asi-summary-chip {
@@ -9392,7 +9399,8 @@ const RACIAL_RESOURCES                = {
       ],
       "desc": "Become Large size for 10 min as a Bonus Action."
     }
-  ]
+  ],
+  "multiverse_aarakocra": [{"id": "wind_caller_racial", "name": "Wind Caller", "recovery": "long", "minLevel": 3, "maxByLevel": [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "Cast Gust of Wind without a material component. 1/Long Rest (or using a spell slot of 2nd level or higher)."}]
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -11120,7 +11128,7 @@ const PHB_RACES = {
   "draconblood_dragonborn": {"name": "Draconblood Dragonborn (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 CHA, +1 INT", "traits": "Speed 30 ft", "features": [{"name": "Darkvision", "level": 1, "desc": "You can see in dim light within 60 ft as bright, darkness as dim light. You discern colors as shades of gray."}, {"name": "Breath Weapon", "level": 1, "desc": "As an Action, exhale destructive energy (choose type matching your draconic ancestry). Recharge on Short or Long Rest."}, {"name": "Forceful Presence", "level": 1, "desc": "When you make an Intimidation or Persuasion check, you can draw on draconic power to gain Advantage on the roll. Once per Long Rest."}], "subraces": {}, "darkvision": 0, "flySpeed": 0},
   "ravenite_dragonborn": {"name": "Ravenite Dragonborn (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 STR, +1 CON", "traits": "Speed 30 ft", "features": [{"name": "Breath Weapon", "level": 1, "desc": "As an Action, exhale destructive energy (choose type matching your draconic ancestry). Recharge on Short or Long Rest."}, {"name": "Vengeful Assault", "level": 1, "desc": "When you take damage from a creature within 5 ft, you can use your Reaction to make one melee weapon attack against that creature. Once per Short or Long Rest."}], "subraces": {}, "darkvision": 0, "flySpeed": 0},
   "custom_lineage": {"name": "Custom lineage (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 to one ability score of your choice", "traits": "Speed 30 ft \u00b7 Size Small or Medium", "features": [{"name": "Variable Trait", "level": 1, "desc": "You gain Darkvision 60 ft OR proficiency in one skill of your choice."}, {"name": "Feat", "level": 1, "desc": "You gain one Origin feat of your choice."}], "subraces": {}, "darkvision": 0, "flySpeed": 0},
-  "multiverse_aarakocra": {"name": "Aarakocra (MPMM)", "source": "MotM", "size": "Small or Medium", "speed": 30, "flySpeed": 50, "darkvision": 0, "scorestxt": "+2 and +1 to two different abilities, or +1 to three different abilities", "traits": "Speed 30 ft \u00b7 Fly 50 ft \u00b7 Size Small or Medium", "features": [{"name": "Flight", "level": 1, "desc": "You have a Fly Speed equal to your Speed (50 ft). To use this speed, you can't be wearing medium or heavy armor."}, {"name": "Talons", "level": 1, "desc": "Your talons are natural weapons, which you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + STR modifier Slashing damage, instead of the Bludgeoning damage normal for an unarmed strike."}, {"name": "Wind Caller", "level": 1, "desc": "Starting at 3rd level, you can cast Gust of Wind with this trait, without requiring a material component. Once you cast it with this trait, you can't do so again until you finish a Long Rest. You can also cast it using any spell slots you have of 2nd level or higher. Intelligence, Wisdom, or Charisma is your spellcasting ability for it (choose when you select this race)."}], "subraces": {}},
+  "multiverse_aarakocra": {"name": "Aarakocra (MPMM)", "source": "MotM", "size": "Small or Medium", "speed": 30, "flySpeed": 50, "darkvision": 0, "scorestxt": "+2 and +1 to two different abilities, or +1 to three different abilities", "traits": "Speed 30 ft \u00b7 Fly 50 ft \u00b7 Size Small or Medium", "features": [{"name": "Flight", "level": 1, "desc": "You have a Fly Speed equal to your Speed (50 ft). To use this speed, you can't be wearing medium or heavy armor."}, {"name": "Talons", "level": 1, "desc": "Your talons are natural weapons, which you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + STR modifier Slashing damage, instead of the Bludgeoning damage normal for an unarmed strike."}, {"name": "Wind Caller", "level": 3, "desc": "Starting at 3rd level, you can cast Gust of Wind with this trait, without requiring a material component. Once you cast it with this trait, you can't do so again until you finish a Long Rest. You can also cast it using any spell slots you have of 2nd level or higher. Intelligence, Wisdom, or Charisma is your spellcasting ability for it (choose when you select this race).", "usages": 1, "recovery": "long rest"}], "subraces": {}},
   "multiverse_aasimar": {"name": "Aasimar (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 and +1 to two different abilities, or +1 to three different abilities", "traits": "Speed 30 ft \u00b7 Darkvision 60 ft \u00b7 Size Small or Medium", "features": [{"name": "Celestial Resistance", "level": 1, "desc": "You have Resistance to Necrotic and Radiant damage."}, {"name": "Healing Hands", "level": 1, "desc": "As a Magic action, you touch a creature and roll a number of d4s equal to your Proficiency Bonus. The creature regains a number of Hit Points equal to the total rolled. Once you use this trait, you can't use it again until you finish a Long Rest."}, {"name": "Light Bearer", "level": 1, "desc": "You know the Light cantrip. Charisma is your spellcasting ability for it."}, {"name": "Celestial Revelation", "level": 1, "desc": "When you reach 3rd level, choose one of the following options: Heavenly Wings (Bonus Action, fly speed = walk speed for 1 min, 1/Long Rest), Inner Radiance (shed light; end of turn, Radiant dmg = PB to one creature within 10 ft), or Necrotic Shroud (frighten creatures within 10 ft, CON save DC 8+CHA+PB, 1/Long Rest)."}], "subraces": {}, "darkvision": 60, "flySpeed": 0},
   "multiverse_bugbear": {"name": "Bugbear (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 STR, +1 DEX", "traits": "Speed 30 ft \u00b7 Darkvision 60 ft", "features": [{"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Fey Ancestry", "level": 1, "desc": "Advantage on saves vs. Charmed, can't be magically put to sleep."}, {"name": "Long-Limbed", "level": 1, "desc": "When you make a melee attack on your turn, your reach is 5 ft greater than normal."}, {"name": "Powerful Build", "level": 1, "desc": "Count as one size larger for carrying capacity and push/pull/lift."}, {"name": "Sneaky", "level": 1, "desc": "Proficiency in Stealth."}, {"name": "Surprise Attack", "level": 1, "desc": "If you hit a creature with an attack roll and haven't moved on this turn, the attack deals an extra 2d6 damage. Can use once per turn."}], "subraces": {}, "darkvision": 60, "flySpeed": 0},
   "multiverse_centaur": {"name": "Centaur (MPMM)", "source": "2014", "size": "Medium", "speed": 40, "scorestxt": "+2 STR, +1 WIS", "traits": "Speed 40 ft \u00b7 Size Medium", "features": [{"name": "Charge", "level": 1, "desc": "If you move at least 30 ft straight toward a target and then hit with a melee weapon attack, you can immediately make a bonus attack with your hooves against that creature."}, {"name": "Equine Build", "level": 1, "desc": "Count as one size larger for carrying capacity. Any climb requiring hands/feet is difficult terrain. Your hooves are natural weapons (1d6 Bludgeoning)."}, {"name": "Natural Affinity", "level": 1, "desc": "Proficiency in Animal Handling, Medicine, Nature, or Survival (your choice)."}], "subraces": {}, "darkvision": 0, "flySpeed": 0},
@@ -14911,6 +14919,14 @@ function renderASIRollDisplay() {
     chip.className = 'asi-score-chip';
     chip.title = `Dice: [${r.dice.join(', ')}] — dropped ${r.dropped}`;
     chip.textContent = r.total;
+    chip.draggable = true;
+    chip.dataset.score = r.total;
+    chip.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', String(r.total));
+      e.dataTransfer.effectAllowed = 'move';
+      chip.classList.add('dragging');
+    });
+    chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
     disp.appendChild(chip);
     total += r.total;
   }
@@ -14933,8 +14949,17 @@ function renderASIArrayChips() {
     const totalCount  = _asiArray.filter(v => v === val).length;
     const usedIdx     = _asiArray.slice(0, _asiArray.indexOf(val) + 1)
                          .filter(v => v === val).length;
-    chip.className = 'asi-score-chip' + (usedIdx <= useCount ? ' used' : '');
+    const isUsed = usedIdx <= useCount;
+    chip.className = 'asi-score-chip' + (isUsed ? ' used' : '');
     chip.textContent = val;
+    chip.draggable = true;
+    chip.dataset.score = val;
+    chip.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', String(val));
+      e.dataTransfer.effectAllowed = 'move';
+      chip.classList.add('dragging');
+    });
+    chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
     container.appendChild(chip);
   }
 }
@@ -14990,6 +15015,21 @@ function renderASIAssignment() {
       </select>
       <span class="asi-assign-mod" id="asi-assign-mod-${ab}">${modStr}</span>
     `;
+    // Drop target: drag a score chip onto this ability row
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('asi-drop-hover');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('asi-drop-hover'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      row.classList.remove('asi-drop-hover');
+      const val = parseInt(e.dataTransfer.getData('text/plain'));
+      if (!isNaN(val)) {
+        onASIAssign(ab, val);
+      }
+    });
     grid.appendChild(row);
   }
 
@@ -17076,6 +17116,7 @@ function isSpellKnownOrPrepared(spellKey) {
   if (Object.values(sp.featSpells||{}).some(arr => (arr||[]).includes(spellKey))) return true;
   // Check subclass bonus spells
   if (getSubclassBonusSpells().some(s => s.key === spellKey && s.available)) return true;
+  if (getRacialBonusSpells().some(s => s.key === spellKey)) return true;
   // Check invocation-granted spells
   if (getInvocationGrantedSpells().some(s => s.key === spellKey)) return true;
   // Check Mystic Arcanum
@@ -17084,6 +17125,148 @@ function isSpellKnownOrPrepared(spellKey) {
 }
 
 // PHB 2024: spell level → minimum class level to gain it from a subclass list
+// ── Racial Bonus Spells ───────────────────────────────────────────
+// Spells granted by race features, keyed by race key.
+// Each entry: { key, name, minLevel (character level required), cantrip (bool) }
+const RACIAL_BONUS_SPELLS = {
+  "aasimar": [{"key": "light", "name": "Light", "minLevel": 1, "cantrip": true}],
+  "air_genasi": [{"key": "levitate", "name": "Levitate", "minLevel": 3}],
+  "astral_elf": [{"key": "dancing_lights", "name": "Dancing Lights", "minLevel": 1, "cantrip": true}],
+  "baalzebul_tiefling": [{"key": "thaumaturgy", "name": "Thaumaturgy", "minLevel": 1, "cantrip": true}, {"key": "ray_of_sickness", "name": "Ray of Sickness", "minLevel": 3}, {"key": "crown_of_madness", "name": "Crown of Madness", "minLevel": 5}],
+  "boggart": [{"key": "vicious_mockery", "name": "Vicious Mockery", "minLevel": 1, "cantrip": true}, {"key": "disguise_self", "name": "Disguise Self", "minLevel": 3}, {"key": "mirror_image", "name": "Mirror Image", "minLevel": 5}],
+  "changeling": [],
+  "custom_lineage": [],
+  "dankwood_goblin": [],
+  "dispater_tiefling": [{"key": "thaumaturgy", "name": "Thaumaturgy", "minLevel": 1, "cantrip": true}, {"key": "disguise_self", "name": "Disguise Self", "minLevel": 3}, {"key": "detect_thoughts", "name": "Detect Thoughts", "minLevel": 5}],
+  "draconblood_dragonborn": [],
+  "dragonborn": [],
+  "dwarf": [],
+  "earth_genasi": [{"key": "pass_without_trace", "name": "Pass Without Trace", "minLevel": 3}],
+  "eladrin_mtof": [],
+  "elf": [],
+  "elf/dark": [{"key": "dancing_lights", "name": "Dancing Lights", "minLevel": 1, "cantrip": true}, {"key": "faerie_fire", "name": "Faerie Fire", "minLevel": 3}, {"key": "darkness", "name": "Darkness", "minLevel": 5}],
+  "elf/high": [{"key": "wizard_cantrip", "name": "Wizard Cantrip (choice)", "minLevel": 1, "cantrip": true, "placeholder": true}],
+  "elf/wood": [],
+  "elf_lorwyn": [],
+  "elf_shadowmoor": [{"key": "dancing_lights", "name": "Dancing Lights", "minLevel": 1, "cantrip": true}, {"key": "faerie_fire", "name": "Faerie Fire", "minLevel": 3}],
+  "faerie": [{"key": "druidcraft", "name": "Druidcraft", "minLevel": 1, "cantrip": true}, {"key": "faerie_fire", "name": "Faerie Fire", "minLevel": 3}, {"key": "enlarge_reduce", "name": "Enlarge/Reduce", "minLevel": 5}],
+  "fallen_aasimar": [{"key": "light", "name": "Light", "minLevel": 1, "cantrip": true}],
+  "fierna_tiefling": [{"key": "friends", "name": "Friends", "minLevel": 1, "cantrip": true}, {"key": "charm_person", "name": "Charm Person", "minLevel": 3}, {"key": "suggestion", "name": "Suggestion", "minLevel": 5}],
+  "fire_genasi": [{"key": "produce_flame", "name": "Produce Flame", "minLevel": 1, "cantrip": true}, {"key": "burning_hands", "name": "Burning Hands", "minLevel": 3}],
+  "flamekin": [{"key": "produce_flame", "name": "Produce Flame", "minLevel": 1, "cantrip": true}, {"key": "burning_hands", "name": "Burning Hands", "minLevel": 3}, {"key": "scorching_ray", "name": "Scorching Ray", "minLevel": 5}],
+  "githyanki_mtof": [{"key": "mage_hand", "name": "Mage Hand", "minLevel": 1, "cantrip": true}, {"key": "jump", "name": "Jump", "minLevel": 3}, {"key": "misty_step", "name": "Misty Step", "minLevel": 5}],
+  "githzerai_mtof": [{"key": "mage_hand", "name": "Mage Hand", "minLevel": 1, "cantrip": true}, {"key": "shield", "name": "Shield", "minLevel": 3}, {"key": "detect_thoughts", "name": "Detect Thoughts", "minLevel": 5}],
+  "glasya_tiefling": [{"key": "minor_illusion", "name": "Minor Illusion", "minLevel": 1, "cantrip": true}, {"key": "disguise_self", "name": "Disguise Self", "minLevel": 3}, {"key": "invisibility", "name": "Invisibility", "minLevel": 5}],
+  "gnome/forest": [{"key": "minor_illusion", "name": "Minor Illusion", "minLevel": 1, "cantrip": true}],
+  "gnome/rock": [],
+  "goliath": [],
+  "goliath/cloud": [{"key": "misty_step", "name": "Misty Step", "minLevel": 3}],
+  "goliath/fire": [],
+  "goliath/frost": [],
+  "goliath/hill": [],
+  "goliath/stone": [],
+  "goliath/storm": [],
+  "gray_dwarf": [{"key": "enlarge_reduce", "name": "Enlarge/Reduce", "minLevel": 3}, {"key": "invisibility", "name": "Invisibility", "minLevel": 5}],
+  "half_elf": [],
+  "halfling": [],
+  "hexblood": [{"key": "hex", "name": "Hex", "minLevel": 1}, {"key": "disguise_self", "name": "Disguise Self", "minLevel": 1}],
+  "human": [],
+  "kalashtar": [],
+  "kithkin_lorwyn": [],
+  "kithkin_shadowmoor": [],
+  "levistus_tiefling": [{"key": "ray_of_frost", "name": "Ray of Frost", "minLevel": 1, "cantrip": true}, {"key": "armor_of_agathys", "name": "Armor of Agathys", "minLevel": 3}, {"key": "darkness", "name": "Darkness", "minLevel": 5}],
+  "lorwyn_changeling": [],
+  "lycanthrope_werebear": [],
+  "lycanthrope_wereboar": [],
+  "lycanthrope_wererat": [],
+  "lycanthrope_weretiger": [],
+  "lycanthrope_werewolf": [],
+  "mammon_tiefling": [{"key": "mage_hand", "name": "Mage Hand", "minLevel": 1, "cantrip": true}, {"key": "tensers_floating_disk", "name": "Tenser's Floating Disk", "minLevel": 3}, {"key": "arcane_lock", "name": "Arcane Lock", "minLevel": 5}],
+  "mephistopheles_tiefling": [{"key": "mage_hand", "name": "Mage Hand", "minLevel": 1, "cantrip": true}, {"key": "burning_hands", "name": "Burning Hands", "minLevel": 3}, {"key": "flame_blade", "name": "Flame Blade", "minLevel": 5}],
+  "multiverse_aarakocra": [{"key": "gust_of_wind", "name": "Gust of Wind", "minLevel": 3}],
+  "multiverse_aasimar": [{"key": "light", "name": "Light", "minLevel": 1, "cantrip": true}],
+  "multiverse_air_genasi": [{"key": "shocking_grasp", "name": "Shocking Grasp", "minLevel": 1, "cantrip": true}, {"key": "feather_fall", "name": "Feather Fall", "minLevel": 3}, {"key": "levitate", "name": "Levitate", "minLevel": 5}],
+  "multiverse_bugbear": [],
+  "multiverse_centaur": [],
+  "multiverse_changeling": [],
+  "multiverse_deep_gnome": [{"key": "nondetection", "name": "Nondetection", "minLevel": 1}, {"key": "blindness_deafness", "name": "Blindness/Deafness", "minLevel": 3}, {"key": "blur", "name": "Blur", "minLevel": 5}],
+  "multiverse_duergar": [{"key": "enlarge_reduce", "name": "Enlarge/Reduce", "minLevel": 3}, {"key": "invisibility", "name": "Invisibility", "minLevel": 5}],
+  "multiverse_earth_genasi": [{"key": "blade_ward", "name": "Blade Ward", "minLevel": 1, "cantrip": true}, {"key": "pass_without_trace", "name": "Pass Without Trace", "minLevel": 3}, {"key": "erupting_earth", "name": "Erupting Earth", "minLevel": 5}],
+  "multiverse_eladrin": [],
+  "multiverse_firbolg": [{"key": "detect_magic", "name": "Detect Magic", "minLevel": 1}, {"key": "disguise_self", "name": "Disguise Self", "minLevel": 1}],
+  "multiverse_fire_genasi": [{"key": "produce_flame", "name": "Produce Flame", "minLevel": 1, "cantrip": true}, {"key": "burning_hands", "name": "Burning Hands", "minLevel": 3}, {"key": "flame_blade", "name": "Flame Blade", "minLevel": 5}],
+  "multiverse_githyanki": [{"key": "mage_hand", "name": "Mage Hand", "minLevel": 1, "cantrip": true}, {"key": "jump", "name": "Jump", "minLevel": 3}, {"key": "misty_step", "name": "Misty Step", "minLevel": 5}],
+  "multiverse_githzerai": [{"key": "mage_hand", "name": "Mage Hand", "minLevel": 1, "cantrip": true}, {"key": "shield", "name": "Shield", "minLevel": 3}, {"key": "detect_thoughts", "name": "Detect Thoughts", "minLevel": 5}],
+  "multiverse_goblin": [],
+  "multiverse_goliath": [],
+  "multiverse_hobgoblin": [],
+  "multiverse_kenku": [],
+  "multiverse_kobold": [],
+  "multiverse_lizardfolk": [],
+  "multiverse_minotaur": [],
+  "multiverse_orc": [],
+  "multiverse_satyr": [],
+  "multiverse_sea_elf": [],
+  "multiverse_shadar_kai": [],
+  "multiverse_triton": [{"key": "fog_cloud", "name": "Fog Cloud", "minLevel": 1}, {"key": "gust_of_wind", "name": "Gust of Wind", "minLevel": 3}, {"key": "wall_of_water", "name": "Wall of Water", "minLevel": 5}],
+  "multiverse_water_genasi": [{"key": "acid_splash", "name": "Acid Splash", "minLevel": 1, "cantrip": true}, {"key": "create_or_destroy_water", "name": "Create or Destroy Water", "minLevel": 3}, {"key": "water_walk", "name": "Water Walk", "minLevel": 5}],
+  "multiverse_yuan_ti": [{"key": "poison_spray", "name": "Poison Spray", "minLevel": 1, "cantrip": true}, {"key": "animal_friendship", "name": "Animal Friendship", "minLevel": 3}, {"key": "suggestion", "name": "Suggestion", "minLevel": 5}],
+  "orc": [],
+  "pallid_elf": [{"key": "light", "name": "Light", "minLevel": 1, "cantrip": true}, {"key": "sleep", "name": "Sleep", "minLevel": 3}, {"key": "invisibility", "name": "Invisibility", "minLevel": 5}],
+  "protector_aasimar": [{"key": "light", "name": "Light", "minLevel": 1, "cantrip": true}],
+  "ravenite_dragonborn": [],
+  "rimekin": [{"key": "ray_of_frost", "name": "Ray of Frost", "minLevel": 1, "cantrip": true}, {"key": "ice_knife", "name": "Ice Knife", "minLevel": 3}, {"key": "spike_growth", "name": "Spike Growth", "minLevel": 5}],
+  "scourge_aasimar": [{"key": "light", "name": "Light", "minLevel": 1, "cantrip": true}],
+  "sea_elf": [],
+  "shadar_kai_elf": [],
+  "shifter": [],
+  "simic_hybrid": [],
+  "tabaxi_motm": [],
+  "thri_kreen": [],
+  "tiefling": [{"key": "thaumaturgy", "name": "Thaumaturgy", "minLevel": 1, "cantrip": true}, {"key": "hellish_rebuke", "name": "Hellish Rebuke", "minLevel": 3}, {"key": "darkness", "name": "Darkness", "minLevel": 5}],
+  "tiefling/abyssal": [{"key": "poison_spray", "name": "Poison Spray", "minLevel": 1, "cantrip": true}, {"key": "ray_of_sickness", "name": "Ray of Sickness", "minLevel": 3}, {"key": "hold_person", "name": "Hold Person", "minLevel": 5}],
+  "tiefling/chthonic": [{"key": "chill_touch", "name": "Chill Touch", "minLevel": 1, "cantrip": true}, {"key": "false_life", "name": "False Life", "minLevel": 3}, {"key": "ray_of_enfeeblement", "name": "Ray of Enfeeblement", "minLevel": 5}],
+  "tiefling/infernal": [{"key": "thaumaturgy", "name": "Thaumaturgy", "minLevel": 1, "cantrip": true}, {"key": "hellish_rebuke", "name": "Hellish Rebuke", "minLevel": 3}, {"key": "darkness", "name": "Darkness", "minLevel": 5}],
+  "tortle_motm": [],
+  "warforged": [],
+  "water_genasi": [{"key": "shape_water", "name": "Shape Water", "minLevel": 1, "cantrip": true}, {"key": "create_or_destroy_water", "name": "Create or Destroy Water", "minLevel": 3}],
+  "yuan_ti_pureblood": [{"key": "poison_spray", "name": "Poison Spray", "minLevel": 1, "cantrip": true}, {"key": "animal_friendship", "name": "Animal Friendship", "minLevel": 3}, {"key": "suggestion", "name": "Suggestion", "minLevel": 5}],
+  "zariel_tiefling": [{"key": "thaumaturgy", "name": "Thaumaturgy", "minLevel": 1, "cantrip": true}, {"key": "searing_smite", "name": "Searing Smite", "minLevel": 3}, {"key": "branding_smite", "name": "Branding Smite", "minLevel": 5}],
+};
+
+function getRacialBonusSpells() {
+  if (!currentChar) return [];
+  const race    = currentChar.race?.toLowerCase().trim();
+  const subrace = currentChar.subrace?.toLowerCase().trim();
+  const level   = getLevel();
+  if (!race) return [];
+
+  // Collect spells from race key AND subrace compound key ("race/subracekey")
+  const raceSrc    = RACIAL_BONUS_SPELLS[race]    || [];
+  const subKey     = subrace ? `${race}/${subrace}` : null;
+  const subSrc     = (subKey && RACIAL_BONUS_SPELLS[subKey]) || [];
+  const allSpells  = [...raceSrc, ...subSrc];
+
+  return allSpells
+    .filter(s => !s.placeholder)           // skip choice-placeholders (e.g. High Elf cantrip)
+    .filter(s => level >= (s.minLevel || 1))
+    .map(s => {
+      const phb = PHB_SPELL_LIST.find(p => p.key === s.key)
+               || PHB_SPELL_LIST.find(p => p.name.toLowerCase() === s.name.toLowerCase());
+      return {
+        key:      phb?.key  || s.key,
+        name:     phb?.name || s.name,
+        level:    phb?.level ?? (s.cantrip ? 0 : 1),
+        source:   'race',
+        pipType:  s.cantrip ? 'cantrip' : 'subclass',
+        locked:   true,
+        label:    'Racial',
+        available: true,
+      };
+    });
+}
+window.getRacialBonusSpells = getRacialBonusSpells;
+
 function subclassSpellMinClassLevel(spellLevel, casterType) {
   if (casterType === 'half') {
     // Paladin / Ranger
@@ -17304,10 +17487,16 @@ function renderKnownSpells() {
   }
 
   const subclassSpells = getSubclassBonusSpells();
+  const racialSpells   = getRacialBonusSpells();
   const featSpells     = getFeatGrantedSpells();
 
   // Build display list
   const rows = [];
+
+  // 0. Racial bonus spells (always prepared, purple pip)
+  racialSpells.forEach(sp => {
+    rows.push({ ...sp, locked:true, label:'Racial' });
+  });
 
   // 1. Subclass bonus spells (always prepared when available, greyed when locked by level)
   subclassSpells.forEach(sp => {
