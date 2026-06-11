@@ -2091,7 +2091,11 @@ select:not([multiple]) {
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin:8px 0">
                 <div><div class="stat-badge" id="disp-ac">10</div><div class="stat-label">AC</div></div>
                 <div><div class="stat-badge" id="disp-init">+0</div><div class="stat-label">Initiative</div></div>
-                <div><div class="stat-badge" id="disp-speed">30</div><div class="stat-label">Speed (ft)</div></div>
+                <div>
+                  <div class="stat-badge" id="disp-speed" style="font-size:14px;min-width:52px">30</div>
+                  <div class="stat-label">Speed (ft)</div>
+                  <div id="speed-note" style="font-family:var(--font-ui);font-size:9px;color:var(--text3);text-align:center;margin-top:2px;line-height:1.3;max-width:80px;word-break:break-word"></div>
+                </div>
               </div>
               <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px" id="ac-formula-display">AC Method: Base 10 + DEX</div>
               <div style="display:flex;gap:10px;margin-top:6px">
@@ -2103,8 +2107,38 @@ select:not([multiple]) {
                 </label>
               </div>
               <div style="margin-top:8px">
-                <label class="field-label">Base Speed (ft)</label>
-                <input class="info-input" type="number" id="ci-base-speed" data-key="base_speed" value="30" oninput="calcSpeed()"/>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label class="field-label" style="margin:0">Speed Overrides</label>
+                  <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">0 = use racial default</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
+                  <div>
+                    <label class="field-label" style="font-size:9px;margin-bottom:2px">Walk</label>
+                    <input class="info-input" type="number" id="ci-speed-walk" placeholder="30" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
+                  </div>
+                  <div>
+                    <label class="field-label" style="font-size:9px;margin-bottom:2px">Climb</label>
+                    <input class="info-input" type="number" id="ci-speed-climb" placeholder="—" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
+                  </div>
+                  <div>
+                    <label class="field-label" style="font-size:9px;margin-bottom:2px">Swim</label>
+                    <input class="info-input" type="number" id="ci-speed-swim" placeholder="—" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
+                  </div>
+                  <div>
+                    <label class="field-label" style="font-size:9px;margin-bottom:2px">Fly</label>
+                    <input class="info-input" type="number" id="ci-speed-fly" placeholder="—" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
+                  </div>
+                  <div>
+                    <label class="field-label" style="font-size:9px;margin-bottom:2px">Hover</label>
+                    <input class="info-input" type="number" id="ci-speed-hover" placeholder="—" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
+                  </div>
+                  <div>
+                    <label class="field-label" style="font-size:9px;margin-bottom:2px">Burrow</label>
+                    <input class="info-input" type="number" id="ci-speed-burrow" placeholder="—" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
+                  </div>
+                </div>
+                <!-- hidden field kept for data-key compatibility -->
+                <input type="hidden" id="ci-base-speed" data-key="base_speed" value="30"/>
               </div>
             </div>
             <div class="panel">
@@ -5617,9 +5651,9 @@ const PHB_CLASS_CHOICES = {
       "type": "magical-secrets",
       "count": 3,
       "cantripOnly": true,
-      "sourceLists": ["bard","cleric","druid","sorcerer","warlock","wizard"],
+      "sourceLists": ["cleric","druid","warlock"],
       "showIf": { "id": "pact_boon", "value": "tome" },
-      "desc": "Choose 3 cantrips from any class list. They are always available.",
+      "desc": "Choose 3 cantrips from the Cleric, Druid, or Warlock spell list. They are always available.",
       "wires": ["display"]
     },
     {
@@ -5629,6 +5663,8 @@ const PHB_CLASS_CHOICES = {
       "type": "magical-secrets",
       "count": 2,
       "sourceLists": ["bard","cleric","druid","sorcerer","warlock","wizard"],
+      "ritualOnly": true,
+      "levelFilter": [1],
       "showIf": { "id": "pact_boon", "value": "tome" },
       "desc": "Choose 2 level 1 ritual spells from any class list. Cast as rituals without preparing.",
       "wires": ["display"]
@@ -13391,7 +13427,7 @@ const PHB_SPELL_LIST = [
 // PHB WEAPONS
 // ═══════════════════════════════════════════════════════════
 const PHB_WEAPONS = [
-{"key":"unarmed_strike","name":"Unarmed Strike","type":"Simple","list":"melee","ability":"str","unarmed":true,"damage":{"count":1,"die":1,"type":"bludgeoning"}},
+{"key":"unarmed_strike","name":"Unarmed Strike","type":"Simple","list":"melee","ability":"str","unarmed":true,"damage":{"count":1,"die":1,"type":"bludgeoning"},"properties":[],"range":"5 ft","desc":"Strike with your body — fists, elbows, knees, or headbutt. Damage scales with Martial Arts die if Monk."},
 {"key":"club","name":"Club","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":4,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["light"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":null,"monk":true},
 {"key":"dagger","name":"Dagger","type":"Simple","list":"melee","ability":"dex","damage":{"count":1,"die":4,"type":"piercing"},"versatile_die":null,"range":"Melee, 20/60 ft","thrown_range":null,"properties":["finesse","light","thrown"],"mastery":"nick","mastery_desc":"Light extra attack costs no Bonus Action","ammo":null,"monk":true},
 {"key":"greatclub","name":"Greatclub","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed"],"mastery":"push","mastery_desc":"Hit: push target 10 ft away","ammo":null,"monk":true},
@@ -15452,40 +15488,91 @@ function recalcQuickStats() {
 // SPEED (with exhaustion)
 // ═══════════════════════════════════════════════════════════
 
+function onSpeedOverrideChange() {
+  if (!currentChar) return;
+  if (!currentChar.speedOverrides) currentChar.speedOverrides = {};
+  const fields = ['walk','climb','swim','fly','hover','burrow'];
+  fields.forEach(type => {
+    const el = document.getElementById(`ci-speed-${type}`);
+    if (!el) return;
+    const v = parseInt(el.value);
+    if (!isNaN(v) && v > 0) currentChar.speedOverrides[type] = v;
+    else delete currentChar.speedOverrides[type];
+  });
+  // Keep legacy base_speed in sync with walk override
+  currentChar.speed = currentChar.speedOverrides.walk || currentChar._racialSpeed || 30;
+  calcSpeed();
+  autoSave();
+}
+window.onSpeedOverrideChange = onSpeedOverrideChange;
+
+function populateSpeedOverrides() {
+  if (!currentChar) return;
+  const overrides = currentChar.speedOverrides || {};
+  const fields = ['walk','climb','swim','fly','hover','burrow'];
+  fields.forEach(type => {
+    const el = document.getElementById(`ci-speed-${type}`);
+    if (!el) return;
+    el.value = overrides[type] > 0 ? overrides[type] : '';
+  });
+}
+window.populateSpeedOverrides = populateSpeedOverrides;
+
 function calcSpeed() {
   if (!currentChar) return;
-  const base    = parseInt(document.getElementById('ci-speed')?.value) || 30;
+
+  const overrides  = currentChar.speedOverrides || {};
+  const racialWalk = currentChar._racialSpeed || 30;
+  const base       = overrides.walk > 0 ? overrides.walk : racialWalk;
   currentChar.speed = base;
-  const exLevel = parseInt(currentChar.exhaustion) || 0;
-  const penalty = exLevel * 5;
+
+  const exLevel   = parseInt(currentChar.exhaustion) || 0;
+  const penalty   = exLevel * 5;
   const featBonus = parseInt(currentChar._featSpeedBonus) || 0;
   let final = Math.max(0, base + featBonus - penalty);
 
   // Bladesong speed bonus: +10 ft
   if (isEffectActive('bladesong')) final = Math.max(0, final + 10);
 
-  // Fly speed: racial OR active effects (take highest)
+  // Fly/hover speed: fly override and hover are independent types
   const raceFly   = currentChar?._raceFlySpeed || 0;
   const effectFly = isEffectActive('dragon_wings') ? (ACTIVE_EFFECT_DEFS.dragon_wings.flySpeed || 60) : 0;
-  const flySpeed  = Math.max(raceFly, effectFly);
-  const flySource = effectFly >= raceFly && effectFly > 0 ? 'Dragon Wings' : raceFly > 0 ? 'Racial' : '';
+  const autoFly   = Math.max(raceFly, effectFly);
+  const flySpeed   = overrides.fly > 0 ? overrides.fly : autoFly;
+  const hoverSpeed = overrides.hover || 0;
+  const flySource  = overrides.fly > 0 ? '' : effectFly > 0 ? ' (Dragon Wings)' : raceFly > 0 ? ' (Racial)' : '';
 
+  // Build all speed parts
+  const parts = [];
+  if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: exLevel > 0 ? ` (−${penalty} exh)` : '' });
+  if (overrides.climb) parts.push({ label: 'Climb',  val: overrides.climb,  note: '' });
+  if (overrides.swim)  parts.push({ label: 'Swim',   val: overrides.swim,   note: '' });
+  if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource });
+  if (hoverSpeed > 0)  parts.push({ label: 'Hover',  val: hoverSpeed,       note: '' });
+  if (overrides.burrow)parts.push({ label: 'Burrow', val: overrides.burrow, note: '' });
+
+  // Badge: walk + fly/hover abbreviation
   const el = document.getElementById('disp-speed');
   if (el) {
-    el.textContent = flySpeed ? `${final} (Fly ${flySpeed})` : final;
-    el.style.color = flySpeed ? 'var(--amber)' : exLevel > 0 ? 'var(--exh-colour)' : 'var(--text)';
-    el.title = flySpeed
-      ? `Walk ${final} ft · Fly ${flySpeed} ft (${flySource})`
-      : exLevel > 0 ? `Base ${base} − Exh ${penalty} = ${final} ft` : `${base} ft`;
+    const hasAir = flySpeed > 0 || hoverSpeed > 0;
+    const airLabel = flySpeed > 0 && hoverSpeed > 0 ? `Fly ${flySpeed}/Hov ${hoverSpeed}`
+                   : flySpeed > 0 ? `Fly ${flySpeed}` : `Hov ${hoverSpeed}`;
+    el.textContent = hasAir ? `${final} (${airLabel})` : final;
+    el.style.color = hasAir ? 'var(--amber)' : exLevel > 0 ? 'var(--exh-colour)' : 'var(--text)';
+    el.title = parts.map(p => `${p.label} ${p.val} ft${p.note}`).join(' · ');
   }
 
+  // Note line: all non-walk speeds, each on own line
   const note = document.getElementById('speed-note');
   if (note) {
-    if (flySpeed) {
-      note.textContent = `Fly ${flySpeed} ft${flySource ? ' (' + flySource + ')' : ''}`;
-      note.style.color = 'var(--amber)';
+    const extraParts = parts.filter(p => p.label !== 'Walk');
+    if (extraParts.length) {
+      note.innerHTML = extraParts.map(p =>
+        `<span style="color:${p.label==='Fly'||p.label==='Hover'?'var(--amber)':'var(--text2)'}">` +
+        `${p.label} ${p.val}ft${p.note}</span>`
+      ).join('<br>');
     } else if (exLevel > 0) {
-      note.textContent = `${base} ft − (Exh ${exLevel} × 5) = ${final} ft`;
+      note.textContent = `−${penalty} exh`;
       note.style.color = 'var(--exh-colour)';
     } else {
       note.textContent = '';
@@ -16514,6 +16601,9 @@ function populateAllTabs() {
   // Explicitly populate the character name field (stored as charName, not name)
   const nameInp = document.getElementById('ci-name');
   if (nameInp && c.charName) nameInp.value = c.charName;
+
+  // Populate speed overrides
+  populateSpeedOverrides();
 
   // All data-key fields (flat keys and currency sub-keys)
   document.querySelectorAll('[data-key]').forEach(el => {
@@ -18090,6 +18180,9 @@ function calcWeaponAttack(entry) {
   if (entry.abilityOverride && abs[entry.abilityOverride] !== undefined) abilityKey = entry.abilityOverride;
   const abilMod = abilityMod(abs[abilityKey]);
 
+  // Unarmed strike flag (needed for proficiency + damage)
+  const isUnarmed = entry.weaponKey === 'unarmed_strike';
+
   // ── Proficiency ──────────────────────────────────────────
   const isProficient = isUnarmed ? true :
     (entry.proficient !== false && isWeaponProficient(wkey, wtype));
@@ -18106,8 +18199,6 @@ function calcWeaponAttack(entry) {
     const cm = entry.customDamage.match(/^(\d+)d(\d+)$/i);
     if (cm) { dmgCount = parseInt(cm[1]); dmgDie = parseInt(cm[2]); dmgType = ''; }
   }
-  // Unarmed strike: resolve best damage source
-  const isUnarmed = entry.weaponKey === 'unarmed_strike';
   if (!dmgDie && isUnarmed) {
     // Use the chosen source stored on the entry, or default to best available
     const allSources = getUnarmedDamage();
@@ -18198,7 +18289,7 @@ function getUnarmedDamage() {
   const monkEntry = getAllClasses().find(e => e.class?.toLowerCase() === 'monk');
   const monkLv = monkEntry?.levels?.length || 0;
   if (monkLv >= 1) {
-    const die = monkLv >= 17 ? 10 : monkLv >= 11 ? 8 : monkLv >= 5 ? 6 : 4;
+    const die = MONK_MARTIAL_DIE[Math.min(monkLv, 20)] || 6;
     results.push({ count:1, die, type:'bludgeoning', source:`Monk lv${monkLv} (Martial Arts d${die})`, abilityOverride:'dex_or_str' });
   }
 
@@ -18224,7 +18315,7 @@ function getUnarmedDamage() {
 
   // 3. Feat: Tavern Brawler
   const hasTB = (currentChar?.feats||[]).some(f => f.name?.toLowerCase().includes('tavern brawler'))
-             || (currentChar?.featSlots||[]).some(s => s.feat?.toLowerCase().includes('tavern brawler'));
+             || Object.values(currentChar?.featSlots||{}).some(s => s?.feat?.toLowerCase().includes('tavern brawler'));
   if (hasTB) {
     results.push({ count:1, die:6, type:'bludgeoning', source:'Tavern Brawler (feat)' });
   }
@@ -18237,6 +18328,1805 @@ function getUnarmedDamage() {
   return results; // return all so UI can show a picker
 }
 window.getUnarmedDamage = getUnarmedDamage;
+
+// ── Class Scaling Tables ─────────────────────────────────────────────────
+const CLASS_SCALING_TABLES = {
+  "monk": {
+    "title": "Monk Progression",
+    "columns": [
+      {
+        "key": "prof",
+        "label": "Prof"
+      },
+      {
+        "key": "ma",
+        "label": "Martial Arts"
+      },
+      {
+        "key": "fp",
+        "label": "Focus Points"
+      },
+      {
+        "key": "um",
+        "label": "Unarmored Movement"
+      }
+    ],
+    "rows": [
+      {
+        "level": 1,
+        "prof": "+2",
+        "ma": "1d6",
+        "fp": "\u2014",
+        "um": "\u2014"
+      },
+      {
+        "level": 2,
+        "prof": "+2",
+        "ma": "1d6",
+        "fp": "2",
+        "um": "+10 ft."
+      },
+      {
+        "level": 3,
+        "prof": "+2",
+        "ma": "1d6",
+        "fp": "3",
+        "um": "+10 ft."
+      },
+      {
+        "level": 4,
+        "prof": "+2",
+        "ma": "1d6",
+        "fp": "4",
+        "um": "+10 ft."
+      },
+      {
+        "level": 5,
+        "prof": "+3",
+        "ma": "1d8",
+        "fp": "5",
+        "um": "+10 ft."
+      },
+      {
+        "level": 6,
+        "prof": "+3",
+        "ma": "1d8",
+        "fp": "6",
+        "um": "+15 ft."
+      },
+      {
+        "level": 7,
+        "prof": "+3",
+        "ma": "1d8",
+        "fp": "7",
+        "um": "+15 ft."
+      },
+      {
+        "level": 8,
+        "prof": "+3",
+        "ma": "1d8",
+        "fp": "8",
+        "um": "+15 ft."
+      },
+      {
+        "level": 9,
+        "prof": "+4",
+        "ma": "1d8",
+        "fp": "9",
+        "um": "+15 ft."
+      },
+      {
+        "level": 10,
+        "prof": "+4",
+        "ma": "1d8",
+        "fp": "10",
+        "um": "+20 ft."
+      },
+      {
+        "level": 11,
+        "prof": "+4",
+        "ma": "1d10",
+        "fp": "11",
+        "um": "+20 ft."
+      },
+      {
+        "level": 12,
+        "prof": "+4",
+        "ma": "1d10",
+        "fp": "12",
+        "um": "+20 ft."
+      },
+      {
+        "level": 13,
+        "prof": "+5",
+        "ma": "1d10",
+        "fp": "13",
+        "um": "+20 ft."
+      },
+      {
+        "level": 14,
+        "prof": "+5",
+        "ma": "1d10",
+        "fp": "14",
+        "um": "+25 ft."
+      },
+      {
+        "level": 15,
+        "prof": "+5",
+        "ma": "1d10",
+        "fp": "15",
+        "um": "+25 ft."
+      },
+      {
+        "level": 16,
+        "prof": "+5",
+        "ma": "1d10",
+        "fp": "16",
+        "um": "+25 ft."
+      },
+      {
+        "level": 17,
+        "prof": "+6",
+        "ma": "1d12",
+        "fp": "17",
+        "um": "+25 ft."
+      },
+      {
+        "level": 18,
+        "prof": "+6",
+        "ma": "1d12",
+        "fp": "18",
+        "um": "+30 ft."
+      },
+      {
+        "level": 19,
+        "prof": "+6",
+        "ma": "1d12",
+        "fp": "19",
+        "um": "+30 ft."
+      },
+      {
+        "level": 20,
+        "prof": "+6",
+        "ma": "1d12",
+        "fp": "20",
+        "um": "+30 ft."
+      }
+    ]
+  },
+  "barbarian": {
+    "title": "Barbarian Progression",
+    "columns": [
+      {
+        "key": "prof",
+        "label": "Prof"
+      },
+      {
+        "key": "rages",
+        "label": "Rages"
+      },
+      {
+        "key": "rage_dmg",
+        "label": "Rage Dmg"
+      },
+      {
+        "key": "notes",
+        "label": "Features"
+      }
+    ],
+    "rows": [
+      {
+        "level": 1,
+        "prof": "+2",
+        "rages": "2",
+        "rage_dmg": "+2",
+        "notes": "Rage, Unarmored Defense"
+      },
+      {
+        "level": 2,
+        "prof": "+2",
+        "rages": "2",
+        "rage_dmg": "+2",
+        "notes": "Reckless Attack, Danger Sense"
+      },
+      {
+        "level": 3,
+        "prof": "+2",
+        "rages": "3",
+        "rage_dmg": "+2",
+        "notes": "Primal Knowledge, Subclass"
+      },
+      {
+        "level": 4,
+        "prof": "+2",
+        "rages": "3",
+        "rage_dmg": "+2",
+        "notes": "ASI"
+      },
+      {
+        "level": 5,
+        "prof": "+3",
+        "rages": "3",
+        "rage_dmg": "+2",
+        "notes": "Extra Attack, Fast Movement"
+      },
+      {
+        "level": 6,
+        "prof": "+3",
+        "rages": "4",
+        "rage_dmg": "+2",
+        "notes": "Subclass Feature"
+      },
+      {
+        "level": 7,
+        "prof": "+3",
+        "rages": "4",
+        "rage_dmg": "+2",
+        "notes": "Feral Instinct, Instinctive Pounce"
+      },
+      {
+        "level": 8,
+        "prof": "+3",
+        "rages": "4",
+        "rage_dmg": "+2",
+        "notes": "ASI"
+      },
+      {
+        "level": 9,
+        "prof": "+4",
+        "rages": "4",
+        "rage_dmg": "+3",
+        "notes": "Brutal Strike"
+      },
+      {
+        "level": 10,
+        "prof": "+4",
+        "rages": "4",
+        "rage_dmg": "+3",
+        "notes": "Subclass Feature"
+      },
+      {
+        "level": 11,
+        "prof": "+4",
+        "rages": "4",
+        "rage_dmg": "+3",
+        "notes": "Relentless Rage"
+      },
+      {
+        "level": 12,
+        "prof": "+4",
+        "rages": "5",
+        "rage_dmg": "+3",
+        "notes": "ASI"
+      },
+      {
+        "level": 13,
+        "prof": "+5",
+        "rages": "5",
+        "rage_dmg": "+3",
+        "notes": "Brutal Strike improvement"
+      },
+      {
+        "level": 14,
+        "prof": "+5",
+        "rages": "5",
+        "rage_dmg": "+3",
+        "notes": "Subclass Feature"
+      },
+      {
+        "level": 15,
+        "prof": "+5",
+        "rages": "5",
+        "rage_dmg": "+3",
+        "notes": "Persistent Rage"
+      },
+      {
+        "level": 16,
+        "prof": "+5",
+        "rages": "5",
+        "rage_dmg": "+4",
+        "notes": "ASI"
+      },
+      {
+        "level": 17,
+        "prof": "+6",
+        "rages": "6",
+        "rage_dmg": "+4",
+        "notes": "Brutal Strike improvement"
+      },
+      {
+        "level": 18,
+        "prof": "+6",
+        "rages": "6",
+        "rage_dmg": "+4",
+        "notes": "Indomitable Might"
+      },
+      {
+        "level": 19,
+        "prof": "+6",
+        "rages": "6",
+        "rage_dmg": "+4",
+        "notes": "Epic Boon"
+      },
+      {
+        "level": 20,
+        "prof": "+6",
+        "rages": "Unlimited",
+        "rage_dmg": "+4",
+        "notes": "Primal Champion"
+      }
+    ]
+  },
+  "bard": {
+    "title": "Bard Progression",
+    "columns": [
+      {
+        "key": "prof",
+        "label": "Prof"
+      },
+      {
+        "key": "cantrips",
+        "label": "Cantrips"
+      },
+      {
+        "key": "known",
+        "label": "Spells Known"
+      },
+      {
+        "key": "insp",
+        "label": "Bardic Insp."
+      },
+      {
+        "key": "die",
+        "label": "Insp. Die"
+      }
+    ],
+    "rows": [
+      {
+        "level": 1,
+        "prof": "+2",
+        "cantrips": 2,
+        "known": 4,
+        "insp": 2,
+        "die": "d6"
+      },
+      {
+        "level": 2,
+        "prof": "+2",
+        "cantrips": 2,
+        "known": 5,
+        "insp": 2,
+        "die": "d6"
+      },
+      {
+        "level": 3,
+        "prof": "+2",
+        "cantrips": 2,
+        "known": 6,
+        "insp": 2,
+        "die": "d6"
+      },
+      {
+        "level": 4,
+        "prof": "+2",
+        "cantrips": 3,
+        "known": 7,
+        "insp": 3,
+        "die": "d6"
+      },
+      {
+        "level": 5,
+        "prof": "+3",
+        "cantrips": 3,
+        "known": 8,
+        "insp": 3,
+        "die": "d8"
+      },
+      {
+        "level": 6,
+        "prof": "+3",
+        "cantrips": 3,
+        "known": 9,
+        "insp": 3,
+        "die": "d8"
+      },
+      {
+        "level": 7,
+        "prof": "+3",
+        "cantrips": 3,
+        "known": 10,
+        "insp": 3,
+        "die": "d8"
+      },
+      {
+        "level": 8,
+        "prof": "+3",
+        "cantrips": 3,
+        "known": 11,
+        "insp": 3,
+        "die": "d8"
+      },
+      {
+        "level": 9,
+        "prof": "+4",
+        "cantrips": 3,
+        "known": 12,
+        "insp": 4,
+        "die": "d8"
+      },
+      {
+        "level": 10,
+        "prof": "+4",
+        "cantrips": 4,
+        "known": 14,
+        "insp": 4,
+        "die": "d10"
+      },
+      {
+        "level": 11,
+        "prof": "+4",
+        "cantrips": 4,
+        "known": 15,
+        "insp": 4,
+        "die": "d10"
+      },
+      {
+        "level": 12,
+        "prof": "+4",
+        "cantrips": 4,
+        "known": 15,
+        "insp": 4,
+        "die": "d10"
+      },
+      {
+        "level": 13,
+        "prof": "+5",
+        "cantrips": 4,
+        "known": 16,
+        "insp": 4,
+        "die": "d10"
+      },
+      {
+        "level": 14,
+        "prof": "+5",
+        "cantrips": 4,
+        "known": 18,
+        "insp": 4,
+        "die": "d10"
+      },
+      {
+        "level": 15,
+        "prof": "+5",
+        "cantrips": 4,
+        "known": 19,
+        "insp": 4,
+        "die": "d10"
+      },
+      {
+        "level": 16,
+        "prof": "+5",
+        "cantrips": 4,
+        "known": 19,
+        "insp": 4,
+        "die": "d10"
+      },
+      {
+        "level": 17,
+        "prof": "+6",
+        "cantrips": 4,
+        "known": 20,
+        "insp": 4,
+        "die": "d12"
+      },
+      {
+        "level": 18,
+        "prof": "+6",
+        "cantrips": 4,
+        "known": 22,
+        "insp": 4,
+        "die": "d12"
+      },
+      {
+        "level": 19,
+        "prof": "+6",
+        "cantrips": 4,
+        "known": 22,
+        "insp": 4,
+        "die": "d12"
+      },
+      {
+        "level": 20,
+        "prof": "+6",
+        "cantrips": 4,
+        "known": 22,
+        "insp": 4,
+        "die": "d12"
+      }
+    ]
+  },
+  "rogue": {
+    "title": "Rogue Progression",
+    "columns": [
+      {
+        "key": "prof",
+        "label": "Prof"
+      },
+      {
+        "key": "sneak",
+        "label": "Sneak Attack"
+      }
+    ],
+    "rows": [
+      {
+        "level": 1,
+        "prof": "+2",
+        "sneak": "1d6"
+      },
+      {
+        "level": 2,
+        "prof": "+2",
+        "sneak": "1d6"
+      },
+      {
+        "level": 3,
+        "prof": "+2",
+        "sneak": "2d6"
+      },
+      {
+        "level": 4,
+        "prof": "+2",
+        "sneak": "2d6"
+      },
+      {
+        "level": 5,
+        "prof": "+3",
+        "sneak": "3d6"
+      },
+      {
+        "level": 6,
+        "prof": "+3",
+        "sneak": "3d6"
+      },
+      {
+        "level": 7,
+        "prof": "+3",
+        "sneak": "4d6"
+      },
+      {
+        "level": 8,
+        "prof": "+3",
+        "sneak": "4d6"
+      },
+      {
+        "level": 9,
+        "prof": "+4",
+        "sneak": "5d6"
+      },
+      {
+        "level": 10,
+        "prof": "+4",
+        "sneak": "5d6"
+      },
+      {
+        "level": 11,
+        "prof": "+4",
+        "sneak": "6d6"
+      },
+      {
+        "level": 12,
+        "prof": "+4",
+        "sneak": "6d6"
+      },
+      {
+        "level": 13,
+        "prof": "+5",
+        "sneak": "7d6"
+      },
+      {
+        "level": 14,
+        "prof": "+5",
+        "sneak": "7d6"
+      },
+      {
+        "level": 15,
+        "prof": "+5",
+        "sneak": "8d6"
+      },
+      {
+        "level": 16,
+        "prof": "+5",
+        "sneak": "8d6"
+      },
+      {
+        "level": 17,
+        "prof": "+6",
+        "sneak": "9d6"
+      },
+      {
+        "level": 18,
+        "prof": "+6",
+        "sneak": "9d6"
+      },
+      {
+        "level": 19,
+        "prof": "+6",
+        "sneak": "10d6"
+      },
+      {
+        "level": 20,
+        "prof": "+6",
+        "sneak": "10d6"
+      }
+    ]
+  },
+  "fighter_battle_master": {
+    "title": "Battle Master Superiority Dice",
+    "columns": [
+      {
+        "key": "dice",
+        "label": "Dice"
+      },
+      {
+        "key": "die",
+        "label": "Die"
+      },
+      {
+        "key": "known",
+        "label": "Maneuvers Known"
+      }
+    ],
+    "rows": [
+      {
+        "level": 3,
+        "dice": 4,
+        "die": "d8",
+        "known": 3
+      },
+      {
+        "level": 7,
+        "dice": 5,
+        "die": "d8",
+        "known": 5
+      },
+      {
+        "level": 10,
+        "dice": 6,
+        "die": "d10",
+        "known": 7
+      },
+      {
+        "level": 15,
+        "dice": 7,
+        "die": "d10",
+        "known": 9
+      },
+      {
+        "level": 18,
+        "dice": 8,
+        "die": "d12",
+        "known": 9
+      }
+    ]
+  },
+  "psion": {
+    "title": "Psion Progression",
+    "columns": [
+      {
+        "key": "prof",
+        "label": "Prof"
+      },
+      {
+        "key": "die",
+        "label": "Psionic Die"
+      },
+      {
+        "key": "pts",
+        "label": "Psi Points"
+      },
+      {
+        "key": "known",
+        "label": "Disciplines"
+      }
+    ],
+    "rows": [
+      {
+        "level": 1,
+        "prof": "+2",
+        "die": "d6",
+        "pts": 4,
+        "known": 1
+      },
+      {
+        "level": 2,
+        "prof": "+2",
+        "die": "d6",
+        "pts": 6,
+        "known": 1
+      },
+      {
+        "level": 3,
+        "prof": "+2",
+        "die": "d6",
+        "pts": 14,
+        "known": 2
+      },
+      {
+        "level": 4,
+        "prof": "+2",
+        "die": "d6",
+        "pts": 17,
+        "known": 2
+      },
+      {
+        "level": 5,
+        "prof": "+3",
+        "die": "d8",
+        "pts": 27,
+        "known": 3
+      },
+      {
+        "level": 6,
+        "prof": "+3",
+        "die": "d8",
+        "pts": 32,
+        "known": 3
+      },
+      {
+        "level": 7,
+        "prof": "+3",
+        "die": "d8",
+        "pts": 38,
+        "known": 4
+      },
+      {
+        "level": 8,
+        "prof": "+3",
+        "die": "d8",
+        "pts": 44,
+        "known": 4
+      },
+      {
+        "level": 9,
+        "prof": "+4",
+        "die": "d8",
+        "pts": 57,
+        "known": 5
+      },
+      {
+        "level": 10,
+        "prof": "+4",
+        "die": "d8",
+        "pts": 64,
+        "known": 5
+      },
+      {
+        "level": 11,
+        "prof": "+4",
+        "die": "d10",
+        "pts": 73,
+        "known": 6
+      },
+      {
+        "level": 12,
+        "prof": "+4",
+        "die": "d10",
+        "pts": 73,
+        "known": 6
+      },
+      {
+        "level": 13,
+        "prof": "+5",
+        "die": "d10",
+        "pts": 83,
+        "known": 7
+      },
+      {
+        "level": 14,
+        "prof": "+5",
+        "die": "d10",
+        "pts": 83,
+        "known": 7
+      },
+      {
+        "level": 15,
+        "prof": "+5",
+        "die": "d10",
+        "pts": 94,
+        "known": 8
+      },
+      {
+        "level": 16,
+        "prof": "+5",
+        "die": "d10",
+        "pts": 94,
+        "known": 8
+      },
+      {
+        "level": 17,
+        "prof": "+6",
+        "die": "d12",
+        "pts": 107,
+        "known": 9
+      },
+      {
+        "level": 18,
+        "prof": "+6",
+        "die": "d12",
+        "pts": 107,
+        "known": 9
+      },
+      {
+        "level": 19,
+        "prof": "+6",
+        "die": "d12",
+        "pts": 123,
+        "known": 10
+      },
+      {
+        "level": 20,
+        "prof": "+6",
+        "die": "d12",
+        "pts": 133,
+        "known": 10
+      }
+    ]
+  }
+};
+const SPELL_SLOT_TABLES = {
+  "full": {
+    "title": "Spell Slots by Level",
+    "rows": [
+      [
+        1,
+        3,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        3,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        3,
+        4,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        4,
+        5,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        4,
+        6,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        4,
+        7,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        4,
+        8,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        4,
+        9,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        4,
+        10,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        5,
+        11,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        5,
+        12,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        5,
+        12,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        5,
+        13,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        14,
+        5,
+        13,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        15,
+        5,
+        14,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        16,
+        5,
+        14,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        17,
+        5,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        18,
+        5,
+        15,
+        4,
+        3,
+        3,
+        3,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        19,
+        5,
+        15,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1
+      ],
+      [
+        20,
+        5,
+        15,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        1,
+        1
+      ]
+    ]
+  },
+  "half": {
+    "title": "Spell Slots by Level",
+    "rows": [
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        0,
+        4,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        0,
+        4,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        0,
+        5,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        0,
+        5,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        0,
+        6,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        0,
+        6,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        0,
+        7,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        0,
+        7,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        0,
+        8,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        14,
+        0,
+        8,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        15,
+        0,
+        9,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        16,
+        0,
+        9,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        17,
+        0,
+        10,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        18,
+        0,
+        10,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        19,
+        0,
+        10,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        0,
+        10,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "warlock": {
+    "title": "Pact Magic Spell Slots",
+    "note": "All slots are the same level (highest unlocked). Recover on Short Rest.",
+    "rows": [
+      [
+        1,
+        2,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        2,
+        0,
+        2,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        2,
+        0,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        3,
+        0,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        3,
+        0,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        3,
+        0,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        4,
+        0,
+        4,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        4,
+        0,
+        4,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        4,
+        0,
+        4,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        4,
+        0,
+        4,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        4,
+        0,
+        3,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        4,
+        0,
+        3,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        4,
+        0,
+        3,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        14,
+        5,
+        0,
+        3,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        15,
+        5,
+        0,
+        3,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        16,
+        5,
+        0,
+        3,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        17,
+        5,
+        0,
+        4,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        18,
+        5,
+        0,
+        4,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        19,
+        5,
+        0,
+        4,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        5,
+        0,
+        4,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  }
+};
+
+// Maps class -> spell slot table type
+const CLASS_SPELL_TABLE_TYPE = {
+  wizard:'full', sorcerer:'full', bard:'full', druid:'full', cleric:'full',
+  paladin:'half', ranger:'half', artificer:'half',
+  warlock:'warlock'
+};
+
+function renderScalingTable(cls, sub, clsLevel) {
+  const key = cls?.toLowerCase();
+  const subL = sub?.toLowerCase() || '';
+  
+  // Spell slot table for casters
+  const spellType = CLASS_SPELL_TABLE_TYPE[key];
+  
+  // Class scaling table
+  let classTable = CLASS_SCALING_TABLES[key];
+  // Battle Master subclass override
+  if (key === 'fighter' && subL.includes('battle master')) {
+    classTable = CLASS_SCALING_TABLES['fighter_battle_master'];
+  }
+  
+  if (!classTable && !spellType) return '';
+  
+  const currentLv = clsLevel || 1;
+  let html = '';
+  
+  // Class progression table
+  if (classTable) {
+    html += `<div style="margin:8px 0">
+      <div style="font-family:var(--font-ui);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${classTable.title}</div>
+      <table style="width:100%;border-collapse:collapse;font-family:var(--font-body);font-size:11px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:2px 4px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Lv</th>
+            ${classTable.columns.map(c=>`<th style="text-align:center;padding:2px 4px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">${c.label}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${classTable.rows.map(row => {
+            const isCurrentLevel = row.level === currentLv;
+            const isFuture = row.level > currentLv;
+            const rowStyle = isCurrentLevel 
+              ? 'background:rgba(var(--accent-rgb,11,124,3),.15);outline:1px solid var(--accent);outline-offset:-1px'
+              : '';
+            const textColor = isFuture ? 'color:var(--text3)' : '';
+            return `<tr style="${rowStyle}">
+              <td style="padding:2px 4px;${textColor}">${row.level}</td>
+              ${classTable.columns.map(c => `<td style="text-align:center;padding:2px 4px;${textColor};${c.key==='ma'||c.key==='die'||c.key==='sneak'?'color:var(--gold);font-weight:700':''}">${row[c.key] ?? '—'}</td>`).join('')}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  
+  // Spell slot table
+  if (spellType) {
+    const slotData = SPELL_SLOT_TABLES[spellType];
+    const isWarlock = spellType === 'warlock';
+    html += `<div style="margin:8px 0">
+      <div style="font-family:var(--font-ui);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${slotData.title}</div>
+      ${slotData.note ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-bottom:4px">${slotData.note}</div>` : ''}
+      <table style="width:100%;border-collapse:collapse;font-family:var(--font-body);font-size:10px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Lv</th>
+            <th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Cantrips</th>
+            ${!isWarlock ? `<th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Prepared</th>` : `<th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Slots</th>`}
+            ${[1,2,3,4,5,6,7,8,9].map(n=>`<th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">${n}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${slotData.rows.map(row => {
+            const [lv,cantrips,prep,...slots] = row;
+            const isCurrentLevel = lv === currentLv;
+            const isFuture = lv > currentLv;
+            const rowStyle = isCurrentLevel 
+              ? 'background:rgba(var(--accent-rgb,11,124,3),.15);outline:1px solid var(--accent);outline-offset:-1px'
+              : '';
+            const col = isFuture ? 'var(--text3)' : 'var(--text)';
+            const cellStyle = `padding:2px 3px;text-align:center;color:${col}`;
+            return `<tr style="${rowStyle}">
+              <td style="padding:2px 3px;color:${col}">${lv}</td>
+              <td style="${cellStyle}">${cantrips || '—'}</td>
+              <td style="${cellStyle}">${prep || '—'}</td>
+              ${slots.map(s=>`<td style="${cellStyle}">${s || '—'}</td>`).join('')}
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  
+  return html;
+}
+window.renderScalingTable = renderScalingTable;
 
 function renderAttacksPanel() {
   const body = document.getElementById('attacks-panel-body');
@@ -18263,8 +20153,17 @@ function renderAttacksPanel() {
   equippedWeapons.forEach((entry) => {
     // Find real index in currentChar.weapons (not filtered index)
     const idx = currentChar.weapons.indexOf(entry);
+    // Guard against malformed entries
+    if (!entry || typeof entry !== 'object') return;
     hasAnyAttack = true;
-    const calc = calcWeaponAttack(entry);
+    let calc;
+    try { calc = calcWeaponAttack(entry); }
+    catch(e) { 
+      console.error('calcWeaponAttack failed for', entry?.name, e);
+      toast('Attack render error: ' + e.message, 'warn');
+      return;
+    }
+    if (!calc) return;
     const phb  = calc.phbWeapon;
     const atkStr = (calc.atkBonus >= 0 ? '+' : '') + calc.atkBonus;
     const masteries = getWeaponMasteries();
@@ -18278,14 +20177,14 @@ function renderAttacksPanel() {
     // Main attack row
     const mainRow = document.createElement('div');
     mainRow.className = 'attack-row';
-    mainRow.style.cssText = `background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto auto;gap:0 8px;align-items:center;padding:5px 8px;${!calc.isProficient?'opacity:.7':''}`;
+    mainRow.style.cssText = `background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto auto;gap:0 8px;align-items:start;padding:5px 8px;${!calc.isProficient?'opacity:.7':''}`;
 
     const nameDiv = `<div>
       <div class="attack-name">${entry.name || phb?.name || '?'}</div>
       <div class="attack-sub">${calc.isRanged ? 'Ranged' : 'Melee'} · ${calc.abilityKey.toUpperCase()}${entry.attackBonus ? ' · +'+entry.attackBonus+' magic' : ''}${calc.notes.length ? ' · '+calc.notes.slice(0,2).join(', ') : ''}</div>
     </div>`;
     const descText = phb?.desc ? phb.desc.slice(0,140) + (phb.desc.length > 140 ? '…' : '') : phb?.mastery_desc ? phb.mastery_desc.slice(0,140) : (entry.customDamage ? '' : '');
-    const descDiv  = `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 12px;line-height:1.4;align-self:center">${descText}</div>`;
+    const descDiv  = `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:2px 8px;line-height:1.5;word-break:break-word;min-width:0">${descText}</div>`;
 
     const atkDiv = `<div style="text-align:center">
       <div class="attack-stat">${atkStr}</div>
@@ -18413,7 +20312,7 @@ function renderAttacksPanel() {
     // Flurry of Blows (lv1+): 2 unarmed strikes as Bonus Action, costs 1 Focus Point
     const fobRow = document.createElement('div');
     fobRow.className = 'attack-row';
-    fobRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto;gap:0 8px;align-items:center;padding:5px 8px;margin-bottom:4px';
+    fobRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto;gap:0 8px;align-items:start;padding:5px 8px;margin-bottom:4px';
     fobRow.innerHTML = `
       <div>
         <div class="attack-name">Flurry of Blows</div>
@@ -18428,7 +20327,7 @@ function renderAttacksPanel() {
     // Bonus Action Unarmed Strike (Step of the Wind / general BA unarmed)
     const baRow = document.createElement('div');
     baRow.className = 'attack-row';
-    baRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto;gap:0 8px;align-items:center;padding:5px 8px;margin-bottom:4px';
+    baRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto;gap:0 8px;align-items:start;padding:5px 8px;margin-bottom:4px';
     baRow.innerHTML = `
       <div>
         <div class="attack-name">Unarmed Strike (BA)</div>
@@ -19669,6 +21568,18 @@ function renderClassFeatures() {
       ${descHtml}
     </div>`;
   }).join('');
+
+  // Append scaling tables for each class
+  const scalingDiv = document.createElement('div');
+  scalingDiv.style.cssText = 'margin-top:10px';
+  allClasses.forEach(entry => {
+    const eCls = entry.class?.toLowerCase() || '';
+    const eLv  = entry.levels?.length || 0;
+    const eSub = entry.subclass || '';
+    const tableHtml = renderScalingTable(eCls, eSub, eLv);
+    if (tableHtml) scalingDiv.innerHTML += tableHtml;
+  });
+  block.appendChild(scalingDiv);
 }
 
 
@@ -21225,13 +23136,19 @@ function applyRaceDefaults(race, subrace) {
   // Fly speed from race
   const flySpeed = (srd?.flySpeed) || rd.flySpeed || 0;
   currentChar._raceFlySpeed = flySpeed;
-  // Only update speed if it's still at a default value (don't overwrite manual changes)
-  if (!currentChar._customSpeed) {
+  currentChar._racialSpeed  = speed;
+  // Only update walk override if no manual override exists
+  if (!currentChar.speedOverrides?.walk) {
     currentChar.speed = speed;
-    const speedEl = document.getElementById('ci-base-speed');
-    if (speedEl) speedEl.value = speed;
-    calcSpeed();
+    const walkEl = document.getElementById('ci-speed-walk');
+    if (walkEl && !walkEl.value) walkEl.placeholder = String(speed);
   }
+  // Auto-fill fly override if racial fly and no existing fly override
+  if (flySpeed && !currentChar.speedOverrides?.fly && !currentChar.speedOverrides?.hover) {
+    const flyEl = document.getElementById('ci-speed-fly');
+    if (flyEl && !flyEl.value) flyEl.placeholder = String(flySpeed);
+  }
+  calcSpeed();
 
   // Darkvision: take highest between base and subrace
   const dv = Math.max(rd.darkvision || 0, srd?.darkvision || 0);
@@ -21329,20 +23246,7 @@ function renderRacialTraits() {
 }
 
 // ── Override calcSpeed to show racial note ────────────────────
-const _origCalcSpeed = calcSpeed;
-calcSpeed = function() {
-  _origCalcSpeed();
-  // Update the speed note to mention racial speed if different from base
-  const rd = getRaceData(currentChar?.race);
-  if (rd && rd.speed !== 30) {
-    const noteEl = document.getElementById('speed-note');
-    const exLevel = parseInt(currentChar?.exhaustion) || 0;
-    if (noteEl && exLevel === 0) {
-      noteEl.textContent = `Base racial speed: ${rd.speed} ft`;
-      noteEl.style.color = 'var(--text3)';
-    }
-  }
-};
+// calcSpeed wrapper removed — racial speed now handled inside calcSpeed();
 
 // ── Jack of All Trades (Bard Lv 2) ────────────────────────────
 // Applied in renderSkillsBlock — bards add half prof to non-proficient skills
@@ -22633,8 +24537,8 @@ function applyFeatSlotEffects() {
   currentChar._alertBonus = (has('Alert') || has('Alert [Origin]'))
     ? (getProfBonus() || 0) : 0;
 
-  // Recalculate everything that depends on feats
-  recalcAll();
+  // Note: recalcAll() is called by the caller after applyFeatSlotEffects()
+  // DO NOT call recalcAll() here — it calls applyFeatSlotEffects() first, creating infinite recursion
 }
 
 
@@ -23971,6 +25875,18 @@ function populateFeaturesTab() {
   }
 
   el.innerHTML = html2;
+
+  // Append scaling tables at top of Features tab
+  const scalingWrap = document.createElement('div');
+  scalingWrap.style.cssText = 'margin-bottom:16px';
+  getAllClasses().forEach(entry => {
+    const eCls = entry.class?.toLowerCase() || '';
+    const eLv  = entry.levels?.length || 0;
+    const eSub = entry.subclass || '';
+    const tableHtml = renderScalingTable(eCls, eSub, eLv);
+    if (tableHtml) { const w = document.createElement('div'); w.innerHTML = tableHtml; scalingWrap.appendChild(w); }
+  });
+  if (scalingWrap.children.length) el.insertBefore(scalingWrap, el.firstChild);
 }
 
 // ── Shared feature card renderer ───────────────────────────
@@ -24139,10 +26055,13 @@ function renderClassRows() {
         const realEntry = currentChar.classes?.[idx];
         if (realEntry) realEntry.levels = Array.from({length: v}, (_, i) => i + 1);
         rebuildLevelPlan();
-        // Defer to next tick — ensures DOM is updated before onMulticlassChange
-        // rebuilds class rows (prevents element replacement race with 'change' event)
         clearTimeout(_lvDebounce);
-        _lvDebounce = setTimeout(() => onMulticlassChange(), 0);
+        _lvDebounce = setTimeout(() => {
+          // skipRows=true: level changed but class identity unchanged,
+          // so no need to rebuild the row DOM (avoids element replacement)
+          onMulticlassChange(true);
+          autoSave();
+        }, 150);
       }
     });
 
@@ -24195,6 +26114,7 @@ function renderClassRows() {
         const newSub = subSel.value;
         const realEntry = currentChar.classes?.[idx];
         if (realEntry) realEntry.subclass = newSub;
+        if (subSel.dataset.programmatic === '1') return; // suppress programmatic
         if (isPrimary) currentChar.subclass = newSub;
         setTimeout(() => onMulticlassChange(), 0);
       });
@@ -24272,8 +26192,14 @@ function syncClassRowsFromLevelPlan() {
 }
 
 let _omcRunning = false;
-function onMulticlassChange() {
-  if (_omcRunning) return;
+let _omcPending = null;
+function onMulticlassChange(skipRows) {
+  if (_omcRunning) { 
+    // Already running — schedule one follow-up call after current completes
+    clearTimeout(_omcPending);
+    _omcPending = setTimeout(() => onMulticlassChange(), 0);
+    return;
+  }
   _omcRunning = true;
   try {
   syncLegacyClassFields();
@@ -24285,7 +26211,7 @@ function onMulticlassChange() {
     if (maxEl) maxEl.value = newMax;
     clampCurrentHP();
   }
-  renderClassRows();
+  if (!skipRows) renderClassRows();
   // Update primary class saves from primary class only
   const primary = currentChar.classes?.[0];
   if (primary?.class) {
