@@ -3066,6 +3066,11 @@ select:not([multiple]) {
       <!-- Info preview -->
       <div id="wm-preview" style="font-family:var(--font-body);font-size:11px;color:var(--text3);min-height:20px;padding:4px 0;line-height:1.6"></div>
     </div>
+    <div id="wm-unarmed-row" style="display:none;margin-top:10px">
+      <label class="field-label">Damage Source</label>
+      <select id="wm-unarmed-source" class="choice-select" style="width:100%;font-size:11px"></select>
+      <div style="font-size:9px;font-family:var(--font-ui);color:var(--text3);margin-top:3px">Auto-detects Monk Martial Arts, racial natural weapons, and Tavern Brawler</div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn-primary" onclick="applyWeaponModal()">Save</button>
       <button class="tbtn" onclick="closeModal('weapon-edit-modal')">Cancel</button>
@@ -4437,13 +4442,21 @@ function updateCharSummary() {
   let classSummary = '';
   const classes = getAllClasses();
   if (classes.length) {
-    classSummary = classes.map(entry => {
+    classSummary = classes.map((entry, ci) => {
       const lv = entry.levels?.length || 0;
       // Use the live dropdown value for primary class if it's more current
-      const rawClass = entry === classes[0]
-        ? (document.getElementById('ci-class')?.value || entry.class || '')
-        : (entry.class || '');
-      const name = rawClass ? (rawClass.charAt(0).toUpperCase() + rawClass.slice(1)) : '';
+      // Read from the rendered mc-class-select for primary, or entry.class for others
+      let rawClass = entry.class || '';
+      if (entry === classes[0]) {
+        const allSelects = document.querySelectorAll('.mc-class-select');
+        if (allSelects.length > 0) rawClass = allSelects[0].value || rawClass;
+      } else {
+        const allSelects = document.querySelectorAll('.mc-class-select');
+        if (allSelects.length > ci) rawClass = allSelects[ci].value || rawClass;
+      }
+      const name = rawClass
+        ? (PHB_CLASSES[rawClass.toLowerCase()]?.name || (rawClass.charAt(0).toUpperCase() + rawClass.slice(1)))
+        : '';
       return name ? `${name} ${lv}` : '';
     }).filter(Boolean).join(' / ');
   } else if (currentChar.class) {
@@ -4456,7 +4469,12 @@ function updateCharSummary() {
     `<strong>${c.charName||'—'}</strong>`,
     classSummary ? `<span class="sum-sep"> · </span>${classSummary}` : '',
     ` <span style="color:var(--text3);font-size:10px">[Lv ${totalLv}]</span>`,
-    c.race ? `<span class="sum-sep"> · </span>${c.race}${c.subrace ? ' (' + c.subrace + ')' : ''}` : '',
+    (() => {
+      if (!c.race) return '';
+      const raceDisp = PHB_RACES[c.race]?.name || c.race;
+      const subDisp  = c.subrace ? (' (' + (getRaceData(c.race)?.subraces?.[c.subrace]?.name || c.subrace) + ')') : '';
+      return `<span class="sum-sep"> · </span>${raceDisp}${subDisp}`;
+    })(),
     isDM   ? `<span style="color:var(--accent2);font-size:9px;letter-spacing:1.5px;margin-left:4px">[DM]</span>` : ''
   ].filter(Boolean);
   document.getElementById('char-summary').innerHTML = parts.join('');
@@ -9400,7 +9418,7 @@ const RACIAL_RESOURCES                = {
       "desc": "Become Large size for 10 min as a Bonus Action."
     }
   ],
-  "multiverse_aarakocra": [{"id": "wind_caller_racial", "name": "Wind Caller", "recovery": "long", "minLevel": 3, "maxByLevel": [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "Cast Gust of Wind without a material component. 1/Long Rest (or using a spell slot of 2nd level or higher)."}]
+  "gnome": [{"id":"speak_with_animals_racial","name":"Speak with Animals","recovery":"long","minLevel":1,"maxByLevel":[0,1,1,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],"desc":"Cast Speak with Animals without a spell slot (PB uses per Long Rest)."}]
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -13373,6 +13391,7 @@ const PHB_SPELL_LIST = [
 // PHB WEAPONS
 // ═══════════════════════════════════════════════════════════
 const PHB_WEAPONS = [
+{"key":"unarmed_strike","name":"Unarmed Strike","type":"Simple","list":"melee","ability":"str","unarmed":true,"damage":{"count":1,"die":1,"type":"bludgeoning"}},
 {"key":"club","name":"Club","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":4,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["light"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":null,"monk":true},
 {"key":"dagger","name":"Dagger","type":"Simple","list":"melee","ability":"dex","damage":{"count":1,"die":4,"type":"piercing"},"versatile_die":null,"range":"Melee, 20/60 ft","thrown_range":null,"properties":["finesse","light","thrown"],"mastery":"nick","mastery_desc":"Light extra attack costs no Bonus Action","ammo":null,"monk":true},
 {"key":"greatclub","name":"Greatclub","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed"],"mastery":"push","mastery_desc":"Hit: push target 10 ft away","ammo":null,"monk":true},
@@ -16301,6 +16320,14 @@ function recalcAll() {
   updateHDDisplay();
   renderSpellStats();
   renderAttacksPanel();
+  // Auto-update HP max if using a calculated method
+  if (currentChar?.hp_method && currentChar.hp_method !== 'manual') {
+    const newMax = calcHPMax(currentChar.hp_method);
+    currentChar.hp_max = newMax;
+    const maxEl = document.getElementById('hp-max');
+    if (maxEl) maxEl.value = newMax;
+    clampCurrentHP();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -17143,7 +17170,7 @@ const RACIAL_BONUS_SPELLS = {
   "dwarf": [],
   "earth_genasi": [{"key": "pass_without_trace", "name": "Pass Without Trace", "minLevel": 3}],
   "eladrin_mtof": [],
-  "elf": [],
+    "elf": [{"key": "elf_spell_lv3", "name": "Elf Spell (lv3 \u2014 Faerie Fire, Detect Magic, or Longstrider)", "minLevel": 3, "placeholder": true}, {"key": "elf_spell_lv5", "name": "Elf Spell (lv5 \u2014 Darkness, Misty Step, or Pass Without Trace)", "minLevel": 5, "placeholder": true}],
   "elf/dark": [{"key": "dancing_lights", "name": "Dancing Lights", "minLevel": 1, "cantrip": true}, {"key": "faerie_fire", "name": "Faerie Fire", "minLevel": 3}, {"key": "darkness", "name": "Darkness", "minLevel": 5}],
   "elf/high": [{"key": "wizard_cantrip", "name": "Wizard Cantrip (choice)", "minLevel": 1, "cantrip": true, "placeholder": true}],
   "elf/wood": [],
@@ -17189,7 +17216,7 @@ const RACIAL_BONUS_SPELLS = {
   "multiverse_bugbear": [],
   "multiverse_centaur": [],
   "multiverse_changeling": [],
-  "multiverse_deep_gnome": [{"key": "nondetection", "name": "Nondetection", "minLevel": 1}, {"key": "blindness_deafness", "name": "Blindness/Deafness", "minLevel": 3}, {"key": "blur", "name": "Blur", "minLevel": 5}],
+  "multiverse_deep_gnome": [{"key": "nondetection", "name": "Nondetection", "minLevel": 1, "noResource": true}, {"key": "blindness_deafness", "name": "Blindness/Deafness", "minLevel": 3}, {"key": "blur", "name": "Blur", "minLevel": 5}],
   "multiverse_duergar": [{"key": "enlarge_reduce", "name": "Enlarge/Reduce", "minLevel": 3}, {"key": "invisibility", "name": "Invisibility", "minLevel": 5}],
   "multiverse_earth_genasi": [{"key": "blade_ward", "name": "Blade Ward", "minLevel": 1, "cantrip": true}, {"key": "pass_without_trace", "name": "Pass Without Trace", "minLevel": 3}, {"key": "erupting_earth", "name": "Erupting Earth", "minLevel": 5}],
   "multiverse_eladrin": [],
@@ -17232,6 +17259,14 @@ const RACIAL_BONUS_SPELLS = {
   "water_genasi": [{"key": "shape_water", "name": "Shape Water", "minLevel": 1, "cantrip": true}, {"key": "create_or_destroy_water", "name": "Create or Destroy Water", "minLevel": 3}],
   "yuan_ti_pureblood": [{"key": "poison_spray", "name": "Poison Spray", "minLevel": 1, "cantrip": true}, {"key": "animal_friendship", "name": "Animal Friendship", "minLevel": 3}, {"key": "suggestion", "name": "Suggestion", "minLevel": 5}],
   "zariel_tiefling": [{"key": "thaumaturgy", "name": "Thaumaturgy", "minLevel": 1, "cantrip": true}, {"key": "searing_smite", "name": "Searing Smite", "minLevel": 3}, {"key": "branding_smite", "name": "Branding Smite", "minLevel": 5}],
+  "abyssal": [{"key": "poison_spray", "name": "Poison Spray", "minLevel": 1, "cantrip": true}, {"key": "ray_of_sickness", "name": "Ray of Sickness", "minLevel": 3}, {"key": "hold_person", "name": "Hold Person", "minLevel": 5}],
+  "chthonic": [{"key": "chill_touch", "name": "Chill Touch", "minLevel": 1, "cantrip": true}, {"key": "false_life", "name": "False Life", "minLevel": 3}, {"key": "ray_of_enfeeblement", "name": "Ray of Enfeeblement", "minLevel": 5}],
+  "infernal": [{"key": "thaumaturgy", "name": "Thaumaturgy", "minLevel": 1, "cantrip": true}, {"key": "hellish_rebuke", "name": "Hellish Rebuke", "minLevel": 3}, {"key": "darkness", "name": "Darkness", "minLevel": 5}],
+  "dark": [{"key": "dancing_lights", "name": "Dancing Lights", "minLevel": 1, "cantrip": true}, {"key": "faerie_fire", "name": "Faerie Fire", "minLevel": 3}, {"key": "darkness", "name": "Darkness", "minLevel": 5}],
+  "high": [{"key": "wizard_cantrip", "name": "Wizard Cantrip (choice)", "minLevel": 1, "cantrip": true, "placeholder": true}],
+  "forest": [{"key": "minor_illusion", "name": "Minor Illusion", "minLevel": 1, "cantrip": true}],
+  "cloud": [{"key": "misty_step", "name": "Misty Step", "minLevel": 3}],
+  "gnome": [{"key": "mending", "name": "Mending", "minLevel": 1, "cantrip": true}, {"key": "prestidigitation", "name": "Prestidigitation", "minLevel": 1, "cantrip": true}, {"key": "speak_with_animals", "name": "Speak with Animals", "minLevel": 1}],
 };
 
 function getRacialBonusSpells() {
@@ -17916,7 +17951,17 @@ const CANTRIP_DAMAGE = {
   'true_strike':    { die:'d6',   count:[1,2,3,4], type:'Radiant+weapon', atkType:'melee' },
   'vicious_mockery':{ die:'d6',   count:[1,2,3,4], type:'Psychic',   atkType:'save',  saveAbility:'wis' },
   'word_of_radiance':{ die:'d6',  count:[1,2,3,4], type:'Radiant',   atkType:'save',  saveAbility:'con' },
-  'shillelagh':     { die:'d8',   count:[1,1,1,1], type:'Force',     atkType:'melee', note:'Uses spell ability for attack' },
+  'shillelagh':          { die:'d8',   count:[1,1,1,1], type:'Force',     atkType:'melee',  note:'Uses spell ability for attack' },
+  'green_flame_blade':   { die:'d8',   count:[0,1,1,2], type:'Fire',      atkType:'melee',  note:'Also hits adjacent creature' },
+  'booming_blade':       { die:'d8',   count:[0,1,1,2], type:'Thunder',   atkType:'melee',  note:'Extra on movement' },
+  'infestation':         { die:'d6',   count:[1,2,3,4], type:'Piercing',  atkType:'save',   saveAbility:'con' },
+  'primal_savagery':     { die:'d10',  count:[1,2,3,4], type:'Acid',      atkType:'melee' },
+  'lightning_lure':      { die:'d8',   count:[1,2,3,4], type:'Lightning', atkType:'save',   saveAbility:'str', note:'Pull 10ft toward you' },
+  'sword_burst':         { die:'d6',   count:[1,2,3,4], type:'Force',     atkType:'save',   saveAbility:'dex', aoe:'5ft radius' },
+  'create_bonfire':      { die:'d8',   count:[1,2,3,4], type:'Fire',      atkType:'save',   saveAbility:'dex', note:'Persists; enter to take dmg' },
+  'frostbite':           { die:'d6',   count:[1,2,3,4], type:'Cold',      atkType:'save',   saveAbility:'con', note:'-1d4 to next attack roll' },
+  'thunderclap':         { die:'d6',   count:[1,2,3,4], type:'Thunder',   atkType:'save',   saveAbility:'con', aoe:'5ft radius' },
+  'erupting_earth':      { die:'d12',  count:[1,2,3,4], type:'Bludgeoning', atkType:'save', saveAbility:'dex', note:'3×3 ft area becomes difficult terrain' },
 };
 
 function getCantripScaleIdx(level) {
@@ -18017,7 +18062,16 @@ function calcWeaponAttack(entry) {
   const isThrown  = phbWeapon?.properties?.includes('thrown');
   const isTwoHanded = phbWeapon?.properties?.includes('two_handed');
   const isVersatile = phbWeapon?.properties?.includes('versatile');
-  const isMonk    = phbWeapon?.monk;
+  // Monk weapon check: monk + (simple melee OR shortsword OR unarmed OR weapon has monk property)
+  const _isMonkClass = getAllClasses().some(e => e.class?.toLowerCase() === 'monk');
+  const _wlist = phbWeapon?.list || '';
+  const _wtype = phbWeapon?.type || '';
+  const isMonk = _isMonkClass && (
+    phbWeapon?.monk === true ||
+    phbWeapon?.unarmed === true ||
+    (_wtype === 'Simple' && _wlist === 'melee') ||
+    (entry.weaponKey === 'shortsword')
+  );
   const wtype     = phbWeapon?.type || 'Simple';
   const wkey      = entry.weaponKey;
 
@@ -18037,8 +18091,8 @@ function calcWeaponAttack(entry) {
   const abilMod = abilityMod(abs[abilityKey]);
 
   // ── Proficiency ──────────────────────────────────────────
-  const isProficient = entry.proficient !== false &&
-    isWeaponProficient(wkey, wtype);
+  const isProficient = isUnarmed ? true :
+    (entry.proficient !== false && isWeaponProficient(wkey, wtype));
   const profBonus = isProficient ? prof : 0;
 
   // ── Attack bonus ─────────────────────────────────────────
@@ -18052,7 +18106,23 @@ function calcWeaponAttack(entry) {
     const cm = entry.customDamage.match(/^(\d+)d(\d+)$/i);
     if (cm) { dmgCount = parseInt(cm[1]); dmgDie = parseInt(cm[2]); dmgType = ''; }
   }
-  if (!dmgDie && phbWeapon) {
+  // Unarmed strike: resolve best damage source
+  const isUnarmed = entry.weaponKey === 'unarmed_strike';
+  if (!dmgDie && isUnarmed) {
+    // Use the chosen source stored on the entry, or default to best available
+    const allSources = getUnarmedDamage();
+    // If entry.unarmedSource is set, use that index, else use best (index 0)
+    const srcIdx = (entry.unarmedSource != null && allSources[entry.unarmedSource]) ? entry.unarmedSource : 0;
+    const best = allSources[srcIdx] || allSources[0];
+    if (best.flat) {
+      // Base unarmed: 1 + str mod (no die) — represent as 0d0 + 1 flat
+      dmgCount = 0; dmgDie = 0; dmgType = 'bludgeoning';
+    } else {
+      dmgCount = best.count; dmgDie = best.die; dmgType = best.type;
+    }
+    if (best.abilityOverride === 'dex_or_str') abilityKey = abilMod >= abilityMod(abs.dex) ? 'str' : 'dex';
+  }
+  if (!dmgDie && phbWeapon && !isUnarmed) {
     dmgCount = phbWeapon.damage.count;
     dmgDie   = phbWeapon.damage.die;
     dmgType  = phbWeapon.damage.type;
@@ -18085,9 +18155,16 @@ function calcWeaponAttack(entry) {
   dmgBonus += (entry.attackBonus || 0); // magic +1/+2/+3 also adds to damage
 
   // Fallback if no weapon data
-  if (!dmgDie) { dmgDie = 4; dmgCount = 1; }
-  if (!dmgCount) dmgCount = 1;
-  const dmgStr = `${dmgCount}d${dmgDie}${dmgBonus >= 0 ? '+' : ''}${dmgBonus}${dmgType ? ' '+dmgType : ''}`.trim();
+  // Flat unarmed (base 1 + STR, no die)
+  let dmgStr;
+  if (isUnarmed && dmgDie === 0) {
+    const flatVal = 1 + abilMod + (entry.damageBonus || 0);
+    dmgStr = `${flatVal > 0 ? flatVal : 1} ${dmgType}`.trim();
+  } else {
+    if (!dmgDie) { dmgDie = 4; dmgCount = 1; }
+    if (!dmgCount) dmgCount = 1;
+    dmgStr = `${dmgCount}d${dmgDie}${dmgBonus >= 0 ? '+' : ''}${dmgBonus}${dmgType ? ' '+dmgType : ''}`.trim();
+  }
 
   // ── Notes ────────────────────────────────────────────────
   const notes = [];
@@ -18110,6 +18187,57 @@ function calcWeaponAttack(entry) {
 }
 
 // ── Render the attacks panel ──────────────────────────────
+// ── Unarmed Strike damage resolution ──────────────────────────────────────
+function getUnarmedDamage() {
+  // Returns { count, die, type, source, abilityOverride? }
+  // Check all sources and return the best
+
+  const results = [];
+
+  // 1. Monk martial arts die
+  const monkEntry = getAllClasses().find(e => e.class?.toLowerCase() === 'monk');
+  const monkLv = monkEntry?.levels?.length || 0;
+  if (monkLv >= 1) {
+    const die = monkLv >= 17 ? 10 : monkLv >= 11 ? 8 : monkLv >= 5 ? 6 : 4;
+    results.push({ count:1, die, type:'bludgeoning', source:`Monk lv${monkLv} (Martial Arts d${die})`, abilityOverride:'dex_or_str' });
+  }
+
+  // 2. Racial unarmed die
+  const race = currentChar?.race?.toLowerCase() || '';
+  const RACIAL_UNARMED = {
+    'multiverse_aarakocra':  { count:1, die:6, type:'slashing',    name:'Talons' },
+    'multiverse_lizardfolk': { count:1, die:6, type:'piercing',    name:'Bite' },
+    'multiverse_centaur':    { count:1, die:6, type:'bludgeoning', name:'Hooves' },
+    'multiverse_minotaur':   { count:1, die:6, type:'piercing',    name:'Horns' },
+    'multiverse_kobold':     { count:1, die:4, type:'slashing',    name:'Claws' },
+    'tabaxi_motm':           { count:1, die:6, type:'slashing',    name:'Claws' },
+    'tortle_motm':           { count:1, die:6, type:'slashing',    name:'Claws' },
+    'multiverse_bugbear':    { count:1, die:6, type:'bludgeoning', name:'Powerful Fists' },
+    'multiverse_satyr':      { count:1, die:4, type:'bludgeoning', name:'Ram' },
+    'multiverse_goliath':    { count:1, die:6, type:'bludgeoning', name:'Powerful Strike' },
+    'warforged':             { count:1, die:6, type:'bludgeoning', name:'Integrated Weapon' },
+  };
+  if (RACIAL_UNARMED[race]) {
+    const r = RACIAL_UNARMED[race];
+    results.push({ ...r, source:`${r.name} (Racial)` });
+  }
+
+  // 3. Feat: Tavern Brawler
+  const hasTB = (currentChar?.feats||[]).some(f => f.name?.toLowerCase().includes('tavern brawler'))
+             || (currentChar?.featSlots||[]).some(s => s.feat?.toLowerCase().includes('tavern brawler'));
+  if (hasTB) {
+    results.push({ count:1, die:6, type:'bludgeoning', source:'Tavern Brawler (feat)' });
+  }
+
+  // 4. Base unarmed (PHB 2024: 1 + STR mod — no die roll)
+  results.push({ count:0, die:0, type:'bludgeoning', source:'Base (1 + STR mod)', flat: true });
+
+  // Return best by die size (count*die), preferring highest
+  results.sort((a, b) => (b.count * b.die) - (a.count * a.die));
+  return results; // return all so UI can show a picker
+}
+window.getUnarmedDamage = getUnarmedDamage;
+
 function renderAttacksPanel() {
   const body = document.getElementById('attacks-panel-body');
   if (!body || !currentChar) return;
@@ -18258,6 +18386,61 @@ function renderAttacksPanel() {
     }
   });
 
+  // ── Monk bonus action attacks ────────────────────────────
+  const monkLvForAtk = (() => {
+    const me = getAllClasses().find(e => e.class?.toLowerCase() === 'monk');
+    return me?.levels?.length || 0;
+  })();
+
+  if (monkLvForAtk >= 1) {
+    const monkDieSize = getMonkDie() || 4;
+    const abs2   = getAbilities();
+    const strMod = abilityMod(abs2.str);
+    const dexMod = abilityMod(abs2.dex);
+    const bestMod = Math.max(strMod, dexMod);
+    const atkBonus = bestMod + prof;
+    const atkStr   = (atkBonus >= 0 ? '+' : '') + atkBonus;
+    const dmgBonus = bestMod >= 0 ? '+' + bestMod : '' + bestMod;
+
+    if (hasAnyAttack) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:10px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px';
+      sep.textContent = 'Monk — Bonus Action';
+      body.appendChild(sep);
+    }
+    hasAnyAttack = true;
+
+    // Flurry of Blows (lv1+): 2 unarmed strikes as Bonus Action, costs 1 Focus Point
+    const fobRow = document.createElement('div');
+    fobRow.className = 'attack-row';
+    fobRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto;gap:0 8px;align-items:center;padding:5px 8px;margin-bottom:4px';
+    fobRow.innerHTML = `
+      <div>
+        <div class="attack-name">Flurry of Blows</div>
+        <div class="attack-sub">Bonus Action · 1 Focus Point · 2× Unarmed · DEX or STR</div>
+      </div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 8px">2 unarmed strikes that cost 1 Focus Point. Each can trigger Stunning Strike, Open Hand Technique, etc.</div>
+      <div style="text-align:center"><div class="attack-stat">${atkStr}</div><div class="attack-stat-label">To Hit</div></div>
+      <div style="text-align:center"><div class="attack-stat" style="font-size:11px">1d${monkDieSize}${dmgBonus} Bludg.</div><div class="attack-stat-label">× 2 Damage</div></div>
+    `;
+    body.appendChild(fobRow);
+
+    // Bonus Action Unarmed Strike (Step of the Wind / general BA unarmed)
+    const baRow = document.createElement('div');
+    baRow.className = 'attack-row';
+    baRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto;gap:0 8px;align-items:center;padding:5px 8px;margin-bottom:4px';
+    baRow.innerHTML = `
+      <div>
+        <div class="attack-name">Unarmed Strike (BA)</div>
+        <div class="attack-sub">Bonus Action · Martial Arts · DEX or STR</div>
+      </div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 8px">Bonus unarmed strike after Attack action with monk weapon or unarmed strike.</div>
+      <div style="text-align:center"><div class="attack-stat">${atkStr}</div><div class="attack-stat-label">To Hit</div></div>
+      <div style="text-align:center"><div class="attack-stat" style="font-size:11px">1d${monkDieSize}${dmgBonus} Bludg.</div><div class="attack-stat-label">Damage</div></div>
+    `;
+    body.appendChild(baRow);
+  }
+
   // ── Cantrip attacks ────────────────────────────────────
   const knownCantrips = new Set();
   // known[] list
@@ -18269,6 +18452,8 @@ function renderAttacksPanel() {
   }));
   // subclass bonus cantrips
   getSubclassBonusSpells().filter(s=>s.level===0).forEach(s=>knownCantrips.add(s.key));
+  // racial cantrips
+  getRacialBonusSpells().filter(s=>s.level===0).forEach(s=>knownCantrips.add(s.key));
   // pact of the tome cantrips
   getPactTomeCantrips().forEach(s=>knownCantrips.add(s.key));
   // invocation-granted cantrips (at-will spells that are level 0)
@@ -18485,20 +18670,38 @@ function populateWeaponModalDropdown() {
 function onWeaponModalKeyChange() {
   const key = document.getElementById('wm-weapon-key').value;
   const phb = PHB_WEAPONS.find(w => w.key === key);
-  const preview = document.getElementById('wm-preview');
-  const nameEl  = document.getElementById('wm-name');
-  const profEl  = document.getElementById('wm-proficient');
+  const preview  = document.getElementById('wm-preview');
+  const nameEl   = document.getElementById('wm-name');
+  const profEl   = document.getElementById('wm-proficient');
+  const unarmedRow = document.getElementById('wm-unarmed-row');
+
+  // Hide unarmed picker by default
+  if (unarmedRow) unarmedRow.style.display = 'none';
 
   if (phb) {
     if (!nameEl.value || nameEl.dataset.autoFilled === 'true') {
       nameEl.value = phb.name;
       nameEl.dataset.autoFilled = 'true';
     }
-    profEl.checked = isWeaponProficient(phb.key, phb.type);
+    profEl.checked = key === 'unarmed_strike' ? true : isWeaponProficient(phb.key, phb.type);
 
-    const dmg = `${phb.damage.count}d${phb.damage.die} ${phb.damage.type}`;
-    const props = phb.properties.map(p=>p.replace('_',' ')).join(', ');
-    preview.innerHTML = `<span style="color:var(--text2)">${dmg}</span> · ${phb.range}${props ? ' · '+props : ''}${phb.mastery ? ' · <span style="color:var(--gold)">'+phb.mastery+'</span>' : ''}`;
+    if (key === 'unarmed_strike') {
+      // Build unarmed source picker
+      const sources = getUnarmedDamage();
+      const sel = document.getElementById('wm-unarmed-source');
+      if (sel) {
+        sel.innerHTML = sources.map((s, i) => {
+          const label = s.flat ? `Base (1 + STR mod)` : `${s.count}d${s.die} ${s.type} — ${s.source}`;
+          return `<option value="${i}">${label}</option>`;
+        }).join('');
+      }
+      if (unarmedRow) unarmedRow.style.display = '';
+      preview.innerHTML = `<span style="color:var(--accent)">Damage depends on source selected below</span>`;
+    } else {
+      const dmg = `${phb.damage.count}d${phb.damage.die} ${phb.damage.type}`;
+      const props = (phb.properties||[]).map(p=>p.replace('_',' ')).join(', ');
+      preview.innerHTML = `<span style="color:var(--text2)">${dmg}</span> · ${phb.range||''}${props ? ' · '+props : ''}${phb.mastery ? ' · <span style="color:var(--gold)">'+phb.mastery+'</span>' : ''}`;
+    }
   } else {
     nameEl.dataset.autoFilled = '';
     preview.textContent = '';
@@ -18518,16 +18721,18 @@ function applyWeaponModal() {
   if (!key && !name) { toast('Enter a weapon name', 'warn'); return; }
 
   const phb = PHB_WEAPONS.find(w => w.key === key);
+  const unarmedSrc = document.getElementById('wm-unarmed-source');
   const entry = {
-    weaponKey:    key || null,
-    name:         name || phb?.name || 'Weapon',
-    attackBonus:  atkBonus,
-    damageBonus:  dmgBonus,
-    customDamage: customDmg || null,
-    equipped:     equipped,
-    proficient:   proficient,
+    weaponKey:     key || null,
+    name:          name || phb?.name || 'Weapon',
+    attackBonus:   atkBonus,
+    damageBonus:   dmgBonus,
+    customDamage:  customDmg || null,
+    equipped:      equipped,
+    proficient:    proficient,
     versatileMode: false,
-    offhand:      false,
+    offhand:       false,
+    unarmedSource: (key === 'unarmed_strike' && unarmedSrc) ? parseInt(unarmedSrc.value) || 0 : undefined,
   };
 
   if (_weaponEditIdx !== null) {
@@ -20464,10 +20669,42 @@ function renderResourceTracker() {
     }
   });
 
-  // Racial resources
+  // Racial resources (explicit entries)
   if (race) {
     (RACIAL_RESOURCES[race]||[]).forEach(r => {
       if (level >= (r.minLevel||1) && getResourceMax(r, level, prof) > 0) allDefs.push(r);
+    });
+  }
+
+  // Auto-generate resources from RACIAL_BONUS_SPELLS for levelled spells (1/Long Rest)
+  if (race) {
+    const subrace = currentChar.subrace?.toLowerCase().trim() || '';
+    const rbsSources = [
+      RACIAL_BONUS_SPELLS[race]      || [],
+      RACIAL_BONUS_SPELLS[`${race}/${subrace}`] || [],
+    ].flat();
+    rbsSources.forEach(s => {
+      if (s.cantrip || s.placeholder || s.noResource) return;
+      if (!s.minLevel || s.minLevel < 1) return;
+      if (level < s.minLevel) return;
+      // Avoid duplicating entries already in RACIAL_RESOURCES
+      const alreadyTracked = (RACIAL_RESOURCES[race]||[]).some(r =>
+        r.name?.toLowerCase() === s.name?.toLowerCase() ||
+        r.id?.includes(s.key)
+      );
+      if (alreadyTracked) return;
+      const id = `racial_spell_${race}_${s.key}`.replace(/[^a-z0-9_]/g,'_');
+      // minLevel=1 levelled spells recover on Short Rest; minLevel>=3 on Long Rest
+      const recovery = (s.minLevel <= 1) ? 'short' : 'long';
+      allDefs.push({
+        id,
+        name:     s.name,
+        recovery,
+        minLevel: s.minLevel,
+        maxByLevel: Array.from({length:21}, (_,i) => i >= s.minLevel ? 1 : 0),
+        desc: `Cast ${s.name} 1/${recovery === 'short' ? 'Short' : 'Long'} Rest (racial spell).`,
+        _racialSpell: true,
+      });
     });
   }
 
@@ -20507,6 +20744,38 @@ function renderResourceTracker() {
     const usagesVal = featData.usages === 'prof_bonus' ? prof
       : typeof featData.usages === 'number' ? featData.usages : 1;
     if (usagesVal > 0) allDefs.push({ id, name: featName, _max: usagesVal, recovery: featData.recovery });
+  });
+
+  // ── Magic Initiate 1/LR spell resource ──────────────────
+  // For each Magic Initiate feat (any flavour), find the chosen lv1 spell and add 1/LR resource
+  const miVariants = ['cleric','druid','wizard','bard','ranger','sorcerer','warlock'];
+  miVariants.forEach(variant => {
+    const miKey = `magic initiate (${variant})`;
+    // Check feat is taken (in feats[] or featSlot decisions)
+    const hasMI = (currentChar.feats||[]).some(f =>
+      (f.name||f||'').toLowerCase().includes(`magic initiate (${variant})`)
+    ) || (getFeatSlotDecisions && (() => {
+      try {
+        const decs = Object.values(getFeatSlotDecisions());
+        return decs.some(d => (d.feat||'').toLowerCase().includes(`magic initiate (${variant})`));
+      } catch { return false; }
+    })());
+    if (!hasMI) return;
+    // Find the chosen lv1 spell (non-cantrip) in featSpells
+    const chosenKeys = currentChar.spells?.featSpells?.[miKey] || [];
+    const lv1Spell = chosenKeys.map(k => PHB_SPELL_LIST.find(s => s.key === k))
+                               .find(s => s && s.level === 1);
+    if (!lv1Spell) return;
+    const id = `mi_${variant}_${lv1Spell.key}`;
+    if (allDefs.find(d => d.id === id)) return;
+    allDefs.push({
+      id,
+      name:     `${lv1Spell.name} (MI)`,
+      recovery: 'long',
+      _max:     1,
+      minLevel: 1,
+      desc:     `Magic Initiate: Cast ${lv1Spell.name} once per Long Rest without a spell slot.`,
+    });
   });
 
   if (!allDefs.length) {
@@ -23856,12 +24125,12 @@ function renderClassRows() {
     lvInput.addEventListener('change', () => {
       const newLv = Math.max(1, Math.min(20, parseInt(lvInput.value)||1));
       lvInput.value = newLv;
-      // Mutate the actual entry in currentChar.classes (not just the closure copy)
       const realEntry = currentChar.classes?.[idx];
       if (realEntry) realEntry.levels = Array.from({length: newLv}, (_, i) => i + 1);
       rebuildLevelPlan();
-      onMulticlassChange();
-      autoSave();
+      // Cancel any pending input debounce and run immediately
+      clearTimeout(_lvDebounce);
+      setTimeout(() => { onMulticlassChange(); autoSave(); }, 0);
     });
     let _lvDebounce = null;
     lvInput.addEventListener('input', () => {
@@ -23870,12 +24139,10 @@ function renderClassRows() {
         const realEntry = currentChar.classes?.[idx];
         if (realEntry) realEntry.levels = Array.from({length: v}, (_, i) => i + 1);
         rebuildLevelPlan();
-        // Debounce the heavy recalc — update summary immediately, full recalc after pause
-        updateCharSummary();
+        // Defer to next tick — ensures DOM is updated before onMulticlassChange
+        // rebuilds class rows (prevents element replacement race with 'change' event)
         clearTimeout(_lvDebounce);
-        _lvDebounce = setTimeout(() => {
-          onMulticlassChange();
-        }, 300);
+        _lvDebounce = setTimeout(() => onMulticlassChange(), 0);
       }
     });
 
