@@ -15550,6 +15550,7 @@ function toggleSkillProf(key) {
     currentChar.skill_expert[key] = false;
   }
   renderSkillsBlock();
+  renderClassChoices();
   recalcQuickStats();
 }
 
@@ -15566,6 +15567,7 @@ function toggleSkillExpert(key) {
     // Keep proficiency — expertise off doesn't remove prof
   }
   renderSkillsBlock();
+  renderClassChoices();
   recalcQuickStats();
 }
 
@@ -21979,7 +21981,7 @@ function renderClassFeatures() {
     const levelStr  = e.level ? `<span class="feat-card-level" style="font-size:8px">${ORDINALS[e.level]||'Lv'+e.level}</span>` : '';
     const sourceStr = e.source ? `<span class="feat-card-source" style="font-size:8px">${e.source}</span>` : '';
     const descHtml  = e.desc
-      ? `<div class="feat-card-desc" style="font-size:10px;margin-top:2px">${e.desc.replace(/\|/g,' · ').replace(/\n/g,' ')}</div>`
+      ? `<div class="feat-card-desc" style="font-size:10px;margin-top:2px">${e.desc.replace(/\|/g,'<br>').replace(/\n/g,'<br>')}</div>`
       : '';
 
     return `<div class="feat-card" style="margin-bottom:4px;padding:5px 8px">
@@ -26574,7 +26576,7 @@ function populateFeaturesTab() {
           <span class="feat-card-name">${e.name}</span>
           ${usageStr}
         </div>
-        ${e.desc ? `<div class="feat-card-desc">${e.desc.replace(/\|/g,' · ').replace(/\n/g,' ')}</div>` : ''}
+        ${e.desc ? `<div class="feat-card-desc">${e.isHtml ? e.desc : e.desc.replace(/\|/g,'<br>').replace(/\n/g,'<br>')}</div>` : ''}
       </div>
     `;
     }
