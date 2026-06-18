@@ -2978,6 +2978,32 @@ select:not([multiple]) {
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="disciplines-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div>
+        <div class="modal-title" style="border:none;padding:0;margin:0">Psionic Disciplines</div>
+        <div id="disciplines-modal-count" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:2px"></div>
+      </div>
+      <button class="tbtn" style="margin-left:auto" onclick="closeModal('disciplines-modal')">✕ Close</button>
+    </div>
+    <div id="disciplines-modal-body" style="overflow-y:auto;padding:16px 20px;flex:1"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="mutable-form-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div>
+        <div class="modal-title" style="border:none;padding:0;margin:0">Mutable Form</div>
+        <div id="mutable-form-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:2px"></div>
+      </div>
+      <button class="tbtn" style="margin-left:auto" onclick="closeModal('mutable-form-modal')">✕ Close</button>
+    </div>
+    <div id="mutable-form-body" style="overflow-y:auto;padding:16px 20px;flex:1"></div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="mage-armor-confirm-modal" style="background:rgba(0,0,0,.55);backdrop-filter:blur(2px)">
   <div class="modal-box" style="max-width:320px;text-align:center">
     <div style="font-size:28px;margin-bottom:8px">🛡</div>
@@ -4646,6 +4672,11 @@ function enterApp() {
   _safe('syncStatus',       () => setSyncStatus('ok', '✓ Loaded'));
   // Clean up stale _auto feats and empty entries from older saves
   _safe('cleanFeats', () => {
+    // Migrate old psionic_disciplines format (stored with full descriptions) to clean names
+    const pd = currentChar.class_choices?.psionic_disciplines;
+    if (Array.isArray(pd) && pd.some(v => v.includes(' — '))) {
+      currentChar.class_choices.psionic_disciplines = pd.map(v => v.includes(' — ') ? v.split(' — ')[0].trim() : v);
+    }
     if (currentChar?.feats) {
       currentChar.feats = currentChar.feats.filter(f => !f._auto && f.name && f.name.trim() !== '');
     }
@@ -6009,7 +6040,7 @@ const PHB_CLASS_CHOICES = {
     }
   ],
   "artificer": [{"id":"infusions_known","label":"Infusions Known","desc":"Choose infusions to learn. Count increases at higher levels. You can replicate half your known infusions simultaneously.","type":"multi-select","minLevel":2,"countByLevel":{"2":4,"3":4,"4":4,"5":4,"6":5,"7":5,"8":5,"9":5,"10":6,"11":6,"12":6,"13":6,"14":7,"15":7,"16":7,"17":7,"18":8,"19":8,"20":8},"options":["Boots of the Winding Path","Dazzling Weapon","Helm of Awareness","Manifold Tool","Mind Sharpener","Repeating Shot","Repulsion Shield","Returning Weapon","Spell-Refueling Ring"]},],
-  "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback — Cast Necro/Trans spell: expend up to INT mod dice, gain temp HP = total+INT mod","Bolstering Precognition — Cast Abj/Div spell: expend 1 die, give creature +roll to next d20","Destructive Thoughts — Cast Conj/Evoc save spell: expend up to INT mod dice, deal Psychic = total+INT mod","Devilish Tongue — Influence action: roll 1 die and add to check (expended on success)","Expanded Awareness — Search action: roll 1 die and add to check (expended on success)","Id Insinuation — Cast Ench/Illus save spell: expend 1 die, target subtracts roll from their save","Inerrant Aim — Miss with attack: roll 1 die and add to attack (expended if hit)","Observant Mind — Study action: roll 1 die and add to check (expended on success)","Psionic Backlash — Reaction when hit: expend 1 die, subtract roll from damage","Psionic Guards — Start of turn: expend 1 die until next turn — Psychic immune, Charmed/Frightened immune, INT saves +roll","Sharpened Mind — Start of turn: expend 1 die for 1 min — weapon attacks +roll Psychic, concentration saves +5"]}],
+  "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback","Bolstering Precognition","Destructive Thoughts","Devilish Tongue","Expanded Awareness","Id Insinuation","Inerrant Aim","Observant Mind","Psionic Backlash","Psionic Guards","Sharpened Mind"]},{"id":"mutable_form_config","label":"Mutable Form","desc":"Bonus Action: expend 1 Psionic Energy Die to activate. Choose your form options below.","type":"modal-button","buttonLabel":"⚙ Configure Form","buttonFn":"openMutableFormModal()","minLevel":3,"showIfSubclass":"metamorph"}],
   "druid": [
     {
       "id": "primal_order",
@@ -6536,7 +6567,7 @@ const PHB_CLASS_RESOURCES     = {
     }
   ],
   "artificer": [{"id":"flash_of_genius","name":"Flash of Genius","maxFormula":"int_mod","recovery":"long rest","minLevel":7},{"id":"replicated_items","name":"Replicated Items","maxFormula":"level>=18?6:level>=14?5:level>=10?4:level>=6?3:2","recovery":"long rest","minLevel":2}],
-  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","recovery":"short rest"},{"id":"psionic_restoration","name":"Psionic Restoration","desc":"Meditate 1 min to recover Psionic Energy Dice (up to INT mod). First use after long rest is free (no meditation).","_max":1,"recovery":"long rest","minLevel":5}]
+  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","dieFormula":"level<5?'4d6':level<9?'6d8':level<13?'8d'+( level<11?'8':'10'):level<17?'10d10':'12d12'","recovery":"short rest"},{"id":"psionic_restoration","name":"Psionic Restoration","desc":"Meditate 1 min to recover Psionic Energy Dice (up to INT mod). First use after long rest is free (no meditation).","_max":1,"recovery":"long rest","minLevel":5}]
 };
 const PHB_SUBCLASS_RESOURCES = {
   "barbarian/berserker": [
@@ -15194,11 +15225,21 @@ function getPrimarySubclass() {
 function getAllClasses() {
   if (!currentChar) return [];
   // Valid multiclass data
-  if (currentChar.classes?.length && currentChar.classes[0]?.class) return currentChar.classes;
+  if (currentChar.classes?.length && currentChar.classes[0]?.class) {
+    // If levels array is empty, try to populate from DOM input
+    currentChar.classes.forEach((entry, idx) => {
+      if (!entry.levels?.length) {
+        const inputs = document.querySelectorAll('.mc-level-input');
+        const domLv = inputs[idx] ? parseInt(inputs[idx].value) || 0 : 0;
+        if (domLv > 0) entry.levels = Array.from({length: domLv}, (_, i) => i + 1);
+      }
+    });
+    return currentChar.classes;
+  }
   // Fallback to legacy fields (also handles empty/corrupt classes array)
   const cls = currentChar.class || '';
   if (!cls) return [];
-  return [{ class: cls, subclass: currentChar.subclass || '', levels: Array.from({length: getLevel()}, (_,i) => i+1) }];
+  return [{ class: cls, subclass: currentChar.subrace || currentChar.subclass || '', levels: Array.from({length: getLevel()}, (_,i) => i+1) }];
 }
 function getClassLevelCount(cls) {
   const entry = getAllClasses().find(c => c.class?.toLowerCase() === cls?.toLowerCase());
@@ -18464,21 +18505,31 @@ const RACIAL_BONUS_SPELLS = {
   "gnome": [{"key": "mending", "name": "Mending", "minLevel": 1, "cantrip": true}, {"key": "prestidigitation", "name": "Prestidigitation", "minLevel": 1, "cantrip": true}, {"key": "speak_with_animals", "name": "Speak with Animals", "minLevel": 1}],
 };
 
+// Class-granted always-known spells (not counted against known/prepared limit)
+const CLASS_BONUS_SPELLS = {
+  'psion': [
+    { key: 'mage_hand', name: 'Mage Hand', minLevel: 1, cantrip: true, noResource: true,
+      label: 'Subtle Telekinesis', note: 'No somatic components; invisible hand (Subtle Telekinesis)' },
+  ],
+};
+
 function getRacialBonusSpells() {
   if (!currentChar) return [];
   const race    = currentChar.race?.toLowerCase().trim();
   const subrace = currentChar.subrace?.toLowerCase().trim();
   const level   = getLevel();
-  if (!race) return [];
+  const cls     = getPrimaryClass().toLowerCase().trim();
+  if (!race && !cls) return [];
 
   // Collect spells from race key AND subrace compound key ("race/subracekey")
-  const raceSrc    = RACIAL_BONUS_SPELLS[race]    || [];
-  const subKey     = subrace ? `${race}/${subrace}` : null;
+  const raceSrc    = (race ? RACIAL_BONUS_SPELLS[race] : null)    || [];
+  const subKey     = (race && subrace) ? `${race}/${subrace}` : null;
   const subSrc     = (subKey && RACIAL_BONUS_SPELLS[subKey]) || [];
-  const allSpells  = [...raceSrc, ...subSrc];
+  const classSrc   = CLASS_BONUS_SPELLS[cls] || [];
+  const allSpells  = [...raceSrc, ...subSrc, ...classSrc];
 
   return allSpells
-    .filter(s => !s.placeholder)           // skip choice-placeholders (e.g. High Elf cantrip)
+    .filter(s => !s.placeholder)
     .filter(s => level >= (s.minLevel || 1))
     .map(s => {
       const phb = PHB_SPELL_LIST.find(p => p.key === s.key)
@@ -18487,10 +18538,11 @@ function getRacialBonusSpells() {
         key:      phb?.key  || s.key,
         name:     phb?.name || s.name,
         level:    phb?.level ?? (s.cantrip ? 0 : 1),
-        source:   'race',
+        source:   s.label ? 'class' : 'race',
         pipType:  s.cantrip ? 'cantrip' : 'subclass',
         locked:   true,
-        label:    'Racial',
+        label:    s.label || 'Racial',
+        noResource: s.noResource || false,
         available: true,
       };
     });
@@ -20293,170 +20345,178 @@ const CLASS_SCALING_TABLES = {
       }
     ]
   },
-  "psion": {
+      "psion": {
     "title": "Psion Progression",
     "columns": [
-      {
-        "key": "prof",
-        "label": "Prof"
-      },
-      {
-        "key": "die",
-        "label": "Psionic Die"
-      },
-      {
-        "key": "pts",
-        "label": "Psi Points"
-      },
-      {
-        "key": "known",
-        "label": "Disciplines"
-      }
+      { "key": "prof",     "label": "Prof" },
+      { "key": "die",      "label": "Energy Dice" },
+      { "key": "cantrips", "label": "Cantrips" },
+      { "key": "spells",   "label": "Prepared Spells" },
+      { "key": "known",    "label": "Disciplines" }
     ],
     "rows": [
       {
         "level": 1,
         "prof": "+2",
-        "die": "d6",
-        "pts": 4,
+        "die": "4d6",
+        "cantrips": 2,
+        "spells": 4,
         "known": 1
       },
       {
         "level": 2,
         "prof": "+2",
-        "die": "d6",
-        "pts": 6,
-        "known": 1
+        "die": "4d6",
+        "cantrips": 2,
+        "spells": 5,
+        "known": 2
       },
       {
         "level": 3,
         "prof": "+2",
-        "die": "d6",
-        "pts": 14,
+        "die": "4d6",
+        "cantrips": 2,
+        "spells": 6,
         "known": 2
       },
       {
         "level": 4,
         "prof": "+2",
-        "die": "d6",
-        "pts": 17,
+        "die": "4d6",
+        "cantrips": 3,
+        "spells": 7,
         "known": 2
       },
       {
         "level": 5,
         "prof": "+3",
-        "die": "d8",
-        "pts": 27,
+        "die": "6d8",
+        "cantrips": 3,
+        "spells": 9,
         "known": 3
       },
       {
         "level": 6,
         "prof": "+3",
-        "die": "d8",
-        "pts": 32,
+        "die": "6d8",
+        "cantrips": 3,
+        "spells": 10,
         "known": 3
       },
       {
         "level": 7,
         "prof": "+3",
-        "die": "d8",
-        "pts": 38,
-        "known": 4
+        "die": "6d8",
+        "cantrips": 3,
+        "spells": 11,
+        "known": 3
       },
       {
         "level": 8,
         "prof": "+3",
-        "die": "d8",
-        "pts": 44,
+        "die": "6d8",
+        "cantrips": 3,
+        "spells": 12,
         "known": 4
       },
       {
         "level": 9,
         "prof": "+4",
-        "die": "d8",
-        "pts": 57,
-        "known": 5
+        "die": "8d8",
+        "cantrips": 3,
+        "spells": 14,
+        "known": 4
       },
       {
         "level": 10,
         "prof": "+4",
-        "die": "d8",
-        "pts": 64,
+        "die": "8d8",
+        "cantrips": 4,
+        "spells": 15,
         "known": 5
       },
       {
         "level": 11,
         "prof": "+4",
-        "die": "d10",
-        "pts": 73,
-        "known": 6
+        "die": "8d10",
+        "cantrips": 4,
+        "spells": 16,
+        "known": 5
       },
       {
         "level": 12,
         "prof": "+4",
-        "die": "d10",
-        "pts": 73,
+        "die": "8d10",
+        "cantrips": 4,
+        "spells": 16,
         "known": 6
       },
       {
         "level": 13,
         "prof": "+5",
-        "die": "d10",
-        "pts": 83,
-        "known": 7
+        "die": "10d10",
+        "cantrips": 4,
+        "spells": 17,
+        "known": 6
       },
       {
         "level": 14,
         "prof": "+5",
-        "die": "d10",
-        "pts": 83,
+        "die": "10d10",
+        "cantrips": 4,
+        "spells": 17,
         "known": 7
       },
       {
         "level": 15,
         "prof": "+5",
-        "die": "d10",
-        "pts": 94,
-        "known": 8
+        "die": "10d10",
+        "cantrips": 4,
+        "spells": 18,
+        "known": 7
       },
       {
         "level": 16,
         "prof": "+5",
-        "die": "d10",
-        "pts": 94,
+        "die": "10d10",
+        "cantrips": 4,
+        "spells": 18,
         "known": 8
       },
       {
         "level": 17,
         "prof": "+6",
-        "die": "d12",
-        "pts": 107,
+        "die": "12d12",
+        "cantrips": 4,
+        "spells": 19,
         "known": 9
       },
       {
         "level": 18,
         "prof": "+6",
-        "die": "d12",
-        "pts": 107,
+        "die": "12d12",
+        "cantrips": 4,
+        "spells": 20,
         "known": 9
       },
       {
         "level": 19,
         "prof": "+6",
-        "die": "d12",
-        "pts": 123,
+        "die": "12d12",
+        "cantrips": 4,
+        "spells": 21,
         "known": 10
       },
       {
         "level": 20,
         "prof": "+6",
-        "die": "d12",
-        "pts": 133,
+        "die": "12d12",
+        "cantrips": 4,
+        "spells": 22,
         "known": 10
       }
     ]
-  }
-};
+  }};
 const SPELL_SLOT_TABLES = {
   "full": {
     "title": "Spell Slots by Level",
@@ -22936,7 +22996,12 @@ function renderClassChoices() {
   classes.forEach((entry, ci) => {
     const eCls = (entry.class||'').toLowerCase().trim();
     const eSub = entry.subclass || '';
-    const eLv  = entry.levels?.length || 0;
+    const eLv  = entry.levels?.length || (() => {
+      // Fall back to DOM level input or stored numeric level
+      const inputs = document.querySelectorAll('.mc-level-input');
+      const domLv = inputs[ci] ? parseInt(inputs[ci].value) || 0 : 0;
+      return domLv || parseInt(entry.level || 0) || getLevel();
+    })();
     if (!eCls) return;
 
     const classDefs    = (PHB_CLASS_CHOICES[eCls]||[]).filter(d => {
@@ -23273,6 +23338,27 @@ function renderChoiceDef(def, _choiceCls) {
       ${def.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
     </select>`;
 
+  } else if (def.type === 'modal-button') {
+    // Generic modal-button: show a button + summary of current state
+    const _mfState = currentChar._mutableForm || {};
+    const _subLv = getClassLevelCount(_choiceCls) || getLevel();
+    const _fwLabel  = {organic_defense:'Organic Defense',empowered_healing:'Empowered Healing'};
+    const _imfLabel = {stony_epidermis:'Stony Epidermis',superior_stride:'Superior Stride',unnatural_flexibility:'Unnatural Flexibility'};
+    const _parts = [];
+    if (_subLv >= 6  && _mfState.fleshWeaverChoice) _parts.push(_fwLabel[_mfState.fleshWeaverChoice]||'');
+    if (_subLv >= 10 && _mfState.imfChoice)          _parts.push(_imfLabel[_mfState.imfChoice]||'');
+    const _partsHtml = _parts.length
+      ? '<div style="font-family:var(--font-body);font-size:11px;color:var(--accent)">' + _parts.join(' · ') + '</div>'
+      : '';
+    inner += '<div style="display:flex;flex-direction:column;gap:6px">'
+           + '<div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:4px">' + (def.desc||'') + '</div>'
+           + '<div style="display:flex;align-items:center;gap:8px">'
+           + '<button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="' + (def.buttonFn||'') + '">' + (def.buttonLabel||'⚙ Configure') + '</button>'
+           + '<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Uses 1 Psionic Energy Die</span>'
+           + '</div>'
+           + _partsHtml
+           + '</div>';
+
   } else if (def.type === 'weapon-mastery') {
     const selected = Array.isArray(saved) ? saved : (saved ? [saved] : []);
     const maxCount = def.count || (def.countByLevel ? (def.countByLevel[getClassLevelCount(eCls)||getLevel()]||0) : 1);
@@ -23297,24 +23383,40 @@ function renderChoiceDef(def, _choiceCls) {
 
   } else if (def.type === 'multi-select' || def.type === 'multi-select-named') {
     const selected = Array.isArray(saved) ? saved : [];
-    const maxCount = def.maxCount || (def.countByLevel ? (def.countByLevel[getLevel()]||0) : (def.count||2));
+    const maxCount = def.maxCount || (def.countByLevel ? (def.countByLevel[String(getLevel())] || def.countByLevel[getLevel()] || 0) : (def.count||2));
     const over = selected.length > maxCount;
 
-    let options = def.options || [];
-
-    inner += `<div class="choice-pills-wrap">
-      <div class="choice-pills-count ${over?'over':''}">${selected.length} / ${maxCount} selected</div>
-      <div class="choice-pills-grid">`;
-
-    for (const opt of options) {
-      const isSel = selected.includes(opt);
-      const isDis = !isSel && selected.length >= maxCount;
-      const tip   = (def.optionDescs?.[opt] || '').replace(/"/g,'&quot;');
-      inner += `<div class="choice-pill ${isSel?'selected':''} ${isDis?'disabled':''}"
-        title="${tip}"
-        onclick="toggleChoicePill('${def.id}', '${opt.replace(/'/g,"\\'")}', ${maxCount})">${opt}</div>`;
+    // Psionic Disciplines: use a modal like Eldritch Invocations
+    if (def.id === 'psionic_disciplines') {
+      inner += `<div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="choice-pills-count ${over?'over':''}" style="margin:0">${selected.length} / ${maxCount} selected</span>
+          <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="openDisciplinesModal()">⚙ Configure Disciplines</button>
+        </div>
+        ${selected.length ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.6">
+          ${selected.map(name => `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 7px;margin:2px;font-size:10px">
+            ${name}
+            <span style="cursor:pointer;color:var(--text3);font-size:11px;line-height:1;padding:0 2px" title="Remove"
+              onclick="toggleDiscipline('${name.replace(/'/g,"\\'")}',${maxCount})">×</span>
+          </span>`).join('')}
+        </div>` : `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">No disciplines selected yet</div>`}
+      </div>`;
+    } else {
+      // Standard inline multi-select
+      let options = def.options || [];
+      inner += `<div class="choice-pills-wrap">
+        <div class="choice-pills-count ${over?'over':''}">${selected.length} / ${maxCount} selected</div>
+        <div class="choice-pills-grid">`;
+      for (const opt of options) {
+        const isSel = selected.includes(opt);
+        const isDis = !isSel && selected.length >= maxCount;
+        const tip   = (def.optionDescs?.[opt] || '').replace(/"/g,'&quot;');
+        inner += `<div class="choice-pill ${isSel?'selected':''} ${isDis?'disabled':''}"
+          title="${tip}"
+          onclick="toggleChoicePill('${def.id}', '${opt.replace(/'/g,"\\'")}', ${maxCount})">${opt}</div>`;
+      }
+      inner += '</div></div>';
     }
-    inner += '</div></div>';
 
   } else if (def.type === 'invocation-select') {
     const parsed    = parseInvocations ? parseInvocations() : (Array.isArray(saved) ? saved.map(e => ({name:e,cantrip:null})) : []);
@@ -23549,6 +23651,85 @@ function openInvocationsModal() {
   openModal('invocations-modal');
 }
 window.openInvocationsModal = openInvocationsModal;
+
+// ── Psionic Disciplines Modal ────────────────────────────
+function openDisciplinesModal() {
+  renderDisciplinesModal();
+  openModal('disciplines-modal');
+}
+window.openDisciplinesModal = openDisciplinesModal;
+
+function renderDisciplinesModal() {
+  if (!currentChar) return;
+  const body    = document.getElementById('disciplines-modal-body');
+  const countEl = document.getElementById('disciplines-modal-count');
+  if (!body) return;
+
+  const def = (PHB_CLASS_CHOICES['psion']||[]).find(d => d.id === 'psionic_disciplines');
+  if (!def) return;
+
+  const psionLv  = getClassLevelCount('psion') || getLevel();
+  const maxCount = def.countByLevel ? (def.countByLevel[String(psionLv)] || def.countByLevel[psionLv] || 2) : 2;
+  const chosen   = new Set(Array.isArray(currentChar.class_choices?.psionic_disciplines)
+    ? currentChar.class_choices.psionic_disciplines : []);
+
+  countEl.textContent = `${chosen.size} / ${maxCount} selected`;
+  countEl.style.color  = chosen.size > maxCount ? 'var(--red)' : 'var(--text3)';
+
+  // Options are now clean names
+  const allNames = def.options || [];
+
+  body.innerHTML = `
+    <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5">
+      ${def.desc || 'Choose your Psionic Disciplines. You can select one per turn.'}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${allNames.map(name => {
+        const isSelected = chosen.has(name);
+        const fullDesc   = DISCIPLINE_DESCS[name] || '';
+        return `
+          <div onclick="toggleDiscipline('${name.replace(/'/g,"\\'")}',${maxCount})"
+            style="border:1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'};
+              background:${isSelected ? 'rgba(45,168,109,.08)' : 'var(--bg3)'};
+              border-radius:var(--radius);padding:10px 14px;cursor:pointer;
+              transition:border-color .15s,background .15s">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:${fullDesc?'5px':'0'}">
+              <div style="width:14px;height:14px;border-radius:50%;flex-shrink:0;
+                border:2px solid ${isSelected ? 'var(--accent)' : 'var(--border2)'};
+                background:${isSelected ? 'var(--accent)' : 'transparent'};
+                display:flex;align-items:center;justify-content:center">
+                ${isSelected ? '<div style="width:6px;height:6px;border-radius:50%;background:#000"></div>' : ''}
+              </div>
+              <span style="font-family:var(--font-ui);font-size:12px;font-weight:600;
+                color:${isSelected ? 'var(--accent)' : 'var(--text)'}">
+                ${name}
+              </span>
+            </div>
+            ${fullDesc ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);
+              line-height:1.5;padding-left:24px">${fullDesc}</div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+window.renderDisciplinesModal = renderDisciplinesModal;
+
+function toggleDiscipline(name, max) {
+  if (!currentChar.class_choices) currentChar.class_choices = {};
+  let chosen = Array.isArray(currentChar.class_choices.psionic_disciplines)
+    ? [...currentChar.class_choices.psionic_disciplines] : [];
+  const idx = chosen.indexOf(name);
+  if (idx > -1) {
+    chosen.splice(idx, 1);
+  } else {
+    if (chosen.length >= max) return; // at cap
+    chosen.push(name);
+  }
+  currentChar.class_choices.psionic_disciplines = chosen;
+  renderDisciplinesModal();
+  renderClassChoices();
+  debouncedSave();
+}
+window.toggleDiscipline = toggleDiscipline;
 
 // Get known damage cantrips for picker
 function getPickableCantrips(pickType) {
@@ -24168,12 +24349,12 @@ function renderResourceTracker() {
 
     // Core class resources (using class's own level)
     (PHB_CLASS_RESOURCES[eCls]||[]).forEach(r => {
-      if (!allDefs.find(d => d.id === r.id) && eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'display')) allDefs.push(r);
+      if (!allDefs.find(d => d.id === r.id) && eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'display' || r.type === 'modal-button')) allDefs.push(r);
     });
 
     // Supplemental class resources
     (SUPPLEMENTAL_CLASS_RESOURCES[eCls]||[]).forEach(r => {
-      if (eLv >= (r.minLevel||1) && getResourceMax(r, eLv, prof) > 0 && !allDefs.find(d => d.id === r.id)) allDefs.push(r);
+      if (eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) allDefs.push(r);
     });
 
     // Warlock pact slots are tracked exclusively in the Spells tab — not shown here
@@ -24182,7 +24363,7 @@ function renderResourceTracker() {
     const eSubKey = getSubclassKey(eCls, entry.subclass);
     if (eSubKey) {
       [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])].forEach(r => {
-        if (eLv >= (r.minLevel||1) && getResourceMax(r, eLv, prof) > 0 && !allDefs.find(d => d.id === r.id)) allDefs.push(r);
+        if (eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) allDefs.push(r);
       });
     }
   });
@@ -24193,7 +24374,7 @@ function renderResourceTracker() {
     (RACIAL_RESOURCES[race]||[]).forEach(r => {
       // Skip if resource requires a specific subrace and character doesn't have it
       if (r.subraceReq && r.subraceReq.toLowerCase() !== subrace) return;
-      if (level >= (r.minLevel||1) && getResourceMax(r, level, prof) > 0) allDefs.push(r);
+      if (level >= (r.minLevel||1) && (getResourceMax(r, level, prof) > 0 || r.type === 'modal-button')) allDefs.push(r);
     });
   }
 
@@ -24406,6 +24587,7 @@ function renderResourceEntry(def, level, prof) {
   const avail = Math.max(0, max - used);
   const isPool = def.type === 'pool';
   const isDisplay = def.type === 'display';
+  const isModalBtn = def.type === 'modal-button';
   const _rawRec  = (def.recovery || 'long').toLowerCase().trim();
   const recovery = _rawRec.startsWith('short') || _rawRec === 'sr' ? 'short'
                  : _rawRec.startsWith('long')  || _rawRec === 'lr' ? 'long'
@@ -24420,15 +24602,44 @@ function renderResourceEntry(def, level, prof) {
   const _ttJumpName = (def.name||def.label||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
   const recLabel = recovery === 'short' ? 'SR' : recovery === 'long' ? 'LR' : 'N/A';
 
+  // Evaluate dieFormula if present (e.g. psionic energy dice size)
+  let _dieBadge = '';
+  if (def.dieFormula) {
+    try {
+      const _dieVal = Function('level','prof','int_mod','wis_mod','cha_mod',
+        `return (${def.dieFormula})`)(level, prof,
+        abilityMod(getAbilities().int), abilityMod(getAbilities().wis), abilityMod(getAbilities().cha));
+      if (_dieVal) {
+        const _dieStr = typeof _dieVal === 'string' ? _dieVal : `d${_dieVal}`;
+        _dieBadge = ` <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.3px">(${_dieStr})</span>`;
+      }
+    } catch(e) {}
+  }
+
   let html = `<div class="resource-header">
     <span class="resource-name" style="cursor:pointer"
       data-tt="${_ttDesc}" data-tt-name="${_ttName}" data-tt-meta="${_ttMeta}"
       data-tt-click="jumpToFeatureByName('${_ttJumpName}')"
-      onclick="jumpToFeatureByName('${_ttJumpName}')">${def.name||def.label}</span>
+      onclick="jumpToFeatureByName('${_ttJumpName}')">${def.name||def.label}${_dieBadge}</span>
     <span class="resource-recovery ${recovery}">${recLabel}</span>
   </div>`;
 
-  if (isDisplay) {
+  if (isModalBtn) {
+    // Fetch active choices summary for display
+    const _mfState = currentChar._mutableForm || {};
+    const _imfLabel = {stony_epidermis:'Stony Epidermis',superior_stride:'Superior Stride',unnatural_flexibility:'Unnatural Flexibility'};
+    const _fwLabel  = {organic_defense:'Organic Defense',empowered_healing:'Empowered Healing'};
+    const _subLv = getClassLevelCount('psion') || level;
+    const _parts = [];
+    if (_subLv >= 6 && _mfState.fleshWeaverChoice) _parts.push(_fwLabel[_mfState.fleshWeaverChoice]||'');
+    if (_subLv >= 10 && _mfState.imfChoice)        _parts.push(_imfLabel[_mfState.imfChoice]||'');
+    html += `<div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="${def.buttonFn}">${def.buttonLabel||'⚙ Configure'}</button>
+      </div>
+      ${_parts.length ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text2)">${_parts.join(' · ')}</div>` : `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Tap to choose form options</div>`}
+    </div>`;
+  } else if (isDisplay) {
     html += `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3)">${def.desc||''}</div>`;
   } else if (isPool) {
     const poolVal = parseInt(currentChar.resources[def.id]) ?? max;
@@ -26710,7 +26921,33 @@ function renderFeatDetailBody() {
   let html = '';
 
   // ── ASI section ──────────────────────────────────────────
-  if (pool.length === 1) {
+  const isSaveProfFeat = extra?.type === 'save_prof';
+
+  // For save_prof feats (e.g. Resilient): ASI is always the same ability as the save prof — auto-link
+  if (isSaveProfFeat && _featDetailState.saveProf) {
+    _featDetailState.asiAb = _featDetailState.saveProf;
+  }
+
+  if (isSaveProfFeat) {
+    // Don't show a separate ASI picker — it will be shown as part of the save_prof section
+  } else if (pool.length === 1) {
+    // Single fixed ASI — show as confirmation pill (auto-select it)
+    if (!_featDetailState.asiAb) _featDetailState.asiAb = pool[0];
+    const ab    = pool[0];
+    const score = parseInt(currentChar?.abilities?.[ab]) || 10;
+    html += `
+      <div style="margin-bottom:14px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">
+          Ability Score Increase (+1)
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--gold-faint);border:1px solid var(--gold);border-radius:var(--radius)">
+          <span style="font-family:var(--font-ui);font-size:12px;color:var(--gold)">${AB_FULL[ab]}</span>
+          <span style="font-family:var(--font-ui);font-size:11px;color:var(--text2)">${score} → ${Math.min(20,score+1)}</span>
+          <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:auto">Fixed by feat</span>
+        </div>
+      </div>
+    `;
+  } else if (pool.length === 1) {
     // Single fixed ASI — show as confirmation pill (auto-select it)
     if (!_featDetailState.asiAb) _featDetailState.asiAb = pool[0];
     const ab    = pool[0];
@@ -26816,15 +27053,16 @@ function renderFeatDetailBody() {
       const chosen = _featDetailState.saveProf || '';
       html += `
         <div style="margin-bottom:14px">
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Saving Throw Proficiency</div>
-          <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:8px">${extra.desc}</div>
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Saving Throw Proficiency & +1</div>
+          <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:8px">${extra.desc} The chosen ability also gains +1.</div>
           <div class="choice-pills-grid">
-            ${AB_KEYS.map(ab => `
-              <div class="choice-pill ${chosen===ab?'selected':''}"
-                onclick="_featDetailState.saveProf='${ab}';renderFeatDetailBody()">
-                ${AB_FULL[ab]}
-              </div>
-            `).join('')}
+            ${AB_KEYS.map(ab => {
+              const score = parseInt(currentChar?.abilities?.[ab])||10;
+              return `<div class="choice-pill ${chosen===ab?'selected':''}"
+                onclick="_featDetailState.saveProf='${ab}';_featDetailState.asiAb='${ab}';renderFeatDetailBody()">
+                ${AB_FULL[ab]} (${score}→${Math.min(20,score+1)})
+              </div>`;
+            }).join('')}
           </div>
         </div>
       `;
@@ -26857,55 +27095,35 @@ function renderFeatDetailBody() {
     } else if (extra.type === 'display_only') {
       html += '<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:10px">No additional configuration needed.</div>';
     } else if (extra.type === 'spell_pick') {
-      // Magic Initiate / spell-granting feat picker
-      const _miClass = extra.classSource || null;
-      const _miCantrips = extra.cantrips || 0;
-      const _miSpells = extra.spells || 0;
-      const _miLevel = extra.spellLevel || 1;
-      const _miChosen = Array.isArray(_featDetailState.featSpells) ? _featDetailState.featSpells : [];
+      // Magic Initiate — show chosen spells summary + button to open full picker modal
+      const _fk = Object.keys(PHB_FEATS_FULL).find(k => PHB_FEATS_FULL[k].name === featName)
+               || Object.keys(PHB_FEATS).find(k => PHB_FEATS[k].name === featName)
+               || featName.toLowerCase().replace(/[^a-z0-9]/g,'_');
+      const _slotId = _featDetailState._slotId || 'feat_slot_0';
+      const _sf = SPELL_FEATS[_fk] || SPELL_FEATS[featName.toLowerCase()] || null;
+      const _chosen = currentChar.spells?.featSpells?.[_slotId] || [];
+      const _miClass = (extra.classSource || '?');
+      const _miClassLabel = _miClass.charAt(0).toUpperCase() + _miClass.slice(1);
 
-      // Get available spells for this class
-      const _miSpellList = PHB_SPELL_LIST.filter(sp => {
-        if (!_miClass) return sp.level <= _miLevel; // no class filter for generic MI
-        const cls = _miClass.toLowerCase();
-        return sp.classes && sp.classes.some(c => c.toLowerCase() === cls) && sp.level <= _miLevel;
-      }).sort((a,b) => a.level - b.level || a.name.localeCompare(b.name));
+      const _cantripNames = _chosen.filter(k => PHB_SPELL_LIST.find(s => s.key===k&&s.level===0)).map(k => PHB_SPELL_LIST.find(s=>s.key===k)?.name||k);
+      const _spellNames   = _chosen.filter(k => PHB_SPELL_LIST.find(s => s.key===k&&s.level>0)).map(k => PHB_SPELL_LIST.find(s=>s.key===k)?.name||k);
+      const _allChosen    = [..._cantripNames, ..._spellNames];
 
-      const _cantripPool = _miSpellList.filter(sp => sp.level === 0);
-      const _spellPool   = _miSpellList.filter(sp => sp.level > 0 && sp.level <= _miLevel);
+      const _btnHtml = _sf
+        ? '<button class="tbtn" style="font-size:10px;padding:5px 12px"'
+          + ' onclick="openFeatSpellPicker(\'' + _slotId + '\',\'' + featName.replace(/'/g,"\\'") + '\',SPELL_FEATS[\'' + _fk + '\'])">'
+          + '✦ Choose Spells (' + _miClassLabel + ' list)</button>'
+        : '<span style="font-size:11px;color:var(--text3)">Save feat first to choose spells</span>';
 
-      const _chosenCantrips = _miChosen.filter(k => {
-        const sp = PHB_SPELL_LIST.find(s => s.key === k);
-        return sp && sp.level === 0;
-      });
-      const _chosenSpells = _miChosen.filter(k => {
-        const sp = PHB_SPELL_LIST.find(s => s.key === k);
-        return sp && sp.level > 0;
-      });
+      const _pillsHtml = _allChosen.length
+        ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">'
+          + _allChosen.map(n => '<span style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid var(--accent);color:var(--accent)">' + n + '</span>').join('')
+          + '</div>'
+        : '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:4px">No spells chosen yet — click above</div>';
 
-      const _makeSpellPills = (pool, chosen, maxCount, label) => {
-        const overCap = chosen.length >= maxCount;
-        let out = '<div style="margin-bottom:12px">';
-        out += '<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-bottom:4px">'
-             + label + ' (' + chosen.length + '/' + maxCount + ')</div>';
-        out += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
-        pool.forEach(sp => {
-          const isChosen = chosen.includes(sp.key);
-          const disabled = !isChosen && overCap;
-          out += '<button'
-               + ' onclick="' + (disabled ? '' : '_miToggleSpell(\'' + sp.key + '\')') + '"'
-               + ' style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid;cursor:' + (disabled ? 'default' : 'pointer') + ';background:none;'
-               + (isChosen ? 'border-color:var(--accent);color:var(--accent)' : disabled ? 'border-color:var(--border);color:var(--text3);opacity:.4' : 'border-color:var(--border2);color:var(--text2)')
-               + '">' + sp.name + '</button>';
-        });
-        out += '</div></div>';
-        return out;
-      };
-
-      html += '<div style="margin-bottom:4px;font-family:var(--font-body);font-size:12px;color:var(--text3)">Choose spells'
-            + (_miClass ? ' from the <strong>' + _miClass.charAt(0).toUpperCase() + _miClass.slice(1) + '</strong> spell list' : '') + ':</div>';
-      if (_miCantrips > 0) html += _makeSpellPills(_cantripPool, _chosenCantrips, _miCantrips, 'CANTRIPS');
-      if (_miSpells > 0)   html += _makeSpellPills(_spellPool, _chosenSpells, _miSpells, 'LEVEL ' + _miLevel + ' SPELL');
+      html += '<div style="margin-bottom:12px">'
+            + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' + _btnHtml + '</div>'
+            + _pillsHtml + '</div>';
     }
   }
 
@@ -27597,6 +27815,112 @@ function openFeatDetailForBackground(slotId, featName) {
     openFeatDetailModal(slotId, featName);
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// MUTABLE FORM MODAL (Metamorph Psion)
+// ═══════════════════════════════════════════════════════════
+function openMutableFormModal() {
+  renderMutableFormModal();
+  openModal('mutable-form-modal');
+}
+window.openMutableFormModal = openMutableFormModal;
+
+function renderMutableFormModal() {
+  const body   = document.getElementById('mutable-form-body');
+  const metaEl = document.getElementById('mutable-form-meta');
+  if (!body) return;
+
+  const level  = getLevel();
+  const subLv  = getClassLevelCount('psion') || level;
+  const hasFW  = subLv >= 6;
+  const hasIMF = subLv >= 10;
+  const dur    = hasIMF ? '10 minutes' : '1 minute';
+
+  if (metaEl) metaEl.textContent = `Psion level ${subLv} · Duration: ${dur}`;
+
+  const state = currentChar._mutableForm || {};
+
+  const fwOptions = [
+    { id:'organic_defense',   label:'Organic Defense',   desc:'+2 AC for the duration.' },
+    { id:'empowered_healing', label:'Empowered Healing',  desc:'When a spell restores HP, expend 1 Psionic Energy Die and add the roll to the HP restored.' },
+  ];
+
+  const imfOptions = [
+    { id:'stony_epidermis',       label:'Stony Epidermis',       desc:'Advantage on CON saves for Concentration. Resistance to one damage type (your choice).' },
+    { id:'superior_stride',       label:'Superior Stride',        desc:'Dash as a Bonus Action (while unarmored). Climb and Swim speed equal your Speed.' },
+    { id:'unnatural_flexibility', label:'Unnatural Flexibility',  desc:'+1 AC. Move through spaces as narrow as 1 inch. Spend 5 ft of movement to escape Restrained or Grappled.' },
+  ];
+
+  const pill = (sel) =>
+    `border:1px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'rgba(45,168,109,.08)':'var(--bg3)'};border-radius:var(--radius);padding:8px 12px;cursor:pointer;margin-bottom:5px`;
+
+  let html = `
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Base Benefits (Costs 1 Psionic Energy Die)</div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px">
+        <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.7">
+          • Temp HP = die roll + INT mod (min 1)<br>
+          • +5 ft reach · +5 ft speed<br>
+          • Touch spells with 1-action casting have 10 ft range<br>
+          • Duration: <strong>${dur}</strong>
+        </div>
+      </div>
+    </div>`;
+
+  if (hasFW) {
+    const chosen = state.fleshWeaverChoice || '';
+    html += `
+      <div style="margin-bottom:16px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Flesh Weaver (lv6) — Optional Extra Die</div>
+        <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:8px">Choose one (expend 1 additional Psionic Energy Die) or skip:</div>
+        <div onclick="setMutableFormChoice('fleshWeaverChoice','')" style="${pill(!chosen)}">
+          <div style="font-family:var(--font-ui);font-size:11px;color:${!chosen?'var(--accent)':'var(--text3)'}">None — skip the extra die</div>
+        </div>
+        ${fwOptions.map(o => `
+        <div onclick="setMutableFormChoice('fleshWeaverChoice','${o.id}')" style="${pill(chosen===o.id)}">
+          <div style="font-family:var(--font-ui);font-size:12px;font-weight:600;color:${chosen===o.id?'var(--accent)':'var(--text)'};margin-bottom:3px">${o.label}</div>
+          <div style="font-family:var(--font-body);font-size:11px;color:var(--text2)">${o.desc}</div>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  if (hasIMF) {
+    const chosen = state.imfChoice || '';
+    html += `
+      <div style="margin-bottom:16px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Improved Mutable Form (lv10) — Additional Benefit</div>
+        <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:8px">Choose one each activation:</div>
+        ${imfOptions.map(o => `
+        <div onclick="setMutableFormChoice('imfChoice','${o.id}')" style="${pill(chosen===o.id)}">
+          <div style="font-family:var(--font-ui);font-size:12px;font-weight:600;color:${chosen===o.id?'var(--accent)':'var(--text)'};margin-bottom:3px">${o.label}</div>
+          <div style="font-family:var(--font-body);font-size:11px;color:var(--text2)">${o.desc}</div>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  // Summary
+  const activeParts = ['Base: temp HP + reach + speed + touch range'];
+  if (hasFW && state.fleshWeaverChoice) activeParts.push(fwOptions.find(o=>o.id===state.fleshWeaverChoice)?.label||'');
+  if (hasIMF && state.imfChoice)        activeParts.push(imfOptions.find(o=>o.id===state.imfChoice)?.label||'');
+
+  html += `
+    <div style="background:rgba(45,168,109,.06);border:1px solid rgba(45,168,109,.3);border-radius:var(--radius);padding:10px 14px">
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Active Configuration</div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.7">${activeParts.map(p=>`• ${p}`).join('<br>')}</div>
+    </div>`;
+
+  body.innerHTML = html;
+}
+window.renderMutableFormModal = renderMutableFormModal;
+
+function setMutableFormChoice(field, value) {
+  if (!currentChar._mutableForm) currentChar._mutableForm = {};
+  currentChar._mutableForm[field] = value;
+  renderMutableFormModal();
+  debouncedSave();
+}
+window.setMutableFormChoice = setMutableFormChoice;
 
 // ═══════════════════════════════════════════════════════════
 // SUMMON TAB
