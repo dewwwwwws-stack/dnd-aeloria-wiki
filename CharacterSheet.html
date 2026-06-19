@@ -3004,6 +3004,19 @@ select:not([multiple]) {
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="arcane-recovery-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div>
+        <div class="modal-title" style="border:none;padding:0;margin:0">Arcane Recovery</div>
+        <div id="arcane-recovery-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:2px"></div>
+      </div>
+      <button class="tbtn" style="margin-left:auto" onclick="closeModal('arcane-recovery-modal')">✕ Close</button>
+    </div>
+    <div id="arcane-recovery-body" style="overflow-y:auto;padding:16px 20px;flex:1"></div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="mage-armor-confirm-modal" style="background:rgba(0,0,0,.55);backdrop-filter:blur(2px)">
   <div class="modal-box" style="max-width:320px;text-align:center">
     <div style="font-size:28px;margin-bottom:8px">🛡</div>
@@ -6040,7 +6053,7 @@ const PHB_CLASS_CHOICES = {
     }
   ],
   "artificer": [{"id":"infusions_known","label":"Infusions Known","desc":"Choose infusions to learn. Count increases at higher levels. You can replicate half your known infusions simultaneously.","type":"multi-select","minLevel":2,"countByLevel":{"2":4,"3":4,"4":4,"5":4,"6":5,"7":5,"8":5,"9":5,"10":6,"11":6,"12":6,"13":6,"14":7,"15":7,"16":7,"17":7,"18":8,"19":8,"20":8},"options":["Boots of the Winding Path","Dazzling Weapon","Helm of Awareness","Manifold Tool","Mind Sharpener","Repeating Shot","Repulsion Shield","Returning Weapon","Spell-Refueling Ring"]},],
-  "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback","Bolstering Precognition","Destructive Thoughts","Devilish Tongue","Expanded Awareness","Id Insinuation","Inerrant Aim","Observant Mind","Psionic Backlash","Psionic Guards","Sharpened Mind"]},{"id":"mutable_form_config","label":"Mutable Form","desc":"Bonus Action: expend 1 Psionic Energy Die to activate. Choose your form options below.","type":"modal-button","buttonLabel":"⚙ Configure Form","buttonFn":"openMutableFormModal()","minLevel":3,"showIfSubclass":"metamorph"}],
+  "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback","Bolstering Precognition","Destructive Thoughts","Devilish Tongue","Expanded Awareness","Id Insinuation","Inerrant Aim","Observant Mind","Psionic Backlash","Psionic Guards","Sharpened Mind"]},{"id":"mutable_form_config","label":"Mutable Form","desc":"Bonus Action: expend 1 Psionic Energy Die to activate. Choose your form options below.","type":"modal-button","buttonLabel":"▶ Activate Mutable Form","buttonFn":"openMutableFormModal()","minLevel":3,"showIfSubclass":"metamorph"}],
   "druid": [
     {
       "id": "primal_order",
@@ -6508,6 +6521,8 @@ const PHB_CLASS_RESOURCES     = {
     {
       "id": "magical_cunning",
       "name": "Magical Cunning",
+      "type": "activate-recovery",
+      "recoveryAction": "restorePactSlots",
       "recovery": "long",
       "maxByLevel": [
         0,
@@ -6539,6 +6554,8 @@ const PHB_CLASS_RESOURCES     = {
     {
       "id": "arcane_recovery",
       "name": "Arcane Recovery",
+      "type": "activate-recovery",
+      "recoveryAction": "openArcaneRecoveryModal",
       "recovery": "long",
       "maxByLevel": [
         0,
@@ -6567,7 +6584,7 @@ const PHB_CLASS_RESOURCES     = {
     }
   ],
   "artificer": [{"id":"flash_of_genius","name":"Flash of Genius","maxFormula":"int_mod","recovery":"long rest","minLevel":7},{"id":"replicated_items","name":"Replicated Items","maxFormula":"level>=18?6:level>=14?5:level>=10?4:level>=6?3:2","recovery":"long rest","minLevel":2}],
-  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","dieFormula":"level<5?'4d6':level<9?'6d8':level<13?'8d'+( level<11?'8':'10'):level<17?'10d10':'12d12'","recovery":"short rest"},{"id":"psionic_restoration","name":"Psionic Restoration","desc":"Meditate 1 min to recover Psionic Energy Dice (up to INT mod). First use after long rest is free (no meditation).","_max":1,"recovery":"long rest","minLevel":5}]
+  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","dieFormula":"level<5?'4d6':level<9?'6d8':level<13?'8d'+( level<11?'8':'10'):level<17?'10d10':'12d12'","recovery":"short rest"},{"id":"psionic_restoration","name":"Psionic Restoration","type":"activate-recovery","recoveryAction":"restorePsionicDice","desc":"Meditate for 1 minute. At the end of it, regain all expended Psionic Energy Dice. Once you use this feature, you can't do so again until you finish a Long Rest.","_max":1,"recovery":"long rest","minLevel":5}]
 };
 const PHB_SUBCLASS_RESOURCES = {
   "barbarian/berserker": [
@@ -8895,6 +8912,8 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
     {
       "id": "sorcerous_restoration",
       "name": "Sorcerous Restoration",
+      "type": "activate-recovery",
+      "recoveryAction": "restoreSorceryPoints",
       "recovery": "long",
       "minLevel": 5,
       "maxByLevel": [
@@ -13273,7 +13292,7 @@ const PHB_CLASSES = {
   "warlock": {"name":"Warlock","die":8,"saves":["wis","cha"],"primaryAbility":["Charisma"],"skillsText":"Choose 2: Arcana, Deception, History, Intimidation, Investigation, Nature, Religion","spellcasting":{"type":"pact","ability":"cha","cantrips":[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],"spellsKnown":[2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,14,15]},"subclasses":["Primordial Patron","The Archfey","The Celestial","The Fathomless","The Fiend","The Genie","The Great Old One","The Hexblade","The Undead","The Undying"],"features":[{"name":"Eldritch Invocations","level":1,"desc":"I gain Eldritch Invocations of my choice whenever I gain a Warlock level (see Invocations table). Invocations are magical abilities; some are pact boons (Pact of the Blade, Chain, or Tome) that count toward my invocation total.","usages":null,"recovery":null},{"name":"Pact Magic","level":1,"desc":"CHA spellcasting. I prepare spells from the Warlock list — the number shown in the Warlock Features table. I have a small number of Pact Magic spell slots (same level) that recover on a Short or Long Rest.","usages":null,"recovery":null},{"name":"Magical Cunning","level":2,"desc":"Once per Long Rest after a Short Rest, I can regain expended Pact Magic spell slots up to half my maximum (rounded up).","usages":1,"recovery":"long rest"},{"name":"Warlock Subclass","level":3,"desc":"Choose your Otherworldly Patron subclass at 3rd level.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":4,"desc":"Increase one ability score by 2, or two different scores by 1 each, or take a feat. Can't exceed 20.","usages":null,"recovery":null},{"name":"Contact Patron","level":9,"desc":"In the shadows between worlds, I can contact my patron. I always have Commune prepared. I can cast it without a spell slot and without material components, but must finish a Long Rest before doing so again.","usages":1,"recovery":"long rest"},{"name":"Mystic Arcanum","level":11,"desc":"My patron grants secret knowledge: I learn one Warlock spell of 6th level. I can cast it once per Long Rest without a slot. I gain another at 13th (7th level), 15th (8th), and 17th (9th).","usages":1,"recovery":"long rest"},{"name":"Eldritch Master","level":20,"desc":"Once per Long Rest, I can spend 1 minute entreating my patron to regain all expended Pact Magic spell slots.","usages":1,"recovery":"long rest"}]},
   "wizard": {"name":"Wizard","die":6,"saves":["int","wis"],"primaryAbility":["Intelligence"],"skillsText":"Choose 2: Arcana, History, Insight, Investigation, Medicine, Religion","spellcasting":{"type":"full","ability":"int","cantrips":[3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5]},"subclasses":["Abjurer","Bladesinger","Chronurgy Magic","Conjuration","Diviner","Enchantment","Evoker","Graviturgy Magic","Illusionist","Necromancy","Order of Scribes","Transmutation","War Magic"],"features":[{"name":"Spellcasting","level":1,"desc":"INT spellcasting. I have a spellbook with all my wizard spells. I prepare INT mod + Wizard level spells per long rest.","usages":null,"recovery":null},{"name":"Ritual Adept","level":1,"desc":"I can cast any spell as a Ritual if it has the Ritual tag — even if it's not prepared — as long as it's in my spellbook. Casting as a Ritual adds 10 minutes to the casting time but uses no spell slot.","usages":null,"recovery":null},{"name":"Arcane Recovery","level":1,"desc":"Once per day after a short rest, I can recover spell slots totalling up to half my Wizard level (rounded up). Max slot level 5th.","usages":1,"recovery":"long rest"},{"name":"Wizard Subclass","level":3,"desc":"Choose a school of magic or other arcane tradition.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":4,"desc":"Increase one ability score by 2, or two by 1, or gain a feat.","usages":null,"recovery":null},{"name":"Scholar","level":1,"desc":"Choose one skill from Arcana, History, Investigation, Medicine, Nature, or Religion in which you have proficiency — you gain Expertise in it (double proficiency bonus).","usages":null,"recovery":null},{"name":"Memorize Spell","level":5,"desc":"When I prepare spells after a long rest, I can replace one spell in my spellbook with another of the same level or lower from the wizard list.","usages":null,"recovery":null},{"name":"Spell Mastery","level":18,"desc":"Choose one 1st and one 2nd level spell. I can cast each at their lowest level without expending a slot (once per turn for the 2nd level).","usages":null,"recovery":null},{"name":"Signature Spells","level":20,"desc":"Choose two 3rd-level spells. I always have them prepared and can cast each once per short rest without a slot.","usages":null,"recovery":null},{"name": "Scholar", "level": 2, "desc": "Choose a school of magic: Abjuration, Conjuration, Divination, Enchantment, Evocation, Illusion, Necromancy, or Transmutation. When you prepare spells, spells from your chosen school are always available to you.", "usages": null, "recovery": null},{"name": "Memorize Spell", "level": 5, "desc": "Bonus Action: spend 1 Arcane Recovery use to prepare a spell from your spellbook that you don't already have prepared. The spell counts as prepared until next Long Rest.", "usages": null, "recovery": null},{"name": "Spell Mastery", "level": 18, "desc": "Choose a 1st- and 2nd-level Wizard spell in your spellbook. You can cast each of those spells at their lowest level without expending a spell slot when you have them prepared.", "usages": null, "recovery": null}]},
   "artificer": {"name":"Artificer","die":8,"saves":["con","int"],"primaryAbility":["Intelligence"],"skillsText":"Choose 2: Arcana, History, Investigation, Medicine, Nature, Perception, Sleight of Hand","spellcasting":{"type":"half","ability":"int","cantrips":[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]},"subclasses":["Alchemist","Armorer","Artillerist","Battle Smith","Cartographer"],"features":[{"name":"Magical Tinkering","level":1,"desc":"I can imbue a Tiny nonmagical object with one of: shedding light, emitting a recorded message, emitting an odor/sound, or displaying a visual effect.","usages":null,"recovery":null},{"name":"Spellcasting","level":1,"desc":"INT spellcasting using artisan's tools as a focus. I prepare spells from the Artificer list equal to INT mod + half Artificer level (rounded up).","usages":null,"recovery":null},{"name":"Infuse Item","level":2,"desc":"I learn infusions and can imbue magic into mundane items. Infusions last until I die or re-prepare them.","usages":null,"recovery":null},{"name":"Artificer Specialist","level":3,"desc":"Choose your Artificer subclass.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":4,"desc":"Increase one ability score by 2, or two by 1, or gain a feat.","usages":null,"recovery":null},{"name":"Tool Expertise","level":6,"desc":"My proficiency bonus is doubled for any ability check using a tool I'm proficient with.","usages":null,"recovery":null},{"name":"Flash of Genius","level":7,"desc":"Reaction: when I or a creature I can see makes an ability check or saving throw, I can add my INT mod to the roll.","usages":"int_mod","recovery":"long rest"},{"name":"Magic Item Adept","level":10,"desc":"I can attune to up to 4 magic items. I craft common/uncommon items in quarter time for half cost.","usages":null,"recovery":null},{"name":"Soul of Artifice","level":20,"desc":"+1 to all saving throws per attuned magic item. If reduced to 0 HP, I can end one infusion as a reaction to drop to 1 HP instead.","usages":null,"recovery":null},{"name": "The Right Tool for the Job", "level": 3, "desc": "When you do nothing else during your Short Rest, you can produce any tool in your Artisan's Tools proficiency using your artificer tools. The item disappears when you do this again or when you die.", "usages": null, "recovery": null},{"name": "Extra Attack", "level": 5, "desc": "You can attack twice instead of once whenever you take the Attack action on your turn.", "usages": null, "recovery": null},{"name": "Flash of Genius", "level": 7, "desc": "Reaction: when you or another creature within 30 ft makes an ability check or saving throw, you can add your INT modifier to the roll. PB uses per Long Rest.", "usages": "prof_bonus", "recovery": "long rest"},{"name": "Magic Item Adept", "level": 10, "desc": "You can attune to up to 4 magic items at once. Crafting common and uncommon magic items takes you 1/4 the time and costs half the gold.", "usages": null, "recovery": null}]},
-  "psion": {"name":"Psion","die":6,"saves":["int","wis"],"primaryAbility":["Intelligence"],"skillsText":"Choose 2: Arcana, Insight, Intimidation, Investigation, Medicine, Perception, Persuasion","spellcasting":{"type":"full","ability":"int","cantrips":[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],"spellsKnown":[4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22]},"subclasses":["Metamorph","Psi Warper","Psykinetic","Telepath"],"features":[{"name":"Spellcasting","level":1,"desc":"INT spellcasting. Psion spells require no Verbal or Material components (except consumed/costed materials).","usages":null,"recovery":null},{"name":"Psionic Power","level":1,"desc":"I have Psionic Energy Dice (d6\u2192d8\u2192d10\u2192d12 at lv5/11/17; count 4\u21926\u21928\u219210\u219212). Regain 1 on short rest, all on long rest. Telekinetic Propel: BA, push/pull creature 30 ft. Telepathic Connection: 30 ft telepathy.","usages":"level<5?4:level<9?6:level<13?8:level<17?10:12","recovery":"short rest"},{"name":"Subtle Telekinesis","level":1,"desc":"I know Mage Hand (no components, invisible). I can use INT for Sleight of Hand checks.","usages":null,"recovery":null},{"name":"Psionic Discipline","level":2,"desc":"I learn psionic techniques fueled by Psionic Energy Dice. Only one discipline per turn. Choose 2 at lv2, +1 at lv5/10/13/17.","usages":null,"recovery":null},{"name":"Psion Subclass","level":3,"desc":"Choose Metamorph, Psykinetic, Telepath, or Psi Warper.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":4,"desc":"Increase one ability score by 2, or two by 1, or gain a feat.","usages":null,"recovery":null},{"name":"Psionic Restoration","level":5,"desc":"Meditate 1 min to recover Psionic Energy Dice (up to INT mod). First use after long rest is free.","usages":null,"recovery":null},{"name":"Psionic Surge","level":7,"desc":"After rolling Psionic Energy Dice, I can expend 1 Hit Die to reroll all psi dice and keep either result.","usages":null,"recovery":null},{"name":"Psionic Reserves","level":18,"desc":"When I roll Initiative, I regain expended Psionic Energy Dice until I have at least 4.","usages":null,"recovery":null},{"name":"Enkindled Life Force","level":20,"desc":"Once per turn when I roll Psionic Energy Dice, I can add my INT mod to the total.","usages":null,"recovery":null},{"name": "Psionic Strike", "level": 6, "desc": "When you hit a creature with a Psionic weapon attack, you can expend 1 Psionic Energy Die to deal extra Psychic damage equal to the roll + INT modifier to the target.", "usages": null, "recovery": null},{"name": "Extra Attack", "level": 6, "desc": "You can attack twice instead of once whenever you take the Attack action on your turn.", "usages": null, "recovery": null}]}
+  "psion": {"name":"Psion","die":6,"saves":["int","wis"],"primaryAbility":["Intelligence"],"skillsText":"Choose 2: Arcana, Insight, Intimidation, Investigation, Medicine, Perception, Persuasion","spellcasting":{"type":"full","ability":"int","cantrips":[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],"spellsKnown":[4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22]},"subclasses":["Metamorph","Psi Warper","Psykinetic","Telepath"],"features":[{"name":"Spellcasting","level":1,"desc":"INT spellcasting. Psion spells require no Verbal or Material components (except consumed/costed materials).","usages":null,"recovery":null},{"name":"Psionic Power","level":1,"desc":"I have Psionic Energy Dice (d6\u2192d8\u2192d10\u2192d12 at lv5/11/17; count 4\u21926\u21928\u219210\u219212). Regain 1 on short rest, all on long rest. Telekinetic Propel: BA, push/pull creature 30 ft. Telepathic Connection: 30 ft telepathy.","usages":"level<5?4:level<9?6:level<13?8:level<17?10:12","recovery":"short rest"},{"name":"Subtle Telekinesis","level":1,"desc":"I know Mage Hand (no components, invisible). I can use INT for Sleight of Hand checks.","usages":null,"recovery":null},{"name":"Psionic Discipline","level":2,"desc":"I learn psionic techniques fueled by Psionic Energy Dice. Only one discipline per turn. Choose 2 at lv2, +1 at lv5/10/13/17.","usages":null,"recovery":null},{"name":"Psion Subclass","level":3,"desc":"Choose Metamorph, Psykinetic, Telepath, or Psi Warper.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":4,"desc":"Increase one ability score by 2, or two by 1, or gain a feat.","usages":null,"recovery":null},{"name":"Psionic Restoration","level":5,"desc":"Meditate for 1 minute. At the end of it, regain all expended Psionic Energy Dice. Once you use this feature, you can't do so again until you finish a Long Rest.","usages":null,"recovery":null},{"name":"Psionic Surge","level":7,"desc":"After rolling Psionic Energy Dice, I can expend 1 Hit Die to reroll all psi dice and keep either result.","usages":null,"recovery":null},{"name":"Psionic Reserves","level":18,"desc":"When I roll Initiative, I regain expended Psionic Energy Dice until I have at least 4.","usages":null,"recovery":null},{"name":"Enkindled Life Force","level":20,"desc":"Once per turn when I roll Psionic Energy Dice, I can add my INT mod to the total.","usages":null,"recovery":null},{"name": "Psionic Strike", "level": 6, "desc": "When you hit a creature with a Psionic weapon attack, you can expend 1 Psionic Energy Die to deal extra Psychic damage equal to the roll + INT modifier to the target.", "usages": null, "recovery": null},{"name": "Extra Attack", "level": 6, "desc": "You can attack twice instead of once whenever you take the Attack action on your turn.", "usages": null, "recovery": null}]}
 };
 
 // Pact of the Chain familiars — keyed separately, detected via invocations not subclass
@@ -14924,6 +14943,16 @@ const ACTIVE_EFFECT_DEFS = {
     color:      'var(--accent)',
     desc:       'AC = 13 + DEX modifier while not wearing armor (Mage Armor spell)',
   },
+  mutable_form: {
+    label:      'Mutable Form',
+    icon:       '◉',
+    classes:    ['psion'],
+    subclasses: ['metamorph'],
+    minLevel:   3,
+    mutableFormBonus: true,  // computed at render time: AC, speed, reach, resistances, adv on con saves
+    color:      'var(--accent)',
+    desc:       '+5 ft reach/speed, temp HP; optional Flesh Weaver (+2 AC) and Improved Mutable Form benefits',
+  },
 };
 
 // Rage damage bonus by level
@@ -14939,6 +14968,7 @@ function ensureActiveEffects() {
 
 function isEffectActive(id) {
   ensureActiveEffects();
+  if (id === 'mutable_form') return !!currentChar?._mutableForm?.active;
   return !!currentChar._activeEffects[id];
 }
 
@@ -15043,7 +15073,10 @@ function renderActiveEffects() {
     btn.style.setProperty('--effect-color', def.color);
     btn.title = def.desc;
     btn.innerHTML = `<span class="ae-icon">${def.icon}</span> ${def.label}`;
-    btn.addEventListener('click', () => toggleActiveEffect(id));
+    btn.addEventListener('click', () => {
+      if (id === 'mutable_form') { if (typeof openMutableFormModal === 'function') openMutableFormModal(); return; }
+      toggleActiveEffect(id);
+    });
     container.appendChild(btn);
 
     if (active) {
@@ -15055,6 +15088,12 @@ function renderActiveEffects() {
       if (def.rageDmgBonus) lines.push(`+${getRageDmgBonus()} Dmg`);
       if (def.physResist)   lines.push('B/P/S Resist');
       if (def.strAdv)       lines.push('Adv. STR');
+      if (def.mutableFormBonus) {
+        const mfs = currentChar._mutableForm || {};
+        lines.push(`${mfs.tempHP||0} Temp HP`, '+5ft Reach/Speed');
+        if (mfs.fleshWeaverActive) lines.push('+2 AC');
+        if (mfs.imfChoice === 'unnatural_flexibility') lines.push('+1 AC');
+      }
       if (lines.length) {
         const badge = document.createElement('span');
         badge.style.cssText = 'font-family:var(--font-ui);font-size:9px;color:var(--effect-color);letter-spacing:.3px;margin-left:4px';
@@ -15243,7 +15282,11 @@ function getAllClasses() {
 }
 function getClassLevelCount(cls) {
   const entry = getAllClasses().find(c => c.class?.toLowerCase() === cls?.toLowerCase());
-  return entry?.levels?.length || 0;
+  if (!entry) return 0;
+  if (entry.levels?.length) return entry.levels.length;
+  // Fallback: single-class character — whole-character level equals this class's level
+  if (getAllClasses().length === 1) return getLevel();
+  return 0;
 }
 function isMulticlass() {
   return (currentChar?.classes?.length || 0) > 1;
@@ -15852,15 +15895,25 @@ function renderSavesBlock() {
     if (exPen > 0)    parts.push(`Exh \u2212${exPen}`);
     const formula = parts.join(' + ').replace('+ \u2212', '\u2212') + ` = ${totalStr}`;
 
+    const stonyEpidermisAdv = s.key === 'con' && isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'stony_epidermis';
+
     const row = document.createElement('div');
     row.className = 'save-row';
     row.innerHTML = `
       <div class="prof-dot ${isProficient ? 'prof' : ''}" id="save-dot-${s.key}"
         onclick="toggleSaveProf('${s.key}')" title="Click to toggle proficiency"></div>
-      <span class="save-name">${s.name}</span>
+      <span class="save-name">${s.name}${stonyEpidermisAdv ? ' <span style="font-size:9px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:0 4px;margin-left:4px" title="Advantage on CON saves for Concentration (Stony Epidermis)">ADV CONC</span>' : ''}</span>
       <span class="save-val" id="save-val-${s.key}" style="color:${exPen > 0 ? 'var(--exh-colour)' : 'var(--text)'};cursor:help" title="${formula}">${totalStr}</span>
     `;
     block.appendChild(row);
+  }
+
+  // Unnatural Flexibility note: spend 5 ft movement to escape Restrained/Grappled
+  if (isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'unnatural_flexibility') {
+    const escNote = document.createElement('div');
+    escNote.style.cssText = 'margin-top:8px;background:rgba(45,168,109,.1);border:1px solid var(--accent);border-radius:var(--radius);padding:6px 10px;font-family:var(--font-ui);font-size:10px;color:var(--accent)';
+    escNote.innerHTML = '◉ Unnatural Flexibility — Spend <strong>5 ft of movement</strong> to escape Restrained or Grappled (no check required)';
+    block.appendChild(escNote);
   }
 }
 
@@ -16082,10 +16135,13 @@ function calcSpeed() {
   const base       = overrides.walk > 0 ? overrides.walk : racialWalk;
   currentChar.speed = base;
 
+  const superiorStride = isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'superior_stride';
+
   const exLevel   = parseInt(currentChar.exhaustion) || 0;
   const penalty   = exLevel * 5;
   const featBonus = parseInt(currentChar._featSpeedBonus) || 0;
-  let final = Math.max(0, base + featBonus - penalty);
+  const mutableFormSpeedBonus = isEffectActive('mutable_form') ? 5 : 0;
+  let final = Math.max(0, base + featBonus + mutableFormSpeedBonus - penalty);
 
   // Bladesong speed bonus: +10 ft
   if (isEffectActive('bladesong')) final = Math.max(0, final + 10);
@@ -16101,8 +16157,8 @@ function calcSpeed() {
   // Build all speed parts
   const parts = [];
   if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: exLevel > 0 ? ` (−${penalty} exh)` : '' });
-  if (overrides.climb) parts.push({ label: 'Climb',  val: overrides.climb,  note: '' });
-  if (overrides.swim)  parts.push({ label: 'Swim',   val: overrides.swim,   note: '' });
+  if (overrides.climb || superiorStride) parts.push({ label: 'Climb',  val: superiorStride ? final : overrides.climb,  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : '' });
+  if (overrides.swim  || superiorStride) parts.push({ label: 'Swim',   val: superiorStride ? final : overrides.swim,   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : '' });
   if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource });
   if (hoverSpeed > 0)  parts.push({ label: 'Hover',  val: hoverSpeed,       note: '' });
   if (overrides.burrow)parts.push({ label: 'Burrow', val: overrides.burrow, note: '' });
@@ -16115,24 +16171,29 @@ function calcSpeed() {
                    : flySpeed > 0 ? `Fly ${flySpeed}` : `Hov ${hoverSpeed}`;
     el.textContent = hasAir ? `${final} (${airLabel})` : final;
     el.style.color = hasAir ? 'var(--amber)' : exLevel > 0 ? 'var(--exh-colour)' : 'var(--text)';
-    el.title = parts.map(p => `${p.label} ${p.val} ft${p.note}`).join(' · ');
+    const unnaturalFlexTip = (isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'unnatural_flexibility') ? ' · Can move through 1-inch spaces (Unnatural Flexibility)' : '';
+    el.title = parts.map(p => `${p.label} ${p.val} ft${p.note}`).join(' · ') + unnaturalFlexTip;
   }
 
   // Note line: all non-walk speeds, each on own line
   const note = document.getElementById('speed-note');
   if (note) {
     const extraParts = parts.filter(p => p.label !== 'Walk');
+    const unnaturalFlex = isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'unnatural_flexibility';
+    let noteHtml = '';
     if (extraParts.length) {
-      note.innerHTML = extraParts.map(p =>
+      noteHtml = extraParts.map(p =>
         `<span style="color:${p.label==='Fly'||p.label==='Hover'?'var(--amber)':'var(--text2)'}">` +
         `${p.label} ${p.val}ft${p.note}</span>`
       ).join('<br>');
     } else if (exLevel > 0) {
-      note.textContent = `−${penalty} exh`;
-      note.style.color = 'var(--exh-colour)';
-    } else {
-      note.textContent = '';
+      noteHtml = `<span style="color:var(--exh-colour)">−${penalty} exh</span>`;
     }
+    if (unnaturalFlex) {
+      noteHtml += (noteHtml ? '<br>' : '') + '<span style="color:var(--accent)">Squeeze: 1-inch spaces</span>';
+    }
+    note.innerHTML = noteHtml;
+    note.style.color = '';
   }
 }
 
@@ -16329,11 +16390,20 @@ function toggleACMethodLock(locked) {
 window.toggleACMethodLock = toggleACMethodLock;
 window.selectACMethod     = selectACMethod;
 
+function getMutableFormACBonus() {
+  if (!currentChar?._mutableForm?.active) return 0;
+  const state = currentChar._mutableForm;
+  let bonus = 0;
+  if (state.fleshWeaverActive) bonus += 2;                          // Organic Defense
+  if (state.imfChoice === 'unnatural_flexibility') bonus += 1;      // Improved Mutable Form
+  return bonus;
+}
+
 function calcAC() {
   if (!currentChar) return 10;
   const abs    = getAbilities();
   const method = currentChar.ac_method || 'base';
-  const bonus  = (parseInt(currentChar.ac_bonus) || 0) + getMagicItemACBonus();
+  const bonus  = (parseInt(currentChar.ac_bonus) || 0) + getMagicItemACBonus() + getMutableFormACBonus();
   const shield = document.getElementById('ci-shield')?.checked ? 2 : 0;
   const dex = abilityMod(abs.dex);
 
@@ -16406,7 +16476,7 @@ function calcACBreakdown() {
   if (!currentChar) return { total:10, formula:'10' };
   const abs    = getAbilities();
   const method = currentChar.ac_method || 'base';
-  const bonus      = parseInt(currentChar.ac_bonus) || 0;
+  const bonus      = (parseInt(currentChar.ac_bonus) || 0) + getMutableFormACBonus();
   const magicACBon = getMagicItemACBonus();
   const shield = document.getElementById('ci-shield')?.checked ? 2 : 0;
   const dex = abilityMod(abs.dex), con = abilityMod(abs.con);
@@ -16442,7 +16512,6 @@ function calcACBreakdown() {
     if (racialACBonus) parts.push(`Racial ${s(racialACBonus)}`);
     return { total, formula: parts.join(' + ') + ` = ${total}` };
   }
-
   // Armor-based
   if (isWearingArmor) {
     if (method === 'light')
@@ -18990,6 +19059,14 @@ function renderKnownSpells() {
   let lastLv = -1;
   body.innerHTML = '';
 
+  // Mutable Form active banner
+  if (typeof isEffectActive === 'function' && isEffectActive('mutable_form')) {
+    const mfBanner2 = document.createElement('div');
+    mfBanner2.style.cssText = 'background:rgba(45,168,109,.1);border:1px solid var(--accent);border-radius:var(--radius);padding:7px 12px;margin-bottom:10px;font-family:var(--font-ui);font-size:11px;color:var(--accent)';
+    mfBanner2.innerHTML = '◉ Mutable Form Active — Touch spells with 1-action cast time have <strong>10 ft range</strong>';
+    body.appendChild(mfBanner2);
+  }
+
   rows.forEach(sp => {
     // Level group header
     if (sp.level !== lastLv) {
@@ -21229,6 +21306,14 @@ function renderAttacksPanel() {
 
   body.innerHTML = '';
 
+  // Mutable Form active banner: +5 ft reach note
+  if (typeof isEffectActive === 'function' && isEffectActive('mutable_form')) {
+    const mfBanner = document.createElement('div');
+    mfBanner.style.cssText = 'background:rgba(45,168,109,.1);border:1px solid var(--accent);border-radius:var(--radius);padding:6px 12px;margin-bottom:8px;font-family:var(--font-ui);font-size:11px;color:var(--accent)';
+    mfBanner.innerHTML = '◉ Mutable Form Active — Melee weapon attacks have <strong>+5 ft reach</strong>';
+    body.appendChild(mfBanner);
+  }
+
   const level = getLevel();
   const prof  = getProf();
   const sc    = getPrimarySpellcasting();
@@ -21521,6 +21606,12 @@ function renderAttacksPanel() {
       div.style.cssText = 'font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:10px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px';
       div.textContent = 'Cantrip Attacks';
       body.appendChild(div);
+    }
+    if (typeof isEffectActive === 'function' && isEffectActive('mutable_form')) {
+      const touchBanner = document.createElement('div');
+      touchBanner.style.cssText = 'background:rgba(45,168,109,.1);border:1px solid var(--accent);border-radius:var(--radius);padding:6px 12px;margin-bottom:6px;font-family:var(--font-ui);font-size:11px;color:var(--accent)';
+      touchBanner.innerHTML = '◉ Mutable Form Active — Touch spells with 1-action cast time have <strong>10 ft range</strong>';
+      body.appendChild(touchBanner);
     }
     hasAnyAttack = true;
 
@@ -24588,6 +24679,7 @@ function renderResourceEntry(def, level, prof) {
   const isPool = def.type === 'pool';
   const isDisplay = def.type === 'display';
   const isModalBtn = def.type === 'modal-button';
+  const isActivateRecovery = def.type === 'activate-recovery';
   const _rawRec  = (def.recovery || 'long').toLowerCase().trim();
   const recovery = _rawRec.startsWith('short') || _rawRec === 'sr' ? 'short'
                  : _rawRec.startsWith('long')  || _rawRec === 'lr' ? 'long'
@@ -24627,17 +24719,32 @@ function renderResourceEntry(def, level, prof) {
   if (isModalBtn) {
     // Fetch active choices summary for display
     const _mfState = currentChar._mutableForm || {};
+    const _isMFActive = !!_mfState.active;
     const _imfLabel = {stony_epidermis:'Stony Epidermis',superior_stride:'Superior Stride',unnatural_flexibility:'Unnatural Flexibility'};
-    const _fwLabel  = {organic_defense:'Organic Defense',empowered_healing:'Empowered Healing'};
     const _subLv = getClassLevelCount('psion') || level;
     const _parts = [];
-    if (_subLv >= 6 && _mfState.fleshWeaverChoice) _parts.push(_fwLabel[_mfState.fleshWeaverChoice]||'');
+    if (_subLv >= 6 && _mfState.fleshWeaverActive) _parts.push('Flesh Weaver');
     if (_subLv >= 10 && _mfState.imfChoice)        _parts.push(_imfLabel[_mfState.imfChoice]||'');
     html += `<div style="display:flex;flex-direction:column;gap:6px">
       <div style="display:flex;align-items:center;gap:8px">
+        ${_isMFActive ? '<span style="font-family:var(--font-ui);font-size:9px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:1px 6px">◉ ACTIVE</span>' : ''}
         <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="${def.buttonFn}">${def.buttonLabel||'⚙ Configure'}</button>
       </div>
-      ${_parts.length ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text2)">${_parts.join(' · ')}</div>` : `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Tap to choose form options</div>`}
+      ${_isMFActive ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--accent)">${_mfState.tempHP||0} temp HP · +5ft reach/speed${_parts.length?' · '+_parts.join(' · '):''}</div>`
+        : _parts.length ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text2)">${_parts.join(' · ')}</div>` : `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Tap to activate</div>`}
+    </div>`;
+  } else if (isActivateRecovery) {
+    const used = parseInt(currentChar.resources[def.id]) || 0;
+    const isExhausted = used >= max;
+    html += `<div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:var(--font-ui);font-size:10px;color:${isExhausted?'var(--text3)':'var(--text2)'}">${max-used} / ${max} available</span>
+        <button class="tbtn" style="font-size:10px;padding:5px 12px;${isExhausted?'opacity:.4;cursor:not-allowed':''}"
+          ${isExhausted?'disabled':''} onclick="${isExhausted?'':`activateRecoveryFeature('${def.id}','${def.recoveryAction}',${max})`}">
+          ▶ Activate
+        </button>
+      </div>
+      <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${def.desc||''}</div>
     </div>`;
   } else if (isDisplay) {
     html += `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3)">${def.desc||''}</div>`;
@@ -24679,7 +24786,179 @@ function toggleResourcePip(id, pipIdx, max) {
   renderResourceTracker();
 }
 
-function adjustResource(id, delta, max) {
+// ═══════════════════════════════════════════════════════════
+// RECOVERY FEATURE ACTIVATION
+// (Sorcerous Restoration, Arcane Recovery, Magical Cunning, Psionic Restoration)
+// ═══════════════════════════════════════════════════════════
+function activateRecoveryFeature(resourceId, actionName, max) {
+  if (!currentChar) return;
+  if (!currentChar.resources) currentChar.resources = {};
+  const used = parseInt(currentChar.resources[resourceId]) || 0;
+  if (used >= max) return; // already exhausted
+
+  // Mark the recovery feature itself as used
+  currentChar.resources[resourceId] = used + 1;
+
+  // Dispatch to the specific restoration logic
+  const fn = window[actionName];
+  if (typeof fn === 'function') fn();
+
+  renderResourceTracker();
+  debouncedSave();
+}
+window.activateRecoveryFeature = activateRecoveryFeature;
+
+// ── Sorcerous Restoration: restore floor(level/2) Sorcery Points ──
+function restoreSorceryPoints() {
+  const level = getLevel();
+  const restore = Math.floor(level / 2);
+  const spDef = (PHB_CLASS_RESOURCES['sorcerer'] || []).find(r => r.id === 'sorcery_points');
+  const spMax = spDef ? getResourceMax(spDef, level, getProf()) : 0;
+  const spUsed = parseInt(currentChar.resources['sorcery_points']) || 0;
+  const actualRestore = Math.min(restore, spUsed);
+  currentChar.resources['sorcery_points'] = Math.max(0, spUsed - actualRestore);
+  toast(`Sorcerous Restoration: +${actualRestore} Sorcery Point${actualRestore !== 1 ? 's' : ''} restored`, 'ok');
+}
+window.restoreSorceryPoints = restoreSorceryPoints;
+
+// ── Psionic Restoration: restore ALL expended Psionic Energy Dice ──
+function restorePsionicDice() {
+  const used = parseInt(currentChar.resources['psionic_energy_dice']) || 0;
+  currentChar.resources['psionic_energy_dice'] = 0;
+  toast(`Psionic Restoration: all ${used} Psionic Energy Dice restored (after 1 min meditation)`, 'ok');
+}
+window.restorePsionicDice = restorePsionicDice;
+
+// ── Magical Cunning: restore half (round up) of expended Pact Magic slots ──
+function restorePactSlots() {
+  const level   = getLevel();
+  const slotLv  = getWarlockSlotLevel(level);
+  const total   = (SLOTS_WARLOCK[level] || [0])[0] || 0;
+  if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
+
+  // Count currently used pact slots
+  let usedCount = 0;
+  for (let i = 0; i < total; i++) {
+    if (currentChar.spell_slots_used[`slot_${slotLv}_${i}`]) usedCount++;
+  }
+  const restoreCount = Math.ceil(usedCount / 2);
+
+  // Clear that many used slots (highest index first)
+  let cleared = 0;
+  for (let i = total - 1; i >= 0 && cleared < restoreCount; i--) {
+    if (currentChar.spell_slots_used[`slot_${slotLv}_${i}`]) {
+      currentChar.spell_slots_used[`slot_${slotLv}_${i}`] = false;
+      cleared++;
+    }
+  }
+  if (typeof renderKnownSpells === 'function') renderKnownSpells();
+  toast(`Magical Cunning: +${cleared} Pact Magic slot${cleared !== 1 ? 's' : ''} restored`, 'ok');
+}
+window.restorePactSlots = restorePactSlots;
+
+// ── Arcane Recovery: open modal to choose which slots to recover ──
+function openArcaneRecoveryModal() {
+  const level = getLevel();
+  const budget = Math.ceil(level / 2);
+  const slots = getSpellSlots('wizard', level) || [];
+  if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
+
+  // Build per-level used/total info (skip level 0 = cantrips, and skip level 6+ which Arcane Recovery can't restore)
+  const slotInfo = [];
+  for (let lv = 1; lv <= 5; lv++) {
+    const total = slots[lv - 1] || 0;
+    if (!total) continue;
+    let used = 0;
+    for (let i = 0; i < total; i++) if (currentChar.spell_slots_used[`slot_${lv}_${i}`]) used++;
+    if (used > 0) slotInfo.push({ lv, total, used });
+  }
+
+  if (!slotInfo.length) {
+    toast('No expended spell slots (level 1-5) to recover.', 'info');
+    return;
+  }
+
+  currentChar._arcaneRecoveryPick = {};
+  renderArcaneRecoveryModal(slotInfo, budget);
+  openModal('arcane-recovery-modal');
+}
+window.openArcaneRecoveryModal = openArcaneRecoveryModal;
+
+function renderArcaneRecoveryModal(slotInfo, budget) {
+  const body = document.getElementById('arcane-recovery-body');
+  const metaEl = document.getElementById('arcane-recovery-meta');
+  if (!body) return;
+
+  const picks = currentChar._arcaneRecoveryPick || {};
+  const spent = Object.entries(picks).reduce((sum, [lv, n]) => sum + parseInt(lv) * n, 0);
+  const remaining = budget - spent;
+
+  if (metaEl) metaEl.textContent = `Budget: ${remaining} / ${budget} spell levels remaining`;
+
+  body.innerHTML = slotInfo.map(info => {
+    const picked = picks[info.lv] || 0;
+    const canAdd = picked < info.used && remaining >= info.lv;
+    const canRemove = picked > 0;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:8px">
+      <div>
+        <div style="font-family:var(--font-ui);font-size:13px;font-weight:700;color:var(--text)">Level ${info.lv}</div>
+        <div style="font-family:var(--font-body);font-size:11px;color:var(--text3)">${info.used} expended</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="tbtn" style="padding:4px 10px;${canRemove?'':'opacity:.3;cursor:not-allowed'}" ${canRemove?'':'disabled'} onclick="adjustArcaneRecoveryPick(${info.lv},-1)">−</button>
+        <span style="font-family:var(--font-title);font-size:16px;font-weight:700;min-width:20px;text-align:center">${picked}</span>
+        <button class="tbtn" style="padding:4px 10px;${canAdd?'':'opacity:.3;cursor:not-allowed'}" ${canAdd?'':'disabled'} onclick="adjustArcaneRecoveryPick(${info.lv},1)">+</button>
+      </div>
+    </div>`;
+  }).join('') + `
+    <button class="btn-primary" style="margin-top:8px" onclick="confirmArcaneRecovery()">✦ Recover Selected Slots</button>`;
+}
+window.renderArcaneRecoveryModal = renderArcaneRecoveryModal;
+
+function adjustArcaneRecoveryPick(lv, delta) {
+  if (!currentChar._arcaneRecoveryPick) currentChar._arcaneRecoveryPick = {};
+  const cur = currentChar._arcaneRecoveryPick[lv] || 0;
+  currentChar._arcaneRecoveryPick[lv] = Math.max(0, cur + delta);
+  if (currentChar._arcaneRecoveryPick[lv] === 0) delete currentChar._arcaneRecoveryPick[lv];
+
+  // Re-render with fresh slot info
+  const level = getLevel();
+  const budget = Math.ceil(level / 2);
+  const slots = getSpellSlots('wizard', level) || [];
+  const slotInfo = [];
+  for (let l = 1; l <= 5; l++) {
+    const total = slots[l - 1] || 0;
+    if (!total) continue;
+    let used = 0;
+    for (let i = 0; i < total; i++) if (currentChar.spell_slots_used[`slot_${l}_${i}`]) used++;
+    if (used > 0) slotInfo.push({ lv: l, total, used });
+  }
+  renderArcaneRecoveryModal(slotInfo, budget);
+}
+window.adjustArcaneRecoveryPick = adjustArcaneRecoveryPick;
+
+function confirmArcaneRecovery() {
+  const picks = currentChar._arcaneRecoveryPick || {};
+  let totalRestored = 0;
+  Object.entries(picks).forEach(([lvStr, count]) => {
+    const lv = parseInt(lvStr);
+    let cleared = 0;
+    const total = (getSpellSlots('wizard', getLevel()) || [])[lv - 1] || 0;
+    for (let i = total - 1; i >= 0 && cleared < count; i--) {
+      if (currentChar.spell_slots_used[`slot_${lv}_${i}`]) {
+        currentChar.spell_slots_used[`slot_${lv}_${i}`] = false;
+        cleared++;
+      }
+    }
+    totalRestored += cleared;
+  });
+  currentChar._arcaneRecoveryPick = {};
+  closeModal('arcane-recovery-modal');
+  if (typeof renderKnownSpells === 'function') renderKnownSpells();
+  toast(`Arcane Recovery: ${totalRestored} spell slot${totalRestored !== 1 ? 's' : ''} restored`, 'ok');
+  debouncedSave();
+}
+window.confirmArcaneRecovery = confirmArcaneRecovery;
   if (!currentChar) return;
   if (!currentChar.resources) currentChar.resources = {};
   const used  = parseInt(currentChar.resources[id]) || 0;
@@ -24699,6 +24978,16 @@ function adjustResource(id, delta, max) {
       const actualRestore = Math.min(restore, spUsed); // can't restore more than spent
       currentChar.resources['sorcery_points'] = Math.max(0, spUsed - actualRestore);
       toast(`Sorcerous Restoration: +${actualRestore} Sorcery Point${actualRestore !== 1 ? 's' : ''} restored`, 'ok');
+    }
+  }
+
+  // ── Psionic Restoration side-effect ───────────────────────
+  // When used (delta === -1), restore ALL expended Psionic Energy Dice
+  if (id === 'psionic_restoration' && delta === -1) {
+    const psEnergyUsed = parseInt(currentChar.resources['psionic_energy_dice']) || 0;
+    if (psEnergyUsed > 0) {
+      currentChar.resources['psionic_energy_dice'] = 0;
+      toast(`Psionic Restoration: all ${psEnergyUsed} Psionic Energy Dice restored (after 1 min meditation)`, 'ok');
     }
   }
 
@@ -27829,98 +28118,228 @@ window.openMutableFormModal = openMutableFormModal;
 function renderMutableFormModal() {
   const body   = document.getElementById('mutable-form-body');
   const metaEl = document.getElementById('mutable-form-meta');
-  if (!body) return;
+  if (!body || !currentChar) return;
 
-  const level  = getLevel();
-  const subLv  = getClassLevelCount('psion') || level;
+  const subLv  = getClassLevelCount('psion') || getLevel();
   const hasFW  = subLv >= 6;
   const hasIMF = subLv >= 10;
   const dur    = hasIMF ? '10 minutes' : '1 minute';
 
-  if (metaEl) metaEl.textContent = `Psion level ${subLv} · Duration: ${dur}`;
+  const state    = currentChar._mutableForm || {};
+  const isActive = !!state.active;
+  const intMod   = abilityMod(getAbilities().int);
 
-  const state = currentChar._mutableForm || {};
-
-  const fwOptions = [
-    { id:'organic_defense',   label:'Organic Defense',   desc:'+2 AC for the duration.' },
-    { id:'empowered_healing', label:'Empowered Healing',  desc:'When a spell restores HP, expend 1 Psionic Energy Die and add the roll to the HP restored.' },
-  ];
-
-  const imfOptions = [
-    { id:'stony_epidermis',       label:'Stony Epidermis',       desc:'Advantage on CON saves for Concentration. Resistance to one damage type (your choice).' },
-    { id:'superior_stride',       label:'Superior Stride',        desc:'Dash as a Bonus Action (while unarmored). Climb and Swim speed equal your Speed.' },
-    { id:'unnatural_flexibility', label:'Unnatural Flexibility',  desc:'+1 AC. Move through spaces as narrow as 1 inch. Spend 5 ft of movement to escape Restrained or Grappled.' },
-  ];
-
-  const pill = (sel) =>
-    `border:1px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'rgba(45,168,109,.08)':'var(--bg3)'};border-radius:var(--radius);padding:8px 12px;cursor:pointer;margin-bottom:5px`;
-
-  let html = `
-    <div style="margin-bottom:16px">
-      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Base Benefits (Costs 1 Psionic Energy Die)</div>
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px">
-        <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.7">
-          • Temp HP = die roll + INT mod (min 1)<br>
-          • +5 ft reach · +5 ft speed<br>
-          • Touch spells with 1-action casting have 10 ft range<br>
-          • Duration: <strong>${dur}</strong>
-        </div>
-      </div>
-    </div>`;
-
-  if (hasFW) {
-    const chosen = state.fleshWeaverChoice || '';
-    html += `
-      <div style="margin-bottom:16px">
-        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Flesh Weaver (lv6) — Optional Extra Die</div>
-        <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:8px">Choose one (expend 1 additional Psionic Energy Die) or skip:</div>
-        <div onclick="setMutableFormChoice('fleshWeaverChoice','')" style="${pill(!chosen)}">
-          <div style="font-family:var(--font-ui);font-size:11px;color:${!chosen?'var(--accent)':'var(--text3)'}">None — skip the extra die</div>
-        </div>
-        ${fwOptions.map(o => `
-        <div onclick="setMutableFormChoice('fleshWeaverChoice','${o.id}')" style="${pill(chosen===o.id)}">
-          <div style="font-family:var(--font-ui);font-size:12px;font-weight:600;color:${chosen===o.id?'var(--accent)':'var(--text)'};margin-bottom:3px">${o.label}</div>
-          <div style="font-family:var(--font-body);font-size:11px;color:var(--text2)">${o.desc}</div>
-        </div>`).join('')}
-      </div>`;
+  if (metaEl) {
+    metaEl.textContent = isActive
+      ? `ACTIVE · Duration: ${dur} · ${state.diceSpent||1} die${(state.diceSpent||1)>1?'s':''} spent`
+      : `Psion level ${subLv} · Duration: ${dur} · Uses 1 Psionic Energy Die (Bonus Action)`;
+    metaEl.style.color = isActive ? 'var(--accent)' : '';
+    metaEl.style.fontSize = '12px';
   }
 
-  if (hasIMF) {
-    const chosen = state.imfChoice || '';
-    html += `
-      <div style="margin-bottom:16px">
-        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Improved Mutable Form (lv10) — Additional Benefit</div>
-        <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:8px">Choose one each activation:</div>
-        ${imfOptions.map(o => `
-        <div onclick="setMutableFormChoice('imfChoice','${o.id}')" style="${pill(chosen===o.id)}">
-          <div style="font-family:var(--font-ui);font-size:12px;font-weight:600;color:${chosen===o.id?'var(--accent)':'var(--text)'};margin-bottom:3px">${o.label}</div>
-          <div style="font-family:var(--font-body);font-size:11px;color:var(--text2)">${o.desc}</div>
-        </div>`).join('')}
-      </div>`;
+  const imfLabels = { stony_epidermis:'Stony Epidermis', superior_stride:'Superior Stride', unnatural_flexibility:'Unnatural Flexibility' };
+
+  let html = '';
+
+  if (!isActive) {
+    html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">'
+          + '<div style="font-family:var(--font-ui);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Base Benefits (Costs 1 Psionic Energy Die)</div>'
+          + '<div style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:2">'
+          + '• <strong>Temp HP</strong> = die roll + INT mod (min 1)<br>'
+          + '• <strong>+5 ft</strong> reach &nbsp;·&nbsp; <strong>+5 ft</strong> speed<br>'
+          + '• Touch spells with 1-action cast have <strong>10 ft range</strong><br>'
+          + '• Duration: <strong>' + dur + '</strong>'
+          + '</div></div>';
+
+    if (hasFW) {
+      const enabled = !!state.fleshWeaverActive;
+      html += '<div style="margin-bottom:16px">'
+            + '<div style="font-family:var(--font-ui);font-size:11px;font-weight:700;color:var(--text);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Flesh Weaver (lv6) — Optional Extra Die</div>'
+            + '<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);margin-bottom:10px">Expend 1 additional Psionic Energy Die to gain both benefits below for the duration:</div>'
+            + '<div onclick="toggleFleshWeaver()"'
+            + ' style="border:2px solid ' + (enabled?'var(--accent)':'var(--border)') + ';background:' + (enabled?'rgba(45,168,109,.1)':'var(--bg3)') + ';border-radius:var(--radius);padding:12px 14px;cursor:pointer;display:flex;align-items:flex-start;gap:12px">'
+            + '<div style="width:18px;height:18px;border-radius:4px;border:2px solid ' + (enabled?'var(--accent)':'var(--border2)') + ';background:' + (enabled?'var(--accent)':'transparent') + ';flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center">' + (enabled?'<span style="color:#000;font-size:13px;font-weight:700">✓</span>':'') + '</div>'
+            + '<div>'
+            + '<div style="font-family:var(--font-ui);font-size:13px;font-weight:700;color:' + (enabled?'var(--accent)':'var(--text)') + '">Spend extra die <span style="font-size:11px;color:var(--text3);font-weight:500">(+1 die)</span></div>'
+            + '<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);margin-top:6px;line-height:1.8">'
+            + '• <strong style="color:var(--text)">Organic Defense:</strong> +2 AC for the duration<br>'
+            + '• <strong style="color:var(--text)">Empowered Healing:</strong> when a spell restores HP, expend 1 die and add the roll to HP restored'
+            + '</div></div></div></div>';
+    }
+
+    if (hasIMF) {
+      const chosen = state.imfChoice || '';
+      const imfOpts = [
+        { id:'stony_epidermis', label:'Stony Epidermis', desc:'Advantage on CON saves for Concentration; resistance to 1 damage type (your choice)' },
+        { id:'superior_stride', label:'Superior Stride', desc:'Dash as Bonus Action (unarmored); climb & swim speed = Speed' },
+        { id:'unnatural_flexibility', label:'Unnatural Flexibility', desc:'+1 AC; move through 1-inch spaces; spend 5 ft movement to escape Restrained or Grappled' },
+      ];
+      html += '<div style="margin-bottom:16px">'
+            + '<div style="font-family:var(--font-ui);font-size:11px;font-weight:700;color:var(--text);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Improved Mutable Form (lv10) — Choose One Additional Benefit</div>'
+            + '<div style="display:flex;flex-direction:column;gap:8px">'
+            + imfOpts.map(o => {
+                const sel = chosen === o.id;
+                return '<div onclick="setMutableFormChoice(\'imfChoice\',\'' + o.id + '\')"'
+                  + ' style="border:2px solid ' + (sel?'var(--accent)':'var(--border)') + ';background:' + (sel?'rgba(45,168,109,.1)':'var(--bg3)') + ';border-radius:var(--radius);padding:10px 14px;cursor:pointer;display:flex;align-items:flex-start;gap:12px">'
+                  + '<div style="width:16px;height:16px;border-radius:50%;border:2px solid ' + (sel?'var(--accent)':'var(--border2)') + ';background:' + (sel?'var(--accent)':'transparent') + ';flex-shrink:0;margin-top:2px"></div>'
+                  + '<div><div style="font-family:var(--font-ui);font-size:13px;font-weight:700;color:' + (sel?'var(--accent)':'var(--text)') + '">' + o.label + '</div>'
+                  + '<div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5">' + o.desc + '</div></div></div>';
+              }).join('')
+            + '</div></div>';
+
+      // Damage type picker for Stony Epidermis resistance
+      if (chosen === 'stony_epidermis') {
+        const dmgTypes = ['Acid','Bludgeoning','Cold','Fire','Force','Lightning','Necrotic','Piercing','Poison','Psychic','Radiant','Slashing','Thunder'];
+        const curType = state.stonyEpidermisType || '';
+        html += '<div style="margin-top:-6px;margin-bottom:16px;padding-left:4px">'
+              + '<label style="font-family:var(--font-ui);font-size:11px;color:var(--text2);display:block;margin-bottom:6px">Resistance damage type:</label>'
+              + '<select class="choice-select" onchange="setMutableFormChoice(\'stonyEpidermisType\', this.value)">'
+              + '<option value="">— Choose —</option>'
+              + dmgTypes.map(t => `<option value="${t}" ${curType===t?'selected':''}>${t}</option>`).join('')
+              + '</select></div>';
+      }
+    }
+
+    const totalDice = 1 + (hasFW && state.fleshWeaverActive ? 1 : 0);
+    html += '<button onclick="activateMutableForm()" class="btn-primary" style="margin-top:6px">'
+          + '▶ ACTIVATE — Spend ' + totalDice + ' Psionic Energy Die' + (totalDice>1?'s':'') + '</button>';
+
+  } else {
+    const tempHP  = state.tempHP  || 0;
+    const dieRoll = state.dieRoll || 0;
+
+    let activeHtml = '<div style="background:rgba(45,168,109,.1);border:2px solid var(--accent);border-radius:var(--radius);padding:16px;margin-bottom:16px">'
+      + '<div style="font-family:var(--font-title);font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;letter-spacing:1px">◉ MUTABLE FORM ACTIVE</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
+      + '<div style="background:var(--bg3);border-radius:var(--radius);padding:10px;text-align:center">'
+      + '<div style="font-family:var(--font-title);font-size:26px;font-weight:700;color:var(--text)">' + tempHP + '</div>'
+      + '<div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.5px">TEMP HP</div>'
+      + '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px">(rolled ' + dieRoll + ' + ' + intMod + ' INT)</div></div>'
+      + '<div style="background:var(--bg3);border-radius:var(--radius);padding:10px;text-align:center;display:flex;flex-direction:column;justify-content:center">'
+      + '<div style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">+5 ft / +5 ft</div>'
+      + '<div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.5px">REACH / SPEED</div></div>'
+      + '</div>'
+      + '<div style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.9">'
+      + '• Touch spells have 10 ft range<br>• Duration: <strong>' + dur + '</strong>';
+
+    if (state.fleshWeaverActive) {
+      activeHtml += '<br>• <strong>Organic Defense:</strong> +2 AC'
+                  + '<br>• <strong>Empowered Healing:</strong> when a spell restores HP, expend 1 die and add roll to HP restored';
+    }
+    if (state.imfChoice && imfLabels[state.imfChoice]) {
+      const imfDescs = {
+        stony_epidermis: 'Adv on CON saves (concentration); resistance to ' + (state.stonyEpidermisType || '1 damage type'),
+        superior_stride: 'Dash as Bonus Action (unarmored); climb & swim = Speed',
+        unnatural_flexibility: '+1 AC; move through 1-inch spaces; escape Restrained/Grappled (5 ft)',
+      };
+      activeHtml += '<br>• <strong>' + imfLabels[state.imfChoice] + ':</strong> ' + imfDescs[state.imfChoice];
+    }
+    activeHtml += '</div></div>';
+    html += activeHtml;
+
+    html += '<div style="margin-bottom:16px">'
+          + '<div style="font-family:var(--font-ui);font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase">Adjust Temp HP</div>'
+          + '<div style="display:flex;align-items:center;gap:10px">'
+          + '<button class="tbtn" style="font-size:14px;padding:6px 14px" onclick="adjustMutableFormTempHP(-1)">−</button>'
+          + '<span style="font-family:var(--font-title);font-size:22px;font-weight:700;min-width:36px;text-align:center;color:var(--text)">' + tempHP + '</span>'
+          + '<button class="tbtn" style="font-size:14px;padding:6px 14px" onclick="adjustMutableFormTempHP(1)">+</button>'
+          + '<button class="tbtn" style="margin-left:auto;color:var(--red);border-color:var(--red);font-size:11px" onclick="endMutableForm()">✕ End Form</button>'
+          + '</div></div>';
   }
-
-  // Summary
-  const activeParts = ['Base: temp HP + reach + speed + touch range'];
-  if (hasFW && state.fleshWeaverChoice) activeParts.push(fwOptions.find(o=>o.id===state.fleshWeaverChoice)?.label||'');
-  if (hasIMF && state.imfChoice)        activeParts.push(imfOptions.find(o=>o.id===state.imfChoice)?.label||'');
-
-  html += `
-    <div style="background:rgba(45,168,109,.06);border:1px solid rgba(45,168,109,.3);border-radius:var(--radius);padding:10px 14px">
-      <div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Active Configuration</div>
-      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.7">${activeParts.map(p=>`• ${p}`).join('<br>')}</div>
-    </div>`;
 
   body.innerHTML = html;
 }
 window.renderMutableFormModal = renderMutableFormModal;
 
+function activateMutableForm() {
+  if (!currentChar) return;
+  if (!currentChar._mutableForm) currentChar._mutableForm = {};
+
+  const subLv = getClassLevelCount('psion') || getLevel();
+  const dieSize = subLv < 5 ? 6 : subLv < 11 ? 8 : subLv < 17 ? 10 : 12;
+  const dieRoll = Math.floor(Math.random() * dieSize) + 1;
+  const intMod  = abilityMod(getAbilities().int);
+  const tempHP  = Math.max(1, dieRoll + intMod);
+
+  const hasFW = subLv >= 6;
+  const diceSpent = 1 + (hasFW && currentChar._mutableForm.fleshWeaverActive ? 1 : 0);
+  if (!currentChar.resources) currentChar.resources = {};
+  const curUsed = parseInt(currentChar.resources['psionic_energy_dice']) || 0;
+  currentChar.resources['psionic_energy_dice'] = curUsed + diceSpent;
+
+  currentChar._mutableForm.active     = true;
+  currentChar._mutableForm.dieRoll    = dieRoll;
+  currentChar._mutableForm.tempHP     = tempHP;
+  currentChar._mutableForm.diceSpent  = diceSpent;
+
+  // Apply temp HP to the real Temp HP field (only if higher than current, per 5e temp HP rules)
+  const hpTempEl = document.getElementById('hp-temp');
+  if (hpTempEl) {
+    const curTemp = parseInt(hpTempEl.value) || 0;
+    if (tempHP > curTemp) {
+      hpTempEl.value = tempHP;
+      currentChar.hp_temp = tempHP;
+    }
+  }
+
+  refreshMutableFormMechanics();
+  renderMutableFormModal();
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
+  debouncedSave();
+}
+window.activateMutableForm = activateMutableForm;
+
+function endMutableForm() {
+  if (!currentChar?._mutableForm) return;
+  currentChar._mutableForm.active    = false;
+  currentChar._mutableForm.tempHP    = 0;
+  currentChar._mutableForm.dieRoll   = 0;
+  currentChar._mutableForm.diceSpent = 0;
+  refreshMutableFormMechanics();
+  renderMutableFormModal();
+  debouncedSave();
+}
+window.endMutableForm = endMutableForm;
+
+function adjustMutableFormTempHP(delta) {
+  if (!currentChar?._mutableForm) return;
+  currentChar._mutableForm.tempHP = Math.max(0, (currentChar._mutableForm.tempHP || 0) + delta);
+  // Keep real Temp HP field in sync
+  const hpTempEl = document.getElementById('hp-temp');
+  if (hpTempEl) { hpTempEl.value = currentChar._mutableForm.tempHP; currentChar.hp_temp = currentChar._mutableForm.tempHP; }
+  renderMutableFormModal();
+  debouncedSave();
+}
+window.adjustMutableFormTempHP = adjustMutableFormTempHP;
+
+function toggleFleshWeaver() {
+  if (!currentChar._mutableForm) currentChar._mutableForm = {};
+  currentChar._mutableForm.fleshWeaverActive = !currentChar._mutableForm.fleshWeaverActive;
+  refreshMutableFormMechanics();
+  renderMutableFormModal();
+  debouncedSave();
+}
+window.toggleFleshWeaver = toggleFleshWeaver;
+
 function setMutableFormChoice(field, value) {
   if (!currentChar._mutableForm) currentChar._mutableForm = {};
   currentChar._mutableForm[field] = value;
+  refreshMutableFormMechanics();
   renderMutableFormModal();
   debouncedSave();
 }
 window.setMutableFormChoice = setMutableFormChoice;
+
+// Recalculate every stat panel affected by Mutable Form
+function refreshMutableFormMechanics() {
+  if (typeof onACChange === 'function') onACChange();
+  if (typeof calcSpeed === 'function') calcSpeed();
+  if (typeof renderSavesBlock === 'function') renderSavesBlock();
+  if (typeof recalcQuickStats === 'function') recalcQuickStats();
+  if (typeof renderAttacksPanel === 'function') renderAttacksPanel();
+  if (typeof renderActiveEffects === 'function') renderActiveEffects();
+}
+window.refreshMutableFormMechanics = refreshMutableFormMechanics;
 
 // ═══════════════════════════════════════════════════════════
 // SUMMON TAB
