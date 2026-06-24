@@ -15164,6 +15164,7 @@ function ensureActiveEffects() {
 function isEffectActive(id) {
   ensureActiveEffects();
   if (id === 'mutable_form') return !!currentChar?._mutableForm?.active;
+  if (!isEffectEligible(id)) return false; // never report active if no longer eligible (e.g. after a subclass change)
   return !!currentChar._activeEffects[id];
 }
 
@@ -15200,28 +15201,44 @@ function hasMageArmorAccess() {
   return allSpellKeys.some(k => k === 'mage_armor');
 }
 
+function isEffectEligible(id) {
+  if (!currentChar) return false;
+  if (id === 'mage_armor') return hasMageArmorAccess();
+  const def = ACTIVE_EFFECT_DEFS[id];
+  if (!def) return false;
+  const allEntries = getAllClasses();
+  return def.classes.some(cls => {
+    const entry = allEntries.find(e => e.class?.toLowerCase() === cls);
+    if (!entry) return false;
+    const eLv = getClassLevelCount(cls);
+    if (def.minLevel && eLv < def.minLevel) return false;
+    if (def.subclasses) {
+      const sub = (entry.subclass || '').toLowerCase();
+      if (!def.subclasses.some(s => sub.includes(s))) return false;
+    }
+    return true;
+  });
+}
+
 function getActiveEffectDefs() {
   // Returns only effects relevant to current character's classes/subclasses/level
   if (!currentChar) return [];
-  const allEntries = getAllClasses();
-  return Object.entries(ACTIVE_EFFECT_DEFS).filter(([id, def]) => {
-    // Mage Armor: special check — available when spell is accessible
-    if (id === 'mage_armor') return hasMageArmorAccess();
-    return def.classes.some(cls => {
-      const entry = allEntries.find(e => e.class?.toLowerCase() === cls);
-      if (!entry) return false;
-      const eLv = getClassLevelCount(cls);
-      // Check minLevel
-      if (def.minLevel && eLv < def.minLevel) return false;
-      // Check subclass if required
-      if (def.subclasses) {
-        const sub = (entry.subclass || '').toLowerCase();
-        if (!def.subclasses.some(s => sub.includes(s))) return false;
-      }
-      return true;
-    });
-  });
+  return Object.entries(ACTIVE_EFFECT_DEFS).filter(([id]) => isEffectEligible(id));
 }
+
+function deactivateIneligibleActiveEffects() {
+  if (!currentChar?._activeEffects) return;
+  let changedAny = false;
+  for (const id of Object.keys(ACTIVE_EFFECT_DEFS)) {
+    if (id === 'mutable_form') continue; // handled separately by deactivateMutableFormIfIneligible
+    if (currentChar._activeEffects[id] && !isEffectEligible(id)) {
+      currentChar._activeEffects[id] = false;
+      changedAny = true;
+    }
+  }
+  if (changedAny && typeof renderActiveEffects === 'function') renderActiveEffects();
+}
+window.deactivateIneligibleActiveEffects = deactivateIneligibleActiveEffects;
 
 function getSpellDCBonus() {
   let bonus = 0;
@@ -15576,6 +15593,7 @@ function calcMulticlassHPMax(method) {
   const plan = currentChar.levelPlan || {};
   const classes = getAllClasses();
   const total = getLevel();
+  const toughBonus = currentChar._toughBonus || 0;
 
   if (m === 'maximum') {
     let hp = 0;
@@ -15584,7 +15602,7 @@ function calcMulticlassHPMax(method) {
       const die = getHitDieForClass(cls);
       hp += die + conMod;
     }
-    return Math.max(1, hp);
+    return Math.max(1, hp + toughBonus);
   }
 
   // average or roll
@@ -15600,7 +15618,7 @@ function calcMulticlassHPMax(method) {
       hp += Math.floor(die / 2) + 1 + conMod; // average
     }
   }
-  return Math.max(1, hp);
+  return Math.max(1, hp + toughBonus);
 }
 
 // Exhaustion penalty to D20 tests (5.5e: -2 per level)
@@ -16919,24 +16937,25 @@ function calcHPMax(method) {
   const hd     = getHitDie();
   const conMod = abilityMod(getAbilities().con);
   const m      = method || currentChar.hp_method || 'average';
+  const toughBonus = currentChar._toughBonus || 0;
 
   switch (m) {
     case 'average': {
       const avgPerLevel = Math.floor(hd / 2) + 1;
-      return Math.max(1, (hd + conMod) + (level - 1) * (avgPerLevel + conMod));
+      return Math.max(1, (hd + conMod) + (level - 1) * (avgPerLevel + conMod) + toughBonus);
     }
     case 'maximum': {
-      return Math.max(1, level * (hd + conMod));
+      return Math.max(1, level * (hd + conMod) + toughBonus);
     }
     case 'roll': {
       let total = hd + conMod;
       for (let i = 1; i < level; i++) {
         total += Math.floor(Math.random() * hd) + 1 + conMod;
       }
-      return Math.max(1, total);
+      return Math.max(1, total + toughBonus);
     }
     default:
-      return Math.max(1, (hd + conMod) + (level - 1) * (Math.floor(hd/2)+1+conMod));
+      return Math.max(1, (hd + conMod) + (level - 1) * (Math.floor(hd/2)+1+conMod) + toughBonus);
   }
 }
 
@@ -16945,6 +16964,8 @@ function hpMethodFormula(method) {
   const level  = getLevel();
   const conMod = abilityMod(getAbilities().con);
   const conStr = conMod >= 0 ? `+${conMod}` : `${conMod}`;
+  const toughBonus = currentChar._toughBonus || 0;
+  const toughStr = toughBonus ? ` + Tough(${toughBonus})` : '';
 
   if (isMulticlass()) {
     const classes = getAllClasses();
@@ -16954,8 +16975,8 @@ function hpMethodFormula(method) {
       return `${lv}×d${die}`;
     }).join(' + ');
     const total = calcHPMax(method);
-    if (method === 'roll') return `Roll ${dieSummary} + CON(${conStr})×${level} → click Apply to roll`;
-    return `${dieSummary} + CON(${conStr})×${level} = ${total} HP`;
+    if (method === 'roll') return `Roll ${dieSummary} + CON(${conStr})×${level}${toughStr} → click Apply to roll`;
+    return `${dieSummary} + CON(${conStr})×${level}${toughStr} = ${total} HP`;
   }
 
   const hd  = getHitDie();
@@ -16963,11 +16984,11 @@ function hpMethodFormula(method) {
   switch (method) {
     case 'average':
       return `Lv1: d${hd}(${hd})${conStr}` +
-             (level > 1 ? ` + ${level-1}×(${avg}${conStr}) = ${calcHPMax('average')} HP` : ` = ${calcHPMax('average')} HP`);
+             (level > 1 ? ` + ${level-1}×(${avg}${conStr})${toughStr} = ${calcHPMax('average')} HP` : `${toughStr} = ${calcHPMax('average')} HP`);
     case 'maximum':
-      return `${level}×(d${hd}(${hd})${conStr}) = ${calcHPMax('maximum')} HP`;
+      return `${level}×(d${hd}(${hd})${conStr})${toughStr} = ${calcHPMax('maximum')} HP`;
     case 'roll':
-      return `Roll ${level}d${hd} + CON(${conStr})×${level} → click Apply to roll`;
+      return `Roll ${level}d${hd} + CON(${conStr})×${level}${toughStr} → click Apply to roll`;
     default: return '';
   }
 }
@@ -17346,6 +17367,17 @@ function onCharInfoChange() {
 // RECALC ALL
 // ═══════════════════════════════════════════════════════════
 
+function refreshAutoHPMax() {
+  if (!currentChar) return;
+  if (currentChar.hp_method && currentChar.hp_method !== 'manual') {
+    const newMax = calcHPMax(currentChar.hp_method);
+    currentChar.hp_max = newMax;
+    const maxEl = document.getElementById('hp-max');
+    if (maxEl) maxEl.value = newMax;
+    clampCurrentHP();
+  }
+}
+
 function recalcAll() {
   if (!currentChar) return;
   applyFeatSlotEffects();   // ensure feat bonuses (speed, HP, etc.) are up to date
@@ -17360,13 +17392,7 @@ function recalcAll() {
   renderSpellStats();
   renderAttacksPanel();
   // Auto-update HP max if using a calculated method
-  if (currentChar?.hp_method && currentChar.hp_method !== 'manual') {
-    const newMax = calcHPMax(currentChar.hp_method);
-    currentChar.hp_max = newMax;
-    const maxEl = document.getElementById('hp-max');
-    if (maxEl) maxEl.value = newMax;
-    clampCurrentHP();
-  }
+  refreshAutoHPMax();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -17555,8 +17581,12 @@ window.openFeatListModal = openFeatListModal;
 function removeFeat(i) {
   if (!currentChar) return;
   currentChar.feats.splice(i, 1);
+  applyFeatSlotEffects();
+  refreshAutoHPMax();
   renderFeatsList();
   populateFeaturesTab();
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
+  autoSave();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -18231,7 +18261,8 @@ function renderSpellSlots() {
     mcSlots.forEach((total, idx) => {
       const lvl = idx + 1;
       const override = currentChar.spell_slot_overrides?.[`override_${lvl}`];
-      const finalTotal = override !== undefined ? override : total;
+      const bonus = currentChar._fontOfMagicBonusSlots?.[lvl] || 0;
+      const finalTotal = (override !== undefined ? override : total) + bonus;
       if (finalTotal > 0) {
         hasAny = true;
         container.appendChild(makeSlotBlock(lvl, finalTotal, ORDINALS, false));
@@ -18273,7 +18304,8 @@ function renderSpellSlots() {
   slots.forEach((total, idx) => {
     const lvl = idx + 1;
     const override = currentChar.spell_slot_overrides?.[`override_${lvl}`];
-    const finalTotal = override !== undefined ? override : total;
+    const bonus = currentChar._fontOfMagicBonusSlots?.[lvl] || 0;
+    const finalTotal = (override !== undefined ? override : total) + bonus;
     if (finalTotal > 0) container.appendChild(makeSlotBlock(lvl, finalTotal, ORDINALS, false));
   });
 }
@@ -22983,6 +23015,7 @@ function onClassChange() {
   }
   buildSubclassDropdown(currentChar.class);
   deactivateMutableFormIfIneligible();
+  deactivateIneligibleActiveEffects();
   updateHDDisplay();
   recalcAll();
   calcHPMax();
@@ -23017,6 +23050,7 @@ function onSubclassChange() {
     if (entry) entry.subclass = newSub;
   }
   deactivateMutableFormIfIneligible();
+  deactivateIneligibleActiveEffects();
   autoSetACMethod();
   recalcAll();
   calcHPMax();
@@ -24688,10 +24722,25 @@ function applyChoiceEffects() {
         if (phb) currentChar.weapons.push({
           weaponKey: wk, name: phb.name, attackBonus: 0, damageBonus: 0,
           equipped: true, proficient: true, pactWeapon: false,
-          versatile: false, customDamage: '', abilityOverride: 'int'
+          versatile: false, customDamage: '', abilityOverride: 'int', organicWeapon: true
         });
       }
     });
+  } else {
+    // Remove organic weapons if no longer Metamorph
+    const organicKeys = ['bone_blade','flesh_maul','viscera_launcher'];
+    let removedAny = false;
+    for (let idx = currentChar.weapons.length - 1; idx >= 0; idx--) {
+      const w = currentChar.weapons[idx];
+      if (w.organicWeapon || organicKeys.includes(w.weaponKey)) {
+        currentChar.weapons.splice(idx, 1);
+        removedAny = true;
+      }
+    }
+    if (removedAny) {
+      renderFeatItemsWeapons();
+      setTimeout(() => renderAttacksPanel(), 0);
+    }
   }
 
   const sub     = getPrimarySubclass().toLowerCase().trim();
@@ -25625,7 +25674,8 @@ function convertSlotToSP(lv) {
   if (!currentChar.resources) currentChar.resources = {};
 
   const slots = getSpellSlots('sorcerer', getLevel()) || [];
-  const total = slots[lv - 1] || 0;
+  const bonusSlots = currentChar._fontOfMagicBonusSlots?.[lv] || 0;
+  const total = (slots[lv - 1] || 0) + bonusSlots;
 
   // Find an available (unused) slot at this level
   let foundIdx = -1;
@@ -25635,6 +25685,13 @@ function convertSlotToSP(lv) {
   if (foundIdx === -1) return; // none available
 
   currentChar.spell_slots_used[`slot_${lv}_${foundIdx}`] = true;
+  // If the slot we just spent was a bonus slot beyond the normal total, remove it entirely
+  // rather than leaving a permanently "used" phantom slot behind.
+  if (foundIdx >= (slots[lv - 1] || 0) && currentChar._fontOfMagicBonusSlots?.[lv]) {
+    currentChar._fontOfMagicBonusSlots[lv] -= 1;
+    if (currentChar._fontOfMagicBonusSlots[lv] <= 0) delete currentChar._fontOfMagicBonusSlots[lv];
+    delete currentChar.spell_slots_used[`slot_${lv}_${foundIdx}`];
+  }
 
   const spGained = FONT_OF_MAGIC_SLOT_TO_SP[lv];
   const spMax  = getResourceMax((PHB_CLASS_RESOURCES['sorcerer']||[]).find(r=>r.id==='sorcery_points'), getLevel(), getProf());
@@ -25999,6 +26056,7 @@ function doLongRest() {
 
   // Reset spell slots (all casters)
   currentChar.spell_slots_used = {};
+  currentChar._fontOfMagicBonusSlots = {};
   // Reset hit dice (recover all on long rest in 5.5e)
   currentChar.hd_used = 0;
   const hdEl = document.getElementById('hd-used');
@@ -26859,6 +26917,7 @@ function selectFeatListOpt(i, name) {
   if (phbKey) {
     currentChar.feats[i].desc = PHB_FEATS[phbKey].desc || '';
     applyFeatEffects();
+    refreshAutoHPMax();
   }
   renderFeatsList();
   populateFeaturesTab();
@@ -26881,6 +26940,7 @@ function onFeatNameChange(i, value) {
   if (phbKey) {
     currentChar.feats[i].desc = PHB_FEATS[phbKey].desc || '';
     applyFeatEffects();
+    refreshAutoHPMax();
     // Full re-render only on exact match (shows badge/prereq/desc)
     renderFeatsList();
     // Re-focus the input that triggered this (it gets rebuilt by renderFeatsList)
@@ -27595,6 +27655,8 @@ function onFeatSlotFeatChange(id, value) {
   currentChar.featSlots[id].feat = value;
   renderFeatSlotsPanel();
   applyFeatSlotEffects();
+  refreshAutoHPMax();
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
 
   // If this feat grants spells, prompt spell selection
   if (value) {
@@ -30570,6 +30632,7 @@ function onMulticlassChange(skipRows) {
   try {
   syncLegacyClassFields();
   deactivateMutableFormIfIneligible();
+  deactivateIneligibleActiveEffects();
   // Recalculate HP if using an auto method
   if (currentChar.hp_method && currentChar.hp_method !== 'manual') {
     const newMax = calcHPMax(currentChar.hp_method);
