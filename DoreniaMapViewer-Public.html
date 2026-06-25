@@ -6,34 +6,34 @@
 <title>Dorenia — Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:         #090e0c;
-  --surface:    #0e1612;
-  --raised:     #141f19;
-  --border:     #1e3328;
-  --gold:       #4dcc85;
-  --gold-dim:   #2a7a4e;
-  --gold-faint: #1a3325;
-  --text:       #b0d4c0;
-  --text-dim:   #607a6a;
-  --text-hi:    #d0ede0;
-  --red:        #a04040;
+  --bg:         #0c0a14;
+  --surface:    #15111f;
+  --raised:     #1e1830;
+  --border:     #332a47;
+  --accent:       #a875e8;
+  --accent-dim:   #6b4a96;
+  --accent-faint: #241c34;
+  --text:       #c4b8da;
+  --text-dim:   #756a8a;
+  --text-hi:    #e8e0f7;
+  --danger:        #b4567a;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; overflow: hidden; }
-body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Crimson Pro', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Jost', Georgia, serif; overflow: hidden; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
 #app { display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; }
 
 /* Slim top bar */
 #header { height: 36px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 12px; gap: 10px; flex-shrink: 0; position: relative; z-index: 1000; overflow: hidden; }
-#header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--gold-dim),transparent); }
-.header-title { font-family:'Cinzel',serif; font-size:12px; font-weight:700; color:var(--gold); letter-spacing:0.1em; }
+#header::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--accent-dim),transparent); }
+.header-title { font-family:'Jost',serif; font-size:12px; font-weight:700; color:var(--accent); letter-spacing:0.1em; }
 .header-sep { width:1px; height:18px; background:var(--border); }
-#mapLabel { font-family:'Cinzel',serif; font-size:10px; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; }
+#mapLabel { font-family:'Jost',serif; font-size:10px; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; }
 .header-spacer { flex:1; }
-#loadStatus { font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.06em; color:var(--text-dim); }
+#loadStatus { font-family:'Jost',serif; font-size:9px; letter-spacing:0.06em; color:var(--text-dim); }
 
 #map-wrap { position:relative; min-height:0; flex:1; width:100%; }
 #map { position:absolute; top:0; left:0; width:100% !important; height:100% !important; overflow:hidden !important; background:var(--bg); }
@@ -65,7 +65,7 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
   color: var(--text) !important;
-  font-family: 'Cinzel', serif !important;
+  font-family: 'Jost', serif !important;
   font-size: 11px !important;
   letter-spacing: 0.06em !important;
   padding: 4px 9px !important;
@@ -85,92 +85,92 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
 .leaflet-top.leaflet-left { top:8px !important; left:8px !important; }
 .leaflet-top.leaflet-right { top:8px !important; right:8px !important; }
 .leaflet-control-zoom a { background:var(--surface) !important; color:var(--text-dim) !important; border-color:var(--border) !important; font-size:16px !important; line-height:26px !important; width:26px !important; height:26px !important; }
-.leaflet-control-zoom a:hover { background:var(--raised) !important; color:var(--gold) !important; }
+.leaflet-control-zoom a:hover { background:var(--raised) !important; color:var(--accent) !important; }
 
 /* Map container */
 .leaflet-container { background:var(--bg) !important; cursor:grab !important; }
 .leaflet-container:active { cursor:grabbing !important; }
 
 /* Popups */
-.leaflet-popup-content-wrapper { background:rgba(9,14,12,0.97) !important; border:1px solid var(--border) !important; border-radius:4px !important; box-shadow:0 4px 20px rgba(0,0,0,0.8) !important; color:#e8dcc4 !important; padding:0 !important; }
+.leaflet-popup-content-wrapper { background:rgba(12,10,20,0.97) !important; border:1px solid var(--border) !important; border-radius:4px !important; box-shadow:0 4px 20px rgba(0,0,0,0.8) !important; color:#e8e0f7 !important; padding:0 !important; }
 .leaflet-popup-tip-container { display:none !important; }
 .leaflet-popup-content { margin:0 !important; min-width:160px !important; max-width:260px !important; }
 .popup-inner { padding:12px 14px; }
-.popup-name { font-family:'Cinzel',serif; font-size:13px; font-weight:600; color:var(--gold); margin-bottom:3px; }
-.popup-type { font-size:10px; color:var(--text-dim); font-family:'Cinzel',serif; letter-spacing:0.06em; margin-bottom:6px; }
-.popup-notes { font-size:14px; color:var(--text); line-height:1.6; border-top:1px solid var(--border); padding-top:8px; font-family:'Crimson Pro',serif; }
+.popup-name { font-family:'Jost',serif; font-size:13px; font-weight:600; color:var(--accent); margin-bottom:3px; }
+.popup-type { font-size:10px; color:var(--text-dim); font-family:'Jost',serif; letter-spacing:0.06em; margin-bottom:6px; }
+.popup-notes { font-size:14px; color:var(--text); line-height:1.6; border-top:1px solid var(--border); padding-top:8px; font-family:'Jost',serif; }
 
 /* Route tooltips */
-.route-tooltip { background:rgba(9,14,12,0.92) !important; border:1px solid var(--border) !important; color:#e8dcc4 !important; font-family:'Cinzel',serif !important; font-size:11px !important; letter-spacing:0.04em !important; padding:5px 10px !important; border-radius:3px !important; box-shadow:0 2px 12px rgba(0,0,0,0.8) !important; white-space:nowrap !important; pointer-events:none !important; }
+.route-tooltip { background:rgba(12,10,20,0.92) !important; border:1px solid var(--border) !important; color:#e8e0f7 !important; font-family:'Jost',serif !important; font-size:11px !important; letter-spacing:0.04em !important; padding:5px 10px !important; border-radius:3px !important; box-shadow:0 2px 12px rgba(0,0,0,0.8) !important; white-space:nowrap !important; pointer-events:none !important; }
 .route-tooltip::before { display:none !important; }
-.route-tooltip strong, .route-tooltip b { color:var(--gold) !important; font-weight:600; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+.route-tooltip strong, .route-tooltip b { color:var(--accent) !important; font-weight:600; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
 
 /* Annotations */
 .annotation-label { background:transparent !important; border:none !important; box-shadow:none !important; }
-.annotation-text { font-family:'Cinzel',serif; text-shadow:0 1px 4px rgba(9,14,12,0.95),0 0 10px rgba(9,14,12,0.9); white-space:nowrap; }
+.annotation-text { font-family:'Jost',serif; text-shadow:0 1px 4px rgba(12,10,20,0.95),0 0 10px rgba(12,10,20,0.9); white-space:nowrap; }
 
 /* Loading */
 #loading { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; gap:14px; }
-.loading-title { font-family:'Cinzel',serif; font-size:20px; color:var(--gold); letter-spacing:0.15em; text-shadow:0 0 30px rgba(77,204,133,0.2); }
+.loading-title { font-family:'Jost',serif; font-size:20px; color:var(--accent); letter-spacing:0.15em; text-shadow:0 0 30px rgba(168,117,232,0.2); }
 .loading-sub { font-size:14px; color:var(--text-dim); font-style:italic; }
 .loading-bar-wrap { width:180px; height:2px; background:var(--border); border-radius:1px; overflow:hidden; }
-.loading-bar { height:100%; background:var(--gold-dim); animation:lp 1.2s ease-in-out infinite; }
+.loading-bar { height:100%; background:var(--accent-dim); animation:lp 1.2s ease-in-out infinite; }
 @keyframes lp { 0%,100%{width:15%} 50%{width:75%} }
 #errorMsg { position:fixed; inset:0; background:var(--bg); display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:9999; }
-.error-title { font-family:'Cinzel',serif; font-size:16px; color:var(--red); letter-spacing:0.1em; }
+.error-title { font-family:'Jost',serif; font-size:16px; color:var(--danger); letter-spacing:0.1em; }
 .error-sub { font-size:14px; color:var(--text-dim); font-style:italic; }
 
 /* Legend */
-#downloadBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:all 0.15s; display:block; width:auto !important; }
-#downloadBtn:hover { border-color:var(--gold-dim); color:var(--gold); } background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:all 0.15s; display:block; }
-#legendToggle:hover { border-color:var(--gold-dim); color:var(--gold); }
-.legend-header { padding:12px 14px 8px; font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.12em; color:var(--text-dim); border-bottom:1px solid var(--border); text-transform:uppercase; }
+#downloadBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Jost',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:all 0.15s; display:block; width:auto !important; }
+#downloadBtn:hover { border-color:var(--accent-dim); color:var(--accent); } background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Jost',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:all 0.15s; display:block; }
+#legendToggle:hover { border-color:var(--accent-dim); color:var(--accent); }
+.legend-header { padding:12px 14px 8px; font-family:'Jost',serif; font-size:10px; letter-spacing:0.12em; color:var(--text-dim); border-bottom:1px solid var(--border); text-transform:uppercase; }
 .legend-body { flex:1; overflow-y:auto; padding:8px 0; }
 .legend-body::-webkit-scrollbar { width:5px; }
 .legend-body::-webkit-scrollbar-track { background:var(--surface); }
 .legend-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
-.legend-body::-webkit-scrollbar-thumb:hover { background:var(--gold-dim); }
-.legend-section { padding:5px 14px 3px; font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; margin-top:6px; border-top:1px solid var(--border); }
+.legend-body::-webkit-scrollbar-thumb:hover { background:var(--accent-dim); }
+.legend-section { padding:5px 14px 3px; font-family:'Jost',serif; font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; margin-top:6px; border-top:1px solid var(--border); }
 .legend-section:first-child { border-top:none; margin-top:0; }
-.legend-item { display:flex; align-items:center; gap:7px; padding:6px 14px; font-size:14px; color:var(--text); cursor:pointer; transition:background 0.1s; font-family:'Crimson Pro',serif; }
+.legend-item { display:flex; align-items:center; gap:7px; padding:6px 14px; font-size:14px; color:var(--text); cursor:pointer; transition:background 0.1s; font-family:'Jost',serif; }
 .legend-item:hover { background:var(--raised); color:var(--text-hi); }
 .legend-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
 
 /* Layer toggles panel */
 #layersPanel { position:absolute; left:0; top:0; bottom:0; width:220px; background:var(--surface); border-right:1px solid var(--border); z-index:800; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
 #layersPanel.open { transform:translateX(0); }
-#layersToggleBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:border-color 0.15s, color 0.15s, background 0.15s; display:block; }
-#layersToggleBtn:hover, #layersToggleBtn.open { border-color:var(--gold-dim); color:var(--gold); background:var(--gold-faint); }
-.layers-header { padding:12px 14px 8px; font-family:'Cinzel',serif; font-size:10px; letter-spacing:0.12em; color:var(--text-dim); border-bottom:1px solid var(--border); text-transform:uppercase; }
+#layersToggleBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Jost',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:border-color 0.15s, color 0.15s, background 0.15s; display:block; }
+#layersToggleBtn:hover, #layersToggleBtn.open { border-color:var(--accent-dim); color:var(--accent); background:var(--accent-faint); }
+.layers-header { padding:12px 14px 8px; font-family:'Jost',serif; font-size:10px; letter-spacing:0.12em; color:var(--text-dim); border-bottom:1px solid var(--border); text-transform:uppercase; }
 .layers-body { flex:1; overflow-y:auto; padding:8px 0; }
 .layer-toggle-row { display:flex; align-items:center; gap:8px; padding:7px 14px; cursor:pointer; transition:background 0.1s; }
 .layer-toggle-row:hover { background:var(--raised); }
 .layer-toggle-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
-.layer-toggle-name { font-size:13px; color:var(--text); flex:1; font-family:'Crimson Pro',serif; }
+.layer-toggle-name { font-size:13px; color:var(--text); flex:1; font-family:'Jost',serif; }
 .pub-toggle { width:26px; height:14px; background:var(--border); border-radius:7px; position:relative; flex-shrink:0; transition:background 0.2s; }
 .pub-toggle::after { content:''; position:absolute; top:2px; left:2px; width:10px; height:10px; background:var(--text-dim); border-radius:5px; transition:all 0.2s; }
-.pub-toggle.on { background:var(--gold-dim); }
-.pub-toggle.on::after { left:14px; background:var(--gold); }
-.layers-section { padding:5px 14px 3px; font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; margin-top:4px; border-top:1px solid var(--border); }
+.pub-toggle.on { background:var(--accent-dim); }
+.pub-toggle.on::after { left:14px; background:var(--accent); }
+.layers-section { padding:5px 14px 3px; font-family:'Jost',serif; font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; margin-top:4px; border-top:1px solid var(--border); }
 .layers-section:first-child { border-top:none; margin-top:0; }
 
 /* Measure tool */
-#measureBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:border-color 0.15s, color 0.15s, background 0.15s; display:block; }
-#measureBtn:hover { border-color:var(--gold-dim); color:var(--gold); }
-#measureBtn.active { border-color:var(--gold) !important; color:var(--gold) !important; background:var(--gold-faint) !important; opacity:1 !important; }
-#measureResult { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); z-index:2000; background:var(--surface); border:1px solid var(--gold-dim); border-radius:4px; padding:10px 16px; display:none; align-items:center; gap:16px; box-shadow:0 4px 16px rgba(0,0,0,0.5); pointer-events:all; }
+#measureBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Jost',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:border-color 0.15s, color 0.15s, background 0.15s; display:block; }
+#measureBtn:hover { border-color:var(--accent-dim); color:var(--accent); }
+#measureBtn.active { border-color:var(--accent) !important; color:var(--accent) !important; background:var(--accent-faint) !important; opacity:1 !important; }
+#measureResult { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); z-index:2000; background:var(--surface); border:1px solid var(--accent-dim); border-radius:4px; padding:10px 16px; display:none; align-items:center; gap:16px; box-shadow:0 4px 16px rgba(0,0,0,0.5); pointer-events:all; }
 .meas-val { text-align:center; }
-.meas-num { font-family:'Cinzel',serif; font-size:16px; color:var(--gold); display:block; }
+.meas-num { font-family:'Jost',serif; font-size:16px; color:var(--accent); display:block; }
 .meas-unit { font-size:10px; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; }
 .meas-sep { width:1px; height:32px; background:var(--border); }
 #measureClose { background:transparent; border:none; color:var(--text-dim); font-size:16px; cursor:pointer; padding:0 0 0 8px; line-height:1; }
-#measureClose:hover { color:var(--gold); }
+#measureClose:hover { color:var(--accent); }
 #layersPanel { position:absolute; left:0; top:0; bottom:0; width:220px; background:var(--surface); border-right:1px solid var(--border); z-index:1900; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
 #layersPanel.open { transform:translateX(0); }
 #legend { position:absolute; right:0; top:0; bottom:0; width:240px; background:var(--surface); border-left:1px solid var(--border); z-index:1900; transform:translateX(100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
 #legend.open { transform:translateX(0); }
-#regionsToggleBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Cinzel',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:border-color 0.15s, color 0.15s, background 0.15s; display:block; width:auto !important; }
-#regionsToggleBtn:hover, #regionsToggleBtn.open { border-color:var(--gold-dim); color:var(--gold); background:var(--gold-faint); }
+#regionsToggleBtn { z-index:810; background:var(--surface); border:1px solid var(--border); color:var(--text-dim); font-family:'Jost',serif; font-size:9px; letter-spacing:0.1em; padding:5px 10px; border-radius:3px; cursor:pointer; transition:border-color 0.15s, color 0.15s, background 0.15s; display:block; width:auto !important; }
+#regionsToggleBtn:hover, #regionsToggleBtn.open { border-color:var(--accent-dim); color:var(--accent); background:var(--accent-faint); }
 #regionsPanel { position:absolute; left:0; top:0; bottom:0; width:220px; background:var(--surface); border-right:1px solid var(--border); z-index:1800; transform:translateX(-100%); transition:transform 0.25s ease; display:flex; flex-direction:column; }
 #regionsPanel.open { transform:translateX(0); }
 </style>
@@ -212,7 +212,7 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
         <button id="layersToggleBtn">LAYERS ▸</button>
         <button id="measureBtn">⟷ MEASURE</button>
         <button id="regionsToggleBtn">⚔ POLITICAL MODE</button>
-        <div id="measureHint" style="display:none;font-family:'Cinzel',serif;font-size:9px;letter-spacing:0.08em;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:4px 8px;pointer-events:none;white-space:nowrap;">Click to place · Enter or Right-click to finish · Esc to cancel</div>
+        <div id="measureHint" style="display:none;font-family:'Jost',serif;font-size:9px;letter-spacing:0.08em;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:4px 8px;pointer-events:none;white-space:nowrap;">Click to place · Enter or Right-click to finish · Esc to cancel</div>
       </div>
       <div id="controlsRight">
         <button id="legendToggle">LOCATIONS ▸</button>
@@ -230,13 +230,15 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
       <div class="meas-val"><span class="meas-num" id="measKm">—</span><span class="meas-unit">km</span></div>
       <div class="meas-sep"></div>
       <div class="meas-val" style="flex-direction:column;align-items:center;gap:2px">
-        <select id="measSpeedSelect" style="font-family:'Cinzel',serif;font-size:8px;letter-spacing:0.06em;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);border-radius:2px;padding:2px 4px;cursor:pointer;text-align:center">
-          <optgroup label="— Land —" style="font-family:'Cinzel',serif">
+        <select id="measSpeedSelect" style="font-family:'Jost',serif;font-size:8px;letter-spacing:0.06em;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);border-radius:2px;padding:2px 4px;cursor:pointer;text-align:center">
+          <optgroup label="— Land —" style="font-family:'Jost',serif">
             <option value="land_fast">🚶 Fast Pace (4mph)</option>
             <option value="land_normal" selected>🚶 Normal Pace (3mph)</option>
             <option value="land_slow">🚶 Slow Pace (2mph)</option>
+            <option value="horse">🐴 Horse (4mph)</option>
+            <option value="pony">🐴 Pony (3mph)</option>
           </optgroup>
-          <optgroup label="— Waterborne —" style="font-family:'Cinzel',serif">
+          <optgroup label="— Waterborne —" style="font-family:'Jost',serif">
             <option value="rowboat">🚣 Rowboat (1.5mph)</option>
             <option value="keelboat">⚓ Keelboat (1mph)</option>
             <option value="sailing">⛵ Sailing Ship (2mph)</option>
@@ -244,12 +246,26 @@ body { width: 100%; height: 100%; background: var(--bg); color: var(--text); fon
             <option value="longship">🛶 Longship (3mph)</option>
             <option value="galley">🚢 Galley (4mph)</option>
           </optgroup>
-          <optgroup label="— Airborne —" style="font-family:'Cinzel',serif">
-            <option value="airship">✦ Airship (8mph)</option>
+          <optgroup label="— Airborne —" style="font-family:'Jost',serif">
+            <option value="airship">✦ Airship</option>
+            <option value="hippogriff">🦅 Hippogriff / Wyvern (6mph)</option>
+            <option value="griffon">🦁 Griffon / Pegasus (8mph)</option>
+            <option value="dragon">🐲 Dragon (9mph)</option>
+            <option value="feather_token">🪶 Quaal's Feather Token (16mph)</option>
+            <option value="broom">🧹 Broom of Flying (50ft)</option>
+            <option value="carpet_small">🟫 Carpet 3×5ft (80ft)</option>
+            <option value="carpet_med">🟫 Carpet 4×6ft (60ft)</option>
+            <option value="carpet_large">🟫 Carpet 5×7ft (40ft)</option>
+            <option value="carpet_xlarge">🟫 Carpet 6×9ft (30ft)</option>
           </optgroup>
-        </select>
+          </select>
+        <label id="measForcedMarchLabel" style="display:none;align-items:center;gap:3px;font-family:'Jost',serif;font-size:8px;letter-spacing:0.06em;color:var(--text-dim);cursor:pointer;margin-top:2px">
+          <input type="checkbox" id="measForcedMarch" style="cursor:pointer;accent-color:var(--accent)"> ⚠ Forced March
+        </label>
         <span class="meas-num" id="measTravel" style="font-size:13px">—</span>
         <span class="meas-unit" id="measTravelUnit" style="font-size:8px;letter-spacing:0.08em;">Walking</span>
+        <span class="meas-num" id="measTripTotal" style="font-size:10px;color:var(--text-dim)">—</span>
+        <span class="meas-unit" id="measTripTotalUnit" style="font-size:7px;letter-spacing:0.06em;color:var(--text-dim)">inc. rests</span>
       </div>
       <button id="measureClose" title="Clear">✕</button>
     </div>
@@ -379,7 +395,7 @@ function initViewer() {
 
 // ── Shapes ────────────────────────────────────────────
 function makeIcon(cat) {
-  const c = cat.color, s = '#090e0c';
+  const c = cat.color, s = '#0c0a14';
   const shapes = {
     circle:  `<circle cx="12" cy="12" r="7" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
     square:  `<rect x="5" y="5" width="14" height="14" rx="2" fill="${c}" stroke="${s}" stroke-width="1.5"/>`,
@@ -428,7 +444,7 @@ function renderMarkers() {
     layerGroups.markers[cat] = grp;
   });
   (data.markers||[]).forEach(m => {
-    const cat = cats[m.cat] || {label:m.cat, color:'#4dcc85', shape:'circle'};
+    const cat = cats[m.cat] || {label:m.cat, color:'#a875e8', shape:'circle'};
     const icon = makeIcon(cat);
     let markerPopup = `<div class="popup-inner"><div class="popup-name">${esc(m.name)}</div><div class="popup-type" style="color:${cat.color}">${esc(cat.label)}</div>${m.notes?`<div class="popup-notes">${esc(m.notes)}</div>`:''}</div>`;
     markerPopup += wikiLinkHtmlPub(m.wikiLink, m.name);
@@ -455,7 +471,7 @@ function renderRoutes() {
     layerGroups.routes[cat] = grp;
   });
   (data.routes||[]).forEach(r => {
-    const rc = cats[r.cat] || {label:r.cat, color:'#4dcc85', dash:'solid'};
+    const rc = cats[r.cat] || {label:r.cat, color:'#a875e8', dash:'solid'};
     const dashVal = DASH_MAP[rc.dash] !== undefined ? DASH_MAP[rc.dash] : null;
     const pts = r.points.map(p => toLL(p));
     const line = L.polyline(pts, {color:rc.color, weight:2.5, dashArray:dashVal, opacity:0.85, interactive:false});
@@ -499,7 +515,7 @@ function renderAnnotations() {
 
 // ── Layers panel ──────────────────────────────────────
 function layerMarkerIcon(def) {
-  const c = def.color, s = '#090e0c';
+  const c = def.color, s = '#0c0a14';
   const shapes = {
     circle:  `<circle cx="10" cy="10" r="6" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
     square:  `<rect x="4" y="4" width="12" height="12" rx="1.5" fill="${c}" stroke="${s}" stroke-width="1.2"/>`,
@@ -598,7 +614,7 @@ function buildLegend() {
   const grouped = {};
   markers.forEach(m => { (grouped[m.cat]=grouped[m.cat]||[]).push(m); });
   document.getElementById('legendBody').innerHTML = Object.entries(grouped).map(([cat,ms]) => {
-    const def = cats[cat] || {label:cat, color:'#4dcc85'};
+    const def = cats[cat] || {label:cat, color:'#a875e8'};
     return `<div class="legend-section">${esc(def.label)}</div>` +
       ms.map(m => `<div class="legend-item" onclick="flyTo(${m.lat},${m.lng})">
         <div class="legend-dot" style="background:${def.color}"></div>${esc(m.name)}
@@ -660,9 +676,9 @@ function makeMeasureWaypoint(latlng, index) {
   const icon = L.divIcon({
     html: `<div style="
       width:22px;height:22px;border-radius:50%;
-      background:#1a1a2e;border:2px solid #ffffff;
+      background:#0c0a14;border:2px solid #ffffff;
       display:flex;align-items:center;justify-content:center;
-      font-family:'Cinzel',serif;font-size:9px;color:#ffffff;
+      font-family:'Jost',serif;font-size:9px;color:#ffffff;
       box-shadow:0 0 8px rgba(255,255,255,0.6),0 2px 6px rgba(0,0,0,0.8);
       transform:translate(-11px,-11px);
     ">${index + 1}</div>`,
@@ -687,32 +703,63 @@ function calcMeasureDist(pts) {
 
 // 2024 PHB travel speeds — land uses 8hr day, water/air travel 24hr
 const TRAVEL_SPEEDS = {
-  land_fast:   { label:'Fast Pace',    milesPerDay: 32,  hoursPerDay: 8 }, // 4mph
-  land_normal: { label:'Normal Pace',  milesPerDay: 24,  hoursPerDay: 8 }, // 3mph
-  land_slow:   { label:'Slow Pace',    milesPerDay: 16,  hoursPerDay: 8 }, // 2mph
-  // Waterborne (continuous travel, 24hr day)
-  rowboat:  { label:'Rowboat',      milesPerDay: 36,   hoursPerDay: 24 }, // 1.5mph
-  keelboat: { label:'Keelboat',     milesPerDay: 24,   hoursPerDay: 24 }, // 1mph
-  sailing:  { label:'Sailing Ship', milesPerDay: 48,   hoursPerDay: 24 }, // 2mph
-  warship:  { label:'Warship',      milesPerDay: 60,   hoursPerDay: 24 }, // 2.5mph
-  longship: { label:'Longship',     milesPerDay: 72,   hoursPerDay: 24 }, // 3mph
-  galley:   { label:'Galley',       milesPerDay: 96,   hoursPerDay: 24 }, // 4mph
-  // Airborne (continuous travel, 24hr day)
-  airship:  { label:'Airship',      milesPerDay: 144,  hoursPerDay: 24 }, // ~6mph
+  // Land (8hr/day normal, 12hr forced march)
+  land_fast:     { label:'Fast Pace',           milesPerDay: 32,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  land_normal:   { label:'Normal Pace',          milesPerDay: 24,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  land_slow:     { label:'Slow Pace',            milesPerDay: 16,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  horse:         { label:'Horse',                milesPerDay: 32,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  pony:          { label:'Pony',                 milesPerDay: 24,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  // Waterborne (24hr/day, no rest, no forced march)
+  rowboat:       { label:'Rowboat',              milesPerDay: 36,  hoursPerDay: 24, restHours: 0,  canForceMarch: false },
+  keelboat:      { label:'Keelboat',             milesPerDay: 24,  hoursPerDay: 24, restHours: 0,  canForceMarch: false },
+  sailing:       { label:'Sailing Ship',         milesPerDay: 48,  hoursPerDay: 24, restHours: 0,  canForceMarch: false },
+  warship:       { label:'Warship',              milesPerDay: 60,  hoursPerDay: 24, restHours: 0,  canForceMarch: false },
+  longship:      { label:'Longship',             milesPerDay: 72,  hoursPerDay: 24, restHours: 0,  canForceMarch: false },
+  galley:        { label:'Galley',               milesPerDay: 96,  hoursPerDay: 24, restHours: 0,  canForceMarch: false },
+  // Airborne vehicles (24hr/day, no forced march)
+  airship:       { label:'Airship',              milesPerDay: 144, hoursPerDay: 24, restHours: 0,  canForceMarch: false },
+  // Flying mounts (8hr/day, forced march applies)
+  hippogriff:    { label:'Hippogriff / Wyvern',  milesPerDay: 48,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  griffon:       { label:'Griffon / Pegasus',    milesPerDay: 64,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  dragon:        { label:'Dragon',               milesPerDay: 72,  hoursPerDay: 8,  restHours: 16, canForceMarch: true  },
+  // Magic items — fixed by item text, no forced march
+  feather_token: { label:"Quaal's Feather Token",milesPerDay: 144, hoursPerDay: 9,  restHours: 15, canForceMarch: false },
+  broom:         { label:'Broom of Flying',      milesPerDay: 46,  hoursPerDay: 8,  restHours: 16, canForceMarch: false },
+  carpet_small:  { label:'Carpet 3×5ft',        milesPerDay: 72,  hoursPerDay: 8,  restHours: 16, canForceMarch: false },
+  carpet_med:    { label:'Carpet 4×6ft',        milesPerDay: 54,  hoursPerDay: 8,  restHours: 16, canForceMarch: false },
+  carpet_large:  { label:'Carpet 5×7ft',        milesPerDay: 36,  hoursPerDay: 8,  restHours: 16, canForceMarch: false },
+  carpet_xlarge: { label:'Carpet 6×9ft',        milesPerDay: 27,  hoursPerDay: 8,  restHours: 16, canForceMarch: false },
 };
 
+function formatTime(totalHours) {
+  const d = Math.floor(totalHours / 24);
+  const h = Math.round(totalHours % 24);
+  if (d === 0 && h === 0) return '< 1h';
+  if (d === 0) return `${h}h`;
+  if (h === 0) return `${d}d`;
+  return `${d}d ${h}h`;
+}
+
 function calcTravelTime(miles) {
-  const key = document.getElementById('measSpeedSelect').value || 'walk';
-  const s = TRAVEL_SPEEDS[key] || TRAVEL_SPEEDS.walk;
-  const totalDays = miles / s.milesPerDay;
-  const days  = Math.floor(totalDays);
-  const hours = Math.round((totalDays - days) * s.hoursPerDay);
-  let text = '';
-  if (days === 0 && hours === 0) text = '< 1h';
-  else if (days === 0) text = `${hours}h`;
-  else if (hours === 0) text = `${days}d`;
-  else text = `${days}d ${hours}h`;
-  return { text, unit: s.label };
+  const key = document.getElementById('measSpeedSelect').value || 'land_normal';
+  const s = TRAVEL_SPEEDS[key] || TRAVEL_SPEEDS.land_normal;
+  const fm = s.canForceMarch && document.getElementById('measForcedMarch').checked;
+
+  // Forced march: 12hr travel day instead of 8hr, same mph so +50% distance
+  const hoursPerDay = fm ? Math.min(s.hoursPerDay + 4, 12) : s.hoursPerDay;
+  const restHours   = fm ? (24 - hoursPerDay) : s.restHours;
+  const mph = s.milesPerDay / s.hoursPerDay;
+  const milesPerDay = mph * hoursPerDay;
+
+  const travelHours = (miles / milesPerDay) * hoursPerDay;
+  const totalHours  = restHours > 0 ? travelHours + ((miles / milesPerDay) * restHours) : travelHours;
+
+  return {
+    travelText: formatTime(travelHours),
+    totalText:  restHours > 0 ? formatTime(totalHours) : null,
+    unit: s.label + (fm ? ' ⚠' : ''),
+    canForceMarch: s.canForceMarch
+  };
 }
 
 function updateMeasureResult() {
@@ -722,12 +769,19 @@ function updateMeasureResult() {
   document.getElementById('measMi').textContent  = dist.miles;
   document.getElementById('measKm').textContent  = dist.km;
   const travel = calcTravelTime(parseFloat(dist.miles));
-  document.getElementById('measTravel').textContent     = travel.text;
-  document.getElementById('measTravelUnit').textContent = travel.unit;
+  document.getElementById('measTravel').textContent        = travel.travelText;
+  document.getElementById('measTravelUnit').textContent    = travel.unit;
+  document.getElementById('measTripTotal').textContent     = travel.totalText || '—';
+  document.getElementById('measTripTotalUnit').textContent = travel.totalText ? 'inc. rests' : '';
+  // Show/hide forced march checkbox
+  const fmLabel = document.getElementById('measForcedMarchLabel');
+  fmLabel.style.display = travel.canForceMarch ? 'flex' : 'none';
+  if (!travel.canForceMarch) document.getElementById('measForcedMarch').checked = false;
   document.getElementById('measureResult').style.display = 'flex';
 }
 
 document.getElementById('measSpeedSelect').addEventListener('change', updateMeasureResult);
+document.getElementById('measForcedMarch').addEventListener('change', updateMeasureResult);
 
 function onMapClick(e) {
   if (!measureMode) return;
@@ -810,8 +864,8 @@ function wikiLinkHtmlPub(url, fallbackName) {
       });
     }, 50);
     return `<div class="popup-wiki">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--gold-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-      <a id="${id}" href="${esc(url)}" style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:0.06em;color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim);cursor:pointer;">${esc(label)}</a>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent-dim);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+      <a id="${id}" href="${esc(url)}" style="font-family:'Jost',serif;font-size:10px;letter-spacing:0.06em;color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-dim);cursor:pointer;">${esc(label)}</a>
     </div>`;
   } catch(e) { return ''; }
 }
