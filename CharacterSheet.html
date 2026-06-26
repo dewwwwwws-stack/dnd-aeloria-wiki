@@ -31,7 +31,7 @@
 
   --text:       #2a2138;
   --text2:      #5c5270;
-  --text3:      #9690a8;
+  --text3:      #6e6488;
   --text-hi:    #18121f;
 
   --gold:       #7c4dc4;
@@ -62,7 +62,7 @@
   --shadow-lg:  0 4px 24px rgba(0,0,0,.4);
 
   --accent:     #a875e8;
-  --accent-dim: #6b4a96;
+  --accent-dim: #9268c4;
   --accent-bg:  #241c34;
   --accent2:    #a875e8;
   --accent3:    #4fb3a3;
@@ -72,12 +72,12 @@
   --amber:      #a8843a;
 
   --text:       #c4b8da;
-  --text2:      #756a8a;
-  --text3:      #423a56;
+  --text2:      #9c90b3;
+  --text3:      #857a98;
   --text-hi:    #e8e0f7;
 
   --gold:       #a875e8;
-  --gold-dim:   #6b4a96;
+  --gold-dim:   #9268c4;
   --gold-faint: #241c34;
   --gold-glow:  rgba(168,117,232,0.15);
   --exh-colour: #a8843a;
@@ -3518,6 +3518,11 @@ const GH = {
     return this.req('PUT', `contents/${this.dir}/${filename}`, body);
   },
 
+  async deleteFile(filename, sha) {
+    const body = { message: `Delete ${filename}`, sha, branch: this.branch };
+    return this.req('DELETE', `contents/${this.dir}/${filename}`, body);
+  },
+
   async listFiles() {
     const data = await this.req('GET', `contents/${this.dir}`);
     return Array.isArray(data) ? data.filter(f => f.name.endsWith('.json')) : [];
@@ -4067,9 +4072,15 @@ async function loadDMCharList() {
               </div>
               <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${c.playerName||''} · Lv ${level} ${cls}${sub}</div>
             </div>
-            <div style="text-align:right">
-              <div style="font-family:var(--font-label);font-size:16px;font-weight:700;color:${hpCol}">${hpCur}<span style="font-size:11px;color:var(--text3)">/${hpMax}</span></div>
-              <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">HP</div>
+            <div style="text-align:right;display:flex;align-items:flex-start;gap:8px">
+              <div>
+                <div style="font-family:var(--font-label);font-size:16px;font-weight:700;color:${hpCol}">${hpCur}<span style="font-size:11px;color:var(--text3)">/${hpMax}</span></div>
+                <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">HP</div>
+              </div>
+              <button onclick="dmDeleteCharacter('${id}','${(c.charName||id).replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" title="Delete character"
+                style="font-size:13px;line-height:1;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
+                onmouseover="this.style.color='var(--red)';this.style.background='rgba(220,50,50,.1)'"
+                onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button>
             </div>
           </div>
           <div style="height:3px;background:var(--bg3);border-radius:2px;margin-bottom:8px">
@@ -4138,6 +4149,21 @@ async function dmSaveCharNote(id, note) {
   } catch(e) { toast('Save failed: ' + e.message, 'error'); }
 }
 window.dmSaveCharNote = dmSaveCharNote;
+
+async function dmDeleteCharacter(id, name) {
+  if (!confirm(`Permanently delete "${name}"?\n\nThis removes the character's file from the repo entirely and cannot be undone. There is no recovery short of GitHub's commit history.`)) return;
+  if (!confirm(`Are you absolutely sure? "${name}" will be gone for good.`)) return;
+  try {
+    const { sha } = await GH.getFile(`${id}.json`);
+    await GH.deleteFile(`${id}.json`, sha);
+    // Clean up campaigns cache so deleted character doesn't linger in that tab
+    const idx = _allCharFiles.findIndex(f => f.id === id);
+    if (idx !== -1) _allCharFiles.splice(idx, 1);
+    toast(`${name} deleted`, 'ok');
+    loadDMCharList();
+  } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+window.dmDeleteCharacter = dmDeleteCharacter;
 
 async function dmAdjHP(id, sign) {
   const adjEl = document.getElementById('dm-hp-adj-' + id);
@@ -15305,8 +15331,8 @@ function renderActiveEffects() {
       if (def.mutableFormBonus) {
         const mfs = currentChar._mutableForm || {};
         lines.push(`${mfs.tempHP||0} Temp HP`, '+5ft Reach/Speed');
-        if (mfs.fleshWeaverActive) lines.push('+2 AC');
-        if (mfs.imfChoice === 'unnatural_flexibility') lines.push('+1 AC');
+        if (mutableFormFleshWeaverActive()) lines.push('+2 AC');
+        if (mutableFormImfChoice() === 'unnatural_flexibility') lines.push('+1 AC');
       }
       if (lines.length) {
         const badge = document.createElement('span');
@@ -16110,7 +16136,7 @@ function renderSavesBlock() {
     if (exPen > 0)    parts.push(`Exh \u2212${exPen}`);
     const formula = parts.join(' + ').replace('+ \u2212', '\u2212') + ` = ${totalStr}`;
 
-    const stonyEpidermisAdv = s.key === 'con' && isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'stony_epidermis';
+    const stonyEpidermisAdv = s.key === 'con' && isEffectActive('mutable_form') && mutableFormImfChoice() === 'stony_epidermis';
 
     const row = document.createElement('div');
     row.className = 'save-row';
@@ -16124,7 +16150,7 @@ function renderSavesBlock() {
   }
 
   // Unnatural Flexibility note: spend 5 ft movement to escape Restrained/Grappled
-  if (isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'unnatural_flexibility') {
+  if (isEffectActive('mutable_form') && mutableFormImfChoice() === 'unnatural_flexibility') {
     const escNote = document.createElement('div');
     escNote.style.cssText = 'margin-top:8px;background:rgba(45,168,109,.1);border:1px solid var(--accent);border-radius:var(--radius);padding:6px 10px;font-family:var(--font-ui);font-size:10px;color:var(--accent)';
     escNote.innerHTML = '◉ Unnatural Flexibility — Spend <strong>5 ft of movement</strong> to escape Restrained or Grappled (no check required)';
@@ -16358,7 +16384,7 @@ function calcSpeed() {
   const base       = overrides.walk > 0 ? overrides.walk : racialWalk;
   currentChar.speed = base;
 
-  const superiorStride = isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'superior_stride';
+  const superiorStride = isEffectActive('mutable_form') && mutableFormImfChoice() === 'superior_stride';
 
   const exLevel   = parseInt(currentChar.exhaustion) || 0;
   const penalty   = exLevel * 5;
@@ -16398,7 +16424,7 @@ function calcSpeed() {
                    : flySpeed > 0 ? `Fly ${flySpeed}` : `Hov ${hoverSpeed}`;
     el.textContent = hasAir ? `${final} (${airLabel})` : final;
     el.style.color = hasAir ? 'var(--amber)' : exLevel > 0 ? 'var(--exh-colour)' : 'var(--text)';
-    const unnaturalFlexTip = (isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'unnatural_flexibility') ? ' · Can move through 1-inch spaces (Unnatural Flexibility)' : '';
+    const unnaturalFlexTip = (isEffectActive('mutable_form') && mutableFormImfChoice() === 'unnatural_flexibility') ? ' · Can move through 1-inch spaces (Unnatural Flexibility)' : '';
     el.title = parts.map(p => `${p.label} ${p.val} ft${p.note}`).join(' · ') + unnaturalFlexTip;
   }
 
@@ -16406,7 +16432,7 @@ function calcSpeed() {
   const note = document.getElementById('speed-note');
   if (note) {
     const extraParts = parts.filter(p => p.label !== 'Walk');
-    const unnaturalFlex = isEffectActive('mutable_form') && currentChar._mutableForm?.imfChoice === 'unnatural_flexibility';
+    const unnaturalFlex = isEffectActive('mutable_form') && mutableFormImfChoice() === 'unnatural_flexibility';
     let noteHtml = '';
     if (extraParts.length) {
       noteHtml = extraParts.map(p =>
@@ -16619,12 +16645,28 @@ window.selectACMethod     = selectACMethod;
 
 function getMutableFormACBonus() {
   if (!currentChar?._mutableForm?.active) return 0;
-  const state = currentChar._mutableForm;
   let bonus = 0;
-  if (state.fleshWeaverActive) bonus += 2;                          // Organic Defense
-  if (state.imfChoice === 'unnatural_flexibility') bonus += 1;      // Improved Mutable Form
+  if (mutableFormFleshWeaverActive()) bonus += 2;                       // Organic Defense
+  if (mutableFormImfChoice() === 'unnatural_flexibility') bonus += 1;   // Improved Mutable Form
   return bonus;
 }
+
+// Flesh Weaver (lv6) and Improved Mutable Form (lv10) benefits should only ever apply at
+// the Psion level that grants them — these helpers re-check the current level every time,
+// so stale state from a previous higher-level save (or a level edited downward) can never
+// keep granting a benefit the character is no longer high enough level for.
+function mutableFormFleshWeaverActive() {
+  if (!currentChar?._mutableForm?.fleshWeaverActive) return false;
+  return (getClassLevelCount('psion') || getLevel()) >= 6;
+}
+window.mutableFormFleshWeaverActive = mutableFormFleshWeaverActive;
+
+function mutableFormImfChoice() {
+  const choice = currentChar?._mutableForm?.imfChoice;
+  if (!choice) return null;
+  return (getClassLevelCount('psion') || getLevel()) >= 10 ? choice : null;
+}
+window.mutableFormImfChoice = mutableFormImfChoice;
 
 function calcAC() {
   if (!currentChar) return 10;
@@ -23756,7 +23798,6 @@ function renderChoiceDef(def, _choiceCls) {
       ? '<div style="font-family:var(--font-body);font-size:11px;color:var(--accent)">' + _parts.join(' · ') + '</div>'
       : '';
     inner += '<div style="display:flex;flex-direction:column;gap:6px">'
-           + '<div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:4px">' + (def.desc||'') + '</div>'
            + '<div style="display:flex;align-items:center;gap:8px">'
            + '<button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="' + (def.buttonFn||'') + '">' + (def.buttonLabel||'⚙ Configure') + '</button>'
            + '<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Uses 1 Psionic Energy Die</span>'
@@ -25992,18 +26033,39 @@ function buildAllResourceDefs() {
     });
   }
 
-  // Feat resources — collect from all sources
+  // Feat resources — collect from all sources (must mirror renderResourceTracker exactly,
+  // including the same id scheme, or Long/Short Rest will reset the wrong key and the
+  // displayed resource will never visually clear)
   const _allFeatNamesForReset = new Set();
   (currentChar.feats||[]).filter(f => !f._auto).forEach(f => { const n = f.name||f; if(n) _allFeatNamesForReset.add(n); });
   Object.values(currentChar.featSlots||{}).forEach(dec => {
     if (dec?.choice === 'feat' && dec.feat) _allFeatNamesForReset.add(dec.feat);
     if (dec?.locked && dec.feat) _allFeatNamesForReset.add(dec.feat);
   });
+  // Background origin feat (locked slot)
+  const _bgKeyReset = (currentChar.background||'').toLowerCase().trim().replace(/\s+/g,'_');
+  const _bgReset = _bgKeyReset ? PHB_BACKGROUNDS[_bgKeyReset] : null;
+  if (_bgReset?.originFeat || _bgReset?.feat) {
+    const _bgFeatRawReset = _bgReset.originFeat || _bgReset.feat;
+    if (_bgFeatRawReset.includes(' or ')) {
+      const _chosenReset = (currentChar.featSlots||{})['origin_bg']?.feat;
+      if (_chosenReset) _allFeatNamesForReset.add(_chosenReset);
+    } else {
+      _allFeatNamesForReset.add(_bgFeatRawReset);
+    }
+  }
+  // Lessons of the First Ones feat slots
+  const _parsedInvReset = typeof parseInvocations === 'function' ? parseInvocations() : [];
+  _parsedInvReset.filter(e => e.name === 'Lessons of the First Ones').forEach((_, idx) => {
+    const dec = (currentChar.featSlots||{})[`origin_lessons_${idx}`];
+    if (dec?.feat) _allFeatNamesForReset.add(dec.feat);
+  });
   for (const featName of _allFeatNamesForReset) {
-    const featData = Object.values(PHB_FEATS_FULL).find(f => f.name === featName) ||
-                     Object.values(PHB_FEATS).find(f => f.name === featName);
+    const featKeyForReset = Object.keys(PHB_FEATS).find(k => PHB_FEATS[k].name === featName)
+                          || Object.keys(PHB_FEATS_FULL).find(k => PHB_FEATS_FULL[k].name === featName);
+    const featData = featKeyForReset ? (PHB_FEATS[featKeyForReset] || PHB_FEATS_FULL[featKeyForReset]) : null;
     if (featData?.usages && featData?.recovery) {
-      const id = featName.toLowerCase().replace(/[^a-z0-9]/g,'_');
+      const id = 'feat_res_' + (featKeyForReset||featName).replace(/[^a-z0-9]/g,'_');
       add({ id, name: featName, _max: featData.usages === 'prof_bonus' ? prof : featData.usages, recovery: featData.recovery });
     }
   }
