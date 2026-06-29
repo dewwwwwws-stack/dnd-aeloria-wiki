@@ -28798,6 +28798,12 @@ function renderSkillSetupBody() {
   const body = document.getElementById('skill-setup-body');
   if (!body || !currentChar) return;
 
+  // Always refresh the Skilled feat count from current data — don't rely on the
+  // snapshot taken when the modal first opened, since feat slots can be filled
+  // in after that (e.g. picking the Human's Origin feat) without the modal
+  // being closed and reopened.
+  _skillSetupState._skilledCount = getSkilledFeatCount();
+
   const cls   = getPrimaryClass().toLowerCase().trim();
   const race  = (currentChar.race   || '').toLowerCase().trim();
   const bgKey = currentChar.background || '';
