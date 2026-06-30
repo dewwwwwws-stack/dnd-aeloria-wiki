@@ -3737,35 +3737,75 @@ function getSupabaseClient() {
   return _sbClient;
 }
 
+// Persistent sender channels — keyed by charId, subscribed once and reused
+// for all subsequent broadcasts. The old approach of creating, subscribing,
+// sending, and immediately destroying a channel on every single broadcast
+// is exactly the race that caused subsequent sends to fail: rapidly
+// creating/destroying channels with the same topic name confuses the
+// Supabase client's internal connection state. Keeping one alive per
+// character for the life of the session is the correct pattern.
+const _sbSenderChannels = new Map(); // charId → { channel, ready, queue }
+
+function getSenderChannel(charId) {
+  const sb = getSupabaseClient();
+  if (!sb) return null;
+  if (_sbSenderChannels.has(charId)) return _sbSenderChannels.get(charId);
+
+  const state = { channel: null, ready: false, queue: [] };
+  _sbSenderChannels.set(charId, state);
+
+  const channel = sb.channel('char-' + charId, { config: { broadcast: { self: false, ack: true } } });
+  state.channel = channel;
+
+  channel.subscribe((status) => {
+    console.log('[realtime] sender channel status', { charId, status });
+    if (status === 'SUBSCRIBED') {
+      state.ready = true;
+      // Flush any messages that came in while we were still connecting
+      const pending = state.queue.splice(0);
+      pending.forEach(({ field, resolve }) => {
+        channel.send({ type: 'broadcast', event: 'char_updated', payload: { field, at: Date.now() } })
+          .then((res) => { console.log('[realtime] send result', { charId, field, res }); resolve(); })
+          .catch((e) => { console.warn('[realtime] send failed', { charId, field }, e.message); resolve(); });
+      });
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      console.warn('[realtime] sender channel error — removing for retry next call', { charId, status });
+      state.ready = false;
+      _sbSenderChannels.delete(charId);
+      try { sb.removeChannel(channel); } catch {}
+      // Resolve any queued promises so callers aren't blocked forever
+      state.queue.splice(0).forEach(({ resolve }) => resolve());
+    }
+  });
+
+  return state;
+}
+
 function broadcastCharUpdate(charId, field) {
   return new Promise((resolve) => {
     const sb = getSupabaseClient();
     if (!sb || !charId) {
-      console.warn('[realtime] broadcast skipped — no client or no charId', { hasClient: !!sb, charId });
+      console.warn('[realtime] broadcast skipped', { hasClient: !!sb, charId });
       resolve(); return;
     }
-    console.log('[realtime] broadcasting', { charId, field, topic: 'char-' + charId });
+    console.log('[realtime] broadcasting', { charId, field });
     try {
-      const channel = sb.channel('char-' + charId, { config: { broadcast: { self: false, ack: true } } });
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try { sb.removeChannel(channel); } catch {}
-        resolve();
-      };
-      const timer = setTimeout(() => { console.warn('[realtime] broadcast timed out waiting for SUBSCRIBED', { charId }); finish(); }, 4000);
-      channel.subscribe((status) => {
-        console.log('[realtime] sender channel status', { charId, status });
-        if (status === 'SUBSCRIBED') {
-          channel.send({ type: 'broadcast', event: 'char_updated', payload: { field, at: Date.now() } })
-            .then((res) => console.log('[realtime] send result', { charId, field, res }))
-            .finally(() => { clearTimeout(timer); finish(); });
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.warn('[realtime] sender channel did not subscribe cleanly', { charId, status });
-          clearTimeout(timer); finish();
-        }
-      });
+      const state = getSenderChannel(charId);
+      if (!state) { resolve(); return; }
+      if (state.ready) {
+        state.channel.send({ type: 'broadcast', event: 'char_updated', payload: { field, at: Date.now() } })
+          .then((res) => { console.log('[realtime] send result', { charId, field, res }); resolve(); })
+          .catch((e) => { console.warn('[realtime] send failed (non-fatal)', e.message); resolve(); });
+      } else {
+        // Channel still connecting — queue it, will flush when SUBSCRIBED fires
+        const timer = setTimeout(() => {
+          const idx = state.queue.findIndex(q => q.resolve === resolve);
+          if (idx !== -1) state.queue.splice(idx, 1);
+          console.warn('[realtime] queued send timed out', { charId, field });
+          resolve();
+        }, 5000);
+        state.queue.push({ field, resolve: () => { clearTimeout(timer); resolve(); } });
+      }
     } catch(e) {
       console.warn('[realtime] broadcast failed (non-fatal):', e.message);
       resolve();
@@ -17036,6 +17076,60 @@ function cycleSkillProf(key) { toggleSkillProf(key); }
 // QUICK STATS
 // ═══════════════════════════════════════════════════════════
 
+// Returns { total, parts[] } for all class/subclass-based initiative bonuses
+// across every class the character has (handles multiclass). Parts are
+// tooltip-ready strings like "Gloom Stalker WIS +3".
+// Sources covered:
+//   Gloom Stalker Ranger (lvl 3+): +WIS
+//   Chronurgy Magic Wizard (lvl 2+): +INT
+//   War Magic Wizard (lvl 2+): +INT
+//   Swashbuckler Rogue (lvl 3+): +CHA
+//   Astral Self Monk (lvl 7+, aura active bonus): +PROF
+//     — tracked in _alertBonus path already since it's a toggle, skip here
+//   Way of the Astral Self is handled separately via _alertBonus; not double-counted
+function getClassInitiativeBonus(abs, prof) {
+  const parts = [];
+  let total = 0;
+
+  getAllClasses().forEach(({ class: cls, subclass, levels }) => {
+    const clsLevel = levels?.length || 0;
+    const clsKey   = (cls || '').toLowerCase();
+    const subKey   = (subclass || '').toLowerCase();
+
+    // Gloom Stalker Ranger — "Dread Ambusher" at level 3: add WIS modifier
+    if (clsKey === 'ranger' && subKey.includes('gloom stalker') && clsLevel >= 3) {
+      const mod = abilityMod(abs.wis);
+      if (mod !== 0) { total += mod; parts.push(`Gloom Stalker WIS ${mod >= 0 ? '+' : ''}${mod}`); }
+    }
+
+    // Chronurgy Magic Wizard — "Temporal Awareness" at level 2: add INT modifier
+    if (clsKey === 'wizard' && subKey.includes('chronurgy') && clsLevel >= 2) {
+      const mod = abilityMod(abs.int);
+      if (mod !== 0) { total += mod; parts.push(`Chronurgy INT ${mod >= 0 ? '+' : ''}${mod}`); }
+    }
+
+    // War Magic Wizard — "Tactical Wit" at level 2: add INT modifier
+    if (clsKey === 'wizard' && subKey.includes('war magic') && clsLevel >= 2) {
+      const mod = abilityMod(abs.int);
+      if (mod !== 0) { total += mod; parts.push(`War Magic INT ${mod >= 0 ? '+' : ''}${mod}`); }
+    }
+
+    // Swashbuckler Rogue — "Rakish Audacity" at level 3: add CHA modifier
+    if (clsKey === 'rogue' && subKey.includes('swashbuckler') && clsLevel >= 3) {
+      const mod = abilityMod(abs.cha);
+      if (mod !== 0) { total += mod; parts.push(`Swashbuckler CHA ${mod >= 0 ? '+' : ''}${mod}`); }
+    }
+
+    // Astral Self Monk — "Awakened Astral Self" at level 7: +PROF to initiative
+    // (the whole party aura; the bonus applies to the monk themselves always while active)
+    if (clsKey === 'monk' && subKey.includes('astral self') && clsLevel >= 7) {
+      if (prof > 0) { total += prof; parts.push(`Astral Self +${prof}`); }
+    }
+  });
+
+  return { total, parts };
+}
+
 function recalcQuickStats() {
   if (!currentChar) return;
   const abs   = getAbilities();
@@ -17059,12 +17153,14 @@ function recalcQuickStats() {
   const alertBonus = currentChar._alertBonus || 0;
   const joatBonus  = (!alertBonus && typeof hasJackOfAllTrades === 'function' && hasJackOfAllTrades())
     ? Math.floor(prof / 2) : 0;
-  const initBonus  = alertBonus || joatBonus;
+  const classInitBonus = getClassInitiativeBonus(abs, prof);
+  const initBonus  = (alertBonus || joatBonus) + classInitBonus.total;
   const initVal = dexMod + initBonus - exPen;
   const initStr = (initVal >= 0 ? '+' : '') + initVal;
   const initParts = [`DEX ${dexMod >= 0 ? '+' : ''}${dexMod}`];
   if (alertBonus) initParts.push(`Alert +${alertBonus}`);
   else if (joatBonus) initParts.push(`JoAT +${joatBonus}`);
+  classInitBonus.parts.forEach(p => initParts.push(p));
   if (exPen > 0) initParts.push(`Exh \u2212${exPen}`);
   const initFormula = initParts.join(' + ').replace('+ \u2212','\u2212') + ` = ${initStr}`;
 
