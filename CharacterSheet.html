@@ -3324,6 +3324,153 @@ select:not([multiple]) {
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="custom-item-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:520px;max-height:88vh;display:flex;flex-direction:column;padding:0">
+    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div class="modal-title" id="ci-modal-title" style="border:none;padding:0;margin:0">Add Custom Magic Item</div>
+      <button class="tbtn" style="margin-left:auto" onclick="closeModal('custom-item-modal')">✕ Close</button>
+    </div>
+    <div style="overflow-y:auto;padding:16px 20px;flex:1;display:flex;flex-direction:column;gap:12px">
+
+      <div>
+        <label class="field-label">Name</label>
+        <input id="ci-name" class="info-input" type="text" placeholder="e.g. The Codicil of White">
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label class="field-label">Rarity</label>
+          <select id="ci-rarity" class="choice-select">
+            <option value="common">Common</option>
+            <option value="uncommon" selected>Uncommon</option>
+            <option value="rare">Rare</option>
+            <option value="very rare">Very Rare</option>
+            <option value="legendary">Legendary</option>
+            <option value="artifact">Artifact</option>
+            <option value="primeval vestige">Primeval Vestige</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label class="field-label">Attunement</label>
+          <select id="ci-attunement" class="choice-select">
+            <option value="0">No Attunement</option>
+            <option value="1">Requires Attunement</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="field-label">Item Type</label>
+        <input id="ci-type" class="info-input" list="ci-type-suggestions" type="text" placeholder="e.g. wondrous item, weapon (longsword), ring, staff, armor (light, medium, or heavy), shield">
+        <datalist id="ci-type-suggestions">
+          <option value="wondrous item"></option>
+          <option value="ring"></option>
+          <option value="rod"></option>
+          <option value="staff"></option>
+          <option value="wand"></option>
+          <option value="potion"></option>
+          <option value="scroll"></option>
+          <option value="shield"></option>
+          <option value="weapon (any)"></option>
+          <option value="armor (light, medium, or heavy)"></option>
+        </datalist>
+      </div>
+
+      <div style="display:flex;gap:14px;flex-wrap:wrap;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius)">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text2)">
+          <input type="checkbox" id="ci-is-weapon" style="accent-color:var(--accent)"/> Counts as a Weapon
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text2)">
+          <input type="checkbox" id="ci-is-armour" style="accent-color:var(--accent)"/> Counts as Armor/Shield
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text2)">
+          <input type="checkbox" id="ci-is-ammo" style="accent-color:var(--accent)"/> Counts as Ammunition
+        </label>
+      </div>
+
+      <div>
+        <label class="field-label">Short Description</label>
+        <input id="ci-short-desc" class="info-input" type="text" placeholder="One line for quick reference / tooltips">
+      </div>
+      <div>
+        <label class="field-label">Full Description</label>
+        <textarea id="ci-full-desc" class="sheet-textarea" rows="4" placeholder="Full flavour text and rules — written in first person, e.g. &quot;While I hold this rod, I gain...&quot;"></textarea>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Bonuses (leave 0 for none)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label class="field-label">AC Bonus</label>
+            <input id="ci-fx-ac" class="info-input" type="number" value="0">
+          </div>
+          <div>
+            <label class="field-label">Save Bonus (all saves)</label>
+            <input id="ci-fx-save" class="info-input" type="number" value="0">
+          </div>
+          <div>
+            <label class="field-label">Spell Attack Bonus</label>
+            <input id="ci-fx-spellatk" class="info-input" type="number" value="0">
+          </div>
+          <div>
+            <label class="field-label">Spell Save DC Bonus</label>
+            <input id="ci-fx-spelldc" class="info-input" type="number" value="0">
+          </div>
+          <div>
+            <label class="field-label">Weapon/Armor/Shield Bonus</label>
+            <input id="ci-fx-weapon" class="info-input" type="number" value="0">
+          </div>
+        </div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:6px;line-height:1.4">
+          The Weapon/Armor/Shield bonus only does something once you check the matching box above and link/equip the item — same as catalog items.
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Granted Spells</div>
+        <div id="ci-granted-spells-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        <datalist id="ci-spell-names"></datalist>
+        <button class="tbtn" style="font-size:10px;padding:5px 12px;margin-top:8px" onclick="addCustomItemGrantedSpell()">+ Add Granted Spell</button>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:6px;line-height:1.4">
+          For spells the item lets you cast without a slot — e.g. "Wand of Fireballs: 3/day". Limited-use grants get their own entry in the Resources tracker, separate from the item's own charges above.
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px;margin-bottom:8px">
+          <input type="checkbox" id="ci-has-charges" onchange="toggleCustomItemChargeFields(this.checked)" style="accent-color:var(--accent)"/> HAS LIMITED USES / CHARGES
+        </label>
+        <div id="ci-charge-fields" style="display:none;flex-direction:column;gap:12px">
+          <div style="display:flex;gap:12px">
+            <div style="flex:1">
+              <label class="field-label">Max Uses</label>
+              <input id="ci-charges-max" class="info-input" type="number" min="1" value="1">
+            </div>
+            <div style="flex:1">
+              <label class="field-label">Recovers On</label>
+              <select id="ci-charges-recovery" class="choice-select">
+                <option value="short">Short Rest</option>
+                <option value="long" selected>Long Rest</option>
+                <option value="dawn">Dawn</option>
+                <option value="dusk">Dusk</option>
+                <option value="none">Never (manual only)</option>
+              </select>
+            </div>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:6px;line-height:1.4">
+            This creates a linked entry in your Resources tracker with the usual pip-counter and rest-recovery — that's where you'll mark charges as used.
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div style="display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0">
+      <button class="btn-primary" onclick="saveCustomItemModal()">Save Item</button>
+      <button class="tbtn" onclick="closeModal('custom-item-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="weapon-edit-modal">
   <div class="modal-box" style="max-width:480px">
     <div class="modal-title">
@@ -14403,7 +14550,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"adamantine_weapon","name":"Adamantine Weapon","rarity":"uncommon","type":"weapon (any melee)","desc":"Whenever a weapon made or coated with adamantine hits an object, the hit is a Critical Hit.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"alchemy_jug","name":"Alchemy Jug","rarity":"uncommon","type":"wondrous item","desc":"As an action, command the jug to produce liquid; or an action to uncorked it and pour 2 gal/min. After producing, it only makes the same up to its max, until next dawn. Oil (1 qt), acid (8 fl oz), basic poison (1/2 fl oz), beer (4 gal), honey/wine (1 gal), fresh water (8 gal), mayonnaise/vinegar (2 gal), salt water (12 gal).","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ammunition___1___2__or__3","name":"Ammunition, +1, +2, or +3","rarity":"uncommon","type":"weapon (any ammunition)","desc":"I have a bonus to attack and damage rolls made with this piece of magic ammunition. The bonus is determined by the rarity of the magic item: uncommon (+1), rare (+2), or very rare (+3). Once it hits a target, the ammunition is no longer magical. Select the bonus using the little square button in this magic item line.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":true,"effects":{"weaponBonus":"variable"}},
-{"key":"amulet_of_proof_against_detection_and_location","name":"Amulet of Proof against Detection and Location","rarity":"uncommon","type":"wondrous item","desc":"While wearing this amulet, I am hidden from Divination magic. I can't be targeted by such magic or perceived through magical scrying sensors, unless I allow it.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
+{"key":"amulet_of_proof_against_detection_and_location","name":"Amulet of Proof against Detection and Location","rarity":"rare","type":"wondrous item","desc":"While wearing this amulet, I am hidden from Divination magic. I can't be targeted by any divination spell or perceived through magical scrying sensors, unless I allow it. Shielded Bond: During a short or long rest, I can choose up to four willing creatures within 30 feet to share this protection. For the next 24 hours, or until I am Incapacitated, those creatures gain the benefits of this amulet. Once I use this property, I can't do so again until I finish a short or long rest.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"baba_yaga_s_dancing_broom","name":"Baba Yaga's Dancing Broom","rarity":"uncommon","type":"wondrous item","desc":"As a Magic action, I can animate this broom. It becomes an Animated Broom that acts directly after me in initiative and obeys my commands (no action required). If the broom is reduced to 0 HP while animated, it's destroyed. As a Bonus Action, I can cause the broom to become inanimate.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"bag_of_holding","name":"Bag of Holding","rarity":"uncommon","type":"wondrous item","desc":"This bag is 2 ft in diameter at the mouth, 4 ft deep, and 5 lb regardless of content. It can hold up to 500 lb, not exceeding a volume of 64 cu ft. Retrieving an item from it requires an action. If it's overloaded, pierced, or torn, it's destroyed with its contents in the Astral plane. If turned inside out, all its contents spill forth.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"boots_of_elvenkind","name":"Boots of Elvenkind","rarity":"uncommon","type":"wondrous item","desc":"While I wear these boots, my steps make no sound, regardless of the surface I am moving across. I also have advantage on Dexterity (Stealth) checks that rely on moving silently.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -14462,12 +14609,12 @@ const DMG_MAGIC_ITEMS = [
 {"key":"potion_of_water_breathing","name":"Potion of Water Breathing","rarity":"uncommon","type":"potion","desc":"You can breathe underwater for 24 hours after drinking this potion. This potion\u2019s cloudy green fluid smells of the sea and has a jellyfish-like bubble floating in it.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"quiver_of_ehlonna","name":"Quiver of Ehlonna","rarity":"uncommon","type":"wondrous item","desc":"This quiver has three compartments and weighs 2 lb, regardless of its contents. Its shortest compartment can hold 60 arrows, bolts, or similar objects. Its midsize compartment holds up to 18 javelins or similar objects. Its longest compartment holds up to 6 long objects, such as bows, quarterstaffs, or spears.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ring_of_jumping","name":"Ring of Jumping","rarity":"uncommon","type":"ring","desc":"While I am wearing this ring, I can cast Jump on myself from it.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"ring_of_mind_shielding","name":"Ring of Mind Shielding","rarity":"uncommon","type":"ring","desc":"This ring makes you immune to magic that allows others to read my thoughts, determine if lying, know my alignment or creature type. Telepathy only works if I allow it. As a Magic action, I can cause it to become imperceptible as long as I wear it and not die, or perceptible again. If I die while wearing it, my soul enters it.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
+{"key":"ring_of_mind_shielding","name":"Ring of Mind Shielding","rarity":"uncommon","type":"ring","desc":"While wearing this ring, I am immune to magic that allows other creatures to read my thoughts, determine whether I am lying, know my alignment, or know my creature type. Creatures can only communicate with me telepathically if I allow it. As a Magic action, I can cause the ring to become imperceptible until I take another Magic action to make it perceptible, remove it, or die. If I die while wearing the ring, my soul enters it unless it already houses one — I can remain or depart for the afterlife, and can telepathically communicate with whoever wears the ring. Cursed: once attuned, the ring cannot be removed unless the finger it was placed on is removed. If the ring is removed this way and then re-equipped by the same wearer, they take 6d12 psychic damage.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ring_of_swimming","name":"Ring of Swimming","rarity":"uncommon","type":"ring","desc":"I have a swimming speed of 40 feet while wearing this ring.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ring_of_warmth","name":"Ring of Warmth","rarity":"uncommon","type":"ring","desc":"While wearing this ring, Cold damage you receive is reduced by 2d8. Yourself and anything you carry are unharmed by temperatures as low as -50 \\u00B0F.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ring_of_water_walking","name":"Ring of Water Walking","rarity":"uncommon","type":"ring","desc":"While wearing this ring, I can stand on and move across any liquid surface as if it were solid ground.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"robe_of_useful_items","name":"Robe of Useful Items","rarity":"uncommon","type":"wondrous item","desc":"You can take a Magic action to detach one of the many patches, causing it to become the object or creature it represents. It has two patches each of a Bullseye Lantern (filled and lit), Dagger, Mirror, Pole, Rope (coiled), Sack. In addition, it has 4d4 patches that are determined by the DM.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"rod_of_the_pact_keeper___1___2__or__3","name":"Rod of the Pact Keeper, +1, +2, or +3","rarity":"uncommon","type":"rod","desc":"While holding this rod, I gain a bonus to spell attack rolls and to the saving throw DCs of my warlock spells, determined by the rod's rarity: uncommon (+1), rare (+2), or very rare (+3). As an action once per long rest, I can regain one warlock spell slot while holding the rod.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
+{"key":"rod_of_the_pact_keeper___1___2__or__3","name":"Rod of the Pact Keeper, +1, +2, or +3","rarity":"uncommon","type":"rod","desc":"While holding this rod, I gain a bonus to spell attack rolls and to the saving throw DCs of my warlock spells, determined by the rod's rarity: uncommon (+1), rare (+2), or very rare (+3). As an action once per long rest, I can regain one warlock spell slot while holding the rod.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":"variable","spellDCBonus":"variable"}},
 {"key":"rope_of_climbing","name":"Rope of Climbing","rarity":"uncommon","type":"wondrous item","desc":"This 60-ft rope can hold 3000 lb. As a Magic action, you can hold one end of the rope and command its other end to: start/stop moving (10 ft per turn), (un)fasten itself, coil itself, or (un)knot itself (50 ft length, adv. to climb it). It has AC 20, 20 HP, heals 1 HP/5 min.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"saddle_of_the_cavalier","name":"Saddle of the Cavalier","rarity":"uncommon","type":"wondrous item","desc":"While you are seated in it and astride a mount, Attack rolls against the mount have Disadvantage and you can't be dismounted against your will, unless you are Incapacitated.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"sending_stones","name":"Sending Stones","rarity":"uncommon","type":"wondrous item","desc":"While I touch one of this pair of stones, I can use an action to cast Sending, targeting the bearer of the other stone. If no creature has the other stone, the spell won't cast. Once it is cast, neither stone can be used again until the next dawn. Sending allows each bearer to communicate up to 25 words.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -14483,7 +14630,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"wand_of_magic_missiles","name":"Wand of Magic Missiles","rarity":"uncommon","type":"wand","desc":"This wand has 7 charges, regaining 1d6+1 at dawn. While holding it, you can expend 1 to 3 of its charges to cast Magic Missile from it as a 1st level spell. The spell level increases by one for each charge expended after the first. When the last charge is used, roll 1d20. On a 1, the wand crumbles into ashes.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"wand_of_secrets","name":"Wand of Secrets","rarity":"uncommon","type":"wand","desc":"The wand has 3 charges. While holding it, you can take a Magic action to expend 1 charge, and if a secret door or trap is within 60 feet of you, the wand pulses and points at the one nearest to you. The wand regains 1d3 expended charges daily at dawn.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"wand_of_web","name":"Wand of Web","rarity":"uncommon","type":"wand","desc":"This wand has 7 charges and regains 1d6+1 expended charges daily at dawn. While holding it, you can expend 1 of its charges to cast Web (save DC 13) from it. If I expend the wand's last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"wand_of_the_war_mage","name":"Wand of the War Mage","rarity":"uncommon","type":"wand","desc":"While holding this wand, you gain a bonus to spell attack rolls determined by the wand's rarity: uncommon (+1), rare (+2), or very rare (+3). In addition, you ignore Half Cover when making a spell attack roll.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
+{"key":"wand_of_the_war_mage","name":"Wand of the War Mage","rarity":"uncommon","type":"wand","desc":"While holding this wand, I gain a bonus to spell attack rolls determined by the wand's rarity: uncommon (+1), rare (+2), or very rare (+3). In addition, I ignore Half Cover when making a spell attack roll.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":"variable"}},
 {"key":"weapon_of_warning","name":"Weapon of Warning","rarity":"uncommon","type":"weapon (any simple or martial)","desc":"While this weapon is within your reach, and you are attuned to it, you and your allies within 30 ft magically awaken when combat begin, unless a magically induced sleep. You also have Advantage on Initiative rolls.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"weapon___1___2__or__3","name":"Weapon, +1, +2, or +3","rarity":"uncommon","type":"weapon (any)","desc":"You have a bonus to attack and damage rolls made with this magic weapon. The bonus is determined by the rarity of the magic item: uncommon (+1), rare (+2), or very rare (+3).","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
 {"key":"wind_fan","name":"Wind Fan","rarity":"uncommon","type":"wondrous item","desc":"While holding this fan, you can cast Gust of Wind (save DC 13) from it. Each subsequent time the fan is used before the next dawn, it has a cumulative 20 percent chance of not working; if the fan fails to work, it tears into useless, nonmagical tatters.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -14568,7 +14715,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"sun_blade","name":"Sun Blade","rarity":"rare","type":"weapon (longsword)","desc":"As a Bonus Action, you can have this hilt create a blade of radiance. While the blade exists, it acts like a magic Longsword that does +2 to attack and damage rolls, Radiant damage instead of Slashing (+1d8 to undead), has Finesse, emits Bright Light in a 15-ft radius and Dim Light in another 15 ft. You can take a Magic action, I can change the light's radius by 5 ft for each (Bright/Dim) to a maximum of 30 ft each or min of 10ft.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":2}},
 {"key":"sword_of_life_stealing","name":"Sword of Life Stealing","rarity":"rare","type":"weapon (glaive, greatsword, longsword, rapier, scimitar, or shortsword)","desc":"When you attack a creature with this magic weapon and roll a 20 on the attack roll, that target takes an extra 15 Necrotic damage if it isn't a Construct or an Undead. Gain Temporary HP equal to amount of Necrotic damage taken.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"sword_of_wounding","name":"Sword of Wounding","rarity":"rare","type":"weapon (glaive, greatsword, longsword, rapier, scimitar, or shortsword)","desc":"When you hit a creature with an attack using this magic weapon, the target takes an extra 2d6 Necrotic damage and must succeed on a DC 15 Constitution saving throw or be unable to regain Hit Points for 1 hour. The target repeats the save at the end of each of its turns, ending the effect on itself on a success.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"tentacle_rod","name":"Tentacle Rod","rarity":"rare","type":"rod","desc":"As an action, all 3 tentacles of this rod attack with 15 ft reach, +9 to hit, dealing 1d6 bludgeoning damage. If a target is hit by all 3 it must make a DC 15 Con save or have half speed, disadv. on Dex saves, no reactions, and do action or bonus action, not both, for 1 min. It can repeat the save at the end of each of its turns.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
+{"key":"tentacle_rod","name":"Tentacle Rod","rarity":"rare","type":"rod","desc":"While holding this rod, I can take a Magic action to direct its three rubbery tentacles to stretch outward, each attacking a creature I can see within 15 feet. For each tentacle I make a melee attack roll with a +9 bonus; a tentacle deals 1d6 Psychic damage on a hit. If I hit the same target with all three tentacles, it must succeed on a DC 15 Dexterity save or have the Restrained condition until I have the Incapacitated condition, until I take a Bonus Action to release it, or until it's no longer within 15 feet of me. While Restrained this way, the target takes 3d6 Psychic damage at the start of each of its turns. At the end of each of its turns, the target repeats the save, ending the effect on a success.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"vicious_weapon","name":"Vicious Weapon","rarity":"rare","type":"weapon (simple or martial)","desc":"When you hit a creature, the target takes an extra 2d6 damage of the weapon's damage type.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"wand_of_binding","name":"Wand of Binding","rarity":"rare","type":"wand","desc":"This wand has 7 charges, regaining 1d6+1 at dawn. While holding the wand, you can cast one of the following spells, expending the charges: Hold Monster (5) or Hold Person (2).","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"wand_of_enemy_detection","name":"Wand of Enemy Detection","rarity":"rare","type":"wand","desc":"This wand has 7 charges, regaining 1d6+1 at dawn. While holding it, you can expend 1 charge. For 1 minute, you know the direction of the nearest creature Hostile to you (not distance) within 60 ft, regardless of it being Invisible, ethereal, disguised, or hidden.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -14619,7 +14766,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"spirit_board","name":"Spirit Board","rarity":"very rare","type":"wondrous item","desc":"This board has 3 charges and regains 1 expended charge daily at dawn. While touching the planchette, you can take 1 minute to cast Augury (1 charge) or Commune (3 charges).","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"staff_of_fire","name":"Staff of Fire","rarity":"very rare","type":"staff","desc":"You have resistance to fire while holding this staff. It has 10 charges, regaining 1d6+4 expended charges at dawn. If you use its last charge, roll a d20. On a 1, it is destroyed. You can use its charges to cast Burning Hands (1 charge), Fireball (3 charges), and Wall of Fire (4 charges), using your spellcasting ability.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"staff_of_frost","name":"Staff of Frost","rarity":"very rare","type":"staff","desc":"You have Resistance to Cold damage while you hold this staff. It has 10 charges, regaining 1d6+4 at dawn. You can use its charges to cast Cone of Cold (5 charges), Fog Cloud (1 charge), Ice Storm (4 charges), and Wall of Ice (4 charges) using your spellcasting ability.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"staff_of_power","name":"Staff of Power","rarity":"very rare","type":"staff","desc":"While holding this quarterstaff, you gain a +2 bonus on saves, AC, and spell attacks. The staff has 20 charges, regaining 2d8+4 at dawn. As a Magic action you can break it, causing a 30-ft Emanation originating from itself. You have a 50 percent to travel to a random plane. If you fail to avoid the effect, you take 16 times the number of remaining charges in the staff in Force damage.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"acBonus":2,"saveBonus":2}},
+{"key":"staff_of_power","name":"Staff of Power","rarity":"very rare","type":"staff","desc":"While holding this quarterstaff, I gain a +2 bonus on saves, AC, and spell attacks. The staff has 20 charges, regaining 2d8+4 at dawn. As a Magic action I can break it, causing a 30-ft Emanation originating from itself. I have a 50 percent chance to travel to a random plane. If I fail to avoid the effect, I take 16 times the number of remaining charges in the staff in Force damage.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"acBonus":2,"saveBonus":2,"spellAtkBonus":2}},
 {"key":"staff_of_striking","name":"Staff of Striking","rarity":"very rare","type":"staff","desc":"This staff can be wielded as a magic Quarterstaff that grants a +3 bonus to attack and damage rolls and has 10 charges, regaining 1d6+4 at dawn. When you hit with a melee attack using it, you can expend up to 3 of its charges. For each charge you expend, the target takes an extra 1d6 force damage.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"sword_of_sharpness","name":"Sword of Sharpness","rarity":"very rare","type":"weapon (glaive, greatsword, longsword, or scimitar)","desc":"When I roll a 20 to hit with this magic weapon vs. a creature, it takes +14 slashing damage and gains 1 exhaustion level. It does maximum damage vs. objects.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"tome_of_clear_thought","name":"Tome of Clear Thought","rarity":"very rare","type":"wondrous item","desc":"This book contains memory and logic exercises, and its words are charged with magic. If you spend 48 hours over a period of 6 days or fewer studying the book’s contents and practicing its guidelines, your Intelligence increases by 2, to a maximum of 30. The manual then loses its magic but regains it in a century.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"scoresMaximum":[0,0,0,30,0,0]}},
@@ -14680,7 +14827,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"potent_transmuter_s_stone","name":"Potent Transmuter'S Stone","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"When I finish a Long Rest, I can create a magic stone called a Potent Transmuter's Stone that lasts until I use this feature again. A creature with the stone in its possession gains proficiency in Constitution saves and two benefits from the item's options, which I choose when I create the stone. I can change one or both of the stone's benefits when I cast a Transmutation spell using a spell slot.","effects":[],"source":"XUA25"},
 {"key":"spider_staff","name":"Spider Staff","rarity":"Rare","type":"staff","attunement":false,"attuned":false,"desc":"Attacks with this black adamantine quarterstaff topped with a spider deal +1d6 poison damage on a hit. It has 10 charges and regains 1d6+4 expended charges at dawn. If I use its last charge, roll a d20. On a 1, it is destroyed. I can use its charges to cast Spider Climb (1 charge) or Web (2 charges, spell save DC 15).","effects":[],"source":"2014"},
 {"key":"staff_of_defense","name":"Staff of Defense","rarity":"Rare","type":"staff","attunement":false,"attuned":false,"desc":"This slender, hollow staff is made of glass yet is as strong as oak. While holding it, I gain a +1 bonus to AC. It has 10 charges and regains 1d6+4 expended charges at dawn. If I use its last charge, roll a d20. On a 1, it is destroyed. I can use its charges to cast Mage Armor (1 charge) or Shield (2 charges) as an action.","effects":[],"source":"2014"},
-{"key":"tankard_of_plenty","name":"Tankard of Plenty","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
+{"key":"tankard_of_plenty","name":"Tankard of Plenty","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This ornate dwarven tankard is enchanted so that it continually refills itself with whatever nonmagical liquid it contains. The tankard can provide an endless supply of ale or any other nonmagical beverage. Each day at dawn, the tankard magically produces three pints of rich dwarven ale. This power can be used up to three times per day.","effects":[],"source":"2014"},
 {"key":"dragon_mask","name":"Dragon Mask","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This mask reshapes to fit my head. It grants me the ability to absorb associated damage type, darkvision 60 ft, blindsight 30 ft (1/day), Legendary Resistance (1/day), adv. on Cha checks vs. a dragon type, the ability speak Draconic, and lets me add my Cha mod to AC while not wearing armor, see Notes page.","effects":[],"source":"2014"},
 {"key":"insignia_of_claws","name":"Insignia of Claws","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"The jewels in the insignia flare with purple light when I enter combat, empowering my fists. While wearing the insignia, I gain a +1 bonus to the attack rolls and the damage rolls of my unarmed strikes and natural weapons. Such attacks are considered to be magical.","effects":[],"source":"2014"},
 {"key":"wand_of_winter","name":"Wand of Winter","rarity":"Rare","type":"wand","attunement":false,"attuned":false,"desc":"This wand looks and feels like an icicle and has 7 charges, regaining 1d6+1 expended charges at dawn. If I use its last charge, roll a d20. On a 20, it melts away. I can use its charges to cast spells with DC 15/+5 to hit: Ray of Frost (0 charges: 1d8, 1 charge: 2d8), Sleet Storm (3 charges), or Ice Storm (4 charges).","effects":[],"source":"2014"},
@@ -14744,12 +14891,12 @@ const DMG_MAGIC_ITEMS = [
 {"key":"javelin_of_backbiting","name":"Javelin of Backbiting","rarity":"Very Rare","type":"weapon (javelin)","attunement":false,"attuned":false,"desc":"This javelin has +2 to hit and damage, +30 ft range, and deals +1d6 damage when thrown. After a throwing attack, it flies back to my hand immediately. While its curse lasts, I'm unwilling to part with it and have disadv. on attacks with other weapon. Also, on a roll of 1 to hit, I roll the attack again, but at myself with adv.","effects":[],"source":"2014"},
 {"key":"mirror_of_the_past","name":"Mirror of the Past","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action once per dawn, I can gaze into this mirror while thinking of a specific object or creature. The mirror then shows me scenes from the target's past for 1 minute or less, instead of my reflection. Information conveyed is accurate, but it is random and cryptic, and presented in no particular order.","effects":[],"source":"2014"},
 {"key":"night_caller","name":"Night Caller","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this whistle to cast Animate Dead, if I blow it under the night sky or in darkness. Once used, it can't function for 7 days. It can affect targets through 10 ft of soft earth or similar, but they take 1 min to claw to the surface. Once per 24 hours, I can blow it to reassert control over 1 or 2 targ I animated with it.","effects":[],"source":"2014"},
-{"key":"potion_of_mind_control","name":"Potion of Mind Control","rarity":"Rare","type":"potion","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
+{"key":"potion_of_mind_control","name":"Potion of Mind Control","rarity":"Rare","type":"potion","attunement":false,"attuned":false,"desc":"When I drink this potion, I am subject to the dominate person, dominate beast, or dominate monster spell (DC 15) for 1 hour. The creature type affected is listed on the bottle. If I succeed on the saving throw or the effect ends, I am aware that I was controlled. During the domination, the controller can issue only general commands, not specific actions, and the dominated creature has disadvantage on new saving throws to break the effect during this time.","effects":[],"source":"2014"},
 {"key":"robe_of_summer","name":"Robe of Summer","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This elegant garment is made from fine cloth in hues of red, orange, and gold. While I wear the robe, I have resistance to cold damage. In addition, I am comfortable as if the temperature were that of a balmy day, so I suffer no ill effects from the weather's temperature extremes.","effects":[],"source":"2014"},
 {"key":"spear_of_backbiting","name":"Spear of Backbiting","rarity":"Very Rare","type":"weapon (spear)","attunement":false,"attuned":false,"desc":"This spear has +2 to hit and damage, +30 ft range, and deals +1d6 damage when thrown. After a throwing attack, it flies back to my hand immediately. While its curse lasts, I'm unwilling to part with it and have disadv. on attacks with other weapon. Also, on a roll of 1 to hit, I roll the attack again, but at myself with adv.","effects":[],"source":"2014"},
 {"key":"stone_of_ill_luck","name":"Stone of Ill Luck","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"Although this polished agate appears to be a stone of good luck to anyone who tries to identify it. While it is on my person, it gives me a +1 bonus and a -2 penalty (from the curse) to ability checks and saving throws (for a total of -1). Until the curse is broken, I am unwilling to part with the item.","effects":[],"source":"2014"},
 {"key":"wand_of_entangle","name":"Wand of Entangle","rarity":"Uncommon","type":"wand","attunement":false,"attuned":false,"desc":"This wand has 7 charges, regaining 1d6+1 expended charges daily at dawn. If I use its last charge, I roll a d20. On a 1, it is destroyed. As an action, I can expend 1 charge to cast Entangle (save DC 13) from it.","effects":[],"source":"2014"},
-{"key":"white_dragonhide_cape","name":"White Dragonhide Cape","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I have resistance to cold damage while wearing this cape","effects":[],"source":"2014"},
+{"key":"white_dragonhide_cape","name":"White Dragonhide Cape","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I have resistance to cold damage while wearing this cape.","effects":[],"source":"2014"},
 {"key":"spellcasting_bolts","name":"Spellcasting Bolts","rarity":"Rare","type":"weapon (crossbow bolts)","attunement":false,"attuned":false,"desc":"These magical crossbow bolts cast a spell on the target they are used on.","effects":[],"source":"2014"},
 {"key":"berserker_battleaxe__tamoachan","name":"Berserker Battleaxe (Tamoachan)","rarity":"Very Rare","type":"weapon (battleaxe)","attunement":false,"attuned":false,"desc":"This axe gives +2 to hit and damage, +1 HP per level, and has 12 charges to cast spells, regaining 1d6+4 at dawn. I can't part with it, have disadv. with other weapons, and if I'm damaged by a hostile, I must make a DC 15 Wis save or go berserk: attack the closest creature with the axe until none remain within 60 ft.","effects":[],"source":"2014"},
 {"key":"plantslayer_longsword","name":"Plantslayer Longsword","rarity":"Rare","type":"weapon (longsword)","attunement":false,"attuned":false,"desc":"This sword is made of laminated wood, inset with jagged teeth of obsidian. I gain a +1 bonus to attack and damage rolls made with this magic weapon. In addition, it deals an extra 2d6 damage to any creature of the plant type.","effects":[],"source":"2014"},
@@ -14820,14 +14967,14 @@ const DMG_MAGIC_ITEMS = [
 {"key":"helm_of_devil_command","name":"Helm of Devil Command","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This helm has 3 charges, regaining all 24 h after using the last. I can use 1 charge to cast Dominate Monster on a devil, but it knows I tried to charm it. It allows me to know the exact location of all devils within 1000 ft and I can telepathically communicate with one of them at a time, or broadcast my thoughts to all.","effects":[],"source":"2014"},
 {"key":"infernal_puzzle_box","name":"Infernal Puzzle Box","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This cube-shaped container is around 15 cm on a side and is composed of airtight, interlocking parts. It can't be magically opened and is immune to all damage. I can figure out how to open it in 1 hour with a DC 30 Investigation check. If failed by 5 or more, I take 12d6 psychic damage, Wis DC 18 halves.","effects":[],"source":"2014"},
 {"key":"obsidian_flint_dragon_plate","name":"Obsidian Flint Dragon Plate","rarity":"Legendary","type":"armor (plate)","attunement":false,"attuned":false,"desc":"I gain a +2 bonus to AC and resistance to poison damage while I wear this plate armor. In addition, I gain advantage on ability checks and saving throws made to avoid or end the grappled condition on myself.","effects":[],"source":"2014"},
-{"key":"shield_of_the_hidden_lord","name":"Shield of the Hidden Lord","rarity":"Legendary","type":"shield","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
-{"key":"soul_coin","name":"Soul Coin","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
-{"key":"enhanced_arcane_focus___1_or__2","name":"Enhanced Arcane Focus, +1 or +2","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"While I am holding this arcane focus (rod, staff, or wand), I gain a +1 bonus to spell attack rolls (or +2 if the artificer that created it is level 10 or higher). In addition, I ignore half cover when making a spell attack.","effects":[],"source":"2014"},
+{"key":"shield_of_the_hidden_lord","name":"Shield of the Hidden Lord","rarity":"Legendary","type":"shield","attunement":false,"attuned":false,"desc":"While holding this shield, I benefit from a +2 bonus to AC. This shield has imprisoned the pit fiend Gargauth within it, and while wearing the shield I can communicate with him telepathically. Gargauth can perceive the world through the shield, and I can allow him to communicate telepathically with any creature within 120 ft of it. See 'Notes' page for more.","effects":[],"source":"2014"},
+{"key":"soul_coin","name":"Soul Coin","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"Soul coins are 5-inch-diameter, 1-inch-thick coins of infernal iron. Each coin contains the soul of a lawful evil creature. I can use a soul coin as an action to hear the imprisoned soul speak and ask it a question which it must answer truthfully. Using 1 charge from the coin allows me to impose disadvantage on an attack roll, ability check, or saving throw of a creature I can see within 60 ft, or to gain advantage on one of my own rolls. A coin has 3 charges and is destroyed when all charges are expended. See 'Notes' page for more.","effects":[],"source":"2014"},
+{"key":"enhanced_arcane_focus___1_or__2","name":"Enhanced Arcane Focus, +1 or +2","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"While I am holding this arcane focus (rod, staff, or wand), I gain a +1 bonus to spell attack rolls (or +2 if the artificer that created it is level 10 or higher). In addition, I ignore half cover when making a spell attack.","effects":{"spellAtkBonus":"variable"},"source":"2014"},
 {"key":"radiant_weapon","name":"Radiant Weapon","rarity":"Uncommon","type":"weapon (any)","attunement":false,"attuned":false,"desc":"This item adds a +1 on its to hit and damage, has 4 charges, and regains 1d4 at dawn. As a bonus action, I can have it start/stop shedding light, bright in 30 ft, dim in another 30 ft. As a reaction if hit by an attack, I can use 1 charge to blind the attacker until the end of its next turn unless it makes a Con save (my spell DC).","effects":[],"source":"2014"},
 {"key":"arcane_propulsion_arm","name":"Arcane Propulsion Arm","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"Once attached to my wrist, elbow, or shoulder, this prosthetic magically forms a copy of the appendage it's replacing. It can't be removed against my will, but I can as an action. I can use it as a proficient melee weapon with the thrown property. After a throwing attack with it, it returns and reattaches immediately.","effects":[],"source":"2014"},
 {"key":"belashyrra_s_beholder_crown","name":"Belashyrra's Beholder Crown","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This symbiotic crown of dark purple and mauve stone attaches to my skull and removing it requires ending a curse. It allows me to see normally in magical and normal darkness (devil's sight) out to 120 ft. It has 10 charges, regaining 1d6+3 at dawn, which I can use to cast several spells with spell save DC 16.","effects":[],"source":"2014"},
 {"key":"cleansing_stone","name":"Cleansing Stone","rarity":"Common","type":"wondrous item","attunement":false,"attuned":false,"desc":"This stone sphere is 1 ft in diameter and engraved with mystic sigils. As an action while touching it, I can activate it to remove dirt and grime from my garments and my person.","effects":[],"source":"2014"},
-{"key":"dyrrn_s_tentacle_whip","name":"Dyrrn's Tentacle Whip","rarity":"Very Rare","type":"weapon (whip)","attunement":false,"attuned":false,"desc":"This magic whip embeds itself in my arm once I attune to it and removing it requires ending a curse. It has a +2 bonus to attack and damage rolls, deals +1d6 psychic damage, but has disadv. vs. aberrations. On a roll of 20 to hit, the target is stunned until it next turn ends. As a bonus action, I can draw/sheath it in my arm","effects":[],"source":"2014"},
+{"key":"dyrrn_s_tentacle_whip","name":"Dyrrn's Tentacle Whip","rarity":"Very Rare","type":"weapon (whip)","attunement":false,"attuned":false,"desc":"I have a +2 bonus to attack and damage rolls with this sentient aberrant weapon. On a hit, it deals 1d6 extra psychic damage. If a creature hit is not an aberration, it must succeed on a DC 15 Wisdom save or be Stunned until its turn ends. As a bonus action, I can draw or sheathe the whip by having it crawl in or out of my arm, which counts as drawing a weapon.","effects":[],"source":"2014"},
 {"key":"everbright_lantern","name":"Everbright Lantern","rarity":"Common","type":"wondrous item","attunement":false,"attuned":false,"desc":"This bullseye lantern is powered by a dragonshard that sheds light comparable to that produced by a Continual Flame spell. The light never goes out, but it can be shuttered off. It sheds light in a 120-ft cone; the closest 60 ft is bright light, and the farthest 60 ft is dim light.","effects":[],"source":"2014"},
 {"key":"feather_token","name":"Feather Token","rarity":"Common","type":"wondrous item","attunement":false,"attuned":false,"desc":"This small metal disk is inscribed with the image of a feather. When I fall at least 20 ft while the token is on my person, I descend 60 ft per round and take no damage from falling. The token's magic is expended after landing, whereupon the disk becomes nonmagical.","effects":[],"source":"2014"},
 {"key":"finder_s_goggles","name":"Finder's Goggles","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"These goggles with dragonshard lenses grant me +1d4 on Wis (Insight) checks. As an action once per dawn, I can use them to find the last creature to touch an object with a Wis (Insight) check DC 13 + days since last contact. I learn the creature's type and can immediately cast Locate Creature to find the creature.","effects":[],"source":"2014"},
@@ -14885,14 +15032,14 @@ const DMG_MAGIC_ITEMS = [
 {"key":"two_birds_sling","name":"Two-Birds Sling","rarity":"Rare","type":"weapon (sling)","attunement":false,"attuned":false,"desc":"This sling adds +1 to hit and damage rolls made with it. On a hit, I can cause the ammunition to ricochet towards a second target within 10 ft of the first, rolling a ranged attack against the second target as well.","effects":[],"source":"2014"},
 {"key":"cauldron_of_plenty","name":"Cauldron of Plenty","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This copper cauldron is 4 ft wide, 3.5 ft in diameter, and holds 30 gal. It has a lid, handles, and 5 clawed feet. Water stirred in it for 1 min becomes hot stew for 4 people per 1 gal. Stew stays hot in the cauldron, cools if removed, but cauldron's surface remains cool. Can be used 3 times per day, regaining all uses at dawn.","effects":[],"source":"2014"},
 {"key":"hook_of_fisher_s_delight","name":"Hook of Fisher's Delight","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"For this tiny silver fishhook to work, I must attach it to the end of a fishing line and immerse it in at least 10 cu ft of water. Then, at the end of each uninterrupted hour of immersion, I roll a d6. On a 6, a magical fish appears on the hook; roll a d20 to determine the fish's properties on the table on the Notes page.","effects":[],"source":"2014"},
-{"key":"lantern_of_tracking","name":"Lantern of Tracking","rarity":"Common","type":"wondrous item","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
+{"key":"lantern_of_tracking","name":"Lantern of Tracking","rarity":"Common","type":"wondrous item","attunement":false,"attuned":false,"desc":"This hooded lantern burns for 6 hours on 1 pint of oil, shedding bright light in a 30-ft radius and dim light for an additional 30 ft. Each lantern of tracking is attuned to a specific creature type (Aberrations, Celestials, Constructs, Dragons, Elementals, Fey, Fiends, Giants, Monstrosities, or Undead). While the lantern is within 300 ft of any creature of that type, its flame turns bright green. The lantern doesn't pinpoint the creature's exact location, however.","effects":[],"source":"2014"},
 {"key":"professor_skant","name":"Professor Skant","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This sentient orb with the personality of a scholar has Int 18, Wis 11, Cha 9, and no will of its own. It can hear and see out to 60 ft. It knows and reads Common, Draconic, Elvish, and Loross. It has+9 on checks regarding history of Netheril, vampirism, tarrasque, and Elverquisst. It moves itself around using Mage Hand.","effects":[],"source":"2014"},
 {"key":"psi_crystal","name":"Psi Crystal","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"While attuned to this orb, it glows with an inner purplish light and gives me telepathy. The range of telepathy and intensity of light are determined by my Intelligence score.","effects":[],"source":"2014"},
 {"key":"scroll_of_tarrasque_summoning","name":"Scroll of Tarrasque Summoning","rarity":"Legendary","type":"scroll","attunement":false,"attuned":false,"desc":"Once as an action, I can use this to cause the tarrasque to appear in an unoccupied space I can see within 1 mile. The tarrasque disappears when it drops to 0 hit points and is hostile toward all creatures other than itself.","effects":[],"source":"2014"},
 {"key":"scroll_of_the_comet","name":"Scroll of the Comet","rarity":"Legendary","type":"scroll","attunement":false,"attuned":false,"desc":"Once as an action outdoors, I can use this to cause a comet to fall on a point I can see within 1 mile, creating a 50-ft deep, 500-ft radius crater. All creatures in the radius take 30d10 force damage and can make a DC 20 Dex save to halve this damage. It destroys all nonmagical objects and structures within the area.","effects":[],"source":"2014"},
 {"key":"thermal_cube","name":"Thermal Cube","rarity":"Common","type":"wondrous item","attunement":false,"attuned":false,"desc":"This 3-inch cube of solid brimstone generates enough dry heat to keep the temperature within 15 ft of it at 95 degrees Fahrenheit.","effects":[],"source":"2014"},
 {"key":"ythryn_mythallar","name":"Ythryn Mythallar","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This 50 ft diameter crystal ball sheds light in a 300 ft radius and dim light for an additional 300 ft. Up to 8 creatures can attune to it at one time, a 9th creature's attunement fails. All those attuned to it can sense when it is used and they all must agree to any properties being used. See Notes page.","effects":[],"source":"2014"},
-{"key":"the_codicil_of_white","name":"The Codicil of White","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
+{"key":"the_codicil_of_white","name":"The Codicil of White","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This ice-encrusted volume is one of several important documents associated with Auril the Frostmaiden. It contains a spell which a wizard can learn and a poem incantation called the 'Rime of the Frostmaiden'. Reading the codicil in full requires 1 hour and causes 10d6 psychic damage to any reader who isn't a worshiper of Auril.","effects":[],"source":"2014"},
 {"key":"arcane_propulsion_armor","name":"Arcane Propulsion Armor","rarity":"Uncommon","type":"armor (light, medium, or heavy)","attunement":false,"attuned":false,"desc":"This armor replaces any missing limbs, increases my walking speed by 5 ft, and can't be removed against my will. I can use either empty-handed gauntlet as a proficient melee weapon with the thrown property. After a throwing attack with a gauntlet, it returns and reattaches immediately.","effects":[],"source":"2014"},
 {"key":"armor_of_magical_strength","name":"Armor of Magical Strength","rarity":"Uncommon","type":"armor (light, medium, or heavy)","attunement":false,"attuned":false,"desc":"This armor has 6 charges and regains 1d6 expended charges daily at dawn. As a reaction when I would be knocked prone, I can expend 1 charge to avoid being knocked prone. When I make a Strength check or Strength saving throw, I can expend 1 charge to add my Intelligence modifier to the roll.","effects":[],"source":"2014"},
 {"key":"absorbing_tattoo","name":"Absorbing Tattoo","rarity":"Very Rare","type":"wondrous item (tattoo)","attunement":false,"attuned":false,"desc":"When I attune to this magic needle, it disappears and I gain a magical tattoo of a design of my choosing. It grants me resistance to a damage type. As a reaction once per dawn when I take that type of damage, I can gain immunity against that instance of damage and recover half the damage as HP.","effects":[],"source":"2014"},
@@ -14950,14 +15097,14 @@ const DMG_MAGIC_ITEMS = [
 {"key":"pixie_dust","name":"Pixie Dust","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"Once as an action, I can sprinkle this dust on myself or another creature I can see within 5 ft. The recipient gains a flying speed of 30 ft and the ability to hover for 1 minute. If the creature is airborne when this effect ends, it falls safely to the ground, taking no damage and landing on its feet.","effects":[],"source":"2014"},
 {"key":"potion_of_advantage","name":"Potion of Advantage","rarity":"Uncommon","type":"potion","attunement":false,"attuned":false,"desc":"Once as an action, I can drink this potion of a sparkling, golden mist that moves and pours like water or administer it to another. The consumer of the potion gains advantage on one ability check, attack roll, or saving throw of its choice that it makes within the next hour.","effects":[],"source":"2014"},
 {"key":"scissors_of_shadow_snipping","name":"Scissors of Shadow Snipping","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action once per dawn, I can use these iron shears to detach the shadow of a Humanoid I can see within 5 ft. An involuntary target can make a DC 15 Cha save to resist. The detached shadow stays where it was snipped until I use a bonus action to control it or set it free. See Notes page.","effects":[],"source":"2014"},
-{"key":"snicker_snack","name":"Snicker-Snack","rarity":"Legendary","type":"weapon (greatsword)","attunement":false,"attuned":false,"desc":"I have a +3 bonus on attack and damage rolls with this sentient magic greatsword and can use Cha instead of Str. It ignores slashing resistance. On a 20 to hit, it cuts off ","effects":[],"source":"2014"},
+{"key":"snicker_snack","name":"Snicker-Snack","rarity":"Legendary","type":"weapon (greatsword)","attunement":false,"attuned":false,"desc":"I have a +3 bonus on attack and damage rolls with this sentient magic greatsword and can use Charisma instead of Strength for those rolls. It ignores slashing resistance. On a roll of 20 to hit, it cuts off one of the target's heads, possibly killing it instantly. If the target has legendary actions, no head, a neck too wide, or is immune to slashing damage, it instead takes an extra 6d8 slashing damage. Requires attunement by a non-evil creature. See Notes.","effects":[],"source":"2014"},
 {"key":"woodcutter_s_axe","name":"Woodcutter's Axe","rarity":"Rare","type":"weapon (greataxe)","attunement":false,"attuned":false,"desc":"I have a +1 bonus to attack and damage rolls made with this magic greataxe. When I use this axe to make an attack against a plant (an ordinary plant or a creature with the Plant type) or a wooden object that isn't being worn or carried, the attack deals an extra 2d6 slashing damage on a hit.","effects":[],"source":"2014"},
 {"key":"witchlight_vane","name":"Witchlight Vane","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this sentient ornate rod as a +3 mace that deals an extra 1d8 radiant damage on a hit. It can sense the mood of every creature in the carnival. As an action, I can pinpoint the happiest in the carnival. I can use it to cast spells. I can't be blinded, deafened, petrified, or stunned. See Notes page.","effects":[],"source":"2014"},
 {"key":"witchlight_watch","name":"Witchlight Watch","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action once per 8 hours, I can use this ornate pocket watch to initiate the (un)packing of the carnival over the next hour. I can use it to cast Fire Bolt, Message, and Invisibility. After it casts Invisibility, I roll a d8. On a roll of 3 or 8, I can't cast this again until the next dawn. See Notes page.","effects":[],"source":"2014"},
-{"key":"amethyst_lodestone","name":"Amethyst Lodestone","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This ","effects":[],"source":"2014"},
+{"key":"amethyst_lodestone","name":"Amethyst Lodestone","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This fist-sized chunk of amethyst is infused with an amethyst dragon's ability to bend gravitational forces. While I am carrying the lodestone, I have advantage on Strength saving throws. The lodestone has 6 charges (regains 1d6 at dawn). While holding it, I can use its charges to cast Telekinesis (2 charges) or Reverse Gravity (3 charges).","effects":[],"source":"2014"},
 {"key":"crystal_blade","name":"Crystal Blade","rarity":"Rare","type":"weapon (any sword)","attunement":false,"attuned":false,"desc":"This magic sword has 3 charges, regaining 1d3 at dawn. It deals an extra 1d8 radiant damage. When it does so to a creature, I can expend 1 charge to heal myself for the same amount. As a bonus action, I can have it start or stop shedding light: either 30 ft bright light and 30 ft dim, or only 10 ft dim.","effects":[],"source":"2014"},
 {"key":"dragonhide_belt___1___2__or__3","name":"Dragonhide Belt, +1, +2, or +3","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This finely detailed belt is made of dragonhide. While wearing it, I gain a bonus to the save DCs of my ki features determined by its rarity: uncommon (+1), rare (+2), or very rare (+3). As an action, I can use it to regain ki points equal to a roll of my Martial Arts die. I can't use this action again until the next dawn.","effects":[],"source":"2014"},
-{"key":"dragon_wing_bow","name":"Dragon Wing Bow","rarity":"Rare","type":"weapon (any bow)","attunement":false,"attuned":false,"desc":"This magic bow has limb tips shaped like dragon wings and is infused with the essence of a dragon's breath. Attacks made with it deal an extra 1d6 damage of the dragon's type. When I pull back the string without ammo loaded in it, the weapon creates its own that lasts until it hits or misses a targe","effects":[],"source":"2014"},
+{"key":"dragon_wing_bow","name":"Dragon Wing Bow","rarity":"Rare","type":"weapon (any bow)","attunement":false,"attuned":false,"desc":"This bow is made from the wing of a dragon. I gain a +3 bonus to attack and damage rolls with this magic bow. When I draw it, spectral wings appear on my back, granting me a fly speed equal to my walking speed until the end of my next turn. Attacks with this bow deal an extra 1d6 damage of the same type dealt by the dragon that provided the wing. If no ammunition is loaded in it, the weapon creates its own that lasts until it hits or misses a target.","effects":[],"source":"2014"},
 {"key":"emerald_pen","name":"Emerald Pen","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This pen is tipped with an emerald nib and requires no ink to write. While holding this pen, I can cast Illusory Script at will, requiring no material components.","effects":[],"source":"2014"},
 {"key":"flail_of_tiamat","name":"Flail of Tiamat","rarity":"Legendary","type":"weapon (flail)","attunement":false,"attuned":false,"desc":"This magical flail adds a +3 bonus to its attack and damage rolls and deals +5d4 damage. As an action once per dawn, I can have it breathe flames in a 90-ft cone that deals 14d6 damage, Dex save DC 18 to halve. Damage type is acid, cold, fire, lightning, or poison, which I can choose when I deal the damage (cone or hit).","effects":[],"source":"2014"},
 {"key":"platinum_scarf","name":"Platinum Scarf","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action, I can pull a scale from this scarf, of which it has 3 per dawn. When I do so, I can choose the effect: heal 10d4 HP to a creature I touch, or for 1 hour it becomes a shield (+1 shield that grants radiant damage immunity) or a light hammer (deals 2d4 radiant damage and +2d4 to chromatic dragons).","effects":[],"source":"2014"},
@@ -14965,7 +15112,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"ruby_weave_gem","name":"Ruby Weave Gem","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"While I hold this gem, I can use it as my spellcasting focus. It has 3 charges per dawn. When I cast a spell while holding it, I can use charges to ignore 500 gp per charge of components with a gp cost. When I finish a long rest, I learn any one spell of a level I can cast until my next long rest. I can cast it using spell slots.","effects":[],"source":"2014"},
 {"key":"sapphire_buckler","name":"Sapphire Buckler","rarity":"Very Rare","type":"shield","attunement":false,"attuned":false,"desc":"While I wield this crystalline blue shield, I have resistance to psychic and thunder damage. As a reaction when I take damage from a creature within 5 ft, I can deal it 2d6 thunder damage. As an action once per dawn, I can use it to know the direction of all aberrations within 1 mile until the end of my next turn.","effects":[],"source":"2014"},
 {"key":"topaz_annihilator","name":"Topaz Annihilator","rarity":"Legendary","type":"weapon (firearm)","attunement":true,"attuned":false,"desc":"This magical firearm deals 2d6 necrotic damage on a hit. It has the two-handed property, requires no ammunition, 100 ft short range, and 300 ft long range. Targets reduced to 0 HP by it turn to dust and only True Resurrection or Wish can restore them to life. Once per dawn, I can use it to cast Disintegrate (DC 18).","effects":[],"source":"2014"},
-{"key":"dragon_touched_focus","name":"Dragon-Touched Focus","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
+{"key":"dragon_touched_focus","name":"Dragon-Touched Focus","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This wondrous item (scepter, orb, amulet, crystal, or similar finely crafted object) is infused with draconic power and typically incorporates imagery of dragons' wings, claws, teeth, or scales. It functions as a spellcasting focus for all my spells and grants me advantage on initiative rolls. Its exact properties depend on the dragon type and resonance tier (Slumbering, Stirring, Wakened, or Ascendant) — see the item notes for full variant details.","effects":[],"source":"2014"},
 {"key":"dragon_vessel","name":"Dragon Vessel","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"As a bonus action once per dawn, if this magical container is empty, I can speak the command word to fill the vessel with one liquid of my choice. The list of options depends on the level and rarity of the item.","effects":[],"source":"2014"},
 {"key":"scaled_ornament","name":"Scaled Ornament","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This ornament can be jewelry, a cloak, or another wearable accessory. It appears to be fashioned from a dragon's scale, tooth, or claw, or it incorporates images in those shapes.","effects":[],"source":"2014"},
 {"key":"bottle_of_boundless_coffee","name":"Bottle of Boundless Coffee","rarity":"Common","type":"wondrous item","attunement":false,"attuned":false,"desc":"This metal bottle is full with delicious, comfortably warm coffee, but I can't feel the heat. It has a stopper on a little chain. It will accept only the coffee it produces. Each time I drink the coffee, I roll a d20. On a 1, the bottle stops dispensing coffee for 1 hour. Unless drunk, the coffee vanishes when it leaves the bottle.","effects":[],"source":"2014"},
@@ -15007,16 +15154,16 @@ const DMG_MAGIC_ITEMS = [
 {"key":"bloodshed_blade","name":"Bloodshed Blade","rarity":"Very Rare","type":"weapon (any sword)","attunement":false,"attuned":false,"desc":"This sword with a carnelian engraved hilt adds my Con mod to damage rolls (min +1). Once per dawn after I roll to hit against a creature with it, I can invoke its blood rune and expend one HD to add to the to hit total. If this attack hits, I can expend any HD I have left and add them to the damage roll.","effects":[],"source":"2014"},
 {"key":"crown_of_the_wrath_bringer","name":"Crown of the Wrath Bringer","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"When I hit a creature with an attack roll while wearing this jagged icon circlet, I can spend one HD to have the attack deal that much extra psychic damage. As an action once per dawn, I can invoke its enemy rune to cast Fear (DC 15) with a duration of 1 minute without requiring concentration.","effects":[],"source":"2014"},
 {"key":"delver_s_claws","name":"Delver's Claws","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This weatherworn leather glove is a simple, finesse, light melee weapon, dealing 1d4 slashing damage. While attuned, I gain 15 ft blindsight and a burrow speed equal to my walking speed. As an action once per dawn, I can invoke its mountain rune to spend up to Prof Bonus HD to regain hp (total roll + Con mod).","effects":[],"source":"2014"},
-{"key":"glowrune_pigment","name":"Glowrune Pigment","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This set of 1d4+2 paint pots can each be used to draw one rune on a creature in 10 min, which lasts for 8 hours: \u2022 No penalty from difficult terrain. \u2022 10 temp hp and adv. on death saves. \u2022 +30 ft darkvision. \u2022 Can't be knocked prone and adv. on Str saves and Con saves. \u2022 Adv. on Dex save vs. damagi","effects":[],"source":"2014"},
+{"key":"glowrune_pigment","name":"Glowrune Pigment","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"While this magical paint covers my body, I gain: advantage on Charisma (Intimidation) checks; immunity to the frightened condition; advantage on Strength and Constitution saving throws; and advantage on Dexterity saves against damaging area effects. Each application lasts 24 hours or until I wash it off.","effects":[],"source":"2014"},
 {"key":"harp_of_gilded_plenty","name":"Harp of Gilded Plenty","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This sentient harp is dramatic and pompous, see notes. I can treat a roll of 9 or lower as a 10 for Charisma checks. I can cast Heroes' Feast by playing it for 10 min, but can't do so again until 1d10+10 days have passed. Five times per dawn, I can use it to cast Calm Emotions (DC 19) with a 1 hour duration.","effects":[],"source":"2014"},
 {"key":"lash_of_immolation","name":"Lash of Immolation","rarity":"Rare","type":"weapon (whip)","attunement":false,"attuned":false,"desc":"This +1 dark leather whip ha embers dancing around its tail. It deals +1d6 fire damage. When I score a critical hit with it, the target is restrained until my next turn starts, as fiery bands lash around it. As a reaction once per dawn when I hit with it, I can invoke its fire rune to increase the fire damage to 2d6.","effects":[],"source":"2014"},
-{"key":"longbow_of_the_healing_hearth","name":"Longbow of the Healing Hearth","rarity":"Legendary","type":"weapon (longbow)","attunement":false,"attuned":false,"desc":"This +3 ivory longbow creates its own ammo if needed and has 8 charges, regaining 1d4+1 at dawn. Instead of one attack in my Attack action, I can use 1 charge to have a target I see in 150 ft use 1 HD to regain hp + my Wis mod. I can use charges to cast (DC 18): Create Food ","effects":[],"source":"2014"},
+{"key":"longbow_of_the_healing_hearth","name":"Longbow of the Healing Hearth","rarity":"Legendary","type":"weapon (longbow)","attunement":false,"attuned":false,"desc":"This magic longbow grants a +3 bonus to attack and damage rolls. It has 6 charges (regains 1d6 at dawn). As an action while holding it, I or a creature within 60 ft of me can spend up to 3 Hit Dice, rolling each die and regaining hit points equal to the roll plus my Wisdom modifier. I can also expend charges to cast (spell save DC 18): Create Food and Water (1 charge), Mass Cure Wounds (3 charges), Heroes' Feast (6 charges).","effects":[],"source":"2014"},
 {"key":"lucent_destroyer","name":"Lucent Destroyer","rarity":"Very Rare","type":"weapon (musket)","attunement":false,"attuned":false,"desc":"I gain a +1 bonus to attack and damage rolls made with this magical musket emblazoned with the light rune. It deals radiant damage and doesn't need to be loaded with ammunition. It allows me to cast Dancing Lights at will and Sunbeam (DC 17) once per dawn by invoking the rune.","effects":[],"source":"2014"},
 {"key":"mistral_mantle","name":"Mistral Mantle","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This thick, fur-lined cloak gives me cold resistance. When I move within 5 ft of a creature, I can have it make a DC 14 Dex save once per turn or take 1d6 cold damage and become prone. As an action once per dawn, I can invoke its frost rune to cast Sleet Storm (DC 14), which I can move and see through normally.","effects":[],"source":"2014"},
 {"key":"nimbus_coronet","name":"Nimbus Coronet","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I take no damage from falling while wearing this bronze circlet. As a bonus action, I can use it to teleport to an empty space I see within 15 ft. As an action once per dawn, I can invoke its cloud rune to become cloudlike for up to 1 minute. I then gain 60 ft fly speed, bludgeoning, slashing and piercing resistance.","effects":[],"source":"2014"},
-{"key":"orb_of_skoraeus","name":"Orb of Skoraeus","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
+{"key":"orb_of_skoraeus","name":"Orb of Skoraeus","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This smooth, 6-inch-diameter orb is fashioned from stone giant granite. It has 3 charges and regains all expended charges daily at dawn. While holding the orb, I can expend charges to ignore 300 gp worth of material components per charge used when casting a spell. It also allows me to cast commune with nature and stone shape each once per day, and to cast stoneskin (requiring attunement by a giant or giant-kin) when I expend charges to ignore 300 gp worth of material components per charge used.","effects":[],"source":"2014"},
 {"key":"prehistoric_figurine_of_wondrous_power","name":"Prehistoric Figurine of Wondrous Power","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action, I can speak the command word and throw one or more statuettes to an unoccupied space within 60 ft where it becomes a specific creature for a certain amount of time. It is friendly, understands my languages, and obeys my commands.","effects":[],"source":"2014"},
-{"key":"reaper_s_scream","name":"Reaper's Scream","rarity":"Legendary","type":"weapon (morningstar)","attunement":false,"attuned":false,"desc":"This +2 morningstar deals necrotic damage. When I roll a 20 to hit vs. a creature, I gain 10 ","effects":[],"source":"2014"},
+{"key":"reaper_s_scream","name":"Reaper's Scream","rarity":"Legendary","type":"weapon (morningstar)","attunement":false,"attuned":false,"desc":"This +2 iron morningstar has death rune carvings inlaid with pearl, and deals necrotic damage instead of piercing. When I roll a 20 on an attack roll with it, I gain 10 temporary hit points; any creature that hits me with a melee attack while I have these temp HP takes 10 necrotic damage. As a bonus action I can invoke the rune, forcing each creature I choose within 60 ft to succeed on a DC 15 Wisdom save or be Stunned until the start of my next turn. Once used, this can't be used again until the next dawn.","effects":[],"source":"2014"},
 {"key":"ring_of_amity","name":"Ring of Amity","rarity":"Very Rare","type":"ring","attunement":false,"attuned":false,"desc":"This hematite ring allows me to bond to one willing creature I touch, which I can change every long rest. When a magical effect restores my hp, my bond also benefits from this effect. As a reaction once per dawn when my bond is within 60 ft and hits an attack, I can invoke the ring's friend rune to make it a critical hit.","effects":[],"source":"2014"},
 {"key":"sanctum_amulet","name":"Sanctum Amulet","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"While wearing this black opal pendant on a pearlescent chain, I have resistance to necrotic damage and can cast Spare the Dying as an action or bonus action. As a reaction once per dawn when I see a creature within 60 ft drop to 0 hp by damage, I can invoke the pendant's sacred rune to restore it to 1 hp.","effects":[],"source":"2014"},
 {"key":"shield_of_the_blazing_dreadnought","name":"Shield of the Blazing Dreadnought","rarity":"Legendary","type":"shield","attunement":false,"attuned":false,"desc":"As a bonus action once per dawn, I can activate this iron shield to grant me the following for 1 minute: • Immune to fire. • As an action, I can remove disease, blinded, charmed, deafened, or poisoned from myself a creature I can see within 30 ft (Cleansing Fire). • I can make a shield bash attack once per turn (see attack).","effects":[],"source":"2014"},
@@ -15046,7 +15193,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"bracers_of_asmodeus","name":"Bracers of Asmodeus","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"These are cursed, corrupting, and give +2 AC while not wearing armor or using a shield. I can't unattune to them. They make me obsessed with scheming, manipulation, and always bartering for better deals, often using blackmail. If I decline an opportunity to make money at another's expense, I take 3d10 necrotic damage.","effects":[],"source":"2014"},
 {"key":"canian_fork","name":"Canian Fork","rarity":"Rare","type":"weapon (trident)","attunement":false,"attuned":false,"desc":"This magic, cursed, corrupting trident gives me +3 bonus to attack and damage rolls made with. I can't willing to part with it and can't unattune to it without Remove Curse. I'm vulnerable to radiant damage. When I receive magical healing I have to succeed on a DC 15 Con save or the healing has no effect.","effects":[],"source":"2014"},
 {"key":"condensed_order","name":"Condensed Order","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"Once as an action, I can snuff this silvery powder extracted from those of a lawful persuasion, or administer it to another. The consumer is immune to the flesh warping feature of demonic ichor and gains advantage on saves against effects from a demonic source. These benefits last for 8 hours.","effects":[],"source":"2014"},
-{"key":"demonbone_polearm","name":"Demonbone Polearm","rarity":"Very Rare","type":"weapon (polearm)","attunement":false,"attuned":false,"desc":"As a reaction when damaged by a creature in reach, I can attack it once with this +2 polearm. It is cursed, I can't unattune to it and have disadv. with other weapons. If I take damage, I must make a DC 15 Wis save or go berserk: I attack those near to me until none remain in 60 ft or I'm calmed with a DC 15 Persuasion","effects":[],"source":"2014"},
+{"key":"demonbone_polearm","name":"Demonbone Polearm","rarity":"Very Rare","type":"weapon (polearm)","attunement":false,"attuned":false,"desc":"I have a +2 bonus to attack and damage rolls with this magic weapon. It deals extra 2d6 necrotic damage to undead. When I reduce a creature to 0 HP with it, or when a creature within 60 ft dies, each other creature I choose within 60 ft must make a DC 15 Charisma save or be compelled to attack those near me until none remain in 60 ft of me, or until I'm calmed by a DC 15 Persuasion check.","effects":[],"source":"2014"},
 {"key":"gauntlets_of_rage","name":"Gauntlets of Rage","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"The first melee weapon attack I make after a short rest sends me into a fury for 1 minute. I can't cast spells or speak, am immune to charmed and frightened, and when I deal damage, I heal 2d8 hp and end this fury or one condition. Also, I can use a spell slot before a melee attack for +1d6 necrotic damage per spell level.","effects":[],"source":"2014"},
 {"key":"infernal_amulet","name":"Infernal Amulet","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"While wearing this amulet, I can use it as a spellcasting focus for my spells, and it grants a +2 bonus to my spell save DC and spell attack bonus. It is cursed and corrupting. I'm unwilling to part with it and require Remove Curse to unattune to it. It gives me disadvantage on Strength saving throws and Strenght checks.","effects":[],"source":"2014"},
 {"key":"infernal_plate_armor","name":"Infernal Plate Armor","rarity":"Very Rare","type":"armor (plate)","attunement":false,"attuned":false,"desc":"While wearing this armor, I gain a +2 bonus to AC. This armor is cursed and corrupting. I can't take it off or unattune to it without Remove Curse. It makes me vulnerable to the following damage types: force, lightning, psychic, radiant, and thunder.","effects":[],"source":"2014"},
@@ -15072,7 +15219,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"bow_of_conflagration","name":"Bow of Conflagration","rarity":"Rare","type":"weapon (any bow)","attunement":false,"attuned":false,"desc":"Ammunition fired from this bow blazes brightly. When I hit with an attack roll using this bow, the target takes an extra 1d6 fire damage. If the target is a flammable, nonmagical object, it catches fire, taking 1d6 fire damage at the start of each of my turns until a creature uses an action to extinguish the flames.","effects":[],"source":"2014"},
 {"key":"bow_of_melodies","name":"Bow of Melodies","rarity":"Very Rare","type":"weapon (any bow)","attunement":false,"attuned":false,"desc":"This bow has multiple strings. I can use these to play one of two melodies on each attack, imbuing it with magic. Melody of Precision: If I'm proficient with Performance, I add +1 (+2 if expertise) to the attack roll. Melody of Reverberation: the attack deals my Charisma modifier in extra thunder damage.","effects":[],"source":"2014"},
 {"key":"breastplate_of_balance","name":"Breastplate of Balance","rarity":"Rare","type":"armor (breastplate)","attunement":false,"attuned":false,"desc":"This burnished copper breastplate with merchant's scales on the chest has 4 charges, regaining 1d4 at dawn. As a reaction when I or another I can see within 60 ft is about to roll a d20 with (dis)advantage, I can use 1 charge to prevent this (dis)advantage. As a bonus action, I can use 2 charges to cast Lesser Restoration.","effects":[],"source":"2014"},
-{"key":"card_sharp_s_deck","name":"Card Sharp's Deck","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"","effects":[],"source":"2014"},
+{"key":"card_sharp_s_deck","name":"Card Sharp's Deck","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"The cards of this deck shimmer around the edges. As an action, I can throw a card as a ranged spell attack using Dexterity (120 ft range, 1d8 force damage on a hit). As an action once per dawn, I can shuffle the deck to cast Spray of Cards at 3rd level (save DC 15).","effects":[],"source":"2014"},
 {"key":"clockwork_armor","name":"Clockwork Armor","rarity":"Very Rare","type":"armor (heavy)","attunement":false,"attuned":false,"desc":"The outside surface and internal joints of this armor whir with interlocking gears, drawing on the magic of the plane of Mechanus. The armor has 4 charges and regains 1d4 used charges daily at dawn. If I make a d20 roll while wearing it, I can expend 1 charge to change the number rolled to a 10.","effects":[],"source":"2014"},
 {"key":"crown_of_whirling_comets","name":"Crown of Whirling Comets","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This crown has 6 charges, regaining 1d6 at dawn. As a bonus action, I can use 1 charge to fly my walking speed and hover, for 10 min. I can use 3 charges to cast Ice Storm (DC 16). As an action, I can launch one frigid starlight bolt per charge used, that each deal 2d4 cold damage to a creature I can see within 120 ft.","effects":[],"source":"2014"},
 {"key":"deck_of_dimensions","name":"Deck of Dimensions","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This deck has 6 charges, regaining 1d6 used at dawn. As a bonus action, I can use 1 charge to throw a card to an empty spot either within 60 ft and teleport to it, or within 5 ft and teleport to it once in the next 8 hours as an action. I can use 3 charges to cast Arcane Gate, but can't use the deck while the gate is active.","effects":[],"source":"2014"},
@@ -15090,7 +15237,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"feywrought_armor","name":"Feywrought Armor","rarity":"Rare","type":"armor (light, medium, or heavy)","attunement":false,"attuned":false,"desc":"While wearing this colorful, flowery armor that was forged in the Feywild, I have advantage on saves to avoid or end the charmed condition on myself. The armor has 3 charges and regains 1d3 used charges daily at dawn. As an action, I can use 1 charge to cast Compulsion (save DC 15) from it.","effects":[],"source":"2014"},
 {"key":"fool_s_blade","name":"Fool's Blade","rarity":"Very Rare","type":"weapon (any sword)","attunement":false,"attuned":false,"desc":"As a bonus action once per dawn, I can use this weapon +2 to feint a target within 5 ft, giving me adv. on attacks vs. it until my next turn starts. As a reaction once per dawn when a creature within 60 ft attacks me, I can have it make a DC 15 Int save or have it target another of my choice within its reach.","effects":[],"source":"2014"},
 {"key":"forcebreaker_weapon","name":"Forcebreaker Weapon","rarity":"Very Rare","type":"weapon (any that deals bludgeoning damage)","attunement":false,"attuned":false,"desc":"This magic weapon gives +2 to hit and damage. It was crafted to destroy structures made of magical force, such as a Wall of Force. With one strike with this weapon, I can shatter a Large or smaller structure of magical force, or shatter a 20-ft cube portion of a Huge or larger structure.","effects":[],"source":"2014"},
-{"key":"glimmering_moonbow","name":"Glimmering Moonbow","rarity":"Rare","type":"weapon (any bow)","attunement":false,"attuned":false,"desc":"This silver-and-black bow adds +1 to its to hit and damage rolls, creates its own ammo that lasts until it hits or misses a target, and deals +1d6 radiant damage. As a bonus action once per dawn, I can use it to gain resistance to piercing, bludgeoning, and slashing damage until my next turn starts, ","effects":[],"source":"2014"},
+{"key":"glimmering_moonbow","name":"Glimmering Moonbow","rarity":"Rare","type":"weapon (any bow)","attunement":false,"attuned":false,"desc":"I gain a +3 bonus to attack and damage rolls with this magic longbow. Arrows fired from it deal radiant damage instead of piercing. On a hit, the target is outlined in shimmering moonlight, preventing it from benefiting from invisibility and gaining advantage on attacks against it until my next turn starts. As a bonus action once per dawn, I can fire a special Moonfire Arrow that explodes in a 20-ft-radius sphere: each creature inside makes a DC 16 Dexterity save, taking 6d8 radiant damage on a fail (half on success), and has resistance to piercing, bludgeoning, and slashing damage until my next turn starts.","effects":[],"source":"2014"},
 {"key":"gloomwrought_armor","name":"Gloomwrought Armor","rarity":"Rare","type":"armor (light, medium, or heavy)","attunement":false,"attuned":false,"desc":"While wearing this intricate grayscale armor forged in the Shadowfell, I have advantage on saves to avoid or end the frightened condition on myself. The armor has 3 charges and regains 1d3 used charges daily at dawn. As an action, I can use 1 charge to cast Calm Emotions (save DC 15) from it.","effects":[],"source":"2014"},
 {"key":"grasping_whip","name":"Grasping Whip","rarity":"Rare","type":"weapon (whip)","attunement":false,"attuned":false,"desc":"I gain a +1 bonus to attack and damage rolls made with this magic whip. When I hit a creature or object that is Large or smaller with this whip, I can pull that creature or object 5 ft toward me instead of dealing damage.","effects":[],"source":"2014"},
 {"key":"hammer_of_runic_focus","name":"Hammer of Runic Focus","rarity":"Very Rare","type":"weapon (warhammer)","attunement":false,"attuned":false,"desc":"As a bonus action three times per dawn, I can slam this hammer on the ground, creating a 15-ft radius glowing circle of runes wherein it's a +3 warhammer glowing with matching runes. The rune circle disappears after 1 minute, when I create another, or when I dismiss it as a bonus action.","effects":[],"source":"2014"},
@@ -15109,7 +15256,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"spindle_of_fate","name":"Spindle of Fate","rarity":"Legendary","type":"wand","attunement":false,"attuned":false,"desc":"This wand has 6 charges, regains 1d6 at dawn. I can use 1 charge to add my Prof Bonus to my initiative after the roll. As an action, I can use 2 charges to invoke a creature's doom. As a reaction when a creature within 60 ft makes an attack or save, I can use 3 charges to change the outcome. See Notes page.","effects":[],"source":"2014"},
 {"key":"starshot_crossbow","name":"Starshot Crossbow","rarity":"Rare","type":"weapon (any crossbow)","attunement":false,"attuned":false,"desc":"This black wooden crossbow has pearl inlays depicting three constellations. It has 3 charges, regaining 1d3 at dawn. It produces its own ammo that lasts until it hits or misses a target. As a bonus action, I can use 1 charge to tap and invoke one of its constellations, see Notes page for the options.","effects":[],"source":"2014"},
 {"key":"stonemaker_war_pick","name":"Stonemaker War Pick","rarity":"Very Rare","type":"weapon (war pick)","attunement":false,"attuned":false,"desc":"This war pick adds +1 to attack and damage rolls. I can use it to cast Meld into Stone once per dawn. If I score a critical hit with it against a creature that has 100 HP or fewer, I can use 1 charge to have the target make a DC 15 Con save or be petrified for 8 hours. It has 1d6+1 charges that can'","effects":[],"source":"2014"},
-{"key":"sun_staff","name":"Sun Staff","rarity":"Rare","type":"staff","attunement":false,"attuned":false,"desc":"This +1 quarterstaff deals +1d8 fire damage on an attack. I can use it as a spellcasting focus. Once per dawn when I cast a spell using a spell slot, I can reroll my Prof Bonus of fire or radiant damage dice. As a bonus action, I can toggle it glowing with sunlight: 15-ft radius bright light and dim light for another 15 ft.","effects":[],"source":"2014"},
+{"key":"sun_staff","name":"Sun Staff","rarity":"rare","type":"staff","attunement":true,"attuned":false,"desc":"Veins of sunstone run through this wooden staff. It is a +1 magic quarterstaff (versatile 1d8) that deals +1d8 fire damage on a hit and can be used as a spellcasting focus, granting +1 to spell attack rolls and spell save DCs while I hold it. Solar Focus: once per dawn when I cast a spell using a spell slot that deals fire or radiant damage, I can reroll a number of damage dice up to my proficiency bonus and must use the new rolls. Sunny Glow: as a bonus action, I can cause the staff to shed bright light in a 15-ft radius and dim light for another 15 ft (toggleable).","effects":{"spellAtkBonus":1,"spellDCBonus":1},"source":"Homebrew"},
 {"key":"sword_of_the_planes","name":"Sword of the Planes","rarity":"Legendary","type":"weapon (any sword)","attunement":false,"attuned":false,"desc":"This +3 weapon can tear the fabric of reality. As an action once per dawn, I can slice a rift to a location on another plane in an empty space within 5 ft of me. The rift can be up to 10 ft high and wide. Anything entering the rift is instantly transported. The DM determines where it goes exactly.","effects":[],"source":"2014"},
 {"key":"telescopic_transporter","name":"Telescopic Transporter","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This enormous telescope allows me to view distant celestial objects, including stars, Wildspace systems, and Astral Sea phenomena. With 1 hour of calibrating, I can use it to attempt to travel to whatever it is pointed at. With a DC 17 Arcana check me and 8 others teleport, otherwise a mishap, see Notes.","effects":[],"source":"2014"},
 {"key":"tidecaller_trident","name":"Tidecaller Trident","rarity":"Very Rare","type":"weapon (trident)","attunement":false,"attuned":false,"desc":"This magic trident gives a +2 bonus to attack and damage made with it and advantage on attack rolls when used underwater. The trident has 3 charges, regaining 1d3 expended charges daily at dawn. I can expend these charges to cast spells (save DC 15): Control Water (1 charge) or Tsunami (3 charges).","effects":[],"source":"2014"},
@@ -15124,7 +15271,37 @@ const DMG_MAGIC_ITEMS = [
 {"key":"needler_pistol","name":"Needler pistol","rarity":"Priceless","type":"futuristic item","attunement":false,"attuned":false,"desc":"This pistol has 10 charges per energy cell, which can be replaced as a (bonus) action once empty. As an action, I can use 1 charge to fire a burst needlelike darts from it in a 15-ft cone, dealing 8d4 piercing damage to all creatures in the area. Creatures can make a DC 15 Dexterity saving throw to half the damage.","effects":[],"source":"2014"},
 {"key":"paralysis_pistol","name":"Paralysis Pistol","rarity":"Priceless","type":"technological device","attunement":false,"attuned":false,"desc":"This pistol has 6 charges per energy cell, which can be replaced as a (bonus) action once empty. As an action, I can use 1 charge to fire the pistol at a creature I can see within 60 ft, which must then make a DC 15 Constitution save or be paralyzed for 1 min. The target can repeat the save at the end of each of its turns.","effects":[],"source":"2014"},
 {"key":"powered_armor","name":"Powered Armor","rarity":"Priceless","type":"technological device","attunement":false,"attuned":false,"desc":"This plate armor has 24 charges per energy cell, which can be replaced as a (bonus) action if empty. As an action, I can expend charges to active it for 1 hour per charge. While active, I gain adv. on Str, double carrying capacity, have my own atmosphere to breath in, and can use Force Field and Propulsion, see Notes.","effects":[],"source":"2014"},
-{"key":"staff_of_ruling","name":"Staff of Ruling","rarity":"Rare","type":"staff","attunement":false,"attuned":false,"desc":"As an action, I can use this redand-gold staff with an ornate serpent carving to produce one of several effects: Orb of Lightning, Staff to Snake, or Thunderclap. Once the staff has produced an effect, it can't produce that effect again until the next dawn. See Notes page for the effect descriptions.","effects":[],"source":"2014"}];
+{"key":"staff_of_ruling","name":"Staff of Ruling","rarity":"Rare","type":"staff","attunement":false,"attuned":false,"desc":"As an action, I can use this redand-gold staff with an ornate serpent carving to produce one of several effects: Orb of Lightning, Staff to Snake, or Thunderclap. Once the staff has produced an effect, it can't produce that effect again until the next dawn. See Notes page for the effect descriptions.","effects":[],"source":"2014"},
+{"key":"ebonbane","name":"Ebonbane","rarity":"artifact","type":"weapon (longsword)","attunement":true,"attuned":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"desc":"I wield a +3 longsword that deals an extra 3d6 Necrotic damage to Celestials and Humanoids. While holding it, I have Advantage on saving throws against spells and magical effects. Insatiable Rage: if it hasn't slain a Celestial or Humanoid in 3 days, I must make a DC 17 Charisma save at dawn (8d8 Force damage on success, or I'm Dominated to kill one on failure). It is bound to the Shadowlands — Attunement ends immediately if I leave. Sentient: Chaotic Evil (INT 17, WIS 14, CHA 19).","effects":{"weaponBonus":3},"source":"RtHW"},
+{"key":"focus_circlet","name":"Focus Circlet","rarity":"uncommon","type":"wondrous item","desc":"While wearing this silver circlet, I gain a bonus to Constitution saving throws I make to maintain concentration on a spell I cast equal to that spell's level, up to a maximum of +3.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"hat_of_the_sanguine_coven","name":"Hat of the Sanguine Coven","rarity":"uncommon","type":"wondrous item","desc":"While wearing this red witch's hat, I can cast Chill Touch at will. Whenever I have 0 hit points while wearing it: I stabilize or die after my sixth successful or failed death saving throw instead of my third, but only succeed on a roll of 15 or higher; and when I roll a death saving throw, the hat can cast Chill Touch (+5 to hit, no action required) against a creature within 30 feet not behind total cover or heavily obscured — if it hits, I gain +5 to that death save.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"novanite_armor","name":"Novanite Armor","rarity":"very rare","type":"armor (breastplate)","desc":"This breastplate smelted from Astral Plane ore absorbs more light than normal and shows glimmering cosmos in its reflections at night. I gain +1 AC while wearing it. Astral Leap (1/12 hours, action): I speak its command word, vanish into a planar tear, and reappear at a space I can see within 30 feet at the start of my next turn. If that space is occupied, I take 3d6 force damage and appear in the nearest unoccupied space instead. Creatures within 10 feet when I vanish or reappear make a DC 15 Strength save or take 3d6 force damage and be pulled or pushed 10 feet; the save halves the damage and negates the movement.","attunement":true,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":{"acBonus":1},"source":"Homebrew"},
+{"key":"horatios_impossible_ship_in_a_bottle","name":"Horatio's Impossible Ship in a Bottle","rarity":"rare","type":"wondrous item","desc":"This magically sealed sea-tumbled glass bottle contains a miniature sailing ship with seemingly billowing sails. Speaking its command word unseals it. When the open bottle is submerged in a large enough body of water, the ship slips out (destroying the bottle) and becomes a 50×15-ft sailing ship with a crew of 10 unseen servants who obey me or any friendly creature aboard to adjust sails and direction. The ship has half normal creature and cargo capacity but is otherwise a normal sailing ship. To reseal it, I keep a same-sized glass bottle aboard that has been ocean-submerged for at least 10 years — the ship and crew shrink into it when run aground; anything aboard falls to the water or ground below.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"reliquary_of_holy_memories","name":"Reliquary of Holy Memories","rarity":"very rare","type":"rod, weapon (mace)","desc":"This scepter holds the bones of a powerful martyred saint and can also be used as a magic mace (1d6 bludgeoning). While attuned to it, I can prepare one additional spell for each bone held within the rod. This very rare variant contains 4 bones, allowing me to prepare 4 extra spells while attuned.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"the_arm_of_ares","name":"The Arm of Ares","rarity":"rare","type":"staff","desc":"This mycelial staff can be used as a druidic focus, granting +1 to my spell attack rolls and spell save DCs for druid spells. Twice per day I can ritually cast Speak with Plants (10-minute casting time). As an action I can plant the staff to instantly grow a 60-ft Giant Mushroom with a 20-ft radius cap — creatures in its space are pushed atop it; all creatures who finish their turn beneath it must succeed on a DC 16 Constitution save or have the Incapacitated condition, repeating the save at the start of each of their next 3 turns. The mushroom decays after 1 hour of sunlight, otherwise lasting 3d6 days. To recharge this property, the staff must spend a long rest planted in Underdark soil.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":1,"spellDCBonus":1},"source":"Homebrew"},
+{"key":"magebane_bolas","name":"Magebane Bolas","rarity":"rare","type":"weapon (bolas)","desc":"As a ranged weapon attack, I throw these bolas at a Large or smaller target. On a hit it takes 1d4 bludgeoning damage and must succeed on a Strength save (DC = 8 + my Dexterity modifier + my proficiency bonus) or be knocked Prone and Restrained — unable to speak — by the bolas. If the target can cast spells, it subtracts 1d6 from this save and from future escape attempts. While Restrained, a creature (or one within reach) can use an action to attempt a Strength check to escape: DC = 8 + my Intelligence modifier + my proficiency bonus; or DC = 10 + my Intelligence modifier + my proficiency bonus if the target has the Spellcasting or Pact Magic feature. The bolas remain entangled until removed.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"the_griffons_saddlebag","name":"The Griffon's Saddlebag","rarity":"artifact","type":"wondrous item","desc":"These 3-lb leather saddlebags function as a Bag of Holding that can only be pierced by another artifact. Placing another extradimensional storage item inside destroys it but transfers its contents here. Magic Courier: at the GM's discretion the beak opens to reveal a magical delivery letter — bringing the named item to the recipient within the allotted time earns a reward; payment must be received within 1 hour of delivery or the item vanishes. Sell Magic Items: I can sell magic items to the bag for half their base price. Spells: 8 charges (regains 1d6+2 at dawn) — Detect Magic (1 charge), Identify (1 charge), Legend Lore (5 charges). Sentient Chaotic Neutral: INT 13, WIS 15, CHA 16; speaks Common and Griffon; communicates telepathically with wearer around others.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"sword_of_kas","name":"Sword of Kas","rarity":"artifact","type":"weapon (longsword)","desc":"This +3 longsword scores a Critical Hit on 19-20 and deals an extra 2d10 Slashing damage to Undead. Bloodthirst: if the sword doesn't taste blood within 1 minute of being drawn, I make a DC 15 Charisma save — on success I take 3d6 Psychic damage; on failure I'm Dominated by the sword (as Dominate Monster) until blood is drawn. Spirit of Kas: I add 1d10 to Initiative; when attacking with the sword I can transfer some or all of the +3 bonus to my AC until my next turn; I have Resistance to Necrotic damage. Spells (save DC 18, each 1/dawn): Call Lightning, Divine Word, Finger of Death. Random properties: Immunity to Charmed and Frightened; CHA +2 (max 24); cosmetic changes (solid black eyes, dark-green smoke, deep distorted voice); imprisons a Death Slaad (roll d100 each turn you attack — on 1 or 100, it escapes and attacks you). Sentient Chaotic Evil: INT 15, WIS 13, CHA 16.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":3,"scoresOverride":[0,0,0,0,0,24]},"source":"DMG24"},
+{"key":"gi_of_shifting_seasons","name":"Gi of Shifting Seasons","rarity":"rare","type":"wondrous item","desc":"This gi changes color to the current season when attuned. Winter (blue): immune to extreme cold; Flurry of Blows hits reduce target speed by 5 ft (min 15 ft) until my next turn. Spring (green): gain 1d4+4 temp HP on changing to this season; Step of the Wind triples jump distance instead of doubling and ignores difficult terrain until end of turn. Summer (red): immune to extreme heat; unarmed strikes deal +2 fire damage (+3 outdoors in daylight). Autumn (yellow): advantage on Constitution saves; Patient Defense causes creatures to provoke opportunity attacks from me when moving within 5 feet of me until my next turn. I can change seasons with 1 minute of silent meditation, or shift one season forward (in order) whenever I spend 1+ ki — choosing whether to gain the new season's benefits before or after the action.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"sussur_dagger","name":"Sussur Dagger","rarity":"uncommon","type":"weapon (dagger)","desc":"On a successful attack roll with this magic dagger, the target must make a Constitution save using my spell save DC or have the Silenced condition — unable to speak or use verbal spell components — until the end of their next turn. The dagger also emits dim light in a 5-foot radius in the presence of active magic within 10 feet.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"skorr_the_hungering_axe","name":"Skorr, the Hungering Axe","rarity":"artifact","type":"weapon (greataxe)","desc":"When I hit a living creature with this magic greataxe, it takes an extra 4d6 necrotic damage; I regain 6 HP for every 6 rolled on those necrotic dice (up to the target's HP maximum). Slain creatures are consumed, leaving only their skeleton. The axe has 6 charges (regains all at dawn if it has slain a creature in the past 24 hours; otherwise loses all charges at dawn). Bite Down: expend any number of charges to maximize that many necrotic damage dice. Craving Strike: while below half HP, expend 1 charge (bonus action) to make an immediate attack — crit on 19-20. Devour: take 1d6 unreduceable necrotic damage and reduce HP max by same (until LR, no action) to regain 1 charge. Sentient Chaotic Evil: INT 5, WIS 18, CHA 15; communicates telepathically in growls; reads Abyssal and Common.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"seers_starlight_cloak","name":"Seer's Starlight Cloak","rarity":"uncommon","type":"wondrous item","desc":"While wearing this deep purple cloak hemmed with silver starburst patterns, I can use an action to cast Guidance. While I can see the night sky, I can use an action to cast Augury — omens are represented by shooting stars (3+: good; 1: bad; 2: both; 0: neither). Once Augury is cast this way, it can't be used again until the next dusk.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"ring_of_the_cosmos","name":"Ring of the Cosmos","rarity":"primeval vestige","type":"ring","desc":"At dusk on the Material Plane, I roll 1d8 to determine which plane the ring shows and what I can transform into (1: Astral Sea/Aberration, 2: Shadowfell/Undead, 3: Feywild/Fey, 4: Nine Hells/Fiend, 5: Triad of the Heavens/Celestial, 6: Eternal Forge/Construct, 7: Mount Vertaei/Humanoid+Giant, 8: Azeros' Comet/Elemental). 1/dawn (Magic action): I transform into a creature of that type with CR ≤ my level ÷ 3 (rounded down), retaining my HP, Hit Dice, proficiencies, personality, communication, and alignment. I choose whether to keep my mental stats or take the creature's. I don't gain Legendary Resistances, Condition Immunities, Initiative bonuses, or Regional Effects. I remain transformed until the next dawn or until I dismiss the effect. Cursed: frequent use may trigger a DM roll on the Corruption Table — results range from Exhaustion and alignment changes to Broken Mind (soul trapped in the ring, escapable only by Wish).","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Dorenia"},
+{"key":"adventurers_overcoat","name":"Adventurer's Overcoat","rarity":"rare","type":"wondrous item","desc":"While wearing this faded mountaineering overcoat, I and friendly creatures within 5 feet of me have resistance to cold damage.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"TGS2"},
+{"key":"arcanists_belt_of_resiliency","name":"Arcanist's Belt of Resiliency","rarity":"rare","type":"wondrous item","desc":"This leather belt set with seven small crystals and a large domed buckle lets me cast a modified Resilient Sphere on myself (action) once per dawn. Unlike the normal spell, this version requires no concentration, lasts 1 hour, and the sphere can take damage (AC 15) — each minute of its duration is reduced by the damage it takes. The sphere has resistance to damage from spells and magical effects. I can end it early as a bonus action.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"book_of_exalted_deeds","name":"Book of Exalted Deeds","rarity":"artifact","type":"wondrous item","desc":"After 80 hours of study, this artifact permanently raises my Wisdom by 2 (max 24), grants immunity to the Charmed and Frightened conditions, resistance to Psychic damage, the ability to cast spell slots as one level higher, and a protective halo (10-ft bright light; Fiends/Undead have disadvantage attacking me within it). Fiends, Undead, or servants of Lower Plane gods that try to read it take 24d6 Radiant damage (ignores immunity and resistance) and are destroyed at 0 HP. Benefits require at least one act of kindness or generosity every 10 days — willful evil removes all benefits. The book vanishes after it is read and reappears elsewhere in the multiverse.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"scoresOverride":[0,0,0,0,22,0],"scoresMaximum":[0,0,0,0,24,0]},"source":"DMG24"},
+{"key":"badge_of_the_wayfarer","name":"Badge of the Wayfarer","rarity":"rare","type":"wondrous item","desc":"I can recite this badge's secret command phrase over 1 minute to cast Plane Shift, but only to the Wayfarer's Respite — a legendary inn drifting through the Astral Sea. Any companions are transported with me. After 24 hours, I (and any companions) are automatically returned to my original location. I can also cast Plane Shift again to return early. Once used to travel to the inn, the badge can't be used again for 7 days. Identify reveals only that it is magical; Legend Lore reveals its command phrase and properties.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"bottled_comet","name":"Bottled Comet","rarity":"rare","type":"wondrous item","desc":"As an action I can throw this orb up to 30 feet. It shatters on impact, releasing a 20-foot-radius burst of contaminated energy. Creatures in the area must succeed on a DC 15 Constitution save or take 8d6 necrotic damage and gain one level of contamination. An arcane anomaly also occurs centred on the point of impact. Single use.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Drakkenheim"},
+{"key":"eye_of_the_watcher","name":"Eye of the Watcher","rarity":"rare","type":"wondrous item","desc":"While attuned to this item, I can cast See Invisibility on myself at will. Curse: on attunement, I must make a DC 20 Wisdom save or be compelled to tear out one of my own eyes (4d10 necrotic damage), allowing the Eye to crawl into the socket. The Eye grants darkvision up to 120 feet and the ability to see through magical and nonmagical darkness, but I have disadvantage on attacks and depth-perception checks while looking only through it. As an action I can command the Eye to crawl out and act as a familiar (5 HP, AC 12, 20 ft crawl speed, +6 Stealth) — if slain it reappears in my socket at dusk and can't be used again until then. Remove Curse or unattuning causes the Eye to crawl away.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"amulet_of_primal_wisdom","name":"Amulet of Primal Wisdom","rarity":"rare","type":"wondrous item","desc":"My Wisdom score is 19 while I wear this amulet, crafted from dried magical leaves encased in sap. It has no effect if my Wisdom is already 19 or higher.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"scoresOverride":[0,0,0,0,19,0]},"source":"Homebrew"},
+{"key":"fists_of_the_guiding_star","name":"Fists of the Guiding Star","rarity":"uncommon","type":"wondrous item","desc":"While wearing these celestial hand wrappings, I can use a bonus action to spend 1 focus point to send motes of starlight to a creature I can see within 30 feet, giving it advantage on its next attack roll before the end of my next turn. If that attack hits, it deals extra radiant damage equal to my Martial Arts die + my Wisdom modifier (minimum 1). I can also cast the Light cantrip at will while wearing these wraps.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"devotees_sacrificial_blade","name":"Devotee's Sacrificial Blade","rarity":"rare","type":"weapon (dagger)","desc":"When I hit a creature with this dagger, it takes damage as if hit by my Eldritch Blast (using its damage die and associated effects). If I'm not holding it at the start of my turn, I can have it magically appear in my open hand (no action required). Blood for the Old Ones: as an action I plunge the dagger into my chest, taking 10 psychic damage (unreduceable), then up to four creatures I can see within 30 feet must make Intelligence saves (my warlock spell save DC) or take 2d10 psychic damage and be Incapacitated until the end of their next turn; psychic damage from this property ignores temporary HP. If I drop to 0 HP from this, each affected creature saves with disadvantage and I automatically fail one death save (resets at dawn).","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"aboleth_brain","name":"Aboleth Brain","rarity":"rare","type":"wondrous item","desc":"This young aboleth's brain can be consumed to gain three permanent abilities. Otherworldly Memories: once per day I may make a Wisdom check to call upon cosmic memories — on 20+ I ask the DM one question and receive a vague truthful answer; on 15-19 I receive an associated vision; on 14 or lower I take 3d8 psychic damage and am Stunned for 1 minute. Improved Mutations: I gain +1 to attack and damage rolls with my organic weapons. Devouring Urge: once per turn when I hit with my organic weapon, I can deal an extra 1d6 Necrotic or Psychic damage (my choice) and expend one Hit Die to regain HP equal to the roll + my Constitution modifier; the flesh temporarily mutates my form for 1 minute (DM's choice or d100 Mutations Table).","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"diviners_dice","name":"Diviner's Dice","rarity":"rare","type":"wondrous item","desc":"This set of three crystal d6s is weakly connected to the tides of fate. As an action I can roll them and record the three numbers — I can't record new numbers until the next dawn. While carrying the dice, I can use a reaction when I or a creature I can see within 60 feet makes an attack roll or ability check to add or subtract one recorded number from the total. I can wait until after the d20 is rolled but must decide before the GM announces success or failure. Each recorded number can only be used once; unused numbers are lost at dawn.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"feywood_ivy","name":"Feywood Ivy","rarity":"uncommon","type":"wondrous item","desc":"This glowing-rune seed can be commanded (action) to sprout vines covering a held weapon or object, giving it a comfortable grip, automatic sheathing, and making it function as my spellcasting focus. I cannot be disarmed of the vine-covered object unless Incapacitated. A second command word (bonus action) lashes the vines at a Medium or smaller creature within 5 feet — on a failed DC 13 Dexterity save, it is Grappled and Restrained for 1 minute; it can use an action to attempt DC 13 Str or Dex to escape. The effect ends if I move more than 5 feet away. Once the vine lash is used, it can't be used again until the next dawn.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"focus_breaker","name":"Focus Breaker","rarity":"rare","type":"weapon (maul)","desc":"This +1 magic maul was forged during the Upheaval to quell arcanist uprisings. When I hit a concentrating creature, it makes the resulting Constitution save with disadvantage. As an action I can speak its command word, causing the metal book on the weapon's head to shatter — all spells and magical effects within 60 feet are dispelled as if by Dispel Magic (5th-level version); spells cast using a 6th-level slot or higher are unaffected. Once this property is used, the book disappears permanently and this property is gone.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":1},"source":"Homebrew"},
+{"key":"dusk_dagger","name":"Dusk Dagger","rarity":"rare","type":"weapon (dagger)","desc":"This delicately curved dagger is ornamented with crescent moon designs. When I hit a creature that is completely in dim light or darkness with this magic weapon, that creature takes an extra 1d8 psychic damage.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"amulet_of_the_watcher","name":"Amulet of the Watcher","rarity":"primeval vestige","type":"wondrous item","desc":"While attuned to this amulet, I gain a +1 bonus to spell attack rolls and to the saving throw DCs of my spells, and gain proficiency in Perception (or expertise if already proficient). As an action I can place up to two spectral eyes (visible only with DC 20 Perception or DC 15 Arcana) on a solid surface. While within 5 feet of an eye, I can use a bonus action to speak the command word and peer through another eye of my choice. Eyes have AC 10 and 5 HP; if destroyed they're gone. Targets in divination-immune areas don't appear through the eyes. Third Eye: when I make a Wisdom (Perception) or Intelligence (Investigation) check involving sight, I can roll 1d4 and add it to the total.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":1,"spellDCBonus":1},"source":"Dorenia"}]
 
 // Attunement slot overrides by class (base is always 3)
 // Format: { className: slotsAtLevel(level) => number }
@@ -15311,13 +15488,47 @@ window.deactivateIneligibleActiveEffects = deactivateIneligibleActiveEffects;
 function getSpellDCBonus() {
   let bonus = 0;
   if (isEffectActive('innate_sorcery')) bonus += ACTIVE_EFFECT_DEFS.innate_sorcery.dcBonus;
+  bonus += getMagicItemSpellDCBonus();
   return bonus;
 }
 
 function getSpellAtkBonus() {
   let bonus = 0;
   if (isEffectActive('innate_sorcery')) bonus += ACTIVE_EFFECT_DEFS.innate_sorcery.atkBonus;
+  bonus += getMagicItemSpellAtkBonus();
   return bonus;
+}
+
+// Sum spell attack/DC bonuses from attuned magic items (Rod of the Pact
+// Keeper, Wand of the War Mage, Enhanced Arcane Focus, Staff of Power, etc).
+// Note: this applies globally rather than restricted to one class's spell
+// list (e.g. the Rod of the Pact Keeper is RAW warlock-spells-only) because
+// this sheet already computes one global spellcasting DC/attack bonus
+// rather than tracking per-class spell stats for multiclass casters.
+function getMagicItemSpellAtkBonus() {
+  if (!currentChar) return 0;
+  ensureMagicItems();
+  let total = 0;
+  currentChar.magicItems.forEach(item => {
+    if (!item.effects?.spellAtkBonus) return;
+    if (item.attunement && !item.attuned) return;
+    const wb = item.effects.spellAtkBonus;
+    total += (wb === 'variable') ? (parseInt(item.magicBonus) || 0) : (parseInt(wb) || 0);
+  });
+  return total;
+}
+
+function getMagicItemSpellDCBonus() {
+  if (!currentChar) return 0;
+  ensureMagicItems();
+  let total = 0;
+  currentChar.magicItems.forEach(item => {
+    if (!item.effects?.spellDCBonus) return;
+    if (item.attunement && !item.attuned) return;
+    const wb = item.effects.spellDCBonus;
+    total += (wb === 'variable') ? (parseInt(item.magicBonus) || 0) : (parseInt(wb) || 0);
+  });
+  return total;
 }
 
 function hasSpellAtkAdvantage() {
@@ -16500,24 +16711,17 @@ function getAutoACMethod() {
   if (!currentChar) return 'base';
   const armorKey = currentChar.ac_armor_key || '';
 
-  // If armor is equipped, derive method from armor type
+  // If armor is equipped, derive method from armor type.
+  // Note: syncMagicArmorToInventory() keeps ac_armor_key pointed at a real
+  // PHB_ARMOUR key even for magic armor (it sets the key directly when an
+  // Armor-type magic item is equipped), so no separate magic-item branch
+  // is needed here.
   if (armorKey) {
     const armour = PHB_ARMOUR.find(a => a.key === armorKey);
     if (armour) {
       if (armour.type === 'light')  return 'light';
       if (armour.type === 'medium') return 'medium';
       if (armour.type === 'heavy')  return 'heavy';
-    }
-    // Magic armor equipped (from magicItems)
-    const magicArmor = (currentChar.magicItems || []).find(i => i.isArmour && i.equipped);
-    if (magicArmor) {
-      const baseMatch = magicArmor.type?.match(/light|medium|heavy/i);
-      if (baseMatch) {
-        const t = baseMatch[0].toLowerCase();
-        if (t === 'light')  return 'light';
-        if (t === 'medium') return 'medium';
-        if (t === 'heavy')  return 'heavy';
-      }
     }
   }
 
@@ -16713,7 +16917,9 @@ function calcAC() {
   if (!currentChar) return 10;
   const abs    = getAbilities();
   const method = currentChar.ac_method || 'base';
-  const bonus  = (parseInt(currentChar.ac_bonus) || 0) + getMagicItemACBonus() + getMutableFormACBonus();
+  const isWearingArmorEarly = ['light','medium','heavy','natural'].includes(method);
+  const bonus  = (parseInt(currentChar.ac_bonus) || 0) + getMagicItemACBonus() + getMutableFormACBonus()
+               + (isWearingArmorEarly ? getMagicArmorBonus() : 0) + getMagicShieldBonus();
   const shield = document.getElementById('ci-shield')?.checked ? 2 : 0;
   const dex = abilityMod(abs.dex);
 
@@ -16728,7 +16934,7 @@ function calcAC() {
 
   // ── Armor base ──────────────────────────────────────────
   const armorAC = getEquippedArmour()?.ac || currentChar.ac_armor_base || 10;
-  const isWearingArmor = ['light','medium','heavy','natural'].includes(method);
+  const isWearingArmor = isWearingArmorEarly;
 
   // ── Compute all applicable base AC options, take the highest ──
   const candidates = [];
@@ -16786,15 +16992,17 @@ function calcACBreakdown() {
   if (!currentChar) return { total:10, formula:'10' };
   const abs    = getAbilities();
   const method = currentChar.ac_method || 'base';
+  const isWearingArmor = ['light','medium','heavy','natural'].includes(method);
   const bonus      = (parseInt(currentChar.ac_bonus) || 0) + getMutableFormACBonus();
   const magicACBon = getMagicItemACBonus();
+  const magicArmorBon  = isWearingArmor ? getMagicArmorBonus() : 0;
+  const magicShieldBon = getMagicShieldBonus();
   const shield = document.getElementById('ci-shield')?.checked ? 2 : 0;
   const dex = abilityMod(abs.dex), con = abilityMod(abs.con);
   const wis = abilityMod(abs.wis), cha = abilityMod(abs.cha);
   const intM = abilityMod(abs.int);
   const armorBase  = getEquippedArmour()?.ac || currentChar.ac_armor_base || 10;
   const armourName = getEquippedArmour()?.name || 'Armor';
-  const isWearingArmor = ['light','medium','heavy','natural'].includes(method);
 
   // Racial
   const raceData      = getRaceData(currentChar.race || '');
@@ -16814,11 +17022,13 @@ function calcACBreakdown() {
 
   if (method === 'override') {
     const base = currentChar.ac_override || 10;
-    const total = base + shield + bonus + magicACBon + racialACBonus;
+    const total = base + shield + bonus + magicACBon + magicArmorBon + magicShieldBon + racialACBonus;
     const parts = [`Override ${base}`];
     if (shield) parts.push('Shield +2');
     if (bonus) parts.push(`Bonus ${s(bonus)}`);
     if (magicACBon) parts.push(`Magic ${s(magicACBon)}`);
+    if (magicArmorBon) parts.push(`Magic Armor ${s(magicArmorBon)}`);
+    if (magicShieldBon) parts.push(`Magic Shield ${s(magicShieldBon)}`);
     if (racialACBonus) parts.push(`Racial ${s(racialACBonus)}`);
     return { total, formula: parts.join(' + ') + ` = ${total}` };
   }
@@ -16868,12 +17078,14 @@ function calcACBreakdown() {
     || currentChar.class_choices?.fighting_style_ranger || '';
   const defenseBonus = (fightingStyle === 'Defense' && isWearingArmor) ? 1 : 0;
 
-  const total = base + shield + bonus + magicACBon + defenseBonus + racialACBonus;
+  const total = base + shield + bonus + magicACBon + magicArmorBon + magicShieldBon + defenseBonus + racialACBonus;
   const parts = [best.label];
   if (shield)       parts.push('Shield +2');
   if (defenseBonus) parts.push('Defense +1');
   if (bonus)        parts.push(`Bonus ${s(bonus)}`);
   if (magicACBon)   parts.push(`Magic ${s(magicACBon)}`);
+  if (magicArmorBon)  parts.push(`Magic Armor ${s(magicArmorBon)}`);
+  if (magicShieldBon) parts.push(`Magic Shield ${s(magicShieldBon)}`);
   if (racialACBonus) parts.push(`Racial ${s(racialACBonus)}`);
   return { total, formula: parts.join(' + ') + ` = ${total}` };
 }
@@ -17464,6 +17676,9 @@ function refreshAutoHPMax() {
 
 function recalcAll() {
   if (!currentChar) return;
+  syncMagicWeaponsToInventory(); // keep equipped magic weapons in sync with the Attacks panel
+  syncMagicArmorToInventory();   // keep ac_armor_key in sync with equipped magic armor
+  syncMagicAmmoToInventory();    // keep ammoBonus in sync with assigned magic ammunition
   applyFeatSlotEffects();   // ensure feat bonuses (speed, HP, etc.) are up to date
   autoSetACMethod();
   renderSavesBlock();
@@ -17474,6 +17689,7 @@ function recalcAll() {
   calcSpeed();
   updateHDDisplay();
   renderSpellStats();
+  if (typeof renderKnownSpells === 'function') renderKnownSpells(); // refresh item-granted spells etc.
   renderAttacksPanel();
   // Auto-update HP max if using a calculated method
   refreshAutoHPMax();
@@ -17624,12 +17840,13 @@ function removeEquipItem(i) {
 
 // ── Magic Items ─────────────────────────────────────────
 const RARITY_COLOURS = {
-  common:    '#b0d4c0',
-  uncommon:  '#4dcc85',
-  rare:      '#3a7fc1',
-  'very rare':'#7a5a9a',
-  legendary: '#c9a84c',
-  artifact:  '#c04040'
+  common:            '#b0d4c0',
+  uncommon:          '#4dcc85',
+  rare:              '#3a7fc1',
+  'very rare':       '#7a5a9a',
+  legendary:         '#c9a84c',
+  artifact:          '#c04040',
+  'primeval vestige':'#20b8c4',   // Dorenia scaling items — teal
 };
 
 // Old magic item functions replaced by new DMG item system above
@@ -17748,8 +17965,7 @@ const SLOTS_FULL = [
   [4,3,3,3,2,1,1,1,1],             // Lv 17
   [4,3,3,3,3,1,1,1,1],             // Lv 18
   [4,3,3,3,3,2,1,1,1],             // Lv 19
-  [4,3,3,3,3,2,2,1,1],             // Lv 20,
-{"key": "ebonbane", "name": "Ebonbane", "source": "RtHW", "type": "weapon (longsword)", "rarity": "artifact", "attunement": true, "isWeapon": true, "isArmour": false, "isAmmo": false, "desc": "+3 longsword. Deals extra 3d6 Necrotic damage to Celestials and Humanoids. While holding it, Advantage on saves vs. spells and magical effects. Insatiable Rage: If it hasn't slain a Celestial or Humanoid in 3 days, DC 17 CHA save at dawn (8d8 Force on success, or Dominated to kill one on failure). Bound to the Shadowlands \u2014 Attunement ends immediately outside. Sentient: Chaotic Evil (INT 17, WIS 14, CHA 19).", "effects": {"acBonus": 0, "attackBonus": 3, "damageBonus": 3}}
+  [4,3,3,3,3,2,2,1,1],             // Lv 20
 ];
 
 // Half casters (Paladin, Ranger) — start at Lv 2
@@ -19057,6 +19273,40 @@ function getFeatGrantedSpells() {
   return result;
 }
 
+// Returns spells granted by owned magic items (catalog or custom), e.g. a
+// Wand of Fireballs ("3/day, no slot") or a Rod that grants Detect Magic at
+// will. Respects attunement — an unattuned item that requires attunement
+// grants nothing. Each entry normalizes to the same shape renderKnownSpells()
+// expects, with grantType 'atWill' or 'itemLimited' (the latter tracked via
+// a linked Resources-panel entry, same pip/recovery system as item charges).
+function getMagicItemGrantedSpells() {
+  if (!currentChar) return [];
+  ensureMagicItems();
+  const result = [];
+  currentChar.magicItems.forEach(item => {
+    if (!item.grantedSpells?.length) return;
+    if (item.attunement && !item.attuned) return;
+    item.grantedSpells.forEach(gs => {
+      const phb = PHB_SPELL_LIST.find(s => s.key === gs.spellKey)
+               || PHB_SPELL_LIST.find(s => s.name.toLowerCase() === (gs.spellName||'').toLowerCase());
+      const key   = phb?.key  || gs.spellKey || (gs.spellName||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+      const name  = phb?.name || gs.spellName || 'Unknown Spell';
+      const level = phb?.level ?? 1;
+      result.push({
+        key, name, level,
+        source: 'item', itemName: item.customName || item.name,
+        grantType: gs.grantType === 'limited' ? 'itemLimited' : 'atWill',
+        usesMax: gs.usesMax, recovery: gs.recovery, _resourceId: gs._resourceId,
+        fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
+        ritual: gs.ritual || phb?.ritual || false,
+        available: true,
+      });
+    });
+  });
+  return result;
+}
+window.getMagicItemGrantedSpells = getMagicItemGrantedSpells;
+
 // ── Cantrip / Prepared enforcement ───────────────────────
 
 function countKnownCantrips() {
@@ -19328,6 +19578,11 @@ function renderKnownSpells() {
     rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Feat' });
   });
 
+  // 2a2. Magic item-granted spells (at will or limited-use, locked)
+  getMagicItemGrantedSpells().forEach(sp => {
+    rows.push({ ...sp, pipType:'item-spell', locked:true, label:sp.itemName });
+  });
+
   // 2b. Pact of Tome cantrips (amber pip, locked, at-will)
   getPactTomeCantrips().forEach(sp => {
     rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Book of Shadows' });
@@ -19459,6 +19714,7 @@ function renderKnownSpells() {
       'subclass':`Always prepared (${sp.subclass||'subclass'})`,
       'subclass-locked':`Locked until class level ${sp.minClassLevel||'?'} (${sp.subclass||'subclass'})`,
       'feat-spell':'Granted by feat',
+      'item-spell':'Granted by magic item',
       'ritual-only':'Ritual — can cast without preparing',
       '':'Not prepared — click to prepare',
     }[sp.pipType] || '';
@@ -19471,6 +19727,16 @@ function renderKnownSpells() {
     if (ritual)               tags.push('<span class="sp-tag ritual">R</span>');
     if (sp.grantType==='atWill') tags.push('<span class="sp-tag" style="color:var(--purple);border-color:var(--purple)">at will</span>');
     if (sp.grantType==='onceLR') tags.push('<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">1/LR</span>');
+    if (sp.grantType==='itemLimited') {
+      const res = (currentChar.customResources || []).find(r => r.id === sp._resourceId);
+      const used = parseInt(currentChar.resources?.[sp._resourceId]) || 0;
+      const max = res?.max || sp.usesMax || 1;
+      const avail = Math.max(0, max - used);
+      const recLabel = sp.recovery === 'short' ? 'SR' : sp.recovery === 'long' ? 'LR' : sp.recovery === 'dusk' ? 'DUSK' : sp.recovery === 'dawn' ? 'DAWN' : '';
+      tags.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">${avail}/${max}${recLabel?' · '+recLabel:''}</span>`);
+    }
+    if (sp.fixedDC)  tags.push(`<span class="sp-tag" style="color:var(--accent);border-color:var(--accent)">DC ${sp.fixedDC}</span>`);
+    if (sp.fixedAtk) tags.push(`<span class="sp-tag" style="color:var(--accent);border-color:var(--accent)">+${sp.fixedAtk} to hit</span>`);
 
     const nameTitle = sp.label
       ? `${phb?.desc||''} [${sp.label}]`
@@ -19826,6 +20092,7 @@ function ensureWeaponData() {
   if (!currentChar.weapons) currentChar.weapons = [];
   if (!currentChar.ammo)    currentChar.ammo = {};
   if (!currentChar.ammoCustom) currentChar.ammoCustom = {}; // player-defined ammo types: { key: { label, icon } }
+  if (!currentChar.ammoBonus) currentChar.ammoBonus = {}; // magic ammo attack/damage bonus per ammo type, e.g. { arrows: 1 }
 }
 
 // ── Proficiency check ─────────────────────────────────────
@@ -19970,6 +20237,10 @@ function calcWeaponAttack(entry) {
   let atkBonus = abilMod + profBonus;
   if (isRanged && hasFightingStyle('archery')) atkBonus += 2;
   atkBonus += (entry.attackBonus || 0); // magic item bonus
+  // Magic ammunition bonus — stacks with a weapon's own bonus (5e RAW,
+  // unlike 3.5e/Pathfinder where only the higher of the two applies)
+  const ammoBonus = (phbWeapon?.ammo && currentChar.ammoBonus?.[phbWeapon.ammo]) || 0;
+  atkBonus += ammoBonus;
 
   // ── Damage ───────────────────────────────────────────────
   let dmgDie, dmgCount, dmgType;
@@ -20022,6 +20293,7 @@ function calcWeaponAttack(entry) {
 
   dmgBonus += (entry.damageBonus || 0); // magic item bonus
   dmgBonus += (entry.attackBonus || 0); // magic +1/+2/+3 also adds to damage
+  dmgBonus += ammoBonus; // magic ammunition bonus also adds to damage
 
   // Frenzy (Path of the Berserker): bonus dice on the first hit each turn while Raging + using Reckless Attack
   let frenzyDieStr = null;
@@ -20058,7 +20330,7 @@ function calcWeaponAttack(entry) {
 
   return {
     atkBonus, dmgStr, dmgCount, dmgDie, dmgType, abilityKey,
-    abilMod, profBonus, isProficient,
+    abilMod, profBonus, isProficient, ammoBonus,
     isRanged, isFinesse, isLight, isHeavy, isThrown, isVersatile, isTwoHanded,
     notes, phbWeapon,
   };
@@ -21730,9 +22002,12 @@ function renderAttacksPanel() {
     mainRow.className = 'attack-row';
     mainRow.style.cssText = `background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto auto;gap:0 8px;align-items:start;padding:5px 8px;${!calc.isProficient?'opacity:.7':''}`;
 
+    const linkedSource = entry._fromMagicItem
+      ? (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem)
+      : null;
     const nameDiv = `<div>
       <div class="attack-name">${entry.name || phb?.name || '?'}</div>
-      <div class="attack-sub">${calc.isRanged ? 'Ranged' : 'Melee'} · ${calc.abilityKey.toUpperCase()}${entry.attackBonus ? ' · +'+entry.attackBonus+' magic' : ''}${calc.notes.length ? ' · '+calc.notes.slice(0,2).join(', ') : ''}</div>
+      <div class="attack-sub">${calc.isRanged ? 'Ranged' : 'Melee'} · ${calc.abilityKey.toUpperCase()}${entry.attackBonus ? ' · +'+entry.attackBonus+(linkedSource ? ' ('+(linkedSource.customName||linkedSource.name)+')' : ' magic') : ''}${calc.ammoBonus ? ' · +'+calc.ammoBonus+' magic ammo' : ''}${calc.notes.length ? ' · '+calc.notes.slice(0,2).join(', ') : ''}</div>
     </div>`;
     const descText = phb?.desc ? phb.desc.slice(0,140) + (phb.desc.length > 140 ? '…' : '')
       : (hasMastery && phb?.mastery_desc) ? `<span style="color:var(--gold);font-weight:700">${phb.mastery}</span> — ${phb.mastery_desc.slice(0,120)}`
@@ -22137,12 +22412,13 @@ function renderAmmoOverview(container) {
   Object.entries(allAmmoTypes).forEach(([key, info]) => {
     const count = currentChar.ammo[key] || 0;
     const isCustom = !!currentChar.ammoCustom?.[key];
-    if (count === 0 && !usedTypes.has(key) && !isCustom) return;
+    const bonus = currentChar.ammoBonus?.[key] || 0;
+    if (count === 0 && !usedTypes.has(key) && !isCustom && !bonus) return;
     anyRowShown = true;
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:3px';
     row.innerHTML = `
-      <span style="font-family:var(--font-body);font-size:12px;color:var(--text2);min-width:110px">${info.label}</span>
+      <span style="font-family:var(--font-body);font-size:12px;color:var(--text2);min-width:110px">${info.label}${bonus?` <span style="color:var(--gold);font-family:var(--font-ui);font-size:10px">+${bonus}</span>`:''}</span>
       <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustAmmo('${key}',-1)">−</button>
       <span style="font-family:var(--font-ui);font-size:12px;font-weight:700;color:${count<=5?'var(--red)':'var(--text)'};min-width:28px;text-align:center">${count}</span>
       <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustAmmo('${key}',1)">+</button>
@@ -22593,6 +22869,196 @@ function ensureMagicItems() {
   if (!currentChar.magicItems) currentChar.magicItems = [];
 }
 
+// ── Magic item ↔ Weapon/Armor linking helpers ─────────────
+
+// Resolve the live numeric bonus for an owned magic item instance,
+// respecting attunement gating and the "variable" (player-chosen +1/+2/+3) case.
+function getMagicItemBonusValue(item) {
+  if (!item?.effects) return 0;
+  if (item.attunement && !item.attuned) return 0;
+  const wb = item.effects.weaponBonus;
+  if (wb === 'variable') return parseInt(item.magicBonus) || 0;
+  return parseInt(wb) || 0;
+}
+
+// Parse an item's `type` string (e.g. "weapon (dagger)", "weapon (any)",
+// "weapon (glaive, greatsword, longsword, rapier, scimitar, or shortsword)")
+// into a list of compatible PHB_WEAPONS keys the player can choose between.
+function getCompatibleWeaponKeys(typeStr) {
+  if (!typeStr) return PHB_WEAPONS.filter(w => !w.unarmed).map(w => w.key);
+  const m = typeStr.match(/weapon\s*\(([^)]*)\)/i);
+  // If the string doesn't follow the catalog "weapon (...)" convention — likely
+  // a custom item's free-text type — default to "any weapon" rather than empty.
+  if (!m) return PHB_WEAPONS.filter(w => !w.unarmed).map(w => w.key);
+  const inner = m[1].toLowerCase().trim();
+  if (inner.includes('any ammunition')) return []; // handled by the ammo system instead
+  if (inner === 'any' || inner.includes('simple or martial')) {
+    return PHB_WEAPONS.filter(w => !w.unarmed).map(w => w.key);
+  }
+  if (inner.includes('any melee')) {
+    return PHB_WEAPONS.filter(w => w.list === 'melee' && !w.unarmed).map(w => w.key);
+  }
+  if (inner.includes('any ranged')) {
+    return PHB_WEAPONS.filter(w => w.list === 'ranged').map(w => w.key);
+  }
+  // Comma/"or"/"and"-separated list of specific weapon names
+  const names = inner.replace(/\bor\b|\band\b/g, ',').split(',').map(s => s.trim()).filter(Boolean);
+  const keys = [];
+  names.forEach(n => {
+    const found = PHB_WEAPONS.find(w => w.name.toLowerCase() === n);
+    if (found && !keys.includes(found.key)) keys.push(found.key);
+  });
+  return keys;
+}
+
+// Sync equipped weapon-type magic items into currentChar.weapons[] so they
+// show up in the Attacks panel and feed calcWeaponAttack() automatically.
+// Auto-created entries are tagged with _fromMagicItem (the owning item's _uid)
+// so they can be found again, updated, or cleaned up without disturbing
+// weapons the player created manually.
+function syncMagicWeaponsToInventory() {
+  if (!currentChar) return;
+  ensureWeaponData();
+  ensureMagicItems();
+
+  const activeUids = new Set();
+
+  currentChar.magicItems.forEach(item => {
+    if (!item.isWeapon || item.isAmmo) return; // ammo bonuses are handled separately
+    if (!item.equipped || !item.weaponKey) return;
+    if (item.attunement && !item.attuned) return;
+    if (!item._uid) item._uid = 'mi_' + Math.random().toString(36).slice(2, 10);
+    activeUids.add(item._uid);
+
+    const bonus = getMagicItemBonusValue(item);
+    let entry = currentChar.weapons.find(w => w._fromMagicItem === item._uid);
+    if (!entry) {
+      entry = {
+        weaponKey: item.weaponKey,
+        name: item.customName || item.name,
+        attackBonus: bonus, damageBonus: bonus,
+        customDamage: null, equipped: true, proficient: true,
+        versatileMode: false, _fromMagicItem: item._uid,
+      };
+      currentChar.weapons.push(entry);
+    } else {
+      entry.weaponKey    = item.weaponKey;
+      entry.name         = item.customName || item.name;
+      entry.attackBonus  = bonus;
+      entry.damageBonus  = bonus;
+      entry.equipped     = true;
+    }
+  });
+
+  // Remove auto-synced entries whose source item was unequipped/removed/unattuned
+  currentChar.weapons = currentChar.weapons.filter(w => !w._fromMagicItem || activeUids.has(w._fromMagicItem));
+}
+
+// Parse an Armor-type item's `type` string (e.g. "armor (plate)",
+// "armor (light, medium, or heavy)", "armor (chain mail or chain shirt)")
+// into a list of compatible PHB_ARMOUR keys (excludes the synthetic
+// 'mage_armor' pseudo-entry, which isn't a real wearable armor).
+function getCompatibleArmourKeys(typeStr) {
+  const real = PHB_ARMOUR.filter(a => a.key !== 'mage_armor');
+  if (!typeStr) return real.map(a => a.key);
+  const m = typeStr.match(/armor\s*\(([^)]*)\)/i);
+  // If the string doesn't follow the catalog "armor (...)" convention — likely
+  // a custom item's free-text type — default to "any armor" rather than empty.
+  if (!m) return real.map(a => a.key);
+  const inner = m[1].toLowerCase().trim();
+  if (inner === 'any') return real.map(a => a.key);
+  const wantsLight  = inner.includes('light');
+  const wantsMedium = inner.includes('medium');
+  const wantsHeavy  = inner.includes('heavy');
+  const exceptMatch = inner.match(/except\s+([a-z\s]+)/);
+  const exceptName  = exceptMatch ? exceptMatch[1].trim() : null;
+  if (wantsLight || wantsMedium || wantsHeavy) {
+    return real
+      .filter(a => (wantsLight && a.type === 'light') || (wantsMedium && a.type === 'medium') || (wantsHeavy && a.type === 'heavy'))
+      .filter(a => !exceptName || a.name.toLowerCase() !== exceptName)
+      .map(a => a.key);
+  }
+  // Comma/"or"-separated list of specific armor names
+  const names = inner.replace(/\bor\b|\band\b/g, ',').split(',').map(s => s.trim()).filter(Boolean);
+  const keys = [];
+  names.forEach(n => {
+    const found = real.find(a => a.name.toLowerCase() === n || a.name.toLowerCase().replace(' armor','') === n);
+    if (found && !keys.includes(found.key)) keys.push(found.key);
+  });
+  return keys;
+}
+
+// Resolve the live AC bonus from the equipped magic Armor item (if any).
+function getMagicArmorBonus() {
+  if (!currentChar) return 0;
+  ensureMagicItems();
+  const item = currentChar.magicItems.find(i => i.isArmour && i.type !== 'shield' && i.equipped && i.armourKey);
+  if (!item) return 0;
+  return getMagicItemBonusValue(item);
+}
+
+// Resolve the live AC bonus from the equipped magic Shield item (if any).
+// Only applies while the character is actually using a shield (ci-shield checked).
+function getMagicShieldBonus() {
+  if (!currentChar) return 0;
+  ensureMagicItems();
+  const usingShield = document.getElementById('ci-shield')?.checked ?? !!currentChar.shield;
+  if (!usingShield) return 0;
+  const item = currentChar.magicItems.find(i => i.isArmour && i.type === 'shield' && i.equipped);
+  if (!item) return 0;
+  return getMagicItemBonusValue(item);
+}
+
+// Keep ac_armor_key pointed at whichever Armor-type magic item is marked
+// equipped (so the base AC table picks up its real AC value + the existing
+// AC pipeline picks up its bonus via getMagicArmorBonus). Reverts cleanly
+// to no-armor if the item is unequipped, without disturbing a manually
+// chosen mundane armor selection that was never magic-item-driven.
+function syncMagicArmorToInventory() {
+  if (!currentChar) return;
+  ensureMagicItems();
+  const item = currentChar.magicItems.find(i => i.isArmour && i.type !== 'shield' && i.equipped && i.armourKey);
+  if (item) {
+    if (!item._uid) item._uid = 'mi_' + Math.random().toString(36).slice(2, 10);
+    currentChar.ac_armor_key = item.armourKey;
+    currentChar._acArmorFromMagicItem = item._uid;
+  } else if (currentChar._acArmorFromMagicItem) {
+    currentChar.ac_armor_key = '';
+    currentChar._acArmorFromMagicItem = null;
+  }
+
+  const shieldItem = currentChar.magicItems.find(i => i.isArmour && i.type === 'shield' && i.equipped);
+  if (shieldItem) {
+    if (!shieldItem._uid) shieldItem._uid = 'mi_' + Math.random().toString(36).slice(2, 10);
+    currentChar._acShieldFromMagicItem = shieldItem._uid;
+  } else if (currentChar._acShieldFromMagicItem) {
+    currentChar.shield = false;
+    const shieldEl = document.getElementById('ci-shield');
+    if (shieldEl) shieldEl.checked = false;
+    currentChar._acShieldFromMagicItem = null;
+  }
+}
+
+// Build currentChar.ammoBonus = { arrows: 1, bolts: 2, ... } from owned magic
+// ammunition assigned to a physical ammo type. If more than one item is
+// assigned to the same ammo type, the higher bonus wins (you'd just fire
+// the better stack) — bonuses from different ammo types don't combine,
+// since they're for different physical arrows/bolts/etc.
+function syncMagicAmmoToInventory() {
+  if (!currentChar) return;
+  ensureWeaponData();
+  ensureMagicItems();
+  const bonuses = {};
+  currentChar.magicItems.forEach(item => {
+    if (!item.isAmmo || !item.ammoType) return;
+    if (item.attunement && !item.attuned) return;
+    const v = getMagicItemBonusValue(item);
+    if (!v) return;
+    bonuses[item.ammoType] = Math.max(bonuses[item.ammoType] || 0, v);
+  });
+  currentChar.ammoBonus = bonuses;
+}
+
 function getAttunedItems() {
   ensureMagicItems();
   return currentChar.magicItems.filter(i => i.attunement && i.attuned);
@@ -22696,11 +23162,12 @@ function renderMagicItemsPanel() {
 
   if (!items.length) {
     body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:10px 0;text-align:center;letter-spacing:.5px">No magic items. Use Browse to add items.</div>';
+    renderAddCustomItemButton(body);
     return;
   }
 
   // Group by rarity
-  const RARITY_ORDER = ['common','uncommon','rare','very rare','legendary','artifact'];
+  const RARITY_ORDER = ['common','uncommon','rare','very rare','legendary','artifact','primeval vestige'];
   const grouped = {};
   items.forEach((item, idx) => {
     const r = item.rarity || 'common';
@@ -22730,11 +23197,122 @@ function renderMagicItemsPanel() {
       if (fx) {
         if (fx.acBonus)    effectBadges.push(`<span class="sp-tag" style="color:var(--accent);border-color:var(--accent)">+${fx.acBonus} AC</span>`);
         if (fx.saveBonus)  effectBadges.push(`<span class="sp-tag" style="color:var(--accent2);border-color:var(--accent2)">+${fx.saveBonus} Saves</span>`);
+        if (fx.spellAtkBonus) {
+          const v = fx.spellAtkBonus === 'variable' ? (item.magicBonus || 0) : fx.spellAtkBonus;
+          effectBadges.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">+${v} Spell Atk</span>`);
+        }
+        if (fx.spellDCBonus) {
+          const v = fx.spellDCBonus === 'variable' ? (item.magicBonus || 0) : fx.spellDCBonus;
+          effectBadges.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">+${v} Spell DC</span>`);
+        }
         if (fx.scoresOverride) {
           const ABNAMES = ['STR','DEX','CON','INT','WIS','CHA'];
           fx.scoresOverride.forEach((v,i) => { if(v>0) effectBadges.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">${ABNAMES[i]} ${v}</span>`); });
         }
-        if (fx.weaponBonus) effectBadges.push(`<span class="sp-tag" style="color:var(--red);border-color:var(--red)">+${fx.weaponBonus} Weapon</span>`);
+        if (fx.weaponBonus && item.isWeapon && !item.isAmmo) {
+          const live = item.equipped && item.weaponKey;
+          const bonusLabel = fx.weaponBonus === 'variable' ? (item.magicBonus || 0) : fx.weaponBonus;
+          effectBadges.push(live
+            ? `<span class="sp-tag" style="color:var(--red);border-color:var(--red)">+${bonusLabel} Weapon · linked</span>`
+            : `<span class="sp-tag" style="color:var(--text3);border-color:var(--border2)">+${bonusLabel} Weapon · not equipped</span>`);
+        } else if (fx.weaponBonus && item.isArmour) {
+          const isShield = item.type === 'shield';
+          const live = item.equipped && (isShield || item.armourKey);
+          const bonusLabel = fx.weaponBonus === 'variable' ? (item.magicBonus || 0) : fx.weaponBonus;
+          const label = isShield ? 'Shield' : 'Armor';
+          effectBadges.push(live
+            ? `<span class="sp-tag" style="color:var(--accent);border-color:var(--accent)">+${bonusLabel} ${label} · linked</span>`
+            : `<span class="sp-tag" style="color:var(--text3);border-color:var(--border2)">+${bonusLabel} ${label} · not equipped</span>`);
+        } else if (fx.weaponBonus && item.isAmmo) {
+          const bonusLabel = fx.weaponBonus === 'variable' ? (item.magicBonus || 0) : fx.weaponBonus;
+          const allAmmoTypes = { ...AMMO_TYPES, ...(currentChar.ammoCustom || {}) };
+          const typeLabel = item.ammoType ? (allAmmoTypes[item.ammoType]?.label || item.ammoType) : null;
+          effectBadges.push(typeLabel
+            ? `<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">+${bonusLabel} Ammo (${typeLabel}) · linked</span>`
+            : `<span class="sp-tag" style="color:var(--text3);border-color:var(--border2)">+${bonusLabel} Ammo · no type chosen</span>`);
+        } else if (fx.weaponBonus) {
+          effectBadges.push(`<span class="sp-tag" style="color:var(--red);border-color:var(--red)">+${fx.weaponBonus==='variable'?(item.magicBonus||0):fx.weaponBonus} Weapon</span>`);
+        }
+      }
+      if (item.grantedSpells?.length && (!item.attunement || isAttuned)) {
+        const names = item.grantedSpells.map(gs => gs.spellName).filter(Boolean);
+        if (names.length) {
+          effectBadges.push(`<span class="sp-tag" style="color:var(--purple);border-color:var(--purple)">✦ Casts: ${names.join(', ')}</span>`);
+        }
+      }
+
+      // Weapon equip/form controls — lets the item drive an Attacks panel entry directly
+      let weaponLinkRow = '';
+      if (item.isWeapon && !item.isAmmo) {
+        const compatKeys = getCompatibleWeaponKeys(item.type);
+        const formOptions = compatKeys.map(k => {
+          const w = PHB_WEAPONS.find(p => p.key === k);
+          return `<option value="${k}" ${item.weaponKey===k?'selected':''}>${w?.name||k}</option>`;
+        }).join('');
+        weaponLinkRow = `
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:var(--font-ui);font-size:9px;color:var(--text2);letter-spacing:.5px">
+              <input type="checkbox" ${item.equipped?'checked':''} onchange="toggleMagicWeaponEquipped(${idx},this.checked)" style="accent-color:var(--accent)"/> EQUIP
+            </label>
+            ${compatKeys.length > 1
+              ? `<select onchange="setMagicWeaponForm(${idx},this.value)" style="font-family:var(--font-ui);font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;color:var(--text);padding:1px 3px">
+                   <option value="">— choose form —</option>${formOptions}
+                 </select>`
+              : (item.weaponKey ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${PHB_WEAPONS.find(w=>w.key===item.weaponKey)?.name||''}</span>` : '')}
+          </div>
+        `;
+      }
+
+      // Armor equip/form controls — drives ac_armor_key + the magic AC bonus
+      let armourLinkRow = '';
+      if (item.isArmour && item.type !== 'shield') {
+        const compatAKeys = getCompatibleArmourKeys(item.type);
+        const formOptions = compatAKeys.map(k => {
+          const a = PHB_ARMOUR.find(p => p.key === k);
+          return `<option value="${k}" ${item.armourKey===k?'selected':''}>${a?.name||k}</option>`;
+        }).join('');
+        armourLinkRow = `
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:var(--font-ui);font-size:9px;color:var(--text2);letter-spacing:.5px">
+              <input type="checkbox" ${item.equipped?'checked':''} onchange="toggleMagicArmorEquipped(${idx},this.checked)" style="accent-color:var(--accent)"/> EQUIP
+            </label>
+            ${compatAKeys.length > 1
+              ? `<select onchange="setMagicArmorForm(${idx},this.value)" style="font-family:var(--font-ui);font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;color:var(--text);padding:1px 3px">
+                   <option value="">— choose base armor —</option>${formOptions}
+                 </select>`
+              : (item.armourKey ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${PHB_ARMOUR.find(a=>a.key===item.armourKey)?.name||''}</span>` : '')}
+          </div>
+        `;
+      }
+
+      // Shield equip control — drives the shield checkbox + magic AC bonus
+      let shieldLinkRow = '';
+      if (item.isArmour && item.type === 'shield') {
+        shieldLinkRow = `
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-family:var(--font-ui);font-size:9px;color:var(--text2);letter-spacing:.5px">
+              <input type="checkbox" ${item.equipped?'checked':''} onchange="toggleMagicShieldEquipped(${idx},this.checked)" style="accent-color:var(--accent)"/> EQUIP
+            </label>
+          </div>
+        `;
+      }
+
+      // Ammo type selector — assigns this magic ammunition to a physical
+      // ammo type so its bonus shows up on attacks using that ammo
+      let ammoLinkRow = '';
+      if (item.isAmmo) {
+        const allAmmoTypes = { ...AMMO_TYPES, ...(currentChar.ammoCustom || {}) };
+        const ammoOptions = Object.entries(allAmmoTypes).map(([k, info]) =>
+          `<option value="${k}" ${item.ammoType===k?'selected':''}>${info.label}</option>`
+        ).join('');
+        ammoLinkRow = `
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+            <label style="font-family:var(--font-ui);font-size:9px;color:var(--text2);letter-spacing:.5px">AMMO TYPE</label>
+            <select onchange="setMagicAmmoType(${idx},this.value)" style="font-family:var(--font-ui);font-size:10px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;color:var(--text);padding:1px 3px">
+              <option value="">— choose —</option>${ammoOptions}
+            </select>
+          </div>
+        `;
       }
 
       row.innerHTML = `
@@ -22747,14 +23325,28 @@ function renderMagicItemsPanel() {
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span style="font-family:var(--font-body);font-size:13px;color:var(--text);font-weight:500">${item.customName||item.name}</span>
+              ${item.isCustom ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);letter-spacing:.5px;border:1px solid var(--border2);padding:1px 4px;border-radius:3px">CUSTOM</span>` : ''}
+              ${item.rarity === 'primeval vestige' ? `<span style="font-family:var(--font-ui);font-size:8px;color:#20b8c4;letter-spacing:.5px;border:1px solid #20b8c4;padding:1px 4px;border-radius:3px">VESTIGE ✎</span>` : ''}
               ${item.attunement ? `<span style="font-family:var(--font-ui);font-size:8px;color:${isAttuned?'var(--gold)':'var(--text3)'};letter-spacing:.5px;border:1px solid ${isAttuned?'var(--gold)':'var(--border2)'};padding:1px 4px;border-radius:3px">${isAttuned?'ATTUNED':'ATTUNE'}</span>` : ''}
+              ${item._resourceId ? (() => {
+                const res = (currentChar.customResources || []).find(r => r.id === item._resourceId);
+                if (!res) return '';
+                const used = parseInt(currentChar.resources?.[res.id]) || 0;
+                const avail = Math.max(0, (res.max||0) - used);
+                const recLabel = res.recovery === 'short' ? 'SR' : res.recovery === 'long' ? 'LR' : res.recovery === 'dusk' ? 'DUSK' : res.recovery === 'dawn' ? 'DAWN' : '';
+                return `<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">${avail}/${res.max} charges${recLabel ? ' · '+recLabel : ''}</span>`;
+              })() : ''}
               ${effectBadges.join('')}
             </div>
             <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:1px">${item.type||''}</div>
             ${item.notes ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);margin-top:2px">${item.notes}</div>` : ''}
+            ${weaponLinkRow}
+            ${armourLinkRow}
+            ${shieldLinkRow}
+            ${ammoLinkRow}
           </div>
           <div style="display:flex;gap:3px;flex-shrink:0">
-            <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openMagicItemEdit(${idx})" title="Edit">✎</button>
+            <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="${(item.isCustom || item.rarity === 'primeval vestige') ? `openCustomItemModal(${idx})` : `openMagicItemEdit(${idx})`}" title="Edit">✎</button>
             <button class="sp-del-btn" style="opacity:1" onclick="removeMagicItem(${idx})" title="Remove">✕</button>
           </div>
         </div>
@@ -22762,6 +23354,15 @@ function renderMagicItemsPanel() {
       body.appendChild(row);
     });
   });
+
+  renderAddCustomItemButton(body);
+}
+
+function renderAddCustomItemButton(body) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:10px;text-align:center';
+  wrap.innerHTML = `<button class="tbtn" style="font-size:10px;padding:6px 14px" onclick="openCustomItemModal()">+ Add Custom Item</button>`;
+  body.appendChild(wrap);
 }
 
 // ── Attunement toggle ─────────────────────────────────────
@@ -22780,8 +23381,100 @@ function toggleAttunement(idx) {
   toast(item.attuned ? `Attuned to ${item.name}` : `Unattuned from ${item.name}`, 'ok');
 }
 
+// ── Magic weapon equip / form selection ───────────────────
+
+function toggleMagicWeaponEquipped(idx, val) {
+  ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  if (!item) return;
+  item.equipped = !!val;
+  renderMagicItemsPanel();
+  recalcAll();
+}
+
+function setMagicWeaponForm(idx, key) {
+  ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  if (!item) return;
+  item.weaponKey = key || null;
+  renderMagicItemsPanel();
+  recalcAll();
+}
+
+// ── Magic armor equip / form selection ────────────────────
+
+function toggleMagicArmorEquipped(idx, val) {
+  ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  if (!item) return;
+  item.equipped = !!val;
+  // Only one suit of body armor can be worn at a time
+  if (item.equipped) {
+    currentChar.magicItems.forEach((other, i) => {
+      if (i !== idx && other.isArmour && other.type !== 'shield') other.equipped = false;
+    });
+  }
+  renderMagicItemsPanel();
+  recalcAll();
+}
+
+function setMagicArmorForm(idx, key) {
+  ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  if (!item) return;
+  item.armourKey = key || null;
+  renderMagicItemsPanel();
+  recalcAll();
+}
+
+// ── Magic shield equip ─────────────────────────────────────
+
+function toggleMagicShieldEquipped(idx, val) {
+  ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  if (!item) return;
+  item.equipped = !!val;
+  // Only one shield can be in use at a time
+  if (item.equipped) {
+    currentChar.magicItems.forEach((other, i) => {
+      if (i !== idx && other.isArmour && other.type === 'shield') other.equipped = false;
+    });
+    // Also switch on the "using a shield" checkbox so the +2 base applies
+    const shieldEl = document.getElementById('ci-shield');
+    if (shieldEl) shieldEl.checked = true;
+    currentChar.shield = true;
+  }
+  renderMagicItemsPanel();
+  recalcAll();
+}
+
+// ── Magic ammunition type selection ───────────────────────
+
+function setMagicAmmoType(idx, type) {
+  ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  if (!item) return;
+  item.ammoType = type || null;
+  renderMagicItemsPanel();
+  recalcAll();
+}
+
 function removeMagicItem(idx) {
   ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  // Clean up a linked custom-resource charge tracker, if any
+  if (item?._resourceId && currentChar.customResources) {
+    currentChar.customResources = currentChar.customResources.filter(r => r.id !== item._resourceId);
+    if (currentChar.resources) delete currentChar.resources[item._resourceId];
+  }
+  // Clean up resources linked to limited-use granted spells
+  (item?.grantedSpells || []).forEach(gs => {
+    if (gs._resourceId && currentChar.customResources) {
+      currentChar.customResources = currentChar.customResources.filter(r => r.id !== gs._resourceId);
+      if (currentChar.resources) delete currentChar.resources[gs._resourceId];
+    }
+  });
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
   currentChar.magicItems.splice(idx, 1);
   renderMagicItemsPanel();
   recalcAll();
@@ -22828,7 +23521,7 @@ function renderMagicItemBrowser() {
   list.innerHTML = '';
 
   // Group by rarity
-  const RARITY_ORDER = ['common','uncommon','rare','very rare','legendary'];
+  const RARITY_ORDER = ['common','uncommon','rare','very rare','legendary','primeval vestige'];
   const grouped = {};
   filtered.forEach(i => {
     const r = i.rarity||'common';
@@ -22882,9 +23575,17 @@ function addMagicItem(key) {
   ensureMagicItems();
   const def = DMG_MAGIC_ITEMS.find(i => i.key === key);
   if (!def) return;
-  if (currentChar.magicItems.some(i => i.key === key)) {
+  // Generic "variable bonus" items (Weapon/Armor/Shield/Ammunition/Rod of the
+  // Pact Keeper +1/+2/+3) represent "any item of this kind" and a character
+  // can plausibly own more than one (e.g. a +1 rapier AND a +2 dagger) — so
+  // they're exempt from the one-per-key restriction that correctly applies
+  // to unique named items (you can't own two Holy Avengers).
+  const isGeneric = def.effects?.weaponBonus === 'variable';
+  if (!isGeneric && currentChar.magicItems.some(i => i.key === key)) {
     toast('Already in your items', 'warn'); return;
   }
+  const compatKeys = (def.isWeapon && !def.isAmmo) ? getCompatibleWeaponKeys(def.type) : [];
+  const compatArmourKeys = (def.isArmour && def.type !== 'shield') ? getCompatibleArmourKeys(def.type) : [];
   currentChar.magicItems.push({
     key: def.key, name: def.name, rarity: def.rarity,
     type: def.type, desc: def.desc,
@@ -22893,6 +23594,11 @@ function addMagicItem(key) {
     effects: def.effects || null,
     customName: '', notes: '',
     magicBonus: 0,
+    weaponKey: compatKeys.length === 1 ? compatKeys[0] : null,
+    armourKey: compatArmourKeys.length === 1 ? compatArmourKeys[0] : null,
+    equipped: false,
+    ammoType: null,
+    _uid: 'mi_' + Math.random().toString(36).slice(2, 10),
   });
   renderMagicItemsPanel();
   renderMagicItemBrowser();
@@ -22916,9 +23622,13 @@ function openMagicItemEdit(idx) {
   const bonusSel = document.getElementById('mi-edit-bonus');
   if (bonusSel) bonusSel.value = String(item.magicBonus || 0);
 
-  // Show weapon bonus field only for weapon items
+  // Show the bonus-tier field for any "variable" item — weapon, or spell attack/DC
+  const fx = item.effects || {};
+  const hasVariableBonus = item.isWeapon || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable';
   const bonusRow = document.getElementById('mi-edit-bonus-row');
-  if (bonusRow) bonusRow.style.display = item.isWeapon ? '' : 'none';
+  if (bonusRow) bonusRow.style.display = hasVariableBonus ? '' : 'none';
+  const bonusLabel = document.querySelector('#mi-edit-bonus-row .field-label');
+  if (bonusLabel) bonusLabel.textContent = item.isWeapon ? 'Magic Bonus (weapon)' : 'Magic Bonus (spell)';
 
   const desc = document.getElementById('mi-edit-desc');
   if (desc) desc.textContent = item.desc || '';
@@ -22937,6 +23647,294 @@ function applyMagicItemEdit() {
   if (bonusSel) item.magicBonus = parseInt(bonusSel.value) || 0;
   closeModal('mi-edit-modal');
   renderMagicItemsPanel();
+  recalcAll();
+}
+
+// ── Custom magic item creator/editor ──────────────────────
+// Lets the player author their own items (homebrew, campaign-specific, etc.)
+// directly in the sheet, with the same effects/linking machinery catalog
+// items use, plus optional charge tracking via the Resources panel.
+
+let _ciEditIdx = null; // null = creating a new item; otherwise editing currentChar.magicItems[idx]
+
+function toggleCustomItemChargeFields(checked) {
+  const box = document.getElementById('ci-charge-fields');
+  if (box) box.style.display = checked ? 'flex' : 'none';
+}
+
+function openCustomItemModal(idx) {
+  ensureMagicItems();
+  _ciEditIdx = (idx === undefined || idx === null) ? null : idx;
+  const item = _ciEditIdx !== null ? currentChar.magicItems[_ciEditIdx] : null;
+
+  document.getElementById('ci-modal-title').textContent = item ? 'Edit Custom Item' : 'Add Custom Magic Item';
+  document.getElementById('ci-name').value        = item?.name || '';
+  document.getElementById('ci-rarity').value      = item?.rarity || 'uncommon';
+  document.getElementById('ci-attunement').value  = item?.attunement ? '1' : '0';
+  document.getElementById('ci-type').value        = item?.type || '';
+  document.getElementById('ci-is-weapon').checked  = !!item?.isWeapon;
+  document.getElementById('ci-is-armour').checked  = !!item?.isArmour;
+  document.getElementById('ci-is-ammo').checked    = !!item?.isAmmo;
+  document.getElementById('ci-short-desc').value  = item?.shortDesc || '';
+  document.getElementById('ci-full-desc').value   = item?.desc || '';
+  document.getElementById('ci-fx-ac').value        = item?.effects?.acBonus || 0;
+  document.getElementById('ci-fx-save').value      = item?.effects?.saveBonus || 0;
+  document.getElementById('ci-fx-spellatk').value  = item?.effects?.spellAtkBonus || 0;
+  document.getElementById('ci-fx-spelldc').value   = item?.effects?.spellDCBonus || 0;
+  document.getElementById('ci-fx-weapon').value    = (typeof item?.effects?.weaponBonus === 'number') ? item.effects.weaponBonus : 0;
+
+  const hasCharges = !!item?._resourceId;
+  document.getElementById('ci-has-charges').checked = hasCharges;
+  toggleCustomItemChargeFields(hasCharges);
+  const linkedRes = hasCharges ? (currentChar.customResources || []).find(r => r.id === item._resourceId) : null;
+  document.getElementById('ci-charges-max').value      = linkedRes?.max || 1;
+  document.getElementById('ci-charges-recovery').value = linkedRes?.recovery || 'long';
+
+  populateSpellNameDatalist();
+  _ciGrantedSpellsDraft = (item?.grantedSpells || []).map(gs => ({ ...gs }));
+  renderCustomItemGrantedSpells();
+
+  openModal('custom-item-modal');
+}
+
+// ── Granted spells draft (lives only while the modal is open) ────
+
+let _ciGrantedSpellsDraft = [];
+let _spellDatalistPopulated = false;
+
+function populateSpellNameDatalist() {
+  if (_spellDatalistPopulated) return;
+  const dl = document.getElementById('ci-spell-names');
+  if (!dl || typeof PHB_SPELL_LIST === 'undefined') return;
+  dl.innerHTML = PHB_SPELL_LIST.map(s => `<option value="${s.name.replace(/"/g,'&quot;')}"></option>`).join('');
+  _spellDatalistPopulated = true;
+}
+
+function addCustomItemGrantedSpell() {
+  _ciGrantedSpellsDraft.push({
+    spellName: '', spellKey: null, grantType: 'atWill',
+    usesMax: 1, recovery: 'long', fixedDC: null, fixedAtk: null, ritual: false,
+    _resourceId: null,
+  });
+  renderCustomItemGrantedSpells();
+}
+
+function removeCustomItemGrantedSpell(idx) {
+  _ciGrantedSpellsDraft.splice(idx, 1);
+  renderCustomItemGrantedSpells();
+}
+
+function updateCustomItemGrantedSpellField(idx, field, value) {
+  const gs = _ciGrantedSpellsDraft[idx];
+  if (!gs) return;
+  gs[field] = value;
+  if (field === 'grantType') renderCustomItemGrantedSpells(); // toggle limited-use fields visibility
+}
+
+function renderCustomItemGrantedSpells() {
+  const list = document.getElementById('ci-granted-spells-list');
+  if (!list) return;
+  if (!_ciGrantedSpellsDraft.length) {
+    list.innerHTML = `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:6px 0">No granted spells yet</div>`;
+    return;
+  }
+  list.innerHTML = _ciGrantedSpellsDraft.map((gs, idx) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;position:relative">
+      <span style="position:absolute;top:6px;right:6px;cursor:pointer;color:var(--text3);font-size:13px;line-height:1" onclick="removeCustomItemGrantedSpell(${idx})" title="Remove">×</span>
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <div style="flex:1">
+          <label class="field-label">Spell</label>
+          <input class="info-input" type="text" list="ci-spell-names" value="${(gs.spellName||'').replace(/"/g,'&quot;')}"
+            oninput="updateCustomItemGrantedSpellField(${idx},'spellName',this.value)" placeholder="e.g. Fireball">
+        </div>
+        <div style="flex:1">
+          <label class="field-label">Frequency</label>
+          <select class="choice-select" onchange="updateCustomItemGrantedSpellField(${idx},'grantType',this.value)">
+            <option value="atWill" ${gs.grantType==='atWill'?'selected':''}>At Will</option>
+            <option value="limited" ${gs.grantType==='limited'?'selected':''}>Limited Uses</option>
+          </select>
+        </div>
+      </div>
+      ${gs.grantType === 'limited' ? `
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:1">
+            <label class="field-label">Max Uses</label>
+            <input class="info-input" type="number" min="1" value="${gs.usesMax||1}"
+              oninput="updateCustomItemGrantedSpellField(${idx},'usesMax',parseInt(this.value)||1)">
+          </div>
+          <div style="flex:1">
+            <label class="field-label">Recovers On</label>
+            <select class="choice-select" onchange="updateCustomItemGrantedSpellField(${idx},'recovery',this.value)">
+              <option value="short" ${gs.recovery==='short'?'selected':''}>Short Rest</option>
+              <option value="long" ${!gs.recovery||gs.recovery==='long'?'selected':''}>Long Rest</option>
+              <option value="dawn" ${gs.recovery==='dawn'?'selected':''}>Dawn</option>
+              <option value="dusk" ${gs.recovery==='dusk'?'selected':''}>Dusk</option>
+            </select>
+          </div>
+        </div>
+      ` : ''}
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label class="field-label">Fixed Save DC (optional)</label>
+          <input class="info-input" type="number" value="${gs.fixedDC||''}" placeholder="—"
+            oninput="updateCustomItemGrantedSpellField(${idx},'fixedDC',parseInt(this.value)||null)">
+        </div>
+        <div style="flex:1">
+          <label class="field-label">Fixed Attack Bonus (optional)</label>
+          <input class="info-input" type="number" value="${gs.fixedAtk||''}" placeholder="—"
+            oninput="updateCustomItemGrantedSpellField(${idx},'fixedAtk',parseInt(this.value)||null)">
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function saveCustomItemModal() {
+  ensureMagicItems();
+  const name = document.getElementById('ci-name').value.trim();
+  if (!name) { toast('Please enter a name for the item.', 'info'); return; }
+
+  const rarity      = document.getElementById('ci-rarity').value;
+  const attunement  = document.getElementById('ci-attunement').value === '1';
+  const type        = document.getElementById('ci-type').value.trim() || 'wondrous item';
+  const isWeapon    = document.getElementById('ci-is-weapon').checked;
+  const isArmour    = document.getElementById('ci-is-armour').checked;
+  const isAmmo      = document.getElementById('ci-is-ammo').checked;
+  const shortDesc   = document.getElementById('ci-short-desc').value.trim();
+  const desc        = document.getElementById('ci-full-desc').value.trim();
+
+  const acBonus       = parseInt(document.getElementById('ci-fx-ac').value) || 0;
+  const saveBonus     = parseInt(document.getElementById('ci-fx-save').value) || 0;
+  const spellAtkBonus = parseInt(document.getElementById('ci-fx-spellatk').value) || 0;
+  const spellDCBonus  = parseInt(document.getElementById('ci-fx-spelldc').value) || 0;
+  const weaponBonus   = parseInt(document.getElementById('ci-fx-weapon').value) || 0;
+
+  const effects = {};
+  if (acBonus)       effects.acBonus = acBonus;
+  if (saveBonus)      effects.saveBonus = saveBonus;
+  if (spellAtkBonus)  effects.spellAtkBonus = spellAtkBonus;
+  if (spellDCBonus)   effects.spellDCBonus = spellDCBonus;
+  if (weaponBonus)    effects.weaponBonus = weaponBonus;
+
+  const hasCharges     = document.getElementById('ci-has-charges').checked;
+  const chargeMax      = Math.max(1, parseInt(document.getElementById('ci-charges-max').value) || 1);
+  const chargeRecovery = document.getElementById('ci-charges-recovery').value;
+
+  let item;
+  if (_ciEditIdx !== null) {
+    item = currentChar.magicItems[_ciEditIdx];
+    if (!item) { closeModal('custom-item-modal'); return; }
+  } else {
+    item = {
+      key: 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+      isCustom: true,
+      customName: '', notes: '', magicBonus: 0,
+      weaponKey: null, armourKey: null, ammoType: null, equipped: false,
+      attuned: false,
+      _uid: 'mi_' + Math.random().toString(36).slice(2, 10),
+    };
+    currentChar.magicItems.push(item);
+  }
+
+  item.name       = name;
+  item.rarity     = rarity;
+  item.attunement = attunement;
+  item.type       = type;
+  item.isWeapon   = isWeapon;
+  item.isArmour   = isArmour;
+  item.isAmmo     = isAmmo;
+  item.shortDesc  = shortDesc;
+  item.desc       = desc;
+  item.effects    = Object.keys(effects).length ? effects : null;
+
+  // Re-derive compatible weapon/armour keys now that type/category may have changed
+  if (isWeapon && !isAmmo) {
+    const compat = getCompatibleWeaponKeys(type);
+    if (compat.length === 1) item.weaponKey = compat[0];
+    else if (!compat.includes(item.weaponKey)) item.weaponKey = null;
+  } else {
+    item.weaponKey = null;
+  }
+  if (isArmour && type !== 'shield') {
+    const compat = getCompatibleArmourKeys(type);
+    if (compat.length === 1) item.armourKey = compat[0];
+    else if (!compat.includes(item.armourKey)) item.armourKey = null;
+  } else if (!isArmour) {
+    item.armourKey = null;
+  }
+
+  // Charges → linked entry in the Resources panel (same pip-tracker/rest-recovery as everything else)
+  if (hasCharges) {
+    if (!currentChar.customResources) currentChar.customResources = [];
+    let res = item._resourceId ? currentChar.customResources.find(r => r.id === item._resourceId) : null;
+    if (!res) {
+      const resId = 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6);
+      res = { id: resId, name: '', desc: '', max: chargeMax, recovery: chargeRecovery, _fromMagicItem: item._uid };
+      currentChar.customResources.push(res);
+      item._resourceId = resId;
+    } else {
+      res.max = chargeMax;
+      res.recovery = chargeRecovery;
+    }
+    res.name = item.customName || item.name;
+    res.desc = shortDesc || desc.slice(0, 140);
+  } else if (item._resourceId) {
+    currentChar.customResources = (currentChar.customResources || []).filter(r => r.id !== item._resourceId);
+    if (currentChar.resources) delete currentChar.resources[item._resourceId];
+    item._resourceId = null;
+  }
+
+  // Granted spells → resolve PHB spell keys, link/clean up resources for limited-use grants
+  if (!currentChar.customResources) currentChar.customResources = [];
+  const oldResourceIds = new Set((item.grantedSpells || []).map(gs => gs._resourceId).filter(Boolean));
+  const keptResourceIds = new Set();
+
+  item.grantedSpells = _ciGrantedSpellsDraft
+    .filter(gs => (gs.spellName || '').trim())
+    .map(gs => {
+      const spellName = gs.spellName.trim();
+      const phb = (typeof PHB_SPELL_LIST !== 'undefined') &&
+        (PHB_SPELL_LIST.find(s => s.name.toLowerCase() === spellName.toLowerCase()));
+      const out = {
+        spellName, spellKey: phb?.key || null,
+        grantType: gs.grantType === 'limited' ? 'limited' : 'atWill',
+        usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
+        fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
+        ritual: !!gs.ritual, _resourceId: gs._resourceId || null,
+      };
+      if (out.grantType === 'limited') {
+        let res = out._resourceId ? currentChar.customResources.find(r => r.id === out._resourceId) : null;
+        if (!res) {
+          const resId = 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6) + '_' + Math.random().toString(36).slice(2,4);
+          res = { id: resId, name: '', desc: '', max: out.usesMax, recovery: out.recovery, _fromMagicItem: item._uid };
+          currentChar.customResources.push(res);
+          out._resourceId = resId;
+        } else {
+          res.max = out.usesMax;
+          res.recovery = out.recovery;
+        }
+        res.name = `${item.customName || item.name}: ${spellName}`;
+        keptResourceIds.add(out._resourceId);
+      } else if (out._resourceId) {
+        // Switched from limited to at-will — drop the old resource
+        out._resourceId = null;
+      }
+      return out;
+    });
+
+  // Clean up resources for grants that were removed or switched off limited-use
+  oldResourceIds.forEach(resId => {
+    if (!keptResourceIds.has(resId)) {
+      currentChar.customResources = currentChar.customResources.filter(r => r.id !== resId);
+      if (currentChar.resources) delete currentChar.resources[resId];
+    }
+  });
+
+  closeModal('custom-item-modal');
+  renderMagicItemsPanel();
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
+  recalcAll();
+  toast(`${name} saved`, 'ok');
 }
 
 // Legacy stubs (called from existing code paths)
