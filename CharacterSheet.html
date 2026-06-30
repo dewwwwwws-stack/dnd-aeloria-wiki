@@ -3740,7 +3740,11 @@ function getSupabaseClient() {
 function broadcastCharUpdate(charId, field) {
   return new Promise((resolve) => {
     const sb = getSupabaseClient();
-    if (!sb || !charId) { resolve(); return; }
+    if (!sb || !charId) {
+      console.warn('[realtime] broadcast skipped — no client or no charId', { hasClient: !!sb, charId });
+      resolve(); return;
+    }
+    console.log('[realtime] broadcasting', { charId, field, topic: 'char-' + charId });
     try {
       const channel = sb.channel('char-' + charId, { config: { broadcast: { self: false } } });
       let settled = false;
@@ -3750,12 +3754,15 @@ function broadcastCharUpdate(charId, field) {
         try { sb.removeChannel(channel); } catch {}
         resolve();
       };
-      const timer = setTimeout(finish, 2000);
+      const timer = setTimeout(() => { console.warn('[realtime] broadcast timed out waiting for SUBSCRIBED', { charId }); finish(); }, 2000);
       channel.subscribe((status) => {
+        console.log('[realtime] sender channel status', { charId, status });
         if (status === 'SUBSCRIBED') {
           channel.send({ type: 'broadcast', event: 'char_updated', payload: { field, at: Date.now() } })
+            .then((res) => console.log('[realtime] send result', { charId, field, res }))
             .finally(() => { clearTimeout(timer); finish(); });
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('[realtime] sender channel did not subscribe cleanly', { charId, status });
           clearTimeout(timer); finish();
         }
       });
@@ -3775,12 +3782,19 @@ function subscribeToCharUpdates(charId) {
     _sbCharChannel = null;
     _sbSubscribedCharId = null;
   }
-  if (!sb || !charId) return;
+  if (!sb || !charId) {
+    console.warn('[realtime] subscribe skipped — no client or no charId', { hasClient: !!sb, charId });
+    return;
+  }
+  console.log('[realtime] subscribing', { charId, topic: 'char-' + charId });
   _sbCharChannel = sb.channel('char-' + charId);
   _sbCharChannel.on('broadcast', { event: 'char_updated' }, (msg) => {
+    console.log('[realtime] received broadcast', { charId, payload: msg.payload });
     handleRemoteCharUpdate(msg.payload?.field || 'full');
   });
-  _sbCharChannel.subscribe();
+  _sbCharChannel.subscribe((status) => {
+    console.log('[realtime] receiver channel status', { charId, status });
+  });
   _sbSubscribedCharId = charId;
 }
 
@@ -3788,6 +3802,7 @@ let _remoteUpdateInFlight = false;
 async function handleRemoteCharUpdate(field) {
   if (!currentChar?.id || _remoteUpdateInFlight) return;
   _remoteUpdateInFlight = true;
+  console.log('[realtime] handling remote update', { field, charId: currentChar.id });
   try {
     const { content: fresh, sha } = await GH.getFile(currentChar.id + '.json');
     currentCharSHA = sha;
@@ -3802,10 +3817,13 @@ async function handleRemoteCharUpdate(field) {
       if (field === 'magicItems') toast('Your DM updated your items', 'ok');
     }
     if (field === 'hp' || field === 'full') {
-      currentChar.hp_current = fresh.hp_current;
-      currentChar.hp_max     = fresh.hp_max;
-      currentChar.hp_temp    = fresh.hp_temp;
+      currentChar.hp_current  = fresh.hp_current;
+      currentChar.hp_max      = fresh.hp_max;
+      currentChar.hp_temp     = fresh.hp_temp;
+      currentChar.exhaustion  = fresh.exhaustion;
+      currentChar.death_saves = fresh.death_saves;
       if (typeof populateMainSheet === 'function') populateMainSheet();
+      if (typeof renderDeathSaves === 'function') renderDeathSaves();
       if (field === 'hp') toast('Your HP was updated', 'ok');
     }
     if (field === 'condition' || field === 'full') {
@@ -3827,6 +3845,62 @@ async function handleRemoteCharUpdate(field) {
     console.warn('[realtime] failed to refresh after remote update:', e.message);
   } finally {
     _remoteUpdateInFlight = false;
+  }
+}
+
+// Multi-channel subscription for the DM's Party tab — one subscription per
+// party member, so a player adjusting their own HP/conditions on their own
+// sheet shows up for the DM live, not just DM-initiated changes. Re-running
+// this (called every time the party list loads/refreshes) always tears down
+// and rebuilds the subscription set, so it naturally stays in sync with
+// whoever's actually in the party — no manual unsubscribe bookkeeping needed
+// when a character is added or removed.
+let _sbPartyChannels = [];
+function subscribeToPartyUpdates(charIds) {
+  const sb = getSupabaseClient();
+  _sbPartyChannels.forEach(({ channel }) => { try { sb?.removeChannel(channel); } catch {} });
+  _sbPartyChannels = [];
+  if (!sb || !charIds?.length) return;
+  console.log('[realtime] subscribing to party', { count: charIds.length });
+  charIds.forEach((id) => {
+    const channel = sb.channel('char-' + id);
+    channel.on('broadcast', { event: 'char_updated' }, (msg) => {
+      console.log('[realtime] party member update', { id, payload: msg.payload });
+      schedulePartyListRefresh();
+    });
+    channel.subscribe();
+    _sbPartyChannels.push({ id, channel });
+  });
+}
+
+// Debounced — a bulk rest or several near-simultaneous player actions would
+// otherwise trigger a full party-list re-fetch once per character.
+let _partyRefreshTimer = null;
+function schedulePartyListRefresh() {
+  if (_partyRefreshTimer) clearTimeout(_partyRefreshTimer);
+  _partyRefreshTimer = setTimeout(() => {
+    _partyRefreshTimer = null;
+    if (typeof loadDMCharList === 'function') loadDMCharList();
+  }, 300);
+}
+
+// Fires from the player's own saveChar() — only broadcasts when something
+// combat-relevant actually changed (HP, death saves, exhaustion), not on
+// every routine autosave (editing notes, spells, etc. would otherwise spam
+// the DM's party view with refetches for things the DM doesn't need to see
+// live). currentChar.id is always set by this point.
+let _lastBroadcastHPSnapshot = null;
+function broadcastHPIfChanged() {
+  if (!currentChar?.id) return;
+  const snap = {
+    hp_current: currentChar.hp_current, hp_max: currentChar.hp_max, hp_temp: currentChar.hp_temp,
+    exhaustion: currentChar.exhaustion,
+    ds_s: currentChar.death_saves?.successes, ds_f: currentChar.death_saves?.failures,
+  };
+  const changed = !_lastBroadcastHPSnapshot || Object.keys(snap).some(k => snap[k] !== _lastBroadcastHPSnapshot[k]);
+  if (changed) {
+    _lastBroadcastHPSnapshot = snap;
+    broadcastCharUpdate(currentChar.id, 'hp');
   }
 }
 
@@ -4094,6 +4168,7 @@ async function doLogin() {
     }
 
     currentChar    = content;
+    currentChar.id = id; // guarantee this matches the actual filename, regardless of what was saved
     currentCharSHA = sha;
     isDM           = false;
     enterApp();
@@ -4222,6 +4297,32 @@ async function verifyDMPin() {
   }
 }
 
+// Fetches every character's content in parallel (instead of one-at-a-time)
+// and prefers GitHub's raw download_url over the wrapped/base64 Contents
+// API response when available — same trick the login screen's character
+// dropdown already used. Every DM panel list (Party, Admin, Campaigns)
+// shares this one implementation so they can't silently drift apart.
+async function fetchAllCharacters() {
+  const files = await GH.listFiles();
+  const chars = files.filter(f => !['_dm.json','_dm_notes.json'].includes(f.name) && f.name.endsWith('.json'));
+  const results = await Promise.all(chars.map(async (f) => {
+    try {
+      const id = f.name.replace('.json','');
+      if (f.download_url) {
+        const resp = await fetch(f.download_url, { cache: 'no-store' });
+        const char = await resp.json();
+        return { id, char };
+      }
+      const { content } = await GH.getFile(f.name);
+      return { id, char: content };
+    } catch(e) {
+      console.warn('[fetchAllCharacters] failed for', f.name, e.message);
+      return null;
+    }
+  }));
+  return results.filter(Boolean);
+}
+
 async function loadDMCharList() {
   const listEl = document.getElementById('dm-char-list');
   listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading…</div>';
@@ -4274,6 +4375,7 @@ async function dmLoadChar(id) {
   try {
     const { content, sha } = await GH.getFile(`${id}.json`);
     currentChar    = content;
+    currentChar.id = id; // guarantee this matches the actual filename
     currentCharSHA = sha;
     isDM           = true;
     closeDMModal();
@@ -4339,16 +4441,13 @@ async function loadDMCharList() {
   listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading…</div>';
 
   try {
-    const files = await GH.listFiles();
-    const chars = files.filter(f => f.name !== '_dm.json' && f.name !== '_dm_notes.json' && f.name.endsWith('.json'));
+    const allChars = await fetchAllCharacters();
+    subscribeToPartyUpdates(allChars.map(c => c.id));
     listEl.innerHTML = '';
     let totalHP = 0, maxHP = 0, charCount = 0;
 
-    for (const f of chars) {
+    for (const { id, char: c } of allChars) {
       try {
-        const id   = f.name.replace('.json','');
-        const data = await GH.getFile(f.name);
-        const c    = data.content;
         const hpCur = parseInt(c.hp_current) || 0;
         const hpMax = parseInt(c.hp_max) || 0;
         totalHP += hpCur; maxHP += hpMax; charCount++;
@@ -4426,13 +4525,12 @@ async function loadDMCharList() {
       } catch {}
     }
 
-    if (!chars.length) {
+    if (!allChars.length) {
       listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No characters found.</div>';
     } else {
       if (statusEl) statusEl.textContent = '';
       const summaryEl = document.getElementById('dm-party-summary');
       if (summaryEl) {
-        const avgLevel = charCount > 0 ? Math.round(chars.reduce((s, f) => s, 0) / charCount) : 0;
         const pct = maxHP > 0 ? Math.round(totalHP / maxHP * 100) : 100;
         summaryEl.textContent = charCount + ' characters · Party HP: ' + totalHP + '/' + maxHP + ' (' + pct + '%)';
       }
@@ -4704,14 +4802,10 @@ async function dmLoadAdminCharList() {
   if (!listEl) return;
   listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading…</div>';
   try {
-    const files = await GH.listFiles();
-    const chars = files.filter(f => f.name !== '_dm.json' && f.name !== '_dm_notes.json' && f.name.endsWith('.json'));
+    const allChars = await fetchAllCharacters();
     listEl.innerHTML = '';
-    for (const f of chars) {
+    for (const { id, char: c } of allChars) {
       try {
-        const id   = f.name.replace('.json','');
-        const data = await GH.getFile(f.name);
-        const c    = data.content;
         const row  = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius)';
         row.innerHTML = `
@@ -4727,10 +4821,9 @@ async function dmLoadAdminCharList() {
         listEl.appendChild(row);
       } catch {}
     }
-    if (!chars.length) listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No characters found.</div>';
+    if (!allChars.length) listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No characters found.</div>';
   } catch(e) { listEl.innerHTML = `<div style="color:var(--red);font-family:var(--font-ui);font-size:11px">${e.message}</div>`; }
 }
-window.dmLoadAdminCharList = dmLoadAdminCharList;
 window.dmLoadAdminCharList = dmLoadAdminCharList;
 
 // ── Campaign Management ───────────────────────────────────────────────────────
@@ -4751,20 +4844,14 @@ async function dmLoadCampaigns() {
   listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading…</div>';
 
   try {
-    // Load _dm.json for campaigns + char list
-    let dmData = {};
-    try { const f = await GH.getFile('_dm.json'); dmData = f.content; } catch {}
-    _dmCampaigns = dmData.campaigns || DEFAULT_CAMPAIGNS;
-
-    // Load all characters
-    const files = await GH.listFiles();
-    _allCharFiles = [];
-    for (const f of files.filter(f => !['_dm.json','_dm_notes.json'].includes(f.name) && f.name.endsWith('.json'))) {
-      try {
-        const { content: c } = await GH.getFile(f.name);
-        _allCharFiles.push({ id: f.name.replace('.json',''), char: c });
-      } catch {}
-    }
+    // Campaigns metadata and the full character list don't depend on each
+    // other — fetch both concurrently instead of one after the other.
+    const [dmFileResult, allChars] = await Promise.all([
+      GH.getFile('_dm.json').catch(() => ({ content: {} })),
+      fetchAllCharacters(),
+    ]);
+    _dmCampaigns = dmFileResult.content.campaigns || DEFAULT_CAMPAIGNS;
+    _allCharFiles = allChars;
 
     dmRenderCampaigns();
   } catch(e) {
@@ -5343,7 +5430,7 @@ async function saveChar() {
     const result = await GH.putFile(`${currentChar.id}.json`, currentChar, sha);
     currentCharSHA = result.content.sha;
     setSyncStatus('ok', '✓ Saved');
-    broadcastCharUpdate(currentChar.id, 'full');
+    broadcastHPIfChanged();
   } catch(e) {
     // 409 = SHA conflict — fetch fresh SHA and retry once
     if (e.message?.includes('409') || e.status === 409) {
@@ -5352,6 +5439,7 @@ async function saveChar() {
         const result = await GH.putFile(`${currentChar.id}.json`, currentChar, f.sha);
         currentCharSHA = result.content.sha;
         setSyncStatus('ok', '✓ Saved');
+        broadcastHPIfChanged();
       } catch(e2) {
         setSyncStatus('error', '✗ Failed');
         toast('Save failed: ' + e2.message, 'error');
