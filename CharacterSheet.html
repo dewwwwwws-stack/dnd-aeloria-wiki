@@ -3775,6 +3775,7 @@ function broadcastCharUpdate(charId, field) {
 
 let _sbCharChannel = null;
 let _sbSubscribedCharId = null;
+let _charFallbackPollTimer = null;
 function subscribeToCharUpdates(charId) {
   const sb = getSupabaseClient();
   if (_sbCharChannel) {
@@ -3782,8 +3783,10 @@ function subscribeToCharUpdates(charId) {
     _sbCharChannel = null;
     _sbSubscribedCharId = null;
   }
+  if (_charFallbackPollTimer) { clearInterval(_charFallbackPollTimer); _charFallbackPollTimer = null; }
   if (!sb || !charId) {
     console.warn('[realtime] subscribe skipped — no client or no charId', { hasClient: !!sb, charId });
+    startCharFallbackPolling(charId);
     return;
   }
   console.log('[realtime] subscribing', { charId, topic: 'char-' + charId });
@@ -3792,10 +3795,32 @@ function subscribeToCharUpdates(charId) {
     console.log('[realtime] received broadcast', { charId, payload: msg.payload });
     handleRemoteCharUpdate(msg.payload?.field || 'full');
   });
+  // If the WebSocket handshake never completes (e.g. Obsidian's sandboxed
+  // embed blocks WebSockets while still allowing normal HTTPS calls), fall
+  // back to slow polling instead of silently never receiving updates again.
+  const healthTimer = setTimeout(() => {
+    console.warn('[realtime] subscription never reached SUBSCRIBED — falling back to polling', { charId });
+    startCharFallbackPolling(charId);
+  }, 5000);
   _sbCharChannel.subscribe((status) => {
     console.log('[realtime] receiver channel status', { charId, status });
+    if (status === 'SUBSCRIBED') {
+      clearTimeout(healthTimer);
+      if (_charFallbackPollTimer) { clearInterval(_charFallbackPollTimer); _charFallbackPollTimer = null; }
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      clearTimeout(healthTimer);
+      startCharFallbackPolling(charId);
+    }
   });
   _sbSubscribedCharId = charId;
+}
+
+function startCharFallbackPolling(charId) {
+  if (_charFallbackPollTimer || !charId) return;
+  console.log('[realtime] starting fallback polling for own character', { charId, intervalSec: 20 });
+  _charFallbackPollTimer = setInterval(() => {
+    if (currentChar?.id === charId) handleRemoteCharUpdate('full');
+  }, 20000);
 }
 
 let _remoteUpdateInFlight = false;
@@ -3805,18 +3830,32 @@ async function handleRemoteCharUpdate(field) {
   console.log('[realtime] handling remote update', { field, charId: currentChar.id });
   try {
     const { content: fresh, sha } = await GH.getFile(currentChar.id + '.json');
+    const shaChanged = sha !== currentCharSHA;
     currentCharSHA = sha;
 
-    if (field === 'magicItems' || field === 'full') {
+    // The fallback poller calls this on a timer whether or not anything
+    // actually changed — bail out quietly instead of re-rendering and
+    // toasting every 20s for no reason. A real broadcast always implies
+    // something changed, so this only meaningfully gates the polling path.
+    if (!shaChanged) { console.log('[realtime] no change since last sync, skipping'); return; }
+
+    const itemsChanged = JSON.stringify(fresh.magicItems) !== JSON.stringify(currentChar.magicItems)
+                       || JSON.stringify(fresh.customResources) !== JSON.stringify(currentChar.customResources);
+    const hpChanged = fresh.hp_current !== currentChar.hp_current || fresh.hp_max !== currentChar.hp_max
+                    || fresh.hp_temp !== currentChar.hp_temp || fresh.exhaustion !== currentChar.exhaustion
+                    || JSON.stringify(fresh.death_saves) !== JSON.stringify(currentChar.death_saves);
+    const conditionsChanged = JSON.stringify(fresh.conditions) !== JSON.stringify(currentChar.conditions);
+
+    if ((field === 'magicItems' || field === 'full') && itemsChanged) {
       currentChar.magicItems      = fresh.magicItems;
       currentChar.customResources = fresh.customResources;
       currentChar.resources       = fresh.resources;
       if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel();
       if (typeof renderResourceTracker === 'function') renderResourceTracker();
       if (typeof recalcAll === 'function') recalcAll();
-      if (field === 'magicItems') toast('Your DM updated your items', 'ok');
+      toast('Your DM updated your items', 'ok');
     }
-    if (field === 'hp' || field === 'full') {
+    if ((field === 'hp' || field === 'full') && hpChanged) {
       currentChar.hp_current  = fresh.hp_current;
       currentChar.hp_max      = fresh.hp_max;
       currentChar.hp_temp     = fresh.hp_temp;
@@ -3824,22 +3863,20 @@ async function handleRemoteCharUpdate(field) {
       currentChar.death_saves = fresh.death_saves;
       if (typeof populateMainSheet === 'function') populateMainSheet();
       if (typeof renderDeathSaves === 'function') renderDeathSaves();
-      if (field === 'hp') toast('Your HP was updated', 'ok');
+      toast('Your HP was updated', 'ok');
     }
-    if (field === 'condition' || field === 'full') {
+    if ((field === 'condition' || field === 'full') && conditionsChanged) {
       currentChar.conditions = fresh.conditions;
       currentChar.exhaustion = fresh.exhaustion;
       if (typeof renderConditions === 'function') renderConditions();
-      if (field === 'condition') toast('A condition changed', 'ok');
+      toast('A condition changed', 'ok');
     }
     if (field === 'note') {
       currentChar._dmNote = fresh._dmNote;
     }
-    if (field === 'full') {
-      if (typeof renderDeathSaves === 'function') renderDeathSaves();
+    if (field === 'full' && (itemsChanged || hpChanged || conditionsChanged)) {
       if (typeof renderActiveEffects === 'function') renderActiveEffects();
       if (typeof renderKnownSpells === 'function') renderKnownSpells();
-      toast('Your sheet was updated by your DM', 'ok');
     }
   } catch(e) {
     console.warn('[realtime] failed to refresh after remote update:', e.message);
@@ -3856,21 +3893,53 @@ async function handleRemoteCharUpdate(field) {
 // whoever's actually in the party — no manual unsubscribe bookkeeping needed
 // when a character is added or removed.
 let _sbPartyChannels = [];
+let _partyFallbackPollTimer = null;
 function subscribeToPartyUpdates(charIds) {
   const sb = getSupabaseClient();
   _sbPartyChannels.forEach(({ channel }) => { try { sb?.removeChannel(channel); } catch {} });
   _sbPartyChannels = [];
-  if (!sb || !charIds?.length) return;
+  if (_partyFallbackPollTimer) { clearInterval(_partyFallbackPollTimer); _partyFallbackPollTimer = null; }
+  if (!sb || !charIds?.length) {
+    startPartyFallbackPolling();
+    return;
+  }
   console.log('[realtime] subscribing to party', { count: charIds.length });
+  let anySubscribed = false;
+  const healthTimer = setTimeout(() => {
+    if (!anySubscribed) {
+      console.warn('[realtime] no party channel reached SUBSCRIBED — falling back to polling');
+      startPartyFallbackPolling();
+    }
+  }, 5000);
   charIds.forEach((id) => {
     const channel = sb.channel('char-' + id);
     channel.on('broadcast', { event: 'char_updated' }, (msg) => {
       console.log('[realtime] party member update', { id, payload: msg.payload });
       schedulePartyListRefresh();
     });
-    channel.subscribe();
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        anySubscribed = true;
+        clearTimeout(healthTimer);
+        if (_partyFallbackPollTimer) { clearInterval(_partyFallbackPollTimer); _partyFallbackPollTimer = null; }
+      }
+    });
     _sbPartyChannels.push({ id, channel });
   });
+}
+
+function startPartyFallbackPolling() {
+  if (_partyFallbackPollTimer) return;
+  console.log('[realtime] starting fallback polling for party view', { intervalSec: 25 });
+  _partyFallbackPollTimer = setInterval(() => {
+    // Only poll while the Party tab is actually visible — no point
+    // refreshing a list nobody's looking at.
+    const pane = document.getElementById('dm-pane-party');
+    if (pane && pane.style.display !== 'none' && typeof loadDMCharList === 'function') {
+      console.log('[realtime] fallback poll tick (party)');
+      loadDMCharList();
+    }
+  }, 25000);
 }
 
 // Debounced — a bulk rest or several near-simultaneous player actions would
@@ -25704,9 +25773,9 @@ function renderChoiceDef(def, _choiceCls) {
 
   } else if (def.type === 'weapon-mastery') {
     const selected = Array.isArray(saved) ? saved : (saved ? [saved] : []);
-    const maxCount = def.count || (def.countByLevel ? (def.countByLevel[getClassLevelCount(eCls)||getLevel()]||0) : 1);
+    const maxCount = def.count || (def.countByLevel ? (def.countByLevel[getClassLevelCount(_choiceCls)||getLevel()]||0) : 1);
     const over = selected.length > maxCount;
-    const clsLv = getClassLevelCount(eCls) || getLevel();
+    const clsLv = getClassLevelCount(_choiceCls) || getLevel();
     const actualMax = def.countByLevel ? (def.countByLevel[clsLv]||0) : (def.count||1);
     inner += `<div style="display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;align-items:center;gap:10px">
