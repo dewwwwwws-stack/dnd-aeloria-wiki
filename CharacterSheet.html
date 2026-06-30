@@ -1959,6 +1959,7 @@ select:not([multiple]) {
 [data-tt]:not([data-tt=""]) { cursor:pointer }
 
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -3266,6 +3267,29 @@ select:not([multiple]) {
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="grant-item-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:400px">
+    <div class="modal-title">
+      <span>Grant Item to Player</span>
+      <span class="modal-close" onclick="closeModal('grant-item-modal')">&#x2715;</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div id="grant-item-name" style="font-family:var(--font-body);font-size:14px;color:var(--accent);font-weight:600"></div>
+      <div>
+        <label class="field-label">Player</label>
+        <select id="grant-item-target" class="choice-select">
+          <option value="">Loading characters…</option>
+        </select>
+      </div>
+      <div id="grant-item-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn-primary" onclick="confirmGrantItem()">Grant Item</button>
+      <button class="tbtn" onclick="closeModal('grant-item-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="feat-detail-modal">
   <div class="modal-box" style="max-width:500px;max-height:90vh;overflow-y:auto">
     <div class="modal-title">
@@ -3693,6 +3717,118 @@ const GH = {
     return Array.isArray(data) ? data.filter(f => f.name.endsWith('.json')) : [];
   }
 };
+
+const SUPABASE_URL      = 'https://tgwwncymmxjlctjewaxz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnd3duY3ltbXhqbGN0amV3YXh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4Mjc4NTgsImV4cCI6MjA5ODQwMzg1OH0.h10It-2xif8QzYA3AurIypyhpKhxf-ATmA9EifZv5AQ';
+
+let _sbClient = null;
+function getSupabaseClient() {
+  if (_sbClient) return _sbClient;
+  if (typeof window.supabase === 'undefined') {
+    console.warn('[realtime] Supabase client library not loaded.');
+    return null;
+  }
+  try {
+    _sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch(e) {
+    console.warn('[realtime] failed to init Supabase client:', e.message);
+    _sbClient = null;
+  }
+  return _sbClient;
+}
+
+function broadcastCharUpdate(charId, field) {
+  return new Promise((resolve) => {
+    const sb = getSupabaseClient();
+    if (!sb || !charId) { resolve(); return; }
+    try {
+      const channel = sb.channel('char-' + charId, { config: { broadcast: { self: false } } });
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        try { sb.removeChannel(channel); } catch {}
+        resolve();
+      };
+      const timer = setTimeout(finish, 2000);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          channel.send({ type: 'broadcast', event: 'char_updated', payload: { field, at: Date.now() } })
+            .finally(() => { clearTimeout(timer); finish(); });
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          clearTimeout(timer); finish();
+        }
+      });
+    } catch(e) {
+      console.warn('[realtime] broadcast failed (non-fatal):', e.message);
+      resolve();
+    }
+  });
+}
+
+let _sbCharChannel = null;
+let _sbSubscribedCharId = null;
+function subscribeToCharUpdates(charId) {
+  const sb = getSupabaseClient();
+  if (_sbCharChannel) {
+    try { sb?.removeChannel(_sbCharChannel); } catch {}
+    _sbCharChannel = null;
+    _sbSubscribedCharId = null;
+  }
+  if (!sb || !charId) return;
+  _sbCharChannel = sb.channel('char-' + charId);
+  _sbCharChannel.on('broadcast', { event: 'char_updated' }, (msg) => {
+    handleRemoteCharUpdate(msg.payload?.field || 'full');
+  });
+  _sbCharChannel.subscribe();
+  _sbSubscribedCharId = charId;
+}
+
+let _remoteUpdateInFlight = false;
+async function handleRemoteCharUpdate(field) {
+  if (!currentChar?.id || _remoteUpdateInFlight) return;
+  _remoteUpdateInFlight = true;
+  try {
+    const { content: fresh, sha } = await GH.getFile(currentChar.id + '.json');
+    currentCharSHA = sha;
+
+    if (field === 'magicItems' || field === 'full') {
+      currentChar.magicItems      = fresh.magicItems;
+      currentChar.customResources = fresh.customResources;
+      currentChar.resources       = fresh.resources;
+      if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel();
+      if (typeof renderResourceTracker === 'function') renderResourceTracker();
+      if (typeof recalcAll === 'function') recalcAll();
+      if (field === 'magicItems') toast('Your DM updated your items', 'ok');
+    }
+    if (field === 'hp' || field === 'full') {
+      currentChar.hp_current = fresh.hp_current;
+      currentChar.hp_max     = fresh.hp_max;
+      currentChar.hp_temp    = fresh.hp_temp;
+      if (typeof populateMainSheet === 'function') populateMainSheet();
+      if (field === 'hp') toast('Your HP was updated', 'ok');
+    }
+    if (field === 'condition' || field === 'full') {
+      currentChar.conditions = fresh.conditions;
+      currentChar.exhaustion = fresh.exhaustion;
+      if (typeof renderConditions === 'function') renderConditions();
+      if (field === 'condition') toast('A condition changed', 'ok');
+    }
+    if (field === 'note') {
+      currentChar._dmNote = fresh._dmNote;
+    }
+    if (field === 'full') {
+      if (typeof renderDeathSaves === 'function') renderDeathSaves();
+      if (typeof renderActiveEffects === 'function') renderActiveEffects();
+      if (typeof renderKnownSpells === 'function') renderKnownSpells();
+      toast('Your sheet was updated by your DM', 'ok');
+    }
+  } catch(e) {
+    console.warn('[realtime] failed to refresh after remote update:', e.message);
+  } finally {
+    _remoteUpdateInFlight = false;
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 // STATE
@@ -4311,6 +4447,7 @@ async function dmSaveCharNote(id, note) {
     const { content: c, sha } = await GH.getFile(`${id}.json`);
     c._dmNote = note;
     await GH.putFile(`${id}.json`, c, sha);
+    broadcastCharUpdate(id, 'note');
     toast(`Note saved for ${c.charName||id}`, 'ok');
   } catch(e) { toast('Save failed: ' + e.message, 'error'); }
 }
@@ -4342,6 +4479,7 @@ async function dmAdjHP(id, sign) {
     const dir   = (sign !== undefined) ? sign : 1;
     c.hp_current = Math.max(0, Math.min(hpMax, cur + dir * val));
     await GH.putFile(id + '.json', c, sha);
+    broadcastCharUpdate(id, 'hp');
     const change = dir * val;
     toast((c.charName||id) + ': HP ' + (change >= 0 ? '+' : '') + change + ' → ' + c.hp_current + '/' + hpMax, 'ok');
     if (adjEl) adjEl.value = '';
@@ -4376,6 +4514,7 @@ async function dmBulkRest(type) {
           }
         }
         await GH.putFile(f.name, c, sha);
+        broadcastCharUpdate(f.name.replace('.json',''), 'full');
         count++;
       } catch {}
     }
@@ -5065,6 +5204,12 @@ function enterApp() {
   // browse, and detail views reflect DM customizations (not just the DM's own client)
   loadDMItemOverrides();
 
+  // Live-update layer: listen for remote changes (DM grants an item, adjusts
+  // HP, applies a condition, etc.) to whichever character this session has
+  // loaded, so they show up without a manual refresh. Falls back silently
+  // to GitHub-only sync if Supabase is unreachable — never blocks anything.
+  if (currentChar?.id) subscribeToCharUpdates(currentChar.id);
+
   const _safe = (label, fn) => {
     try { fn(); }
     catch(e) { console.error('enterApp step failed:', label, e); }
@@ -5198,6 +5343,7 @@ async function saveChar() {
     const result = await GH.putFile(`${currentChar.id}.json`, currentChar, sha);
     currentCharSHA = result.content.sha;
     setSyncStatus('ok', '✓ Saved');
+    broadcastCharUpdate(currentChar.id, 'full');
   } catch(e) {
     // 409 = SHA conflict — fetch fresh SHA and retry once
     if (e.message?.includes('409') || e.status === 409) {
@@ -23836,19 +23982,24 @@ function renderMagicItemBrowser() {
   });
 }
 
-function addMagicItem(key) {
-  ensureMagicItems();
+// Builds a fully-configured owned magic item instance from a catalog
+// definition and attaches it (plus any charge/granted-spell resources) to
+// the given character object. Used by both the player's own "Add" action
+// and the DM's remote "Grant to Player" action — kept as one function so
+// the two paths can't silently drift apart (the exact bug pattern this
+// codebase has hit before: two near-identical implementations of the same
+// logic, only one of which gets fixed when something changes).
+// Returns { added: boolean, item, reason } — reason is set when skipped.
+function addMagicItemToCharacter(char, key) {
+  if (!char.magicItems) char.magicItems = [];
   const def = getEffectiveMagicItemsCatalog().find(i => i.key === key);
-  if (!def) return;
-  // Generic "variable bonus" items (Weapon/Armor/Shield/Ammunition/Rod of the
-  // Pact Keeper +1/+2/+3) represent "any item of this kind" and a character
-  // can plausibly own more than one (e.g. a +1 rapier AND a +2 dagger) — so
-  // they're exempt from the one-per-key restriction that correctly applies
-  // to unique named items (you can't own two Holy Avengers).
+  if (!def) return { added: false, reason: 'Item not found in catalog' };
+
   const isGeneric = def.effects?.weaponBonus === 'variable';
-  if (!isGeneric && currentChar.magicItems.some(i => i.key === key)) {
-    toast('Already in your items', 'warn'); return;
+  if (!isGeneric && char.magicItems.some(i => i.key === key)) {
+    return { added: false, reason: 'Already owned' };
   }
+
   const compatKeys = (def.isWeapon && !def.isAmmo) ? getCompatibleWeaponKeys(def.type) : [];
   const compatArmourKeys = (def.isArmour && def.type !== 'shield') ? getCompatibleArmourKeys(def.type) : [];
   const newItem = {
@@ -23865,35 +24016,25 @@ function addMagicItem(key) {
     ammoType: null,
     _uid: 'mi_' + Math.random().toString(36).slice(2, 10),
   };
-  // Catalog items can define a shared charge pool (def.charges = {max, recovery})
-  // — e.g. Staff of Fire's 10 charges used to cast Burning Hands/Fireball/Wall
-  // of Fire at different costs. Set up the same linked-resource mechanism the
-  // custom item creator uses, so it shows up in the Resources panel like any
-  // other charge tracker.
+
   if (def.charges?.max) {
-    if (!currentChar.customResources) currentChar.customResources = [];
+    if (!char.customResources) char.customResources = [];
     const resId = 'item_' + newItem._uid;
-    currentChar.customResources.push({
+    char.customResources.push({
       id: resId, name: def.name, desc: def.shortDesc || '',
       max: def.charges.max, recovery: def.charges.recovery || 'dawn',
       _fromMagicItem: newItem._uid,
     });
     newItem._resourceId = resId;
   }
-  // Catalog items can also define grantedSpells (same shape the custom item
-  // creator produces): 'atWill' (no tracking needed), 'itemCharges' (draws
-  // from the shared pool above), or 'limited' (its own independent per-spell
-  // resource — e.g. Sword of Kas's three spells are each separately 1/dawn,
-  // not a shared pool). Limited grants need a fresh resource created here,
-  // same as the shared pool, since catalog definitions can't pre-create
-  // per-player resource instances.
+
   if (def.grantedSpells?.length) {
-    if (!currentChar.customResources) currentChar.customResources = [];
+    if (!char.customResources) char.customResources = [];
     newItem.grantedSpells = def.grantedSpells.map(gs => {
       const out = { ...gs };
       if (out.grantType === 'limited') {
         const resId = 'item_' + newItem._uid + '_' + (out.spellName||'').toLowerCase().replace(/[^a-z0-9]+/g,'_');
-        currentChar.customResources.push({
+        char.customResources.push({
           id: resId, name: `${def.name}: ${out.spellName}`, desc: '',
           max: out.usesMax || 1, recovery: out.recovery || 'long',
           _fromMagicItem: newItem._uid,
@@ -23903,12 +24044,23 @@ function addMagicItem(key) {
       return out;
     });
   }
-  currentChar.magicItems.push(newItem);
+
+  char.magicItems.push(newItem);
+  return { added: true, item: newItem };
+}
+
+function addMagicItem(key) {
+  ensureMagicItems();
+  const result = addMagicItemToCharacter(currentChar, key);
+  if (!result.added) {
+    toast(result.reason === 'Already owned' ? 'Already in your items' : (result.reason || 'Could not add item'), 'warn');
+    return;
+  }
   renderMagicItemsPanel();
   renderMagicItemBrowser();
   if (typeof renderResourceTracker === 'function') renderResourceTracker();
   recalcAll();
-  toast(`${def.name} added`, 'ok');
+  toast(`${result.item.name} added`, 'ok');
 }
 
 // ── Magic item edit modal ─────────────────────────────────
@@ -24432,6 +24584,7 @@ function dmRenderItemsList() {
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="openMagicItemDetailModal('${item.key}')" title="View">👁</button>
+          <button class="tbtn" style="font-size:9px;padding:3px 8px;color:var(--accent);border-color:var(--accent)" onclick="openGrantItemModal('${item.key.replace(/'/g,"\\'")}')" title="Grant to a player">🎁</button>
           <button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="openDMCatalogItemModal('${item.key}')" title="Edit">✎</button>
         </div>
       </div>
@@ -24439,6 +24592,72 @@ function dmRenderItemsList() {
   }).join('');
 }
 window.dmRenderItemsList = dmRenderItemsList;
+
+// ── Grant Item to Player (DM) ─────────────────────────────
+// Writes a magic item directly into a specific player's character file on
+// GitHub — the player doesn't need to do anything; if their sheet is open,
+// the realtime broadcast below tells their client to refresh within about
+// a second. Reuses the exact same item-construction logic as the player's
+// own "Add" button (addMagicItemToCharacter), so a granted item behaves
+// identically to one a player picked up themselves — same charge/spell
+// setup, same dedupe rule for unique items.
+
+let _grantItemKey = null;
+
+async function openGrantItemModal(key) {
+  _grantItemKey = key;
+  const def = getEffectiveMagicItemsCatalog().find(i => i.key === key);
+  document.getElementById('grant-item-name').textContent = def?.name || key;
+  document.getElementById('grant-item-status').textContent = '';
+
+  const select = document.getElementById('grant-item-target');
+  select.innerHTML = '<option value="">Loading characters…</option>';
+  openModal('grant-item-modal');
+
+  // Reuse the campaigns-pane character cache if it's already populated;
+  // otherwise do a fresh (slightly slower) fetch just for this picker.
+  if (!_allCharFiles.length) {
+    try { await dmLoadCampaigns(); } catch {}
+  }
+  if (!_allCharFiles.length) {
+    select.innerHTML = '<option value="">No characters found</option>';
+    return;
+  }
+  select.innerHTML = _allCharFiles
+    .slice()
+    .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id))
+    .map(({ id, char }) => `<option value="${id}">${char.charName||id}${char.playerName ? ' ('+char.playerName+')' : ''}</option>`)
+    .join('');
+}
+window.openGrantItemModal = openGrantItemModal;
+
+async function confirmGrantItem() {
+  const charId = document.getElementById('grant-item-target')?.value;
+  const status = document.getElementById('grant-item-status');
+  if (!charId || !_grantItemKey) { if (status) status.textContent = 'Pick a player first.'; return; }
+
+  if (status) { status.style.color = 'var(--text3)'; status.textContent = 'Granting…'; }
+  try {
+    const { content: c, sha } = await GH.getFile(`${charId}.json`);
+    const result = addMagicItemToCharacter(c, _grantItemKey);
+    if (!result.added) {
+      if (status) { status.style.color = 'var(--amber)'; status.textContent = result.reason === 'Already owned' ? `${c.charName||charId} already has this item.` : (result.reason || 'Could not grant item.'); }
+      return;
+    }
+    await GH.putFile(`${charId}.json`, c, sha);
+    broadcastCharUpdate(charId, 'magicItems');
+    // Keep the campaigns-pane cache in sync so re-opening this picker without
+    // a manual refresh doesn't show stale (pre-grant) item ownership.
+    const cached = _allCharFiles.find(f => f.id === charId);
+    if (cached) cached.char = c;
+
+    toast(`${result.item.name} granted to ${c.charName||charId}`, 'ok');
+    closeModal('grant-item-modal');
+  } catch(e) {
+    if (status) { status.style.color = 'var(--red)'; status.textContent = 'Failed: ' + e.message; }
+  }
+}
+window.confirmGrantItem = confirmGrantItem;
 
 // Legacy stubs (called from existing code paths)
 function renderSpellList() { renderKnownSpells(); }
@@ -32615,6 +32834,7 @@ async function dmApplyCondition(charId, condition) {
     if (!c.conditions.includes(condition)) {
       c.conditions.push(condition);
       await GH.putFile(`${charId}.json`, c, sha);
+      broadcastCharUpdate(charId, 'condition');
       toast(`${condition} → ${c.charName||charId}`, 'ok');
       loadDMCharList();
     }
@@ -32627,6 +32847,7 @@ async function dmRemoveCondition(charId, condition) {
     const { content: c, sha } = await GH.getFile(`${charId}.json`);
     c.conditions = (c.conditions || []).filter(cd => cd !== condition);
     await GH.putFile(`${charId}.json`, c, sha);
+    broadcastCharUpdate(charId, 'condition');
     toast(`Removed ${condition}`, 'ok');
     loadDMCharList();
   } catch(e) { toast('Failed: ' + e.message, 'error'); }
