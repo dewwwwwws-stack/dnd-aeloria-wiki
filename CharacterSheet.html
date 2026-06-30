@@ -3746,7 +3746,7 @@ function broadcastCharUpdate(charId, field) {
     }
     console.log('[realtime] broadcasting', { charId, field, topic: 'char-' + charId });
     try {
-      const channel = sb.channel('char-' + charId, { config: { broadcast: { self: false } } });
+      const channel = sb.channel('char-' + charId, { config: { broadcast: { self: false, ack: true } } });
       let settled = false;
       const finish = () => {
         if (settled) return;
@@ -3754,7 +3754,7 @@ function broadcastCharUpdate(charId, field) {
         try { sb.removeChannel(channel); } catch {}
         resolve();
       };
-      const timer = setTimeout(() => { console.warn('[realtime] broadcast timed out waiting for SUBSCRIBED', { charId }); finish(); }, 2000);
+      const timer = setTimeout(() => { console.warn('[realtime] broadcast timed out waiting for SUBSCRIBED', { charId }); finish(); }, 4000);
       channel.subscribe((status) => {
         console.log('[realtime] sender channel status', { charId, status });
         if (status === 'SUBSCRIBED') {
