@@ -3955,7 +3955,7 @@ function subscribeToPartyUpdates(charIds) {
     channel.on('broadcast', { event: 'char_updated' }, (msg) => {
       if (msg.payload?.from === _REALTIME_SESSION_ID) return; // own action already refreshes itself
       console.log('[realtime] party member update', { id, payload: msg.payload });
-      schedulePartyListRefresh();
+      scheduleSingleCharacterRefresh(id);
     });
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
@@ -4571,6 +4571,11 @@ window.switchDMTab = switchDMTab;
 
 // ── Party Tab ───────────────────────────────────────────
 
+// Caches every character's raw data, keyed by ID, populated during the full
+// list load — used by refreshSingleCharacterCard() so a live update to one
+// character can patch just that card without a full list rebuild.
+let _partyCharCache = {};
+
 async function loadDMCharList() {
   const listEl   = document.getElementById('dm-char-list');
   const glanceEl = document.getElementById('dm-hp-glance');
@@ -4596,6 +4601,7 @@ async function loadDMCharList() {
     let totalHP = 0, maxHP = 0, charCount = 0;
     const glanceRows = [];
     const ORDINALS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'];
+    _partyCharCache = {};
 
     // Group characters by campaign — Unassigned first, then each campaign
     // in definition order — instead of one flat mixed list. Each group's
@@ -4631,6 +4637,7 @@ async function loadDMCharList() {
         const hpCur = parseInt(c.hp_current) || 0;
         const hpMax = parseInt(c.hp_max) || 0;
         totalHP += hpCur; maxHP += hpMax; charCount++;
+        _partyCharCache[id] = c;
         const hpPct  = hpMax > 0 ? Math.max(0, Math.min(100, (hpCur/hpMax)*100)) : 0;
         const hpCol  = hpPct > 60 ? 'var(--accent)' : hpPct > 30 ? 'var(--amber)' : 'var(--red)';
         const cls    = c.class || '—';
@@ -4664,7 +4671,7 @@ async function loadDMCharList() {
         const gpTotal = pp*10 + gpAmt + sp/10 + cp/100;
         const invCount = (c.equipment||[]).filter(e=>e.name).length;
         glanceRows.push(`
-          <div onclick="document.getElementById('dm-char-card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'})"
+          <div id="dm-glance-${id}" onclick="document.getElementById('dm-char-card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'})"
             style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,.02)"
             onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'"
             title="Click to jump to ${(c.charName||id).replace(/"/g,'&quot;')}'s card">
@@ -4795,6 +4802,223 @@ async function loadDMCharList() {
   } catch(e) {
     listEl.innerHTML = `<div style="color:var(--red);font-family:var(--font-ui);font-size:11px">${e.message}</div>`;
   }
+}
+
+// Recomputes the "N characters · Party HP: X/Y (Z%)" summary line from the
+// cached character data, without a fresh network fetch — used after a
+// single-card patch so the aggregate stays accurate without a full reload.
+function updatePartySummaryText() {
+  const summaryEl = document.getElementById('dm-party-summary');
+  if (!summaryEl) return;
+  const chars = Object.values(_partyCharCache || {});
+  let totalHP = 0, maxHP = 0;
+  chars.forEach(c => { totalHP += parseInt(c.hp_current) || 0; maxHP += parseInt(c.hp_max) || 0; });
+  const pct = maxHP > 0 ? Math.round(totalHP / maxHP * 100) : 100;
+  summaryEl.textContent = chars.length + ' characters · Party HP: ' + totalHP + '/' + maxHP + ' (' + pct + '%)';
+}
+
+// Patches a single character's existing glance row and detailed card in
+// place, without touching any other character's DOM — this is what fixes
+// the "whole DM panel reloads on any change" issue: previously EVERY
+// incoming update (a death save pip, an HP change, a condition) called
+// loadDMCharList(), which wipes and rebuilds the entire list from scratch —
+// resetting scroll position, collapsing any open inventory sections, and
+// discarding anything the DM was mid-typing in an unrelated character's
+// note field. This targets just the one character that actually changed.
+//
+// Deliberately duplicates (rather than shares) the row-building markup from
+// loadDMCharList() above — the two are kept in sync manually. This was a
+// conscious tradeoff: extracting a shared render function turned out to be
+// riskier to splice in safely than a small amount of duplication, given how
+// much nested template-literal markup is involved. If the card layout ever
+// changes, both copies need updating.
+async function refreshSingleCharacterCard(charId) {
+  const cardEl = document.getElementById('dm-char-card-' + charId);
+  if (!cardEl) { loadDMCharList(); return; } // no existing card to patch — fall back to a full load
+  try {
+    const { content: c } = await GH.getFile(charId + '.json');
+    _partyCharCache[charId] = c;
+
+    const hpCur = parseInt(c.hp_current) || 0;
+    const hpMax = parseInt(c.hp_max) || 0;
+    const hpPct  = hpMax > 0 ? Math.max(0, Math.min(100, (hpCur/hpMax)*100)) : 0;
+    const hpCol  = hpPct > 60 ? 'var(--accent)' : hpPct > 30 ? 'var(--amber)' : 'var(--red)';
+    const cls    = c.class || '—';
+    const level  = c.level || 1;
+    const sub    = c.subclass ? ` · ${c.subclass}` : '';
+    const ORDINALS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'];
+    const id = charId;
+
+    const downed = hpCur <= 0;
+    const condCount = c.conditions?.length || 0;
+    const ds = c.death_saves || { successes: 0, failures: 0 };
+    const dsRules = getDeathSaveRules(c);
+    const showDeathSaves = downed || ds.successes > 0 || ds.failures > 0;
+    const dsPipsHTML = showDeathSaves ? `
+      <div style="display:flex;gap:5px;align-items:center;margin-top:2px" title="${dsRules.note || 'Death saves'}">
+        <div style="display:flex;gap:1px">${Array.from({length:dsRules.max},(_,i)=>`<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'var(--bg3)'};border:1px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
+        <div style="display:flex;gap:1px">${Array.from({length:dsRules.max},(_,i)=>`<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${i<ds.failures?'var(--red)':'var(--bg3)'};border:1px solid ${i<ds.failures?'var(--red)':'var(--border)'}"></span>`).join('')}</div>
+        ${dsRules.max > 3 ? '<span style="font-size:8px;color:var(--amber)">⚠ hat</span>' : ''}
+      </div>
+    ` : '';
+
+    const slotInfo = computeSpellSlotsForChar(c);
+    const totalSlotsMax = slotInfo.levels.reduce((s,l)=>s+l.max,0) + (slotInfo.warlock?.max||0);
+    const totalSlotsRemaining = slotInfo.levels.reduce((s,l)=>s+(l.max-l.used),0) + (slotInfo.warlock ? slotInfo.warlock.max-slotInfo.warlock.used : 0);
+    const isCaster = totalSlotsMax > 0;
+
+    const cur = c.currency || {};
+    const cp = parseInt(cur.cp)||0, sp = parseInt(cur.sp)||0, gpAmt = parseInt(cur.gp)||0, pp = parseInt(cur.pp)||0;
+    const gpTotal = pp*10 + gpAmt + sp/10 + cp/100;
+    const invCount = (c.equipment||[]).filter(e=>e.name).length;
+
+    const campList2  = (typeof _dmCampaigns !== 'undefined' && _dmCampaigns.length) ? _dmCampaigns : [];
+    const charCamp   = campList2.find(cp2 => cp2.id === c._campaign);
+    const campColor  = charCamp ? charCamp.color : null;
+    const campName   = charCamp ? charCamp.name  : '';
+
+    // Preserve state that regenerating the card's HTML would otherwise
+    // wipe: whether the inventory section was expanded, and anything
+    // typed but not yet submitted in the ±HP or DM note fields.
+    const invEl = document.getElementById('dm-inv-' + charId);
+    const wasInvOpen = invEl && invEl.style.display !== 'none';
+    const hpAdjEl = document.getElementById('dm-hp-adj-' + charId);
+    const hpAdjVal = hpAdjEl?.value || '';
+    const noteEl = document.getElementById('dm-note-' + charId);
+    const noteFocused = document.activeElement === noteEl;
+    const noteVal = (noteEl && noteEl.value !== (c._dmNote || '')) ? noteEl.value : null;
+
+    cardEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <div style="font-family:var(--font-ui);font-size:12px;color:var(--text);font-weight:600;letter-spacing:.3px">${c.charName||id}</div>
+            ${campColor ? `<span style="font-family:var(--font-ui);font-size:8px;color:${campColor};background:${campColor}22;border:1px solid ${campColor}55;border-radius:3px;padding:1px 5px">${campName}</span>` : ''}
+          </div>
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${c.playerName||''} · Lv ${level} ${cls}${sub}</div>
+        </div>
+        <div style="text-align:right;display:flex;align-items:flex-start;gap:8px">
+          <div>
+            <div style="font-family:var(--font-label);font-size:16px;font-weight:700;color:${hpCol}">${hpCur}<span style="font-size:11px;color:var(--text3)">/${hpMax}</span></div>
+            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">HP</div>
+          </div>
+          <button onclick="dmDeleteCharacter('${id}','${(c.charName||id).replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" title="Delete character"
+            style="font-size:13px;line-height:1;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
+            onmouseover="this.style.color='var(--red)';this.style.background='rgba(220,50,50,.1)'"
+            onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button>
+        </div>
+      </div>
+      <div style="height:3px;background:var(--bg3);border-radius:2px;margin-bottom:8px">
+        <div style="height:100%;width:${hpPct}%;background:${hpCol};border-radius:2px;transition:width .3s"></div>
+      </div>
+      ${showDeathSaves ? `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:5px 8px;background:rgba(220,50,50,.06);border:1px solid rgba(220,50,50,.2);border-radius:4px">
+        <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Death Saves</span>
+        <div style="display:flex;gap:2px" title="Successes — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','success',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'transparent'};border:1.5px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
+        <div style="display:flex;gap:2px" title="Failures — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','failure',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.failures?'var(--red)':'transparent'};border:1.5px solid ${i<ds.failures?'var(--red)':'var(--border)'}"></span>`).join('')}</div>
+        ${dsRules.note ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--amber);margin-left:auto">⚠ ${dsRules.note.split(':')[0]}</span>` : ''}
+      </div>
+      ` : ''}
+      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+        ${c.conditions?.length ? c.conditions.map(cd => `<span style="cursor:pointer;font-family:var(--font-ui);font-size:8px;color:var(--amber);background:rgba(255,180,0,.12);border:1px solid rgba(255,180,0,.3);border-radius:3px;padding:1px 5px" onclick="dmRemoveCondition('${id}','${cd}')" title="Click to remove">× ${cd}</span>`).join('') : ''}
+        ${c.exhaustion > 0 ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--red);background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.3);border-radius:3px;padding:1px 5px">Exhaustion ${c.exhaustion}</span>` : ''}
+      </div>
+      ${isCaster ? `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+        <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Slots</span>
+        ${slotInfo.levels.map(l => `<span style="font-family:var(--font-ui);font-size:9px;color:${l.max-l.used===0?'var(--red)':'var(--text2)'}" title="${ORDINALS[l.level]}-level slots">${ORDINALS[l.level]} <b style="color:${l.max-l.used===0?'var(--red)':'var(--text)'}">${l.max-l.used}</b>/${l.max}</span>`).join('')}
+        ${slotInfo.warlock ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--accent3)" title="Pact Magic (${ORDINALS[slotInfo.warlock.slotLevel]}-level, short rest)">Pact <b style="color:${slotInfo.warlock.max-slotInfo.warlock.used===0?'var(--red)':'var(--accent3)'}">${slotInfo.warlock.max-slotInfo.warlock.used}</b>/${slotInfo.warlock.max}</span>` : ''}
+      </div>
+      ` : ''}
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+        <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Coin</span>
+        <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2)">${pp}<span style="color:var(--text3)">pp</span> ${gpAmt}<span style="color:var(--text3)">gp</span> ${sp}<span style="color:var(--text3)">sp</span> ${cp}<span style="color:var(--text3)">cp</span></span>
+        <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);margin-left:auto">(${gpTotal.toFixed(2).replace(/\.?0+$/,'')} gp total)</span>
+      </div>
+      <div style="margin-top:8px">
+        <div onclick="document.getElementById('dm-inv-${id}').style.display=document.getElementById('dm-inv-${id}').style.display==='none'?'':'none'"
+          style="cursor:pointer;display:flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:9px;color:var(--text3);user-select:none">
+          <span>▸</span> Inventory (${invCount} item${invCount!==1?'s':''})
+        </div>
+        <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto">
+          ${invCount ? (c.equipment||[]).filter(e=>e.name).map(e => `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text2);padding:1px 0">${e.qty||1}× ${e.name}${e.weight?` <span style="color:var(--text3)">(${e.weight})</span>`:''}</div>`).join('') : '<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">No items</div>'}
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;margin-top:8px;align-items:center;flex-wrap:wrap">
+        <input class="info-input" type="number" placeholder="±HP" id="dm-hp-adj-${id}"
+          style="width:60px;text-align:center;font-size:12px;padding:3px 6px"/>
+        <button class="tbtn" onclick="dmAdjHP('${id}',-1)" style="font-size:10px;padding:3px 9px;border-color:var(--red);color:var(--red)">Dmg</button>
+        <button class="tbtn" onclick="dmAdjHP('${id}',1)"  style="font-size:10px;padding:3px 9px;border-color:var(--accent);color:var(--accent)">Heal</button>
+        <select class="choice-select" style="font-size:10px;padding:3px 6px;flex:0 0 auto;max-width:110px"
+          onchange="if(this.value){dmApplyCondition('${id}',this.value);this.value=''}">
+          <option value="">+ Condition</option>
+          <option value="Blinded">Blinded</option>
+          <option value="Charmed">Charmed</option>
+          <option value="Deafened">Deafened</option>
+          <option value="Exhaustion">Exhaustion</option>
+          <option value="Frightened">Frightened</option>
+          <option value="Grappled">Grappled</option>
+          <option value="Incapacitated">Incapacitated</option>
+          <option value="Invisible">Invisible</option>
+          <option value="Paralyzed">Paralyzed</option>
+          <option value="Petrified">Petrified</option>
+          <option value="Poisoned">Poisoned</option>
+          <option value="Prone">Prone</option>
+          <option value="Restrained">Restrained</option>
+          <option value="Stunned">Stunned</option>
+          <option value="Unconscious">Unconscious</option>
+        </select>
+        <input class="info-input" placeholder="DM note…" id="dm-note-${id}"
+          value="${(c._dmNote||'').replace(/"/g,'&quot;')}"
+          style="flex:1;min-width:80px;font-size:11px;padding:3px 8px"
+          onchange="dmSaveCharNote('${id}',this.value)"/>
+      </div>
+    `;
+
+    const glanceRowEl = document.getElementById('dm-glance-' + charId);
+    if (glanceRowEl) {
+      glanceRowEl.outerHTML = `
+        <div id="dm-glance-${id}" onclick="document.getElementById('dm-char-card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'})"
+          style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,.02)"
+          onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'"
+          title="Click to jump to ${(c.charName||id).replace(/"/g,'&quot;')}'s card">
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
+          </div>
+          <div>
+          <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${hpPct}%;background:${hpCol};border-radius:3px;transition:width .3s"></div>
+          </div>
+          ${dsPipsHTML}
+          </div>
+          <div style="font-family:var(--font-label);font-size:11px;font-weight:700;color:${hpCol};text-align:right;white-space:nowrap">${hpCur}<span style="color:var(--text3);font-weight:400">/${hpMax}</span></div>
+        </div>
+      `;
+    }
+
+    if (wasInvOpen) { const el = document.getElementById('dm-inv-' + charId); if (el) el.style.display = ''; }
+    if (hpAdjVal) { const el = document.getElementById('dm-hp-adj-' + charId); if (el) el.value = hpAdjVal; }
+    if (noteVal !== null) {
+      const el = document.getElementById('dm-note-' + charId);
+      if (el) { el.value = noteVal; if (noteFocused) el.focus(); }
+    }
+
+    updatePartySummaryText();
+  } catch(e) {
+    console.warn('[refreshSingleCharacterCard] failed, falling back to full reload:', e.message);
+    loadDMCharList();
+  }
+}
+
+// Debounced per-character — if several broadcasts for the same character
+// arrive in quick succession, only the last one actually triggers a fetch.
+const _singleCardRefreshTimers = {};
+function scheduleSingleCharacterRefresh(charId) {
+  if (_singleCardRefreshTimers[charId]) clearTimeout(_singleCardRefreshTimers[charId]);
+  _singleCardRefreshTimers[charId] = setTimeout(() => {
+    delete _singleCardRefreshTimers[charId];
+    refreshSingleCharacterCard(charId);
+  }, 250);
 }
 
 async function dmSaveCharNote(id, note) {
