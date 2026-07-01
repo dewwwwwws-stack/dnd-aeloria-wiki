@@ -5541,11 +5541,31 @@ async function saveChar() {
     setSyncStatus('ok', '✓ Saved');
     broadcastHPIfChanged();
   } catch(e) {
-    // 409 = SHA conflict — fetch fresh SHA and retry once
+    // 409 = SHA conflict — the file changed on GitHub since we last read it
+    // (most likely a DM-granted item or condition change). Re-fetch, merge
+    // anything remote-only into our local state, then retry once. This
+    // prevents a DM grant from being silently wiped by the player's next save.
     if (e.message?.includes('409') || e.status === 409) {
       try {
-        const f = await GH.getFile(`${currentChar.id}.json`);
-        const result = await GH.putFile(`${currentChar.id}.json`, currentChar, f.sha);
+        const fresh = await GH.getFile(`${currentChar.id}.json`);
+        // Merge magic items the DM added remotely that we don't have locally
+        if (fresh.content.magicItems?.length) {
+          if (!currentChar.magicItems) currentChar.magicItems = [];
+          const localUids = new Set(currentChar.magicItems.map(i => i._uid).filter(Boolean));
+          const localKeys = new Set(currentChar.magicItems.map(i => i.key));
+          const remoteOnly = fresh.content.magicItems.filter(i =>
+            (i._uid && !localUids.has(i._uid)) || (!i._uid && !localKeys.has(i.key))
+          );
+          if (remoteOnly.length) currentChar.magicItems.push(...remoteOnly);
+        }
+        // Merge resources the DM may have created (charge pools for granted items)
+        if (fresh.content.customResources?.length) {
+          if (!currentChar.customResources) currentChar.customResources = [];
+          const localResIds = new Set(currentChar.customResources.map(r => r.id));
+          const remoteOnlyRes = fresh.content.customResources.filter(r => !localResIds.has(r.id));
+          if (remoteOnlyRes.length) currentChar.customResources.push(...remoteOnlyRes);
+        }
+        const result = await GH.putFile(`${currentChar.id}.json`, currentChar, fresh.sha);
         currentCharSHA = result.content.sha;
         setSyncStatus('ok', '✓ Saved');
         broadcastHPIfChanged();
@@ -24890,25 +24910,33 @@ async function confirmGrantItem() {
   if (!charId || !_grantItemKey) { if (status) status.textContent = 'Pick a player first.'; return; }
 
   if (status) { status.style.color = 'var(--text3)'; status.textContent = 'Granting…'; }
-  try {
-    const { content: c, sha } = await GH.getFile(`${charId}.json`);
-    const result = addMagicItemToCharacter(c, _grantItemKey);
-    if (!result.added) {
-      if (status) { status.style.color = 'var(--amber)'; status.textContent = result.reason === 'Already owned' ? `${c.charName||charId} already has this item.` : (result.reason || 'Could not grant item.'); }
-      return;
-    }
-    await GH.putFile(`${charId}.json`, c, sha);
-    broadcastCharUpdate(charId, 'magicItems');
-    // Keep the campaigns-pane cache in sync so re-opening this picker without
-    // a manual refresh doesn't show stale (pre-grant) item ownership.
-    const cached = _allCharFiles.find(f => f.id === charId);
-    if (cached) cached.char = c;
 
-    toast(`${result.item.name} granted to ${c.charName||charId}`, 'ok');
-    closeModal('grant-item-modal');
-  } catch(e) {
-    if (status) { status.style.color = 'var(--red)'; status.textContent = 'Failed: ' + e.message; }
+  // Retry up to 3 times on SHA conflict (409) — the player's sheet may be
+  // autosaving concurrently, changing the SHA between our read and write.
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 300 * attempt));
+      const { content: c, sha } = await GH.getFile(`${charId}.json`);
+      const result = addMagicItemToCharacter(c, _grantItemKey);
+      if (!result.added) {
+        if (status) { status.style.color = 'var(--amber)'; status.textContent = result.reason === 'Already owned' ? `${c.charName||charId} already has this item.` : (result.reason || 'Could not grant item.'); }
+        return;
+      }
+      await GH.putFile(`${charId}.json`, c, sha);
+      broadcastCharUpdate(charId, 'magicItems');
+      const cached = _allCharFiles.find(f => f.id === charId);
+      if (cached) cached.char = c;
+      toast(`${result.item.name} granted to ${c.charName||charId}`, 'ok');
+      closeModal('grant-item-modal');
+      return;
+    } catch(e) {
+      lastErr = e;
+      const is409 = e.message?.includes('409') || e.status === 409;
+      if (!is409) break; // non-conflict error, no point retrying
+    }
   }
+  if (status) { status.style.color = 'var(--red)'; status.textContent = 'Failed: ' + (lastErr?.message || 'Unknown error'); }
 }
 window.confirmGrantItem = confirmGrantItem;
 
