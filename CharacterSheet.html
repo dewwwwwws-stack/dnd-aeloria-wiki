@@ -87,6 +87,9 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, html { height: 100%; }
 body { height: 100%; overflow: hidden; }
+html {
+  overflow-x: hidden;
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -95,6 +98,8 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   transition: background .2s, color .2s;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 input, select, textarea, button { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; }
@@ -380,16 +385,19 @@ select:not([multiple]) {
 
 #char-summary {
   flex: 1;
+  min-width: 0;
   display: flex; gap: 8px; align-items: center;
   font-size: 13px; color: var(--text2);
   font-family: var(--font-label);
   letter-spacing: 0;
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 #char-summary strong { color: var(--text); font-weight: 700; }
 #char-summary .sum-sep { color: var(--border2); }
 
-.topbar-right { display: flex; gap: 6px; align-items: center; }
+.topbar-right { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 
 .tbtn {
   padding: 5px 12px;
@@ -1020,6 +1028,21 @@ select:not([multiple]) {
   select { min-height: 38px; }
   .btn-primary { min-height: 44px; font-size: 14px; }
   .sp-del-btn, .row-del-btn { min-width: 32px; min-height: 32px; }
+
+  /* Stop iOS Safari's auto-zoom when a text field gains focus — it
+     triggers on any input/select/textarea under 16px, and this file has
+     dozens of ad-hoc inline font-size overrides (11px, 12px, 13px are
+     everywhere, especially in the DM panel), so a plain stylesheet rule
+     wouldn't win against those without !important. This matters more here
+     than in a normal mobile tab: when embedded as an iframe (e.g. an
+     Obsidian Publish note), the iframe's own fixed dimensions don't zoom
+     along with the page, so the auto-zoom visibly clips and misaligns
+     content rather than just zooming the whole visible area cleanly. */
+  input, select, textarea { font-size: 16px !important; }
+  /* Small fixed-width number inputs (±HP, ammo counts, hit dice, etc.)
+     were sized for a ~11-12px font — widen slightly so 16px text isn't
+     cramped or clipped against the up/down spinner arrows. */
+  input[type="number"] { min-width: 56px; }
 }
 
 /* ── ABILITY SCORES ─────────────────────────────────────── */
@@ -33815,18 +33838,21 @@ window.createCharacter        = createCharacter;
 window.verifyDMPin            = verifyDMPin;
 
 function openDMPanelDirect() {
+  // Always go through openModal() so the modal gets correctly re-teleported
+  // to document.body and given a proper z-index — closeDMModal() moves it
+  // back to its original DOM position as cleanup when closed, so a later
+  // reopen that skips this step (as this function previously did when
+  // isDM was already true) leaves it sitting wherever it landed, often
+  // invisible or behind other content even though .hidden was removed.
+  openModal('dm-modal');
   // If already authenticated as DM, skip PIN gate
   if (isDM) {
-    const modal = document.getElementById('dm-modal');
     const gate  = document.getElementById('dm-pin-gate');
     const dmcon = document.getElementById('dm-content');
-    if (modal)  modal.classList.remove('hidden');
     if (gate)   gate.style.display  = 'none';
     if (dmcon)  dmcon.style.display = 'block';
     switchDMTab('party');
     loadDMCharList();
-  } else {
-    openModal('dm-modal');
   }
 }
 window.openDMPanelDirect = openDMPanelDirect;
@@ -34887,7 +34913,7 @@ function updateWildCompanionUI() {
 </div>
 
 <div class="modal-overlay hidden" id="dm-modal">
-  <div class="modal-box" style="max-width:600px;max-height:92vh;overflow-y:auto;width:calc(100vw - 20px)">
+  <div class="modal-box" style="max-width:1400px;max-height:96vh;overflow-y:auto;width:calc(100vw - 24px)">
     <div class="modal-title">
       ⚔ DM Panel — Aeloria
       <span class="modal-close" onclick="closeDMModal()">✕</span>
@@ -34931,7 +34957,7 @@ function updateWildCompanionUI() {
           </div>
         </div>
         <div id="dm-hp-glance" style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px"></div>
-        <div id="dm-char-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
+        <div id="dm-char-list" style="display:flex;flex-direction:column;gap:6px;max-height:calc(96vh - 300px);overflow-y:auto"></div>
         <div id="dm-party-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px;text-align:center"></div>
       </div>
 
@@ -34962,7 +34988,7 @@ function updateWildCompanionUI() {
           <button class="tbtn" onclick="dmNextTurn()" style="font-size:10px;padding:4px 10px;border-color:var(--accent);color:var(--accent)">▶ Next Turn</button>
           <button class="tbtn" onclick="dmClearCombat()" style="font-size:10px;padding:4px 10px;border-color:var(--red);color:var(--red)" title="Clear all">✕ Clear</button>
         </div>
-        <div id="dm-init-list" style="display:flex;flex-direction:column;gap:4px;max-height:340px;overflow-y:auto"></div>
+        <div id="dm-init-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 280px);overflow-y:auto"></div>
         <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px" id="dm-round-counter">Round 1</div>
 
         <div style="padding-top:12px;border-top:1px solid var(--border);margin-top:12px">
@@ -35043,7 +35069,7 @@ function updateWildCompanionUI() {
           </select>
         </div>
         <div id="dm-items-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
-        <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:440px;overflow-y:auto"></div>
+        <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 320px);overflow-y:auto"></div>
       </div>
 
       <div id="dm-pane-admin" style="display:none">
