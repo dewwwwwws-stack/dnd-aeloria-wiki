@@ -3722,6 +3722,20 @@ const GH = {
 const SUPABASE_URL      = 'https://tgwwncymmxjlctjewaxz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnd3duY3ltbXhqbGN0amV3YXh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4Mjc4NTgsImV4cCI6MjA5ODQwMzg1OH0.h10It-2xif8QzYA3AurIypyhpKhxf-ATmA9EifZv5AQ';
 
+// Unique per-page-load ID, included in every outgoing broadcast so a
+// receiver can tell "this is my own change echoing back" apart from "this
+// is a genuine change from someone else" — necessary because the sender
+// uses a plain REST POST (see broadcastCharUpdate below) which has no
+// WebSocket connection identity for Supabase's own self-exclusion to key
+// off, and even a same-topic WebSocket channel's `self:false` config only
+// suppresses echo back to that exact channel instance, not to a separate
+// receiver channel subscribed to the same topic. Without this, a player's
+// own HP edit would loop back to their own client, trigger a re-fetch, and
+// could briefly overwrite their own newer local edit with a stale read.
+const _REALTIME_SESSION_ID = (typeof crypto !== 'undefined' && crypto.randomUUID)
+  ? crypto.randomUUID()
+  : 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+
 let _sbClient = null;
 function getSupabaseClient() {
   if (_sbClient) return _sbClient;
@@ -3768,7 +3782,7 @@ async function broadcastCharUpdate(charId, field) {
         messages: [{
           topic: 'char-' + charId,
           event: 'char_updated',
-          payload: { field, at: Date.now() },
+          payload: { field, at: Date.now(), from: _REALTIME_SESSION_ID },
         }],
       }),
     });
@@ -3802,6 +3816,10 @@ function subscribeToCharUpdates(charId) {
   console.log('[realtime] subscribing', { charId, topic: 'char-' + charId });
   _sbCharChannel = sb.channel('char-' + charId);
   _sbCharChannel.on('broadcast', { event: 'char_updated' }, (msg) => {
+    if (msg.payload?.from === _REALTIME_SESSION_ID) {
+      console.log('[realtime] ignoring own echoed broadcast', { charId });
+      return;
+    }
     console.log('[realtime] received broadcast', { charId, payload: msg.payload });
     handleRemoteCharUpdate(msg.payload?.field || 'full');
   });
@@ -3935,6 +3953,7 @@ function subscribeToPartyUpdates(charIds) {
   charIds.forEach((id) => {
     const channel = sb.channel('char-' + id);
     channel.on('broadcast', { event: 'char_updated' }, (msg) => {
+      if (msg.payload?.from === _REALTIME_SESSION_ID) return; // own action already refreshes itself
       console.log('[realtime] party member update', { id, payload: msg.payload });
       schedulePartyListRefresh();
     });
