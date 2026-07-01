@@ -2208,16 +2208,8 @@ select:not([multiple]) {
               </div>
               <div id="ds-rule-note" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);margin-top:4px;line-height:1.4"></div>
               <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                  <span class="field-label" style="margin:0">Hit Dice</span>
-                  <span id="hd-display" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)"></span>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <span id="hd-used-display" style="font-family:var(--font-ui);font-size:11px;color:var(--text2);white-space:nowrap"></span>
-                  <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed(-1)" title="Restore a hit die">−</button>
-                  <input type="number" id="hd-used" data-key="hd_used" value="0" min="0" style="width:48px;font-size:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:2px" oninput="updateHDDisplay();debouncedSave()" title="Hit dice spent"/>
-                  <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed(1)" title="Mark a hit die as spent">+</button>
-                </div>
+                <div class="field-label" style="margin-bottom:6px">Hit Dice</div>
+                <div id="hd-rows" style="display:flex;flex-direction:column;gap:6px"></div>
               </div>
             </div>
           </div>
@@ -4353,7 +4345,7 @@ async function createCharacter() {
       // Core stats — populated in Step 2
       class:'', subclass:'', race:'', subrace:'', level:1, xp:0,
       abilities:{ str:10, dex:10, con:10, int:10, wis:10, cha:10 },
-      hp_max:0, hp_current:0, hp_temp:0, hd_used:0,
+      hp_max:0, hp_current:0, hp_temp:0, hd_used:0, hd_used_by_class:{},
       ac:10, speed:30, inspiration:false,
       proficiencies:'', languages:'', features:'',
       attacks:[], equipment:[], magic_items:[],
@@ -18787,58 +18779,88 @@ function resetDeathSaves() {
 // HIT DICE DISPLAY
 // ═══════════════════════════════════════════════════════════
 
+// Renders one row per class the character has, each with its own die size,
+// its own spent/available count, and its own +/− controls — real 5e
+// multiclass rules give each class a separate hit die pool (a Fighter
+// 3/Wizard 6 has 3d10 AND 6d6, not one combined pool), so a single flat
+// "dice spent" counter couldn't represent that correctly.
 function updateHDDisplay() {
-  const level = getLevel();
-  const used  = parseInt(document.getElementById('hd-used')?.value) || 0;
-  const clamped = Math.max(0, Math.min(level, used));
-  if (currentChar) currentChar.hd_used = clamped;
+  if (!currentChar) return;
+  if (!currentChar.hd_used_by_class) currentChar.hd_used_by_class = {};
 
+  // One-time migration for existing characters that only ever had the old
+  // flat hd_used counter: seed it into their first (primary) class's pool
+  // rather than silently discarding it. For a genuinely multiclassed
+  // character this is an approximation (there's no way to know which
+  // class's dice were actually spent under the old flat model), but it
+  // preserves the count rather than resetting everyone to full on upgrade.
   const classes = getAllClasses();
-
-  // Build multiclass hit die display e.g. "d10 + 2d8"
-  const dispEl = document.getElementById('hd-display');
-  if (dispEl) {
-    if (classes.length > 1) {
-      const dieParts = classes.map(e => {
-        const die = getHitDieForClass(e.class);
-        const lv  = e.levels?.length || 0;
-        return lv === 1 ? `d${die}` : `${lv}d${die}`;
-      });
-      dispEl.textContent = dieParts.join(' + ');
-    } else {
-      // Use the same multiclass-aware lookup as the branch above, keyed
-      // off the actual class entry rather than the legacy currentChar.class
-      // field — that field can be stale/empty for characters built through
-      // the modern multiclass UI, silently falling back to a default d8.
-      const die = getHitDieForClass(classes[0]?.class || currentChar?.class);
-      dispEl.textContent = 'd' + die;
-    }
+  if (Object.keys(currentChar.hd_used_by_class).length === 0 && currentChar.hd_used) {
+    const primaryKey = (classes[0]?.class || currentChar.class || '').toLowerCase();
+    if (primaryKey) currentChar.hd_used_by_class[primaryKey] = parseInt(currentChar.hd_used) || 0;
   }
 
-  const countEl = document.getElementById('hd-used-display');
-  if (countEl) {
-    const available = level - clamped;
-    countEl.textContent = `${available} available (${clamped}/${level} spent)`;
-    countEl.style.color = available > 0 ? 'var(--text2)' : 'var(--text3)';
+  const rowsEl = document.getElementById('hd-rows');
+  if (!rowsEl) return;
+  rowsEl.innerHTML = '';
+
+  classes.forEach(entry => {
+    const clsKey  = (entry.class || '').toLowerCase();
+    if (!clsKey) return;
+    const clsName = clsKey.charAt(0).toUpperCase() + clsKey.slice(1);
+    const die     = getHitDieForClass(clsKey);
+    const total   = entry.levels?.length || 0;
+    if (!total) return;
+    const used    = Math.max(0, Math.min(total, parseInt(currentChar.hd_used_by_class[clsKey]) || 0));
+    currentChar.hd_used_by_class[clsKey] = used;
+    const available = total - used;
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+    row.innerHTML = `
+      <span style="font-family:var(--font-ui);font-size:11px;color:var(--gold);min-width:70px">${classes.length > 1 ? clsName + ' ' : ''}${total}d${die}</span>
+      <span style="font-family:var(--font-ui);font-size:11px;color:${available>0?'var(--text2)':'var(--text3)'};white-space:nowrap">${available} available (${used}/${total} spent)</span>
+      <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed('${clsKey}',-1)" title="Restore a ${clsName} hit die">−</button>
+      <input type="number" min="0" max="${total}" value="${used}" style="width:48px;font-size:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:2px"
+        onchange="setHitDiceUsed('${clsKey}',parseInt(this.value)||0)" title="${clsName} hit dice spent"/>
+      <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed('${clsKey}',1)" title="Mark a ${clsName} hit die as spent">+</button>
+    `;
+    rowsEl.appendChild(row);
+  });
+
+  if (!rowsEl.children.length) {
+    rowsEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Select a class to track hit dice</div>';
   }
 }
 
-// Tracks hit dice spent/restored without rolling anything or touching HP —
-// deliberately track-only. A hit die can be spent for reasons other than
-// healing (certain spells and features consume one directly), so the sheet
-// shouldn't assume every spend means "roll and heal now"; the player rolls
-// physically and applies the result however's appropriate themselves.
-function adjustHitDiceUsed(delta) {
+// Tracks hit dice spent/restored for one specific class, without rolling
+// anything or touching HP — deliberately track-only. A hit die can be
+// spent for reasons other than healing (certain spells and features
+// consume one directly), so the sheet shouldn't assume every spend means
+// "roll and heal now"; the player rolls physically and applies the result
+// however's appropriate themselves.
+function adjustHitDiceUsed(clsKey, delta) {
   if (!currentChar) return;
-  const level = getLevel();
-  const used  = parseInt(currentChar.hd_used) || 0;
-  currentChar.hd_used = Math.max(0, Math.min(level, used + delta));
-  const hdEl = document.getElementById('hd-used');
-  if (hdEl) hdEl.value = currentChar.hd_used;
+  if (!currentChar.hd_used_by_class) currentChar.hd_used_by_class = {};
+  const entry = getAllClasses().find(e => (e.class||'').toLowerCase() === clsKey);
+  const total = entry?.levels?.length || 0;
+  const used  = parseInt(currentChar.hd_used_by_class[clsKey]) || 0;
+  currentChar.hd_used_by_class[clsKey] = Math.max(0, Math.min(total, used + delta));
   updateHDDisplay();
   debouncedSave();
 }
 window.adjustHitDiceUsed = adjustHitDiceUsed;
+
+function setHitDiceUsed(clsKey, val) {
+  if (!currentChar) return;
+  if (!currentChar.hd_used_by_class) currentChar.hd_used_by_class = {};
+  const entry = getAllClasses().find(e => (e.class||'').toLowerCase() === clsKey);
+  const total = entry?.levels?.length || 0;
+  currentChar.hd_used_by_class[clsKey] = Math.max(0, Math.min(total, val || 0));
+  updateHDDisplay();
+  debouncedSave();
+}
+window.setHitDiceUsed = setHitDiceUsed;
 
 // ═══════════════════════════════════════════════════════════
 // CONDITIONS
@@ -28721,13 +28743,9 @@ function doShortRest() {
     renderSpellSlots();
   }
 
-  // Hit dice recovery: recover half (rounded up)
-  const hd_used = parseInt(currentChar.hd_used) || 0;
-  const hd_recover = Math.max(1, Math.ceil(level / 2));
-  currentChar.hd_used = Math.max(0, hd_used - hd_recover);
-  const hdEl = document.getElementById('hd-used');
-  if (hdEl) hdEl.value = currentChar.hd_used;
-  updateHDDisplay();
+  // Hit dice are SPENT during a short rest, not recovered — recovery only
+  // happens on a long rest. (This block previously recovered half the
+  // dice here too, which doesn't match the actual rule.)
 
   renderResourceTracker();
   if (cls === 'warlock') renderSpellSlots();
@@ -28899,10 +28917,26 @@ function doLongRest() {
   // Reset spell slots (all casters)
   currentChar.spell_slots_used = {};
   currentChar._fontOfMagicBonusSlots = {};
-  // Reset hit dice (recover all on long rest in 5.5e)
-  currentChar.hd_used = 0;
-  const hdEl = document.getElementById('hd-used');
-  if (hdEl) hdEl.value = 0;
+  // Hit dice recovery: RAW recovers half your TOTAL dice count (rounded
+  // up, minimum one) as a single shared pool, with the player choosing
+  // which dice it applies to. Computing "half" independently per class
+  // would over-recover in edge cases (e.g. two classes each at level 1
+  // would each independently round up to 1, recovering 2 total instead of
+  // the correct 1) — so this spends one shared budget across classes,
+  // starting with the first (primary) class, capped at what's actually
+  // been used in each.
+  if (!currentChar.hd_used_by_class) currentChar.hd_used_by_class = {};
+  const hdClasses = getAllClasses();
+  const totalDice = hdClasses.reduce((s, e) => s + (e.levels?.length || 0), 0);
+  let hdRecoverBudget = totalDice > 0 ? Math.max(1, Math.ceil(totalDice / 2)) : 0;
+  hdClasses.forEach(entry => {
+    const clsKey = (entry.class || '').toLowerCase();
+    if (!clsKey || hdRecoverBudget <= 0) return;
+    const used = parseInt(currentChar.hd_used_by_class[clsKey]) || 0;
+    const recover = Math.min(used, hdRecoverBudget);
+    currentChar.hd_used_by_class[clsKey] = used - recover;
+    hdRecoverBudget -= recover;
+  });
   updateHDDisplay();
 
   // Reset death saves
