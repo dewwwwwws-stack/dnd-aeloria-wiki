@@ -2207,10 +2207,17 @@ select:not([multiple]) {
                 <button class="tbtn" style="font-size:9px;margin-left:auto" onclick="resetDeathSaves()">Reset</button>
               </div>
               <div id="ds-rule-note" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);margin-top:4px;line-height:1.4"></div>
-              <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-                <span id="hd-type" style="font-family:var(--font-ui);font-size:10px;color:var(--gold)">d8</span>
-                <span id="hd-display" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">0 / 0 used</span>
-                <input type="number" id="hd-used" data-key="hd_used" value="0" style="width:48px;font-size:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:2px" oninput="updateHDDisplay()"/>
+              <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                  <span class="field-label" style="margin:0">Hit Dice</span>
+                  <span id="hd-display" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)"></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span id="hd-used-display" style="font-family:var(--font-ui);font-size:11px;color:var(--text2);white-space:nowrap"></span>
+                  <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed(-1)" title="Restore a hit die">−</button>
+                  <input type="number" id="hd-used" data-key="hd_used" value="0" min="0" style="width:48px;font-size:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:2px" oninput="updateHDDisplay();debouncedSave()" title="Hit dice spent"/>
+                  <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed(1)" title="Mark a hit die as spent">+</button>
+                </div>
               </div>
             </div>
           </div>
@@ -18786,10 +18793,11 @@ function updateHDDisplay() {
   const clamped = Math.max(0, Math.min(level, used));
   if (currentChar) currentChar.hd_used = clamped;
 
+  const classes = getAllClasses();
+
   // Build multiclass hit die display e.g. "d10 + 2d8"
   const dispEl = document.getElementById('hd-display');
   if (dispEl) {
-    const classes = getAllClasses();
     if (classes.length > 1) {
       const dieParts = classes.map(e => {
         const die = getHitDieForClass(e.class);
@@ -18798,13 +18806,39 @@ function updateHDDisplay() {
       });
       dispEl.textContent = dieParts.join(' + ');
     } else {
-      dispEl.textContent = 'd' + getHitDie();
+      // Use the same multiclass-aware lookup as the branch above, keyed
+      // off the actual class entry rather than the legacy currentChar.class
+      // field — that field can be stale/empty for characters built through
+      // the modern multiclass UI, silently falling back to a default d8.
+      const die = getHitDieForClass(classes[0]?.class || currentChar?.class);
+      dispEl.textContent = 'd' + die;
     }
   }
 
   const countEl = document.getElementById('hd-used-display');
-  if (countEl) countEl.textContent = `${clamped} / ${level} used`;
+  if (countEl) {
+    const available = level - clamped;
+    countEl.textContent = `${available} available (${clamped}/${level} spent)`;
+    countEl.style.color = available > 0 ? 'var(--text2)' : 'var(--text3)';
+  }
 }
+
+// Tracks hit dice spent/restored without rolling anything or touching HP —
+// deliberately track-only. A hit die can be spent for reasons other than
+// healing (certain spells and features consume one directly), so the sheet
+// shouldn't assume every spend means "roll and heal now"; the player rolls
+// physically and applies the result however's appropriate themselves.
+function adjustHitDiceUsed(delta) {
+  if (!currentChar) return;
+  const level = getLevel();
+  const used  = parseInt(currentChar.hd_used) || 0;
+  currentChar.hd_used = Math.max(0, Math.min(level, used + delta));
+  const hdEl = document.getElementById('hd-used');
+  if (hdEl) hdEl.value = currentChar.hd_used;
+  updateHDDisplay();
+  debouncedSave();
+}
+window.adjustHitDiceUsed = adjustHitDiceUsed;
 
 // ═══════════════════════════════════════════════════════════
 // CONDITIONS
