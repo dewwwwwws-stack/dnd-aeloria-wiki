@@ -23651,6 +23651,7 @@ function adjustAmmo(type, delta) {
   ensureWeaponData();
   currentChar.ammo[type] = Math.max(0, (currentChar.ammo[type]||0) + delta);
   renderAttacksPanel();
+  debouncedSave();
 }
 
 function setAmmoMax(type) {
@@ -23659,12 +23660,14 @@ function setAmmoMax(type) {
   const max = currentChar.ammoMax?.[type] || 20;
   currentChar.ammo[type] = max;
   renderAttacksPanel();
+  debouncedSave();
 }
 
 function setAmmo(type, val) {
   ensureWeaponData();
   currentChar.ammo[type] = Math.max(0, val||0);
   renderAttacksPanel();
+  debouncedSave();
 }
 
 function renderAmmoOverview(container) {
@@ -23701,7 +23704,9 @@ function renderAmmoOverview(container) {
       <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustAmmo('${key}',1)">+</button>
       <input type="number" min="0" value="${count}" style="width:52px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-size:11px;color:var(--text)"
         oninput="setAmmo('${key}',parseInt(this.value)||0)"/>
-      ${isCustom ? `<span style="cursor:pointer;color:var(--text3);font-size:13px;line-height:1;padding:0 2px" title="Remove" onclick="removeCustomAmmoType('${key}')">×</span>` : ''}
+      ${isCustom
+        ? `<span style="cursor:pointer;color:var(--text3);font-size:13px;line-height:1;padding:0 2px" title="Remove this ammo type entirely" onclick="removeCustomAmmoType('${key}')">×</span>`
+        : `<span style="cursor:pointer;color:var(--text3);font-size:13px;line-height:1;padding:0 2px" title="${usedTypes.has(key) ? 'Clear count (an equipped weapon still uses this type, so it will stay tracked)' : 'Remove from list'}" onclick="clearAmmoType('${key}')">×</span>`}
     `;
     div.appendChild(row);
   });
@@ -23757,6 +23762,18 @@ function removeCustomAmmoType(key) {
   debouncedSave();
 }
 window.removeCustomAmmoType = removeCustomAmmoType;
+
+// Clears a built-in ammo type's count to 0, which removes it from view
+// per renderAmmoOverview's visibility rule — unless an equipped weapon
+// still relies on that ammo type, in which case it correctly stays visible
+// at 0 rather than hiding a stat that's still actively relevant.
+function clearAmmoType(key) {
+  if (!currentChar?.ammo) return;
+  currentChar.ammo[key] = 0;
+  renderAttacksPanel();
+  debouncedSave();
+}
+window.clearAmmoType = clearAmmoType;
 
 
 // ── Weapon modal ──────────────────────────────────────────
