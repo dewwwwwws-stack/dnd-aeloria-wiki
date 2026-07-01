@@ -2192,11 +2192,11 @@ select:not([multiple]) {
                 <button class="tbtn" style="font-size:9px;padding:2px 7px" onclick="openModal('hp-method-modal')">&#9881; Method</button>
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-                <div><label class="field-label">Max HP</label><input class="info-input" type="number" id="hp-max" data-key="hp_max" value="0" oninput="clampCurrentHP()"/></div>
-                <div><label class="field-label">Current HP</label><input class="info-input" type="number" id="hp-current" data-key="hp_current" value="0" style="color:var(--text)"/></div>
+                <div><label class="field-label">Max HP</label><input class="info-input" type="number" id="hp-max" data-key="hp_max" value="0" oninput="clampCurrentHP();debouncedSave()"/></div>
+                <div><label class="field-label">Current HP</label><input class="info-input" type="number" id="hp-current" data-key="hp_current" value="0" style="color:var(--text)" oninput="clampCurrentHP();debouncedSave()"/></div>
               </div>
               <div style="margin-bottom:8px"><label class="field-label">Temp HP</label>
-                <input class="info-input" type="number" id="hp-temp" data-key="hp_temp" value="0" style="text-align:center;color:var(--accent2)"/></div>
+                <input class="info-input" type="number" id="hp-temp" data-key="hp_temp" value="0" style="text-align:center;color:var(--accent2)" oninput="debouncedSave()"/></div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
                 <button class="btn-heal" onclick="openHPDelta('heal')">+ Heal</button>
                 <button class="btn-damage" onclick="openHPDelta('damage')">&#8722; Damage</button>
@@ -2206,6 +2206,7 @@ select:not([multiple]) {
                 <div><div class="field-label">Failures</div><div class="ds-pips" id="ds-failure"></div></div>
                 <button class="tbtn" style="font-size:9px;margin-left:auto" onclick="resetDeathSaves()">Reset</button>
               </div>
+              <div id="ds-rule-note" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);margin-top:4px;line-height:1.4"></div>
               <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
                 <span id="hd-type" style="font-family:var(--font-ui);font-size:10px;color:var(--gold)">d8</span>
                 <span id="hd-display" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">0 / 0 used</span>
@@ -3903,10 +3904,21 @@ async function handleRemoteCharUpdate(field) {
 // when a character is added or removed.
 let _sbPartyChannels = [];
 let _partyFallbackPollTimer = null;
+let _sbPartySubscribedIds = null;
 function subscribeToPartyUpdates(charIds) {
   const sb = getSupabaseClient();
+  const idsKey = (charIds || []).slice().sort().join(',');
+  // If we're already subscribed to exactly this set of characters and those
+  // channels are alive, don't tear down and rebuild — that churn creates a
+  // brief window where a rapid follow-up broadcast could be missed, and it's
+  // pure overhead since schedulePartyListRefresh() calls loadDMCharList()
+  // (which calls this) every time ANY party member's data changes.
+  if (idsKey === _sbPartySubscribedIds && _sbPartyChannels.length > 0) {
+    return;
+  }
   _sbPartyChannels.forEach(({ channel }) => { try { sb?.removeChannel(channel); } catch {} });
   _sbPartyChannels = [];
+  _sbPartySubscribedIds = idsKey;
   if (_partyFallbackPollTimer) { clearInterval(_partyFallbackPollTimer); _partyFallbackPollTimer = null; }
   if (!sb || !charIds?.length) {
     startPartyFallbackPolling();
@@ -3967,19 +3979,44 @@ function schedulePartyListRefresh() {
 // every routine autosave (editing notes, spells, etc. would otherwise spam
 // the DM's party view with refetches for things the DM doesn't need to see
 // live). currentChar.id is always set by this point.
-let _lastBroadcastHPSnapshot = null;
+let _lastBroadcastCombatSnapshot = null;
 function broadcastHPIfChanged() {
   if (!currentChar?.id) return;
   const snap = {
     hp_current: currentChar.hp_current, hp_max: currentChar.hp_max, hp_temp: currentChar.hp_temp,
     exhaustion: currentChar.exhaustion,
     ds_s: currentChar.death_saves?.successes, ds_f: currentChar.death_saves?.failures,
+    conditions: JSON.stringify(currentChar.conditions || []),
+    // "Session state" fields — these don't have their own distinct toast
+    // wording on the receiving side, but still need to trigger SOME
+    // broadcast so the DM's live party view (which does a full refetch
+    // regardless of which field name is passed) actually picks up a
+    // player spending gold, casting a spell, or editing inventory as it
+    // happens, instead of only on the DM's next manual refresh.
+    slots:     JSON.stringify(currentChar.spell_slots_used || {}),
+    currency:  JSON.stringify(currentChar.currency || {}),
+    equipment: JSON.stringify((currentChar.equipment || []).map(e => [e.name, e.qty])),
+    items:     JSON.stringify((currentChar.magicItems || []).map(i => [i.key, i._uid, i.attuned, i.equipped])),
   };
-  const changed = !_lastBroadcastHPSnapshot || Object.keys(snap).some(k => snap[k] !== _lastBroadcastHPSnapshot[k]);
-  if (changed) {
-    _lastBroadcastHPSnapshot = snap;
-    broadcastCharUpdate(currentChar.id, 'hp');
-  }
+  const prev = _lastBroadcastCombatSnapshot;
+  const changed = !prev || Object.keys(snap).some(k => snap[k] !== prev[k]);
+  if (!changed) return;
+
+  const conditionsChanged = !prev || snap.conditions !== prev.conditions;
+  const hpChanged = !prev || ['hp_current','hp_max','hp_temp','exhaustion','ds_s','ds_f'].some(k => snap[k] !== prev[k]);
+  const sessionChanged = !prev || ['slots','currency','equipment','items'].some(k => snap[k] !== prev[k]);
+  _lastBroadcastCombatSnapshot = snap;
+
+  // Any combination touching more than one category collapses to 'full' —
+  // always safe (handleRemoteCharUpdate's 'full' branch already covers
+  // every field), and the DM's party view refetches everything regardless
+  // of the specific field name, so there's no benefit to enumerating every
+  // possible combination separately.
+  const changedCount = [conditionsChanged, hpChanged, sessionChanged].filter(Boolean).length;
+  if (changedCount > 1) broadcastCharUpdate(currentChar.id, 'full');
+  else if (conditionsChanged) broadcastCharUpdate(currentChar.id, 'condition');
+  else if (hpChanged) broadcastCharUpdate(currentChar.id, 'hp');
+  else broadcastCharUpdate(currentChar.id, 'full'); // session-only change (items/currency/equipment/slots)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -4514,6 +4551,7 @@ window.switchDMTab = switchDMTab;
 
 async function loadDMCharList() {
   const listEl   = document.getElementById('dm-char-list');
+  const glanceEl = document.getElementById('dm-hp-glance');
   const statusEl = document.getElementById('dm-party-status');
   if (!listEl) return;
   listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading…</div>';
@@ -4523,6 +4561,8 @@ async function loadDMCharList() {
     subscribeToPartyUpdates(allChars.map(c => c.id));
     listEl.innerHTML = '';
     let totalHP = 0, maxHP = 0, charCount = 0;
+    const glanceRows = [];
+    const ORDINALS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'];
 
     for (const { id, char: c } of allChars) {
       try {
@@ -4535,7 +4575,52 @@ async function loadDMCharList() {
         const level  = c.level || 1;
         const sub    = c.subclass ? ` · ${c.subclass}` : '';
 
+        // Compact single-line entry for the always-visible glance strip —
+        // click jumps down to the full card in the detailed (scrollable) list.
+        const downed = hpCur <= 0;
+        const condCount = c.conditions?.length || 0;
+        const ds = c.death_saves || { successes: 0, failures: 0 };
+        const dsRules = getDeathSaveRules(c);
+        const showDeathSaves = downed || ds.successes > 0 || ds.failures > 0;
+        const dsPipsHTML = showDeathSaves ? `
+          <div style="display:flex;gap:5px;align-items:center;margin-top:2px" title="${dsRules.note || 'Death saves'}">
+            <div style="display:flex;gap:1px">${Array.from({length:dsRules.max},(_,i)=>`<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'var(--bg3)'};border:1px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
+            <div style="display:flex;gap:1px">${Array.from({length:dsRules.max},(_,i)=>`<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${i<ds.failures?'var(--red)':'var(--bg3)'};border:1px solid ${i<ds.failures?'var(--red)':'var(--border)'}"></span>`).join('')}</div>
+            ${dsRules.max > 3 ? '<span style="font-size:8px;color:var(--amber)">⚠ hat</span>' : ''}
+          </div>
+        ` : '';
+
+        // Spell slots remaining — self-contained computation, no dependency
+        // on this character actually being the DM's currently-loaded one.
+        const slotInfo = computeSpellSlotsForChar(c);
+        const totalSlotsMax = slotInfo.levels.reduce((s,l)=>s+l.max,0) + (slotInfo.warlock?.max||0);
+        const totalSlotsRemaining = slotInfo.levels.reduce((s,l)=>s+(l.max-l.used),0) + (slotInfo.warlock ? slotInfo.warlock.max-slotInfo.warlock.used : 0);
+        const isCaster = totalSlotsMax > 0;
+
+        const cur = c.currency || {};
+        const cp = parseInt(cur.cp)||0, sp = parseInt(cur.sp)||0, gpAmt = parseInt(cur.gp)||0, pp = parseInt(cur.pp)||0;
+        const gpTotal = pp*10 + gpAmt + sp/10 + cp/100;
+        const invCount = (c.equipment||[]).filter(e=>e.name).length;
+        glanceRows.push(`
+          <div onclick="document.getElementById('dm-char-card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'})"
+            style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,.02)"
+            onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'"
+            title="Click to jump to ${(c.charName||id).replace(/"/g,'&quot;')}'s card">
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
+            </div>
+            <div>
+            <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${hpPct}%;background:${hpCol};border-radius:3px;transition:width .3s"></div>
+            </div>
+            ${dsPipsHTML}
+            </div>
+            <div style="font-family:var(--font-label);font-size:11px;font-weight:700;color:${hpCol};text-align:right;white-space:nowrap">${hpCur}<span style="color:var(--text3);font-weight:400">/${hpMax}</span></div>
+          </div>
+        `);
+
         const row = document.createElement('div');
+        row.id = 'dm-char-card-' + id;
         // Campaign badge
         const campList2  = (typeof _dmCampaigns !== 'undefined' && _dmCampaigns.length) ? _dmCampaigns : [];
         const charCamp   = campList2.find(cp => cp.id === c._campaign);
@@ -4565,9 +4650,38 @@ async function loadDMCharList() {
           <div style="height:3px;background:var(--bg3);border-radius:2px;margin-bottom:8px">
             <div style="height:100%;width:${hpPct}%;background:${hpCol};border-radius:2px;transition:width .3s"></div>
           </div>
+          ${showDeathSaves ? `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:5px 8px;background:rgba(220,50,50,.06);border:1px solid rgba(220,50,50,.2);border-radius:4px">
+            <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Death Saves</span>
+            <div style="display:flex;gap:2px" title="Successes — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','success',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'transparent'};border:1.5px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
+            <div style="display:flex;gap:2px" title="Failures — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','failure',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.failures?'var(--red)':'transparent'};border:1.5px solid ${i<ds.failures?'var(--red)':'var(--border)'}"></span>`).join('')}</div>
+            ${dsRules.note ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--amber);margin-left:auto">⚠ ${dsRules.note.split(':')[0]}</span>` : ''}
+          </div>
+          ` : ''}
           <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
             ${c.conditions?.length ? c.conditions.map(cd => `<span style="cursor:pointer;font-family:var(--font-ui);font-size:8px;color:var(--amber);background:rgba(255,180,0,.12);border:1px solid rgba(255,180,0,.3);border-radius:3px;padding:1px 5px" onclick="dmRemoveCondition('${id}','${cd}')" title="Click to remove">× ${cd}</span>`).join('') : ''}
             ${c.exhaustion > 0 ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--red);background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.3);border-radius:3px;padding:1px 5px">Exhaustion ${c.exhaustion}</span>` : ''}
+          </div>
+          ${isCaster ? `
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+            <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Slots</span>
+            ${slotInfo.levels.map(l => `<span style="font-family:var(--font-ui);font-size:9px;color:${l.max-l.used===0?'var(--red)':'var(--text2)'}" title="${ORDINALS[l.level]}-level slots">${ORDINALS[l.level]} <b style="color:${l.max-l.used===0?'var(--red)':'var(--text)'}">${l.max-l.used}</b>/${l.max}</span>`).join('')}
+            ${slotInfo.warlock ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--accent3)" title="Pact Magic (${ORDINALS[slotInfo.warlock.slotLevel]}-level, short rest)">Pact <b style="color:${slotInfo.warlock.max-slotInfo.warlock.used===0?'var(--red)':'var(--accent3)'}">${slotInfo.warlock.max-slotInfo.warlock.used}</b>/${slotInfo.warlock.max}</span>` : ''}
+          </div>
+          ` : ''}
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+            <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Coin</span>
+            <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2)">${pp}<span style="color:var(--text3)">pp</span> ${gpAmt}<span style="color:var(--text3)">gp</span> ${sp}<span style="color:var(--text3)">sp</span> ${cp}<span style="color:var(--text3)">cp</span></span>
+            <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);margin-left:auto">(${gpTotal.toFixed(2).replace(/\\.?0+$/,'')} gp total)</span>
+          </div>
+          <div style="margin-top:8px">
+            <div onclick="document.getElementById('dm-inv-${id}').style.display=document.getElementById('dm-inv-${id}').style.display==='none'?'':'none'"
+              style="cursor:pointer;display:flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:9px;color:var(--text3);user-select:none">
+              <span>▸</span> Inventory (${invCount} item${invCount!==1?'s':''})
+            </div>
+            <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto">
+              ${invCount ? (c.equipment||[]).filter(e=>e.name).map(e => `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text2);padding:1px 0">${e.qty||1}× ${e.name}${e.weight?` <span style="color:var(--text3)">(${e.weight})</span>`:''}</div>`).join('') : '<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">No items</div>'}
+            </div>
           </div>
           <div style="display:flex;gap:5px;margin-top:8px;align-items:center;flex-wrap:wrap">
             <input class="info-input" type="number" placeholder="±HP" id="dm-hp-adj-${id}"
@@ -4605,7 +4719,9 @@ async function loadDMCharList() {
 
     if (!allChars.length) {
       listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No characters found.</div>';
+      if (glanceEl) glanceEl.innerHTML = '';
     } else {
+      if (glanceEl) glanceEl.innerHTML = glanceRows.join('');
       if (statusEl) statusEl.textContent = '';
       const summaryEl = document.getElementById('dm-party-summary');
       if (summaryEl) {
@@ -4663,6 +4779,36 @@ async function dmAdjHP(id, sign) {
   } catch(e) { toast('HP adjust failed: ' + e.message, 'error'); }
 }
 window.dmAdjHP = dmAdjHP;
+
+async function dmAdjDeathSave(id, type, delta) {
+  const key = type === 'success' ? 'successes' : 'failures';
+  try {
+    const { content: c, sha } = await GH.getFile(id + '.json');
+    if (!c.death_saves) c.death_saves = { successes: 0, failures: 0 };
+    const rules = getDeathSaveRules(c);
+    c.death_saves[key] = Math.max(0, Math.min(rules.max, (c.death_saves[key] || 0) + delta));
+    await GH.putFile(id + '.json', c, sha);
+    broadcastCharUpdate(id, 'hp');
+    toast(`${c.charName||id}: Death save ${type} ${delta > 0 ? '+1' : '-1'} → ${c.death_saves[key]}/${rules.max}`, 'ok');
+    loadDMCharList();
+  } catch(e) { toast('Death save update failed: ' + e.message, 'error'); }
+}
+window.dmAdjDeathSave = dmAdjDeathSave;
+
+async function dmSetDeathSave(id, type, idx) {
+  const key = type === 'success' ? 'successes' : 'failures';
+  try {
+    const { content: c, sha } = await GH.getFile(id + '.json');
+    if (!c.death_saves) c.death_saves = { successes: 0, failures: 0 };
+    const rules = getDeathSaveRules(c);
+    const cur = c.death_saves[key] || 0;
+    c.death_saves[key] = Math.min(rules.max, cur > idx ? idx : idx + 1);
+    await GH.putFile(id + '.json', c, sha);
+    broadcastCharUpdate(id, 'hp');
+    loadDMCharList();
+  } catch(e) { toast('Death save update failed: ' + e.message, 'error'); }
+}
+window.dmSetDeathSave = dmSetDeathSave;
 
 async function dmBulkRest(type) {
   const btn = event.target;
@@ -5518,6 +5664,8 @@ async function saveChar() {
       try {
         const fresh = await GH.getFile(`${currentChar.id}.json`);
         let mergedNewItem = false;
+        let mergedHP = false;
+        let mergedConditions = false;
         // Merge magic items the DM added remotely that we don't have locally
         if (fresh.content.magicItems?.length) {
           if (!currentChar.magicItems) currentChar.magicItems = [];
@@ -5535,19 +5683,49 @@ async function saveChar() {
           const remoteOnlyRes = fresh.content.customResources.filter(r => !localResIds.has(r.id));
           if (remoteOnlyRes.length) currentChar.customResources.push(...remoteOnlyRes);
         }
+        // HP/exhaustion/death saves and conditions are DM-driven combat state
+        // just as often as items are — a stale local save conflicting with a
+        // DM's HP or condition change had no protection at all until now,
+        // meaning the DM's change could be silently overwritten the moment
+        // the player's sheet auto-saved anything unrelated. Remote wins here,
+        // same as items: the DM's edit takes precedence over the player's
+        // stale-at-conflict-time snapshot.
+        const remoteHPSnapshot = JSON.stringify([fresh.content.hp_current, fresh.content.hp_max, fresh.content.hp_temp, fresh.content.exhaustion, fresh.content.death_saves]);
+        const localHPSnapshot  = JSON.stringify([currentChar.hp_current, currentChar.hp_max, currentChar.hp_temp, currentChar.exhaustion, currentChar.death_saves]);
+        if (remoteHPSnapshot !== localHPSnapshot) {
+          currentChar.hp_current  = fresh.content.hp_current;
+          currentChar.hp_max      = fresh.content.hp_max;
+          currentChar.hp_temp     = fresh.content.hp_temp;
+          currentChar.exhaustion  = fresh.content.exhaustion;
+          currentChar.death_saves = fresh.content.death_saves;
+          mergedHP = true;
+        }
+        if (JSON.stringify(fresh.content.conditions || []) !== JSON.stringify(currentChar.conditions || [])) {
+          currentChar.conditions = fresh.content.conditions;
+          mergedConditions = true;
+        }
         const result = await GH.putFile(`${currentChar.id}.json`, currentChar, fresh.sha);
         currentCharSHA = result.content.sha;
         setSyncStatus('ok', '✓ Saved');
         broadcastHPIfChanged();
-        // A DM-granted item merged in via this path never went through
+        // Anything merged in via this path never went through
         // handleRemoteCharUpdate, so it needs its own re-render + toast —
-        // otherwise the item silently shows up in data but nothing on
+        // otherwise the change silently shows up in data but nothing on
         // screen reflects it until the player switches tabs or refreshes.
         if (mergedNewItem) {
           if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel();
           if (typeof renderResourceTracker === 'function') renderResourceTracker();
           if (typeof recalcAll === 'function') recalcAll();
           toast('Your DM updated your items', 'ok');
+        }
+        if (mergedHP) {
+          if (typeof populateMainSheet === 'function') populateMainSheet();
+          if (typeof renderDeathSaves === 'function') renderDeathSaves();
+          toast('Your HP was updated', 'ok');
+        }
+        if (mergedConditions) {
+          if (typeof renderConditions === 'function') renderConditions();
+          toast('A condition changed', 'ok');
         }
       } catch(e2) {
         setSyncStatus('error', '✗ Failed');
@@ -17978,6 +18156,7 @@ function applyHPMethod() {
   }
   clampCurrentHP();
   closeModal('hp-method-modal');
+  debouncedSave();
   toast('Max HP updated to ' + newMax, 'ok');
 }
 
@@ -18094,6 +18273,7 @@ function confirmHPDelta() {
   currentChar.hp_temp    = tmp;
   clampCurrentHP();
   closeModal('hp-delta-modal');
+  debouncedSave();
 }
 window.confirmHPDelta = confirmHPDelta;
 window.openCompanionHPDelta = openCompanionHPDelta;
@@ -18119,15 +18299,130 @@ if (document.readyState === 'loading') {
 // DEATH SAVES
 // ═══════════════════════════════════════════════════════════
 
+// Returns the effective death save rules for a character, accounting for
+// items that modify them. Currently: Hat of the Sanguine Coven doubles the
+// pip count to 6 (successes AND failures) and raises the roll needed for a
+// success from a natural 10+ to 15+ — but only while the wearer is actually
+// at 0 HP and has the hat attuned, per the item's own text ("Whenever you
+// have 0 hit points while wearing this hat..."). Takes any character object
+// (not just currentChar) so the DM's party views can compute this per-member
+// without duplicating the check.
+function getDeathSaveRules(char) {
+  const hpZero = (parseInt(char?.hp_current) || 0) <= 0;
+  const hasHat = hpZero && (char?.magicItems || []).some(i =>
+    i.key === 'hat_of_the_sanguine_coven' && i.attuned
+  );
+  if (hasHat) {
+    return { max: 6, successThreshold: 15, note: 'Hat of the Sanguine Coven: 6 successes/failures to stabilize or die — only a natural 15+ counts as a success.' };
+  }
+  return { max: 3, successThreshold: 10, note: null };
+}
+
+// Self-contained spell slot summary for an arbitrary character object — used
+// by the DM's party views. Deliberately doesn't reuse getAllClasses() /
+// getMulticlassSpellSlots() / etc. since those are hardwired to the global
+// currentChar and touch the DOM (getAllClasses has a fallback that reads
+// .mc-level-input elements) — using them here would either silently return
+// wrong data for a character that isn't currently loaded, or worse, mutate
+// the DM's own loaded character's state by accident. This mirrors the same
+// tables and logic renderSpellSlots() uses, just parameterized safely.
+// Known gap: doesn't account for spell_slot_overrides or homebrew bonus-slot
+// effects (e.g. Font of Magic) the way the player's own view does — those
+// require DOM/currentChar-specific context this function intentionally
+// avoids. Good enough for "how many slots does this player have left."
+function computeSpellSlotsForChar(char) {
+  if (!char) return { levels: [], warlock: null };
+
+  let classes;
+  if (char.classes?.length && char.classes[0]?.class) {
+    classes = char.classes;
+  } else if (char.class) {
+    const lv = Math.max(1, parseInt(char.level) || 1);
+    classes = [{ class: char.class, subclass: char.subclass || '', levels: Array.from({length: lv}, (_,i) => i+1) }];
+  } else {
+    classes = [];
+  }
+
+  const used = char.spell_slots_used || {};
+  const warlockEntry    = classes.find(c => (c.class||'').toLowerCase() === 'warlock');
+  const nonWarlockClasses = classes.filter(c => (c.class||'').toLowerCase() !== 'warlock');
+
+  let rawLevels = [];
+  if (nonWarlockClasses.length === 1 && classes.length === (warlockEntry ? 2 : 1)) {
+    // Single non-warlock casting class (possibly alongside warlock, handled separately below)
+    const cls     = (nonWarlockClasses[0].class || '').toLowerCase();
+    const sub     = (nonWarlockClasses[0].subclass || '').toLowerCase();
+    const lvCount = nonWarlockClasses[0].levels?.length || 0;
+    const type    = CLASS_CASTER_TYPE[cls] || 'none';
+    let table = type === 'full' ? SLOTS_FULL : type === 'half' ? SLOTS_HALF : null;
+    if (!table) {
+      const thirdSubs = MC_THIRD_CASTER_SUBCLASSES[cls] || [];
+      if (thirdSubs.some(s => sub.includes(s))) table = SLOTS_THIRD;
+    }
+    if (table) {
+      const raw = table[Math.min(lvCount, table.length - 1)] || [];
+      rawLevels = raw.map((max, i) => ({ level: i+1, max }));
+    }
+  } else if (nonWarlockClasses.length > 1) {
+    // True multiclass (2+ non-warlock casting/half-casting classes) — combined caster-level table
+    let casterLevel = 0;
+    nonWarlockClasses.forEach(entry => {
+      const cls = (entry.class||'').toLowerCase();
+      const sub = (entry.subclass||'').toLowerCase();
+      const lvCount = entry.levels?.length || 0;
+      const type = MC_CASTER_TYPE[cls] || 'none';
+      if (type === 'full') casterLevel += lvCount;
+      else if (type === 'half') casterLevel += Math.floor(lvCount/2);
+      else if (type === 'none') {
+        const thirdSubs = MC_THIRD_CASTER_SUBCLASSES[cls] || [];
+        if (thirdSubs.some(s => sub.includes(s))) casterLevel += Math.floor(lvCount/3);
+      }
+    });
+    casterLevel = Math.floor(casterLevel);
+    if (casterLevel >= 1) {
+      const raw = MC_SPELL_SLOTS[Math.min(casterLevel, 20)] || [];
+      rawLevels = raw.map((max,i) => ({level:i+1, max}));
+    }
+  }
+
+  const levels = rawLevels.filter(l => l.max > 0).map(l => {
+    let usedCount = 0;
+    for (let i = 0; i < l.max; i++) if (used[`slot_${l.level}_${i}`]) usedCount++;
+    if (usedCount === 0 && typeof used[`slot_${l.level}`] !== 'undefined') {
+      usedCount = Math.min(parseInt(used[`slot_${l.level}`]) || 0, l.max);
+    }
+    return { level: l.level, max: l.max, used: usedCount };
+  });
+
+  let warlock = null;
+  if (warlockEntry) {
+    const lvCount = warlockEntry.levels?.length || 0;
+    const idx = Math.min(lvCount, 20);
+    const slotLevel = WARLOCK_SLOT_LEVEL[idx] || 1;
+    const max = (SLOTS_WARLOCK[idx] || [])[0] || 0;
+    if (max > 0) {
+      let usedCount = 0;
+      for (let i = 0; i < max; i++) if (used[`slot_${slotLevel}_${i}`]) usedCount++;
+      if (usedCount === 0 && typeof used[`slot_${slotLevel}`] !== 'undefined') {
+        usedCount = Math.min(parseInt(used[`slot_${slotLevel}`]) || 0, max);
+      }
+      warlock = { slotLevel, max, used: usedCount };
+    }
+  }
+
+  return { levels, warlock };
+}
+
 function renderDeathSaves() {
   const c = currentChar;
   if (!c) return;
   if (!c.death_saves) c.death_saves = { successes:0, failures:0 };
+  const rules = getDeathSaveRules(c);
   ['success','failure'].forEach(type => {
     const container = document.getElementById('ds-' + type);
     if (!container) return;
     container.innerHTML = '';
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < rules.max; i++) {
       const dot = document.createElement('div');
       const filled = i < c.death_saves[type === 'success' ? 'successes' : 'failures'];
       dot.className = `ds-dot ${type}${filled ? ' filled' : ''}`;
@@ -18135,6 +18430,11 @@ function renderDeathSaves() {
       container.appendChild(dot);
     }
   });
+  const noteEl = document.getElementById('ds-rule-note');
+  if (noteEl) {
+    if (rules.note) { noteEl.textContent = '⚠ ' + rules.note; noteEl.style.display = ''; }
+    else { noteEl.style.display = 'none'; }
+  }
 }
 
 function toggleDeathSave(type, idx) {
@@ -18208,6 +18508,7 @@ function toggleCondition(cond) {
   if (idx >= 0) currentChar.conditions.splice(idx, 1);
   else currentChar.conditions.push(cond);
   renderConditions();
+  debouncedSave();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -18432,6 +18733,7 @@ function updateCurrencyTotal() {
 document.addEventListener('input', e => {
   if (['cur-cp','cur-sp','cur-gp','cur-pp'].includes(e.target.id)) {
     updateCurrencyTotal();
+    debouncedSave();
   }
 });
 
@@ -18446,11 +18748,11 @@ function renderEquipList() {
     row.className = 'equip-row';
     row.innerHTML = `
       <input type="number" class="equip-qty" value="${item.qty || 1}" min="0"
-        oninput="currentChar.equipment[${i}].qty=parseInt(this.value)||1" placeholder="1"/>
+        oninput="currentChar.equipment[${i}].qty=parseInt(this.value)||1;debouncedSave()" placeholder="1"/>
       <input type="text" value="${item.name || ''}" placeholder="Item name…"
-        oninput="currentChar.equipment[${i}].name=this.value"/>
+        oninput="currentChar.equipment[${i}].name=this.value;debouncedSave()"/>
       <input type="text" value="${item.weight || ''}" placeholder="wt" style="width:40px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:3px 4px;color:var(--text);font-size:11px;outline:none"
-        oninput="currentChar.equipment[${i}].weight=this.value"/>
+        oninput="currentChar.equipment[${i}].weight=this.value;debouncedSave()"/>
       <button class="row-del-btn" onclick="removeEquipItem(${i})">✕</button>
     `;
     list.appendChild(row);
@@ -18462,12 +18764,14 @@ function addEquipItem() {
   if (!currentChar.equipment) currentChar.equipment = [];
   currentChar.equipment.push({ name:'', qty:1, weight:'' });
   renderEquipList();
+  debouncedSave();
 }
 
 function removeEquipItem(i) {
   if (!currentChar) return;
   currentChar.equipment.splice(i, 1);
   renderEquipList();
+  debouncedSave();
 }
 
 // ── Magic Items ─────────────────────────────────────────
@@ -24036,6 +24340,7 @@ function toggleAttunement(idx) {
   renderMagicItemsPanel();
   // Recompute AC, saves, abilities
   recalcAll();
+  debouncedSave();
   toast(item.attuned ? `Attuned to ${item.name}` : `Unattuned from ${item.name}`, 'ok');
 }
 
@@ -24048,6 +24353,7 @@ function toggleMagicWeaponEquipped(idx, val) {
   item.equipped = !!val;
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 function setMagicWeaponForm(idx, key) {
@@ -24057,6 +24363,7 @@ function setMagicWeaponForm(idx, key) {
   item.weaponKey = key || null;
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 // ── Magic armor equip / form selection ────────────────────
@@ -24074,6 +24381,7 @@ function toggleMagicArmorEquipped(idx, val) {
   }
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 function setMagicArmorForm(idx, key) {
@@ -24083,6 +24391,7 @@ function setMagicArmorForm(idx, key) {
   item.armourKey = key || null;
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 // ── Magic shield equip ─────────────────────────────────────
@@ -24104,6 +24413,7 @@ function toggleMagicShieldEquipped(idx, val) {
   }
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 // ── Magic ammunition type selection ───────────────────────
@@ -24115,6 +24425,7 @@ function setMagicAmmoType(idx, type) {
   item.ammoType = type || null;
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 function removeMagicItem(idx) {
@@ -24136,6 +24447,7 @@ function removeMagicItem(idx) {
   currentChar.magicItems.splice(idx, 1);
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 // ── Magic item browser ────────────────────────────────────
@@ -24313,6 +24625,7 @@ function addMagicItem(key) {
   renderMagicItemBrowser();
   if (typeof renderResourceTracker === 'function') renderResourceTracker();
   recalcAll();
+  debouncedSave();
   toast(`${result.item.name} added`, 'ok');
 }
 
@@ -24358,6 +24671,7 @@ function applyMagicItemEdit() {
   closeModal('mi-edit-modal');
   renderMagicItemsPanel();
   recalcAll();
+  debouncedSave();
 }
 
 // ── Custom magic item creator/editor ──────────────────────
@@ -24663,6 +24977,7 @@ function saveCustomItemModal() {
   renderMagicItemsPanel();
   if (typeof renderResourceTracker === 'function') renderResourceTracker();
   recalcAll();
+  debouncedSave();
   toast(`${name} saved`, 'ok');
 }
 
@@ -28041,6 +28356,7 @@ function doShortRest() {
   renderResourceTracker();
   if (cls === 'warlock') renderSpellSlots();
   renderSpellStats();
+  debouncedSave();
   toast(`Short Rest — ${restored.length ? restored.join(', ') + ' restored' : 'Hit Dice recovered'}`, 'ok');
 }
 
@@ -28243,6 +28559,7 @@ function doLongRest() {
   }
 
   toast('Long Rest — all resources, HP, and spell slots restored', 'ok');
+  debouncedSave();
   // Deferred re-render to catch any async state that settles after synchronous reset
   setTimeout(() => { if (currentChar) renderResourceTracker(); }, 50);
 }
@@ -34173,6 +34490,7 @@ function updateWildCompanionUI() {
             <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="dmBulkRest('long')">★ Long Rest All</button>
           </div>
         </div>
+        <div id="dm-hp-glance" style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px"></div>
         <div id="dm-char-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
         <div id="dm-party-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px;text-align:center"></div>
       </div>
