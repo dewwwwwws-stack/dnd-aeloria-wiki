@@ -4420,14 +4420,17 @@ async function verifyDMPin() {
 async function fetchAllCharacters() {
   const files = await GH.listFiles();
   const chars = files.filter(f => !['_dm.json','_dm_notes.json'].includes(f.name) && f.name.endsWith('.json'));
+  // Always go through the Contents API (GH.getFile), never the raw
+  // download_url — raw.githubusercontent.com is served through a CDN that
+  // can cache content for several minutes regardless of fetch's cache
+  // option (that only controls the browser's local cache, not an upstream
+  // CDN's edge cache). Using it here meant the DM panel could show stale
+  // HP/items/etc even right after a player's save and an explicit manual
+  // Refresh. The Contents API is a little slower but always reflects the
+  // actual current state, which matters far more for a live sync feature.
   const results = await Promise.all(chars.map(async (f) => {
     try {
       const id = f.name.replace('.json','');
-      if (f.download_url) {
-        const resp = await fetch(f.download_url, { cache: 'no-store' });
-        const char = await resp.json();
-        return { id, char };
-      }
       const { content } = await GH.getFile(f.name);
       return { id, char: content };
     } catch(e) {
@@ -4557,14 +4560,54 @@ async function loadDMCharList() {
   listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading…</div>';
 
   try {
-    const allChars = await fetchAllCharacters();
+    // Fetch campaign definitions alongside characters so the Party tab
+    // always has campaign data available, regardless of whether the DM has
+    // ever visited the Campaigns tab this session — previously _dmCampaigns
+    // stayed empty until dmLoadCampaigns() ran, so campaign badges silently
+    // didn't show up until the DM happened to click over to Campaigns and
+    // back.
+    const [allChars, dmFileResult] = await Promise.all([
+      fetchAllCharacters(),
+      GH.getFile('_dm.json').catch(() => ({ content: {} })),
+    ]);
+    _dmCampaigns = dmFileResult.content.campaigns || DEFAULT_CAMPAIGNS;
+
     subscribeToPartyUpdates(allChars.map(c => c.id));
     listEl.innerHTML = '';
     let totalHP = 0, maxHP = 0, charCount = 0;
     const glanceRows = [];
     const ORDINALS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'];
 
-    for (const { id, char: c } of allChars) {
+    // Group characters by campaign — Unassigned first, then each campaign
+    // in definition order — instead of one flat mixed list. Each group's
+    // characters are sorted by name within the group. A character whose
+    // _campaign points to a campaign that no longer exists (e.g. it was
+    // deleted) is treated as unassigned for display, rather than silently
+    // disappearing from every group.
+    const validCampaignIds = new Set(_dmCampaigns.map(c => c.id));
+    const groups = [];
+    const unassignedChars = allChars.filter(({ char }) => !char._campaign || !validCampaignIds.has(char._campaign))
+      .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id));
+    if (unassignedChars.length) groups.push({ id: null, name: 'Unassigned', color: null, chars: unassignedChars });
+    _dmCampaigns.forEach(camp => {
+      const campChars = allChars.filter(({ char }) => char._campaign === camp.id)
+        .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id));
+      if (campChars.length) groups.push({ id: camp.id, name: camp.name, color: camp.color, chars: campChars });
+    });
+
+    for (const group of groups) {
+      // Group header — shown in both the glance strip and the detailed list
+      // so it's clear at a glance which party a character belongs to.
+      const headerHTML = `
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;margin-top:${groups.indexOf(group)>0?'8px':'0'}">
+          ${group.color ? `<div style="width:7px;height:7px;border-radius:50%;background:${group.color};flex-shrink:0"></div>` : ''}
+          <span style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:${group.color||'var(--text3)'}">${group.name}</span>
+        </div>
+      `;
+      if (glanceEl) glanceRows.push(headerHTML);
+      listEl.insertAdjacentHTML('beforeend', headerHTML);
+
+    for (const { id, char: c } of group.chars) {
       try {
         const hpCur = parseInt(c.hp_current) || 0;
         const hpMax = parseInt(c.hp_max) || 0;
@@ -4715,6 +4758,7 @@ async function loadDMCharList() {
         `;
         listEl.appendChild(row);
       } catch {}
+    }
     }
 
     if (!allChars.length) {
@@ -5088,9 +5132,48 @@ function dmRenderCampaigns() {
   if (!listEl) return;
   listEl.innerHTML = '';
 
+  // Unassigned characters get their own clearly-labeled section — previously
+  // these were silently appended into whichever campaign happened to be
+  // first in the list, with only a slightly duller dot colour to hint they
+  // weren't actually assigned. That read as "these players are in Campaign
+  // A" even though the underlying data was correctly null.
+  const validCampaignIds = new Set(_dmCampaigns.map(c => c.id));
+  const unassignedChars = _allCharFiles.filter(({ char }) => !char._campaign || !validCampaignIds.has(char._campaign));
+  if (unassignedChars.length) {
+    const section = document.createElement('div');
+    section.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius);overflow:hidden';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border)';
+    header.innerHTML = `
+      <div style="width:10px;height:10px;border-radius:50%;background:var(--text3);flex-shrink:0"></div>
+      <span style="flex:1;font-family:var(--font-ui);font-size:12px;font-weight:600;color:var(--text3);letter-spacing:.3px">Unassigned</span>
+    `;
+    section.appendChild(header);
+    const charList = document.createElement('div');
+    charList.style.cssText = 'padding:6px 8px;display:flex;flex-direction:column;gap:4px';
+    unassignedChars.forEach(({ id, char }) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;background:rgba(255,255,255,.02)';
+      row.innerHTML = `
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--border);flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-ui);font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${char.charName || id}</div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${char.playerName || ''} · Lv ${char.level || 1} ${char.class || '—'}</div>
+        </div>
+        <select class="choice-select" style="font-size:10px;padding:2px 6px;max-width:140px"
+          onchange="dmSetCharCampaign('${id}', this.value)">
+          <option value="" selected>— unassigned —</option>
+          ${_dmCampaigns.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+        </select>
+      `;
+      charList.appendChild(row);
+    });
+    section.appendChild(charList);
+    listEl.appendChild(section);
+  }
+
   _dmCampaigns.forEach((camp, ci) => {
     const campChars = _allCharFiles.filter(({ char }) => char._campaign === camp.id);
-    const unassigned = ci === 0 ? _allCharFiles.filter(({ char }) => !char._campaign) : [];
 
     const section = document.createElement('div');
     section.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius);overflow:hidden';
@@ -5112,20 +5195,19 @@ function dmRenderCampaigns() {
     `;
     section.appendChild(header);
 
-    // Characters in this campaign
+    // Characters in this campaign — only genuinely-assigned characters, no
+    // silent unassigned attachment.
     const charList = document.createElement('div');
     charList.style.cssText = 'padding:6px 8px;display:flex;flex-direction:column;gap:4px';
 
-    const charsToDraw = [...campChars, ...unassigned];
-    if (!charsToDraw.length) {
+    if (!campChars.length) {
       charList.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:4px">No characters assigned</div>';
     } else {
-      charsToDraw.forEach(({ id, char }) => {
-        const assigned = char._campaign === camp.id;
+      campChars.forEach(({ id, char }) => {
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;background:rgba(255,255,255,.02)';
         row.innerHTML = `
-          <div style="width:8px;height:8px;border-radius:50%;background:${assigned ? camp.color : 'var(--border)'};flex-shrink:0"></div>
+          <div style="width:8px;height:8px;border-radius:50%;background:${camp.color};flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div style="font-family:var(--font-ui);font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${char.charName || id}</div>
             <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${char.playerName || ''} · Lv ${char.level || 1} ${char.class || '—'}</div>
