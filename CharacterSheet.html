@@ -3744,73 +3744,42 @@ function getSupabaseClient() {
 // creating/destroying channels with the same topic name confuses the
 // Supabase client's internal connection state. Keeping one alive per
 // character for the life of the session is the correct pattern.
-const _sbSenderChannels = new Map(); // charId → { channel, ready, queue }
-
-function getSenderChannel(charId) {
-  const sb = getSupabaseClient();
-  if (!sb) return null;
-  if (_sbSenderChannels.has(charId)) return _sbSenderChannels.get(charId);
-
-  const state = { channel: null, ready: false, queue: [] };
-  _sbSenderChannels.set(charId, state);
-
-  const channel = sb.channel('char-' + charId, { config: { broadcast: { self: false, ack: true } } });
-  state.channel = channel;
-
-  channel.subscribe((status) => {
-    console.log('[realtime] sender channel status', { charId, status });
-    if (status === 'SUBSCRIBED') {
-      state.ready = true;
-      // Flush any messages that came in while we were still connecting
-      const pending = state.queue.splice(0);
-      pending.forEach(({ field, resolve }) => {
-        channel.send({ type: 'broadcast', event: 'char_updated', payload: { field, at: Date.now() } })
-          .then((res) => { console.log('[realtime] send result', { charId, field, res }); resolve(); })
-          .catch((e) => { console.warn('[realtime] send failed', { charId, field }, e.message); resolve(); });
-      });
-    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-      console.warn('[realtime] sender channel error — removing for retry next call', { charId, status });
-      state.ready = false;
-      _sbSenderChannels.delete(charId);
-      try { sb.removeChannel(channel); } catch {}
-      // Resolve any queued promises so callers aren't blocked forever
-      state.queue.splice(0).forEach(({ resolve }) => resolve());
+// Broadcasts a "this character changed" signal using Supabase's REST
+// Broadcast endpoint instead of a WebSocket channel on the sender side.
+// The sender makes a plain HTTPS POST — no WebSocket connection needed,
+// no handshake to wait for, no channel state to manage. Clients that are
+// subscribed via WebSocket (subscribeToCharUpdates) receive it instantly
+// via their existing connection. This completely sidesteps the race between
+// "create sender channel → wait for SUBSCRIBED → send → destroy" that was
+// causing every broadcast after the first to silently fail.
+async function broadcastCharUpdate(charId, field) {
+  if (!charId) return;
+  console.log('[realtime] broadcasting via REST', { charId, field });
+  try {
+    const res = await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        messages: [{
+          topic: 'char-' + charId,
+          event: 'char_updated',
+          payload: { field, at: Date.now() },
+        }],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn('[realtime] REST broadcast failed', { status: res.status, body: body.slice(0, 200) });
+    } else {
+      console.log('[realtime] REST broadcast sent', { charId, field, status: res.status });
     }
-  });
-
-  return state;
-}
-
-function broadcastCharUpdate(charId, field) {
-  return new Promise((resolve) => {
-    const sb = getSupabaseClient();
-    if (!sb || !charId) {
-      console.warn('[realtime] broadcast skipped', { hasClient: !!sb, charId });
-      resolve(); return;
-    }
-    console.log('[realtime] broadcasting', { charId, field });
-    try {
-      const state = getSenderChannel(charId);
-      if (!state) { resolve(); return; }
-      if (state.ready) {
-        state.channel.send({ type: 'broadcast', event: 'char_updated', payload: { field, at: Date.now() } })
-          .then((res) => { console.log('[realtime] send result', { charId, field, res }); resolve(); })
-          .catch((e) => { console.warn('[realtime] send failed (non-fatal)', e.message); resolve(); });
-      } else {
-        // Channel still connecting — queue it, will flush when SUBSCRIBED fires
-        const timer = setTimeout(() => {
-          const idx = state.queue.findIndex(q => q.resolve === resolve);
-          if (idx !== -1) state.queue.splice(idx, 1);
-          console.warn('[realtime] queued send timed out', { charId, field });
-          resolve();
-        }, 5000);
-        state.queue.push({ field, resolve: () => { clearTimeout(timer); resolve(); } });
-      }
-    } catch(e) {
-      console.warn('[realtime] broadcast failed (non-fatal):', e.message);
-      resolve();
-    }
-  });
+  } catch(e) {
+    console.warn('[realtime] REST broadcast failed (non-fatal):', e.message);
+  }
 }
 
 let _sbCharChannel = null;
