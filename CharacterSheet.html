@@ -5517,6 +5517,7 @@ async function saveChar() {
     if (e.message?.includes('409') || e.status === 409) {
       try {
         const fresh = await GH.getFile(`${currentChar.id}.json`);
+        let mergedNewItem = false;
         // Merge magic items the DM added remotely that we don't have locally
         if (fresh.content.magicItems?.length) {
           if (!currentChar.magicItems) currentChar.magicItems = [];
@@ -5525,7 +5526,7 @@ async function saveChar() {
           const remoteOnly = fresh.content.magicItems.filter(i =>
             (i._uid && !localUids.has(i._uid)) || (!i._uid && !localKeys.has(i.key))
           );
-          if (remoteOnly.length) currentChar.magicItems.push(...remoteOnly);
+          if (remoteOnly.length) { currentChar.magicItems.push(...remoteOnly); mergedNewItem = true; }
         }
         // Merge resources the DM may have created (charge pools for granted items)
         if (fresh.content.customResources?.length) {
@@ -5538,6 +5539,16 @@ async function saveChar() {
         currentCharSHA = result.content.sha;
         setSyncStatus('ok', '✓ Saved');
         broadcastHPIfChanged();
+        // A DM-granted item merged in via this path never went through
+        // handleRemoteCharUpdate, so it needs its own re-render + toast —
+        // otherwise the item silently shows up in data but nothing on
+        // screen reflects it until the player switches tabs or refreshes.
+        if (mergedNewItem) {
+          if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel();
+          if (typeof renderResourceTracker === 'function') renderResourceTracker();
+          if (typeof recalcAll === 'function') recalcAll();
+          toast('Your DM updated your items', 'ok');
+        }
       } catch(e2) {
         setSyncStatus('error', '✗ Failed');
         toast('Save failed: ' + e2.message, 'error');
