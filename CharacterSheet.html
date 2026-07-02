@@ -719,6 +719,12 @@ select:not([multiple]) {
   font-family: var(--font-ui); font-size: 8px; letter-spacing: .5px;
   padding: 1px 4px; border-radius: 3px; border: 1px solid;
 }
+.meta-pill {
+  font-family: var(--font-ui); font-size: 11px; letter-spacing: .3px;
+  padding: 3px 8px; border-radius: 12px;
+  background: var(--bg3); color: var(--text2);
+  display: inline-block; white-space: nowrap;
+}
 .sp-tag.conc    { color: var(--accent2); border-color: var(--accent2); }
 .sp-tag.ritual  { color: var(--gold);    border-color: var(--gold); }
 .sp-tag.atk     { color: var(--red);     border-color: var(--red); }
@@ -3293,8 +3299,8 @@ select:not([multiple]) {
       <span id="spell-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('spell-detail-modal')">✕</button>
     </div>
-    <div id="spell-detail-meta" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap"></div>
-    <div id="spell-detail-body" style="font-family:var(--font-body);font-size:13px;color:var(--text);line-height:1.6;max-height:60vh;overflow-y:auto;padding-right:4px"></div>
+    <div id="spell-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
+    <div id="spell-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:60vh;overflow-y:auto;padding-right:4px"></div>
   </div>
 </div>
 
@@ -3304,9 +3310,9 @@ select:not([multiple]) {
       <span id="mi-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('magic-item-detail-modal')">✕</button>
     </div>
-    <div id="mi-detail-meta" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap"></div>
+    <div id="mi-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
     <div id="mi-detail-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
-    <div id="mi-detail-body" style="font-family:var(--font-body);font-size:13px;color:var(--text);line-height:1.6;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
+    <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
     <div id="mi-detail-notes" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-body);font-size:12px;color:var(--text2);font-style:italic"></div>
     <div id="mi-detail-edit-row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:none">
       <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="editFromDetailModal()">✎ Edit Notes</button>
@@ -5727,14 +5733,14 @@ function openSpellDetailModal(key, name) {
   titleEl.textContent = sp.name || name;
 
   const tags = [
-    `<span>${levelStr} · ${sp.school}</span>`,
-    `<span>Cast: ${sp.time || '1 action'}</span>`,
-    `<span>Range: ${sp.range || '—'}</span>`,
-    `<span>Duration: ${sp.duration || '—'}</span>`,
-    sp.components ? `<span>Components: ${sp.components}</span>` : '',
-    sp.ritual ? '<span style="color:var(--gold)">Ritual</span>' : '',
-    sp.conc   ? '<span style="color:var(--accent2)">Concentration</span>' : '',
-    sp.classes?.length ? `<span>Classes: ${sp.classes.map(c=>c[0].toUpperCase()+c.slice(1)).join(', ')}</span>` : '',
+    `<span class="meta-pill">${levelStr} · ${sp.school}</span>`,
+    `<span class="meta-pill">Cast: ${sp.time || '1 action'}</span>`,
+    `<span class="meta-pill">Range: ${sp.range || '—'}</span>`,
+    `<span class="meta-pill">Duration: ${sp.duration || '—'}</span>`,
+    sp.components ? `<span class="meta-pill">Components: ${sp.components}</span>` : '',
+    sp.ritual ? '<span class="meta-pill" style="color:var(--gold)">Ritual</span>' : '',
+    sp.conc   ? '<span class="meta-pill" style="color:var(--accent2)">Concentration</span>' : '',
+    sp.classes?.length ? `<span class="meta-pill">Classes: ${sp.classes.map(c=>c[0].toUpperCase()+c.slice(1)).join(', ')}</span>` : '',
   ].filter(Boolean);
   metaEl.innerHTML = tags.join('');
 
@@ -5811,12 +5817,13 @@ function openMagicItemDetailModal(keyOrItem) {
   titleEl.textContent = item.customName || item.name;
   titleEl.style.color = RARITY_COLOURS[item.rarity] || 'var(--text)';
 
+  const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--text2)';
   const metaParts = [
-    `<span style="text-transform:capitalize">${item.rarity || 'common'}</span>`,
-    `<span>${item.type || 'wondrous item'}</span>`,
+    `<span class="meta-pill" style="text-transform:capitalize;color:${rarityColor};border:1px solid ${rarityColor}44">${item.rarity || 'common'}</span>`,
+    `<span class="meta-pill">${item.type || 'wondrous item'}</span>`,
   ];
-  if (item.attunement) metaParts.push('<span style="color:var(--gold)">Requires Attunement</span>');
-  metaEl.innerHTML = metaParts.join('<span style="color:var(--text3)">·</span>');
+  if (item.attunement) metaParts.push('<span class="meta-pill" style="color:var(--gold)">Requires Attunement</span>');
+  metaEl.innerHTML = metaParts.join('');
 
   const tags = [];
   const fx = item.effects;
@@ -26589,13 +26596,23 @@ function renderClassFeatures() {
     const clsData = getClassData(cls);
     if (!clsData?.features) return;
 
+    // Collected per-class so a multiclass character's different classes
+    // stay in their own separate blocks (Fighter features together, then
+    // Wizard features together) rather than interleaving by level across
+    // classes -- but WITHIN each class's block, class features and subclass
+    // features are sorted together by actual level. Previously subclass
+    // features were always appended after every class feature regardless
+    // of level, so a 3rd-level subclass feature (e.g. Combat Superiority)
+    // would show up after 5th-level class features (Extra Attack).
+    const classEntries = [];
+
     const subChosen2 = !!(entry.subclass && entry.subclass.trim());
     clsData.features.filter(f => {
       if (f.level > eLv) return false;
-      if (subChosen2 && /subclass/i.test(f.name)) return false;
+      if (subChosen2 && /subclass/i.test(f.name)) return false;
       return true;
     }).forEach((f, i) => {
-      entries.push({
+      classEntries.push({
         id: `cf_${ci}_${i}`, name: f.name, level: f.level,
         source: entry.subclass ? `${cls} (${entry.subclass})` : cls,
         desc: f.desc, usages: f.usages, recovery: f.recovery,
@@ -26608,7 +26625,7 @@ function renderClassFeatures() {
     const subData = subKey ? PHB_SUBCLASSES[subKey] : null;
     if (subData?.features) {
       subData.features.filter(f => f.level <= eLv).forEach((f, i) => {
-        entries.push({
+        classEntries.push({
           id: `scf_${ci}_${i}`, name: f.name, level: f.level,
           source: subData.name || entry.subclass,
           desc: f.desc, usages: f.usages, recovery: f.recovery,
@@ -26616,6 +26633,12 @@ function renderClassFeatures() {
         });
       });
     }
+
+    // Stable sort keeps class features before subclass features when both
+    // land on the exact same level (matches how 5e presents same-level
+    // features: base class feature first, then subclass feature).
+    classEntries.sort((a, b) => (a.level||0) - (b.level||0));
+    entries.push(...classEntries);
   });
 
   if (!entries.length) {
@@ -28717,6 +28740,16 @@ function renderResourceTracker() {
     seenNames.add(key);
     return true;
   });
+
+  // Sort by the level each resource was gained at, matching how the
+  // Features tab presents things in roughly level-ascending order —
+  // previously these just appeared in whatever order their source data
+  // table happened to be iterated (class resources, then subclass, then
+  // racial, then feats) with no relation to actual level progression.
+  // Array.sort is stable, so entries sharing a level keep their original
+  // relative order (which already follows the same class→subclass→racial
+  // sequence the Features tab itself builds from).
+  dedupedDefs.sort((a, b) => (a.minLevel ?? 99) - (b.minLevel ?? 99));
 
   body.innerHTML = '';
   for (const def of dedupedDefs) {
@@ -33561,7 +33594,7 @@ function populateFeaturesTab() {
       const _seenClsFeatNames = new Set();
       (eClsData.features || []).filter(f => {
         if (f.level > eLv) return false;
-        if (eSubChosen && /subclass/i.test(f.name)) return false;
+        if (eSubChosen && /subclass/i.test(f.name)) return false;
         if (!f.name?.trim()) return false;
         return true;
       }).forEach((f, i) => {
