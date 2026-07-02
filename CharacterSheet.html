@@ -2062,7 +2062,8 @@ select:not([multiple]) {
     <div class="page-tab active" data-page="main" data-short="Main">Main Sheet</div>
     <div class="page-tab" data-page="features" data-short="Features">Features</div>
     <div class="page-tab" data-page="background" data-short="BG">Background</div>
-    <div class="page-tab" data-page="feats" data-short="Feats">Feats &amp; Items</div>
+    <div class="page-tab" data-page="feats" data-short="Feats">Feats</div>
+    <div class="page-tab" data-page="inventory" data-short="Inv">Inventory</div>
     <div class="page-tab" data-page="spells" data-short="Spells">Spells</div>
     <div class="page-tab" id="tab-companion" data-page="companion" data-short="Companion" style="display:none">Companion</div>
     <div class="page-tab" id="tab-summon" data-page="summon" data-short="Summon" style="display:none">Summon</div>
@@ -2442,28 +2443,29 @@ select:not([multiple]) {
       </div>
     </div>
     <div class="page" id="page-feats">
-      <div class="tab-grid-2col">
+      <div style="display:flex;flex-direction:column;gap:12px;max-width:600px">
+        <div class="panel">
+          <div class="panel-title">Feats &amp; ASI Slots</div>
 
-        <!-- LEFT: Feats -->
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div class="panel">
-            <div class="panel-title">Feats &amp; ASI Slots</div>
+          <!-- Slot summary pills -->
+          <div id="feat-slots-summary" style="margin-bottom:12px"></div>
 
-            <!-- Slot summary pills -->
-            <div id="feat-slots-summary" style="margin-bottom:12px"></div>
+          <!-- Slot list -->
+          <div id="feat-slots-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
 
-            <!-- Slot list -->
-            <div id="feat-slots-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
-
-            <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:2px">
-              <div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:8px">Additional Feats</div>
-              <div id="feats-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
-              <button class="add-row-btn" onclick="addFeat()">+ Add Feat Manually</button>
-            </div>
+          <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:2px">
+            <div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:8px">Additional Feats</div>
+            <div id="feats-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+            <button class="add-row-btn" onclick="addFeat()">+ Add Feat Manually</button>
           </div>
         </div>
+      </div>
+    </div>
 
-        <!-- RIGHT: Currency + Equipment + Magic Items -->
+    <div class="page" id="page-inventory">
+      <div class="tab-grid-2col">
+
+        <!-- LEFT: Inventory overview + Weapons + Armor -->
         <div style="display:flex;flex-direction:column;gap:12px">
 
           <div class="panel">
@@ -2475,6 +2477,25 @@ select:not([multiple]) {
             <button class="add-row-btn" onclick="openModal('add-item-type-modal')" style="margin-bottom:10px">+ Add Item</button>
             <div id="inv-unified-list" style="display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto"></div>
           </div>
+
+          <div class="panel">
+            <div class="panel-title">Weapons
+              <button class="tbtn" style="font-size:9px;padding:2px 8px;color:var(--accent)" onclick="openAddWeapon()">+ Add Weapon</button>
+            </div>
+            <div id="fi-weapons-body"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">Armor
+              <button class="tbtn" style="font-size:9px;padding:2px 8px;color:var(--accent)" onclick="openAddArmor()">+ Add Armor</button>
+            </div>
+            <div id="fi-armor-body"></div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: Currency + Magic Items + Equipment + Other Holdings -->
+        <div style="display:flex;flex-direction:column;gap:12px">
 
           <div class="panel">
             <div class="panel-title">Currency</div>
@@ -2503,20 +2524,6 @@ select:not([multiple]) {
             <div style="margin-top:10px;font-family:var(--font-ui);font-size:11px;color:var(--text2)">
               Total (GP equivalent): <strong id="currency-total" style="color:var(--gold)">0 gp</strong>
             </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-title">Weapons
-              <button class="tbtn" style="font-size:9px;padding:2px 8px;color:var(--accent)" onclick="openAddWeapon()">+ Add Weapon</button>
-            </div>
-            <div id="fi-weapons-body"></div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-title">Armor
-              <button class="tbtn" style="font-size:9px;padding:2px 8px;color:var(--accent)" onclick="openAddArmor()">+ Add Armor</button>
-            </div>
-            <div id="fi-armor-body"></div>
           </div>
 
           <!-- Magic Items -->
@@ -3615,6 +3622,23 @@ select:not([multiple]) {
         <input id="wm-custom-damage" class="info-input" type="text" placeholder="Leave blank to use weapon default"/>
       </div>
 
+      <!-- Description / notes -->
+      <div>
+        <label class="field-label">Description / Notes (optional)</label>
+        <textarea id="wm-desc" class="sheet-textarea" placeholder="Flavor text, engravings, history, quirks…" style="min-height:60px;font-size:11px"></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label class="field-label">Quantity</label>
+          <input id="wm-qty" class="info-input" type="number" min="1" value="1"/>
+        </div>
+        <div>
+          <label class="field-label">Weight (optional, e.g. 3 lb)</label>
+          <input id="wm-weight" class="info-input" type="text" placeholder="e.g. 3 lb"/>
+        </div>
+      </div>
+
       <!-- Equipped + proficient toggles -->
       <div style="display:flex;gap:16px">
         <label style="font-family:var(--font-ui);font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
@@ -3705,8 +3729,8 @@ select:not([multiple]) {
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddWeapon()">⚔ Weapon</button>
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddArmor()">🛡 Armor</button>
-      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');switchPage('feats');if(!_miBrowserOpen)toggleMagicItemBrowser();document.getElementById('mi-browser-body')?.scrollIntoView({behavior:'smooth',block:'center'})">✨ Magic Item</button>
-      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');addEquipItem();switchPage('feats')">🎒 General Gear</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');switchPage('inventory');if(!_miBrowserOpen)toggleMagicItemBrowser();document.getElementById('mi-browser-body')?.scrollIntoView({behavior:'smooth',block:'center'})">✨ Magic Item</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');addEquipItem();switchPage('inventory')">🎒 General Gear</button>
     </div>
   </div>
 </div>
@@ -4232,6 +4256,12 @@ function switchPage(page) {
   if (page === 'summon') renderSummonPage();
   if (page === 'wildshape') renderWildShapeList();
   if (page === 'feats') { renderFeatSlotsPanel(); renderFeatsList(); }
+  if (page === 'inventory') {
+    renderFeatItemsWeapons(); // chains to armor + unified inventory automatically
+    renderMagicItemsPanel();
+    renderEquipList();
+    updateCurrencyTotal();
+  }
   if (page === 'background' && currentChar?.background) {
     buildBackgroundDropdown();
     const _swBgEl = document.getElementById('bg-background');
@@ -15592,6 +15622,42 @@ const PHB_ARMOUR = [
 ];
 
 // Weapon proficiency by class
+// Standard weapon property definitions — written from established, fixed
+// 5e (2024) rules text rather than sourced from an uploaded file, since
+// this specific text doesn't change between printings. If exact official
+// wording matters more than an accurate paraphrase, official source files
+// would let this be replaced with verbatim text instead.
+const WEAPON_PROPERTIES = {
+  ammunition:  'You can use a weapon that has the Ammunition property to make a ranged attack only if you have ammunition to fire from it. Each attack expends one piece of ammunition. Drawing ammunition from a quiver, case, or other container is part of the attack. At the end of the battle, you can recover half your expended ammunition by taking a Minute to search the battlefield.',
+  finesse:     'When making an attack with a Finesse weapon, you use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls.',
+  heavy:       'Small creatures have Disadvantage on attack rolls with Heavy weapons. A Heavy weapon is too big for a Small creature to use with proficiency.',
+  light:       'A Light weapon is small and easy to handle, making it ideal for use when fighting with two weapons.',
+  loading:     'You can fire only one piece of ammunition from a weapon that has the Loading property when you take an Attack action with it, regardless of the number of attacks you can normally make.',
+  reach:       'A weapon with the Reach property adds 5 feet to your reach when you attack with it, as well as when determining your reach for Opportunity Attacks with it.',
+  thrown:      'If a weapon has the Thrown property, you can throw the weapon to make a ranged attack. If the weapon is a Melee weapon, you use the same ability modifier for that attack roll and damage roll that you would use for a melee attack with the weapon.',
+  two_handed:  'A Two-Handed weapon requires two hands to attack with it.',
+  versatile:   'A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property — the weapon deals that damage when used with two hands to make a melee attack.',
+  special:     'A weapon with the Special property has unusual rules governing its use, explained in its own description.',
+  burst_fire:  'You can expend ammunition equal to this weapon\'s normal rate of fire (10 rounds) to make the attack with Advantage. On a hit, the target takes an extra 1d8 damage of the weapon\'s type.',
+};
+function getWeaponPropertyDesc(propKey) {
+  const key = (propKey || '').toLowerCase().replace(/\s+/g, '_');
+  return WEAPON_PROPERTIES[key] || '';
+}
+// Standard display formatting for property keys — a naive underscore-to-
+// space replace gives "Two handed" / "Burst fire", not the hyphenated/
+// title-cased form 5e actually uses ("Two-Handed" / "Burst Fire").
+const WEAPON_PROPERTY_LABELS = {
+  two_handed: 'Two-Handed',
+  burst_fire: 'Burst Fire',
+};
+function getWeaponPropertyLabel(propKey) {
+  const key = (propKey || '').toLowerCase().replace(/\s+/g, '_');
+  if (WEAPON_PROPERTY_LABELS[key]) return WEAPON_PROPERTY_LABELS[key];
+  const spaced = key.replace(/_/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 const CLASS_WEAPON_PROFS = {
   barbarian: { simple:true, martial:true, specific:[] },
   bard:      { simple:true, martial:false, specific:['longsword','rapier','shortsword','hand_crossbow'] },
@@ -19274,7 +19340,7 @@ function renderEquipList() {
       <div style="display:flex;gap:6px;align-items:center">
         <input type="number" class="equip-qty" value="${item.qty || 1}" min="0"
           oninput="currentChar.equipment[${i}].qty=parseInt(this.value)||1;debouncedSave()" placeholder="1"/>
-        <input type="text" value="${item.name || ''}" placeholder="Item name…" style="flex:1"
+        <input type="text" id="equip-name-${i}" value="${item.name || ''}" placeholder="Item name…" style="flex:1"
           oninput="currentChar.equipment[${i}].name=this.value;debouncedSave()"/>
         <input type="text" value="${item.weight || ''}" placeholder="wt" style="width:40px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:3px 4px;color:var(--text);font-size:11px;outline:none"
           oninput="currentChar.equipment[${i}].weight=this.value;debouncedSave()"/>
@@ -23992,6 +24058,9 @@ function openAddWeapon() {
   document.getElementById('wm-attack-bonus').value = '0';
   document.getElementById('wm-damage-bonus').value = '0';
   document.getElementById('wm-custom-damage').value = '';
+  document.getElementById('wm-desc').value = '';
+  document.getElementById('wm-qty').value = '1';
+  document.getElementById('wm-weight').value = '';
   document.getElementById('wm-equipped').checked = true;
   document.getElementById('wm-proficient').checked = true;
   populateWeaponModalDropdown();
@@ -24012,6 +24081,9 @@ function openWeaponEdit(idx) {
   document.getElementById('wm-attack-bonus').value = String(entry.attackBonus || 0);
   document.getElementById('wm-damage-bonus').value = String(entry.damageBonus || 0);
   document.getElementById('wm-custom-damage').value = entry.customDamage || '';
+  document.getElementById('wm-desc').value = entry.desc || '';
+  document.getElementById('wm-qty').value = String(entry.qty || 1);
+  document.getElementById('wm-weight').value = entry.weight || '';
   document.getElementById('wm-equipped').checked = entry.equipped !== false;
   document.getElementById('wm-proficient').checked = entry.proficient !== false;
   onWeaponModalKeyChange();
@@ -24027,6 +24099,7 @@ function populateWeaponModalDropdown() {
     'Simple Ranged':   PHB_WEAPONS.filter(w=>w.type==='Simple'  && w.list==='ranged'),
     'Martial Melee':   PHB_WEAPONS.filter(w=>w.type==='Martial' && w.list==='melee'),
     'Martial Ranged':  PHB_WEAPONS.filter(w=>w.type==='Martial' && w.list==='ranged'),
+    'Firearms':        PHB_WEAPONS.filter(w=>w.list==='firearm'),
   };
 
   Object.entries(groups).forEach(([label, weapons]) => {
@@ -24077,8 +24150,26 @@ function onWeaponModalKeyChange() {
       preview.innerHTML = `<span style="color:var(--accent)">Damage depends on source selected below</span>`;
     } else {
       const dmg = `${phb.damage.count}d${phb.damage.die} ${phb.damage.type}`;
-      const props = (phb.properties||[]).map(p=>p.replace('_',' ')).join(', ');
-      preview.innerHTML = `<span style="color:var(--text2)">${dmg}</span> · ${phb.range||''}${props ? ' · '+props : ''}${phb.mastery ? ' · <span style="color:var(--gold)">'+phb.mastery+'</span>' : ''}`;
+      const propsLine = (phb.properties||[]).map(p => getWeaponPropertyLabel(p)).join(', ');
+      const masteryLine = phb.mastery ? ` · Mastery: ${getWeaponPropertyLabel(phb.mastery)}` : '';
+
+      // Inline rule text for each property + mastery, shown directly rather
+      // than hidden behind a hover — readable at a glance and works on
+      // touch devices with no hover at all.
+      const defBlocks = [];
+      (phb.properties||[]).forEach(p => {
+        const desc = getWeaponPropertyDesc(p);
+        if (!desc) return;
+        defBlocks.push(`<div style="margin-top:6px"><b style="color:var(--text2)">${getWeaponPropertyLabel(p)}.</b> ${desc}</div>`);
+      });
+      if (phb.mastery && phb.mastery_desc) {
+        defBlocks.push(`<div style="margin-top:6px"><b style="color:var(--gold)">Mastery: ${getWeaponPropertyLabel(phb.mastery)}.</b> ${phb.mastery_desc}</div>`);
+      }
+
+      preview.innerHTML = `
+        <div><span style="color:var(--text2)">${dmg}</span> · ${phb.range||''}${propsLine ? ' · '+propsLine : ''}${masteryLine}</div>
+        ${defBlocks.join('')}
+      `;
     }
   } else {
     nameEl.dataset.autoFilled = '';
@@ -24093,6 +24184,9 @@ function applyWeaponModal() {
   const atkBonus = parseInt(document.getElementById('wm-attack-bonus').value) || 0;
   const dmgBonus = parseInt(document.getElementById('wm-damage-bonus').value) || 0;
   const customDmg = document.getElementById('wm-custom-damage').value.trim();
+  const desc      = document.getElementById('wm-desc').value.trim();
+  const qty       = Math.max(1, parseInt(document.getElementById('wm-qty').value) || 1);
+  const weight    = document.getElementById('wm-weight').value.trim();
   const equipped  = document.getElementById('wm-equipped').checked;
   const proficient = document.getElementById('wm-proficient').checked;
 
@@ -24106,6 +24200,9 @@ function applyWeaponModal() {
     attackBonus:   atkBonus,
     damageBonus:   dmgBonus,
     customDamage:  customDmg || null,
+    desc:          desc || null,
+    qty:           qty,
+    weight:        weight || null,
     equipped:      equipped,
     proficient:    proficient,
     versatileMode: false,
@@ -24286,13 +24383,18 @@ function renderFeatItemsArmor() {
   const body = document.getElementById('fi-armor-body');
   if (!body || !currentChar) return;
   ensureWeaponData();
+  ensureMagicItems();
   // Chains to the unified inventory view the same way weapons chains to
   // armor — always fires regardless of whether this specific list (armor)
   // happens to be empty.
   if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
 
   const armors = currentChar.armorOwned || [];
-  if (!armors.length) {
+  const magicArmors = (currentChar.magicItems || [])
+    .map((item, i) => ({ item, i }))
+    .filter(({ item }) => item.isArmour);
+
+  if (!armors.length && !magicArmors.length) {
     body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No armor added</div>';
     return;
   }
@@ -24301,7 +24403,8 @@ function renderFeatItemsArmor() {
   armors.forEach((entry, idx) => {
     const phb = PHB_ARMOUR.find(a => a.key === entry.key);
     const baseAC = phb ? phb.ac : (entry.customAC || 0);
-    const acStr = `AC ${baseAC}${entry.magicBonus ? ' +' + entry.magicBonus : ''}`;
+    const wt = entry.weight ? ` · ${entry.weight}` : '';
+    const acStr = `AC ${baseAC}${entry.magicBonus ? ' +' + entry.magicBonus : ''}${wt}`;
 
     const row = document.createElement('div');
     row.className = 'sp-spellbook-row';
@@ -24316,6 +24419,29 @@ function renderFeatItemsArmor() {
       <span style="font-family:var(--font-ui);font-size:9px;color:${entry.worn?'var(--accent)':'var(--text3)'};letter-spacing:.5px">${entry.worn?'WORN':''}</span>
       <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openArmorEdit(${idx})">✎</button>
       <button class="sp-del-btn" style="opacity:1" onclick="removeArmorOwned(${idx})">✕</button>
+    `;
+    body.appendChild(row);
+  });
+
+  magicArmors.forEach(({ item, i }) => {
+    const isShield = item.type === 'shield';
+    const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--accent2)';
+    const attuneStr = item.attunement ? (item.attuned ? ' · Attuned' : ' · Not attuned') : '';
+    const toggleFn = isShield ? 'toggleMagicShieldEquipped' : 'toggleMagicArmorEquipped';
+    const row = document.createElement('div');
+    row.className = 'sp-spellbook-row';
+    row.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto auto auto;gap:0 8px;align-items:center';
+    row.innerHTML = `
+      <input type="checkbox" ${item.equipped?'checked':''} style="accent-color:${rarityColor}"
+        onchange="${toggleFn}(${i},this.checked)" title="Worn"/>
+      <div>
+        <span style="font-family:var(--font-body);font-size:13px;color:${rarityColor}">${item.customName||item.name}</span>
+        <span style="font-family:var(--font-ui);font-size:9px;color:${rarityColor};border:1px solid ${rarityColor};border-radius:3px;padding:0 4px;margin-left:6px">${isShield?'SHIELD':'MAGIC'}</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:6px">${item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : ''}${attuneStr}</span>
+      </div>
+      <span style="font-family:var(--font-ui);font-size:9px;color:${item.equipped?rarityColor:'var(--text3)'};letter-spacing:.5px">${item.equipped?'WORN':''}</span>
+      <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openMagicItemDetailModal(currentChar.magicItems[${i}])" title="View in Magic Items">✎</button>
+      <span style="width:24px"></span>
     `;
     body.appendChild(row);
   });
@@ -24340,94 +24466,181 @@ function renderUnifiedInventory() {
   ensureMagicItems();
   if (!currentChar.equipment) currentChar.equipment = [];
 
-  const rows = [];
+  // Grouped by TYPE (Weapons / Armor / Magic Items / Gear), not by source —
+  // a magic weapon sorts in with the mundane weapons, a magic suit of armor
+  // sorts in with the mundane armor, rather than every magic item landing
+  // in one generic cluster regardless of what it actually is. Rarity is
+  // preserved as the badge colour + a label in the sub-line even once an
+  // item is sorted into its type group, so that info isn't lost.
+  const weaponRows = [];
+  const armorRows  = [];
+  const magicRows  = []; // wondrous items, rings, wands, staves — anything that's neither weapon nor armor
+  const gearRows   = [];
+  let totalWeight = 0; // running total, in lb — magic items are excluded since the catalog doesn't track their weight
 
   (currentChar.weapons || []).forEach((entry, idx) => {
     const phb = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
-    rows.push({
+    const qty = entry.qty || 1;
+    const wtEach = parseWeightLb(entry.weight);
+    totalWeight += wtEach * qty;
+    weaponRows.push({
       badge: 'WPN', badgeColor: 'var(--red)',
       name: entry.name || phb?.name || 'Weapon',
+      qty, weight: entry.weight || '',
       sub: entry.equipped ? 'Equipped' : '',
-      onEdit: `openWeaponEdit(${idx})`,
+      onClick: `openWeaponEdit(${idx})`,
       onRemove: `removeWeapon(${idx});renderFeatItemsWeapons()`,
     });
   });
 
   (currentChar.armorOwned || []).forEach((entry, idx) => {
     const phb = PHB_ARMOUR.find(a => a.key === entry.key);
-    rows.push({
+    totalWeight += parseWeightLb(entry.weight);
+    armorRows.push({
       badge: 'ARM', badgeColor: 'var(--accent2)',
       name: entry.name || phb?.name || 'Armor',
+      qty: 1, weight: entry.weight || '',
       sub: entry.worn ? 'Worn' : '',
-      onEdit: `openArmorEdit(${idx})`,
+      onClick: `openArmorEdit(${idx})`,
       onRemove: `removeArmorOwned(${idx})`,
     });
   });
 
   (currentChar.magicItems || []).forEach((item, idx) => {
-    rows.push({
-      badge: (item.rarity || 'ITEM').slice(0,4).toUpperCase(), badgeColor: RARITY_COLOURS[item.rarity] || 'var(--gold)',
-      name: item.customName || item.name,
-      sub: item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '',
-      onEdit: `event.stopPropagation();openMagicItemDetailModal(currentChar.magicItems[${idx}])`,
-      onRemove: `removeMagicItem(${idx})`,
-    });
+    const rarityLabel = item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : '';
+    const attuneSub = item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '';
+    const onClick = `openMagicItemDetailModal(currentChar.magicItems[${idx}])`;
+    const onRemove = `removeMagicItem(${idx})`;
+
+    if (item.isWeapon && !item.isAmmo) {
+      weaponRows.push({
+        badge: 'WPN', badgeColor: RARITY_COLOURS[item.rarity] || 'var(--red)',
+        name: item.customName || item.name,
+        qty: 1, weight: '',
+        sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
+        onClick, onRemove,
+      });
+    } else if (item.isArmour) {
+      armorRows.push({
+        badge: item.type === 'shield' ? 'SHLD' : 'ARM', badgeColor: RARITY_COLOURS[item.rarity] || 'var(--accent2)',
+        name: item.customName || item.name,
+        qty: 1, weight: '',
+        sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
+        onClick, onRemove,
+      });
+    } else {
+      magicRows.push({
+        badge: (item.rarity || 'ITEM').slice(0,4).toUpperCase(), badgeColor: RARITY_COLOURS[item.rarity] || 'var(--gold)',
+        name: item.customName || item.name,
+        qty: 1, weight: '',
+        sub: attuneSub,
+        onClick, onRemove,
+      });
+    }
   });
 
+  // Unlike the other three types, a blank equipment row the player just
+  // added has nothing to click through to elsewhere — it IS the thing
+  // being edited, inline, in its own panel below. Previously these were
+  // hidden entirely from this list until named, which made "+ Add Item →
+  // General Gear" look like it did nothing at all. Now it shows up
+  // immediately with a placeholder name so there's visible confirmation
+  // something was added.
   (currentChar.equipment || []).forEach((item, idx) => {
-    if (!item.name) return; // skip blank rows the player hasn't filled in yet
-    rows.push({
+    const qty = item.qty || 1;
+    totalWeight += parseWeightLb(item.weight) * qty;
+    gearRows.push({
       badge: 'GEAR', badgeColor: 'var(--text3)',
-      name: `${item.qty && item.qty !== 1 ? item.qty + '× ' : ''}${item.name}`,
-      sub: item.weight || '',
-      onEdit: `document.getElementById('equip-list')?.scrollIntoView({behavior:'smooth',block:'center'})`,
+      name: item.name || 'New item — click to name it',
+      qty, weight: item.weight || '',
+      sub: '',
+      onClick: `document.getElementById('equip-name-${idx}')?.scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('equip-name-${idx}')?.focus()`,
       onRemove: `removeEquipItem(${idx});renderEquipList()`,
     });
   });
 
-  if (countEl) countEl.textContent = rows.length ? `${rows.length} item${rows.length!==1?'s':''}` : '';
+  const groups = [
+    { label: 'Weapons', rows: weaponRows },
+    { label: 'Armor',   rows: armorRows },
+    { label: 'Magic Items', rows: magicRows },
+    { label: 'Gear',    rows: gearRows },
+  ].filter(g => g.rows.length);
 
-  if (!rows.length) {
+  const totalCount = weaponRows.length + armorRows.length + magicRows.length + gearRows.length;
+  if (countEl) {
+    const wtStr = totalWeight > 0 ? ` · ${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb` : '';
+    countEl.textContent = totalCount ? `${totalCount} item${totalCount!==1?'s':''}${wtStr}` : '';
+  }
+
+  if (!totalCount) {
     list.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No items yet — use + Add Item above</div>';
     return;
   }
 
-  list.innerHTML = rows.map(r => `
-    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius)">
+  // Whole row is clickable (matching how magic item / spell rows work
+  // elsewhere in the sheet) — only the ✕ button opts out via
+  // stopPropagation, so removing an item doesn't also trigger its view/edit.
+  list.innerHTML = groups.map((group, gi) => `
+    <div style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-top:${gi>0?'8px':'0'};padding:0 2px">${group.label}</div>
+    ${group.rows.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer"
+      onclick="${r.onClick}" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
       <div style="flex:1;min-width:0;overflow:hidden">
-        <div style="font-family:var(--font-body);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
+        <div style="font-family:var(--font-body);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.qty > 1 ? `${r.qty}× ` : ''}${r.name}</div>
         ${r.sub ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${r.sub}</div>` : ''}
       </div>
-      <button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="${r.onEdit}">✎</button>
-      <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="${r.onRemove}">✕</button>
-    </div>
+      ${r.weight ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);flex-shrink:0">${r.weight}</span>` : ''}
+      <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="event.stopPropagation();${r.onRemove}">✕</button>
+    </div>`).join('')}
   `).join('');
 }
 window.renderUnifiedInventory = renderUnifiedInventory;
+
+// Extracts a numeric lb value from a free-text weight string (e.g. "10 lb",
+// "1.5", "3lb", "—") — returns 0 for anything unparseable rather than
+// throwing, so a blank/odd weight field never breaks the running total.
+function parseWeightLb(weightStr) {
+  if (!weightStr) return 0;
+  const m = String(weightStr).match(/[\d.]+/);
+  return m ? parseFloat(m[0]) || 0 : 0;
+}
 
 function renderFeatItemsWeapons() {
   // Simpler weapon list in Feats & Items tab — just name, damage, equipped toggle, edit
   const body = document.getElementById('fi-weapons-body');
   if (!body || !currentChar) return;
   ensureWeaponData();
+  ensureMagicItems();
   // Armor is always rendered alongside weapons — every existing call site
   // that refreshes weapons should refresh armor too, and they're both on
   // the same page, so piggybacking here avoids touching a dozen call sites
   // individually.
   if (typeof renderFeatItemsArmor === 'function') renderFeatItemsArmor();
 
-  const weapons = currentChar.weapons || [];
-  if (!weapons.length) {
+  // Mundane weapons — exclude the auto-synced proxy entries that
+  // syncMagicWeaponsToInventory() creates for equipped+attuned magic
+  // weapons (tagged _fromMagicItem). Those are rendered directly from
+  // magicItems[] below instead, so a magic weapon isn't listed twice.
+  const mundaneWeapons = (currentChar.weapons || []).filter(w => !w._fromMagicItem);
+  const magicWeapons = (currentChar.magicItems || [])
+    .map((item, i) => ({ item, i }))
+    .filter(({ item }) => item.isWeapon && !item.isAmmo);
+
+  if (!mundaneWeapons.length && !magicWeapons.length) {
     body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No weapons added</div>';
     return;
   }
 
   body.innerHTML = '';
-  weapons.forEach((entry, idx) => {
+
+  mundaneWeapons.forEach((entry) => {
+    const idx = currentChar.weapons.indexOf(entry);
     const phb = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
     const dmg = phb ? `${phb.damage.count}d${phb.damage.die} ${phb.damage.type}` : (entry.customDamage || '—');
     const magicStr = entry.attackBonus ? ` (+${entry.attackBonus})` : '';
+    const wt = entry.weight ? ` · ${entry.weight}` : '';
+    const qtyStr = (entry.qty && entry.qty !== 1) ? `${entry.qty}× ` : '';
 
     const row = document.createElement('div');
     row.className = 'sp-spellbook-row';
@@ -24436,12 +24649,34 @@ function renderFeatItemsWeapons() {
       <input type="checkbox" ${entry.equipped?'checked':''} style="accent-color:var(--accent)"
         onchange="currentChar.weapons[${idx}].equipped=this.checked;renderAttacksPanel();renderFeatItemsWeapons();debouncedSave()" title="Equipped"/>
       <div>
-        <span style="font-family:var(--font-body);font-size:13px;color:var(--text)">${entry.name||phb?.name||'?'}${magicStr}</span>
-        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:8px">${dmg}</span>
+        <span style="font-family:var(--font-body);font-size:13px;color:var(--text)">${qtyStr}${entry.name||phb?.name||'?'}${magicStr}</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:8px">${dmg}${wt}</span>
+        ${entry.desc ? `<span data-tt="${entry.desc.replace(/"/g,'&quot;')}" data-tt-name="${(entry.name||phb?.name||'Weapon').replace(/"/g,'&quot;')}" data-tt-hint="" style="margin-left:5px;color:var(--text3);cursor:pointer" title="Has notes">📝</span>` : ''}
       </div>
       <span style="font-family:var(--font-ui);font-size:9px;color:${entry.equipped?'var(--accent)':'var(--text3)'};letter-spacing:.5px">${entry.equipped?'EQUIP':''}</span>
       <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openWeaponEdit(${idx})">✎</button>
       <button class="sp-del-btn" style="opacity:1" onclick="removeWeapon(${idx});renderFeatItemsWeapons()">✕</button>
+    `;
+    body.appendChild(row);
+  });
+
+  magicWeapons.forEach(({ item, i }) => {
+    const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--gold)';
+    const attuneStr = item.attunement ? (item.attuned ? ' · Attuned' : ' · Not attuned') : '';
+    const row = document.createElement('div');
+    row.className = 'sp-spellbook-row';
+    row.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto auto auto;gap:0 8px;align-items:center';
+    row.innerHTML = `
+      <input type="checkbox" ${item.equipped?'checked':''} style="accent-color:${rarityColor}"
+        onchange="toggleMagicWeaponEquipped(${i},this.checked)" title="Equipped"/>
+      <div>
+        <span style="font-family:var(--font-body);font-size:13px;color:${rarityColor}">${item.customName||item.name}</span>
+        <span style="font-family:var(--font-ui);font-size:9px;color:${rarityColor};border:1px solid ${rarityColor};border-radius:3px;padding:0 4px;margin-left:6px">MAGIC</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:6px">${item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : ''}${attuneStr}</span>
+      </div>
+      <span style="font-family:var(--font-ui);font-size:9px;color:${item.equipped?rarityColor:'var(--text3)'};letter-spacing:.5px">${item.equipped?'EQUIP':''}</span>
+      <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openMagicItemDetailModal(currentChar.magicItems[${i}])" title="View in Magic Items">✎</button>
+      <span style="width:24px"></span>
     `;
     body.appendChild(row);
   });
