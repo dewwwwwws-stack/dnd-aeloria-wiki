@@ -4500,7 +4500,7 @@ async function populateLoginDropdown() {
 
   try {
     const files = await GH.listFiles();
-    const chars = files.filter(f => !['_dm.json','_dm_notes.json'].includes(f.name) && f.name.endsWith('.json'));
+    const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
     sel.innerHTML = '<option value="">— choose —</option>';
 
     if (!chars.length) {
@@ -4714,7 +4714,7 @@ async function verifyDMPin() {
 // shares this one implementation so they can't silently drift apart.
 async function fetchAllCharacters() {
   const files = await GH.listFiles();
-  const chars = files.filter(f => !['_dm.json','_dm_notes.json'].includes(f.name) && f.name.endsWith('.json'));
+  const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
   // Always go through the Contents API (GH.getFile), never the raw
   // download_url — raw.githubusercontent.com is served through a CDN that
   // can cache content for several minutes regardless of fetch's cache
@@ -4742,7 +4742,7 @@ async function loadDMCharList() {
 
   try {
     const files = await GH.listFiles();
-    const chars = files.filter(f => f.name !== '_dm.json');
+    const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
     listEl.innerHTML = '';
 
     for (const f of chars) {
@@ -5607,7 +5607,7 @@ async function dmBulkRest(type) {
   btn.textContent = '…';
   try {
     const files = await GH.listFiles();
-    const chars = files.filter(f => f.name !== '_dm.json' && f.name !== '_dm_notes.json' && f.name.endsWith('.json'));
+    const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
     let count = 0;
     for (const f of chars) {
       try {
@@ -5702,7 +5702,7 @@ function dmAddCombatant() {
 async function dmAddPartyToCombat() {
   try {
     const files = await GH.listFiles();
-    const chars = files.filter(f => f.name !== '_dm.json' && f.name !== '_dm_notes.json' && f.name.endsWith('.json'));
+    const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
     for (const f of chars) {
       try {
         const { content: c } = await GH.getFile(f.name);
