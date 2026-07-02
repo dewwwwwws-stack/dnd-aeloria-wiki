@@ -724,6 +724,7 @@ select:not([multiple]) {
   padding: 3px 8px; border-radius: 12px;
   background: var(--bg3); color: var(--text2);
   display: inline-block; white-space: nowrap;
+  text-transform: capitalize;
 }
 .sp-tag.conc    { color: var(--accent2); border-color: var(--accent2); }
 .sp-tag.ritual  { color: var(--gold);    border-color: var(--gold); }
@@ -772,7 +773,7 @@ select:not([multiple]) {
 .sp-add-btn:hover { filter: brightness(1.15); }
 .sp-add-btn:disabled { background: var(--border2); color: var(--text3); cursor: not-allowed; }
 .sp-browser-name { font-family: var(--font-body); font-size: 13px; color: var(--text); }
-.sp-browser-school { font-family: var(--font-ui); font-size: 9px; color: var(--text3); letter-spacing: .3px; }
+.sp-browser-school { font-family: var(--font-ui); font-size: 9px; color: var(--text3); letter-spacing: .3px; text-transform: capitalize; }
 .sp-browser-desc {
   grid-column: 1 / -1;
   font-family: var(--font-body); font-size: 11px; color: var(--text2);
@@ -4036,6 +4037,90 @@ function startCharFallbackPolling(charId) {
   }, 20000);
 }
 
+// Shared channel every logged-in session (player or DM) listens to — used
+// for the item catalog specifically, since it isn't scoped to any one
+// character the way HP/items/conditions are. Same REST-send / WebSocket-
+// receive pattern as the per-character updates, just on a fixed topic
+// instead of one keyed by charId.
+async function broadcastCatalogUpdate() {
+  console.log('[realtime] broadcasting catalog update via REST');
+  try {
+    const res = await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        messages: [{
+          topic: 'catalog-updates',
+          event: 'catalog_updated',
+          payload: { at: Date.now(), from: _REALTIME_SESSION_ID },
+        }],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn('[realtime] catalog broadcast failed', { status: res.status, body: body.slice(0, 200) });
+    } else {
+      console.log('[realtime] catalog broadcast sent', { status: res.status });
+    }
+  } catch(e) {
+    console.warn('[realtime] catalog broadcast failed (non-fatal):', e.message);
+  }
+}
+
+let _sbCatalogChannel = null;
+let _catalogFallbackPollTimer = null;
+function subscribeToCatalogUpdates() {
+  const sb = getSupabaseClient();
+  if (_sbCatalogChannel) {
+    try { sb?.removeChannel(_sbCatalogChannel); } catch {}
+    _sbCatalogChannel = null;
+  }
+  if (_catalogFallbackPollTimer) { clearInterval(_catalogFallbackPollTimer); _catalogFallbackPollTimer = null; }
+  if (!sb) {
+    console.warn('[realtime] catalog subscribe skipped — no client');
+    startCatalogFallbackPolling();
+    return;
+  }
+  console.log('[realtime] subscribing to catalog-updates');
+  _sbCatalogChannel = sb.channel('catalog-updates');
+  _sbCatalogChannel.on('broadcast', { event: 'catalog_updated' }, (msg) => {
+    if (msg.payload?.from === _REALTIME_SESSION_ID) {
+      console.log('[realtime] ignoring own echoed catalog broadcast');
+      return;
+    }
+    console.log('[realtime] received catalog update, re-fetching', { payload: msg.payload });
+    loadDMItemOverrides();
+  });
+  const healthTimer = setTimeout(() => {
+    console.warn('[realtime] catalog subscription never reached SUBSCRIBED — falling back to polling');
+    startCatalogFallbackPolling();
+  }, 5000);
+  _sbCatalogChannel.subscribe((status) => {
+    console.log('[realtime] catalog receiver channel status', { status });
+    if (status === 'SUBSCRIBED') {
+      clearTimeout(healthTimer);
+      if (_catalogFallbackPollTimer) { clearInterval(_catalogFallbackPollTimer); _catalogFallbackPollTimer = null; }
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      clearTimeout(healthTimer);
+      startCatalogFallbackPolling();
+    }
+  });
+}
+
+// Slower interval than the per-character fallback (60s vs 20s) — catalog
+// edits are far less time-sensitive than a player's HP mid-combat, and
+// re-fetching + re-rendering the whole catalog is heavier than a single
+// character's data, so there's no need to poll it as aggressively.
+function startCatalogFallbackPolling() {
+  if (_catalogFallbackPollTimer) return;
+  console.log('[realtime] starting fallback polling for catalog', { intervalSec: 60 });
+  _catalogFallbackPollTimer = setInterval(() => { loadDMItemOverrides(); }, 60000);
+}
+
 let _remoteUpdateInFlight = false;
 async function handleRemoteCharUpdate(field) {
   if (!currentChar?.id || _remoteUpdateInFlight) return;
@@ -5016,10 +5101,14 @@ async function loadDMCharList() {
     for (const group of groups) {
       // Group header — shown in both the glance strip and the detailed list
       // so it's clear at a glance which party a character belongs to.
+      const groupKey = group.id || 'unassigned';
+      const groupHPCur = group.chars.reduce((s, {char}) => s + (parseInt(char.hp_current)||0), 0);
+      const groupHPMax = group.chars.reduce((s, {char}) => s + (parseInt(char.hp_max)||0), 0);
       const headerHTML = `
         <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;margin-top:${groups.indexOf(group)>0?'8px':'0'}">
           ${group.color ? `<div style="width:7px;height:7px;border-radius:50%;background:${group.color};flex-shrink:0"></div>` : ''}
           <span style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:${group.color||'var(--text3)'}">${group.name}</span>
+          <span id="dm-camp-hp-${groupKey}" style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-left:auto">HP ${groupHPCur}/${groupHPMax}</span>
         </div>
       `;
       if (glanceEl) glanceRows.push(headerHTML);
@@ -5205,12 +5294,29 @@ async function loadDMCharList() {
 // single-card patch so the aggregate stays accurate without a full reload.
 function updatePartySummaryText() {
   const summaryEl = document.getElementById('dm-party-summary');
-  if (!summaryEl) return;
   const chars = Object.values(_partyCharCache || {});
   let totalHP = 0, maxHP = 0;
   chars.forEach(c => { totalHP += parseInt(c.hp_current) || 0; maxHP += parseInt(c.hp_max) || 0; });
-  const pct = maxHP > 0 ? Math.round(totalHP / maxHP * 100) : 100;
-  summaryEl.textContent = chars.length + ' characters · Party HP: ' + totalHP + '/' + maxHP + ' (' + pct + '%)';
+  if (summaryEl) {
+    const pct = maxHP > 0 ? Math.round(totalHP / maxHP * 100) : 100;
+    summaryEl.textContent = chars.length + ' characters · Party HP: ' + totalHP + '/' + maxHP + ' (' + pct + '%)';
+  }
+
+  // Per-campaign HP totals — grouped the same way the character list itself
+  // is grouped (valid campaign id, or 'unassigned' for anyone without one
+  // or pointing at a deleted campaign).
+  const validCampaignIds = new Set((_dmCampaigns||[]).map(c => c.id));
+  const byGroup = {};
+  chars.forEach(c => {
+    const key = (c._campaign && validCampaignIds.has(c._campaign)) ? c._campaign : 'unassigned';
+    if (!byGroup[key]) byGroup[key] = { hp: 0, max: 0 };
+    byGroup[key].hp  += parseInt(c.hp_current) || 0;
+    byGroup[key].max += parseInt(c.hp_max) || 0;
+  });
+  Object.entries(byGroup).forEach(([key, totals]) => {
+    const el = document.getElementById('dm-camp-hp-' + key);
+    if (el) el.textContent = `HP ${totals.hp}/${totals.max}`;
+  });
 }
 
 // Patches a single character's existing glance row and detailed card in
@@ -6275,6 +6381,11 @@ function enterApp() {
   // loaded, so they show up without a manual refresh. Falls back silently
   // to GitHub-only sync if Supabase is unreachable — never blocks anything.
   if (currentChar?.id) subscribeToCharUpdates(currentChar.id);
+
+  // Same live-update layer, but for the shared item catalog — not scoped
+  // to a specific character, so every logged-in session subscribes to it
+  // regardless of which character (if any) they have loaded.
+  subscribeToCatalogUpdates();
 
   const _safe = (label, fn) => {
     try { fn(); }
@@ -25721,7 +25832,7 @@ function renderMagicItemsPanel() {
               })() : ''}
               ${effectBadges.join('')}
             </div>
-            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:1px">${item.type||''}</div>
+            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:1px;text-transform:capitalize">${item.type||''}</div>
             ${item.notes ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);margin-top:2px">${item.notes}</div>` : ''}
             ${weaponLinkRow}
             ${armourLinkRow}
@@ -26518,6 +26629,7 @@ async function saveDMCatalogItem() {
     closeModal('custom-item-modal');
     dmRenderItemsList();
     if (typeof renderMagicItemBrowser === 'function') renderMagicItemBrowser();
+    broadcastCatalogUpdate();
     toast(`${name} saved to catalog`, 'ok');
   } catch(e) {
     toast('Failed to save: ' + e.message, 'warn');
@@ -26539,6 +26651,7 @@ async function deleteDMCatalogItem() {
     closeModal('custom-item-modal');
     dmRenderItemsList();
     if (typeof renderMagicItemBrowser === 'function') renderMagicItemBrowser();
+    broadcastCatalogUpdate();
     toast(isOverrideOfOfficial ? 'Reverted to original' : 'Item deleted', 'ok');
   } catch(e) {
     toast('Failed to delete: ' + e.message, 'warn');
