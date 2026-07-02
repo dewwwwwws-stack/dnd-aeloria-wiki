@@ -2467,6 +2467,16 @@ select:not([multiple]) {
         <div style="display:flex;flex-direction:column;gap:12px">
 
           <div class="panel">
+            <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Inventory</span>
+              <span id="inv-summary-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0"></span>
+            </div>
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px">Everything you carry, magical and mundane, in one place. Adding a weapon, armor, or magic item here also updates its own section below.</div>
+            <button class="add-row-btn" onclick="openModal('add-item-type-modal')" style="margin-bottom:10px">+ Add Item</button>
+            <div id="inv-unified-list" style="display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto"></div>
+          </div>
+
+          <div class="panel">
             <div class="panel-title">Currency</div>
             <div class="currency-grid">
               <div class="currency-cell">
@@ -2500,6 +2510,13 @@ select:not([multiple]) {
               <button class="tbtn" style="font-size:9px;padding:2px 8px;color:var(--accent)" onclick="openAddWeapon()">+ Add Weapon</button>
             </div>
             <div id="fi-weapons-body"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">Armor
+              <button class="tbtn" style="font-size:9px;padding:2px 8px;color:var(--accent)" onclick="openAddArmor()">+ Add Armor</button>
+            </div>
+            <div id="fi-armor-body"></div>
           </div>
 
           <!-- Magic Items -->
@@ -3619,6 +3636,77 @@ select:not([multiple]) {
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn-primary" onclick="applyWeaponModal()">Save</button>
       <button class="tbtn" onclick="closeModal('weapon-edit-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="armor-edit-modal">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-title">
+      <span id="armor-modal-title">Add Armor</span>
+      <span class="modal-close" onclick="closeModal('armor-edit-modal')">&#x2715;</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label class="field-label">Armor</label>
+        <select id="am-armor-key" class="choice-select" onchange="onArmorModalKeyChange()">
+          <option value="">— Custom armor —</option>
+          <optgroup label="Light" id="am-group-light"></optgroup>
+          <optgroup label="Medium" id="am-group-medium"></optgroup>
+          <optgroup label="Heavy" id="am-group-heavy"></optgroup>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Name</label>
+        <input id="am-name" class="info-input" type="text" placeholder="Armor name…"/>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label class="field-label">Base AC (custom armor only)</label>
+          <input id="am-custom-ac" class="info-input" type="number" placeholder="e.g. 11"/>
+        </div>
+        <div>
+          <label class="field-label">Magic AC Bonus</label>
+          <select id="am-magic-bonus" class="choice-select">
+            <option value="0">None</option>
+            <option value="1">+1</option>
+            <option value="2">+2</option>
+            <option value="3">+3</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Weight (optional)</label>
+        <input id="am-weight" class="info-input" type="text" placeholder="e.g. 10 lb"/>
+      </div>
+      <div>
+        <label class="field-label">Notes / Description (optional)</label>
+        <input id="am-notes" class="info-input" type="text" placeholder="Flavor text, quirks, etc…"/>
+      </div>
+      <label style="font-family:var(--font-ui);font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="am-worn" style="accent-color:var(--accent)"/> Currently worn (only one armor can be worn at a time)
+      </label>
+      <div id="am-preview" style="font-family:var(--font-body);font-size:11px;color:var(--text3);min-height:16px;padding:2px 0"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn-primary" onclick="applyArmorModal()">Save</button>
+      <button class="tbtn" onclick="closeModal('armor-edit-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="add-item-type-modal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      Add Item
+      <span class="modal-close" onclick="closeModal('add-item-type-modal')">&#x2715;</span>
+    </div>
+    <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:14px">What kind of item are you adding?</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddWeapon()">⚔ Weapon</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddArmor()">🛡 Armor</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');switchPage('feats');if(!_miBrowserOpen)toggleMagicItemBrowser();document.getElementById('mi-browser-body')?.scrollIntoView({behavior:'smooth',block:'center'})">✨ Magic Item</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');addEquipItem();switchPage('feats')">🎒 General Gear</button>
     </div>
   </div>
 </div>
@@ -19176,18 +19264,25 @@ function renderEquipList() {
   const list = document.getElementById('equip-list');
   if (!list || !currentChar) return;
   if (!currentChar.equipment) currentChar.equipment = [];
+  if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
   list.innerHTML = '';
   currentChar.equipment.forEach((item, i) => {
     const row = document.createElement('div');
     row.className = 'equip-row';
+    row.style.cssText = 'display:flex;flex-direction:column;gap:3px';
     row.innerHTML = `
-      <input type="number" class="equip-qty" value="${item.qty || 1}" min="0"
-        oninput="currentChar.equipment[${i}].qty=parseInt(this.value)||1;debouncedSave()" placeholder="1"/>
-      <input type="text" value="${item.name || ''}" placeholder="Item name…"
-        oninput="currentChar.equipment[${i}].name=this.value;debouncedSave()"/>
-      <input type="text" value="${item.weight || ''}" placeholder="wt" style="width:40px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:3px 4px;color:var(--text);font-size:11px;outline:none"
-        oninput="currentChar.equipment[${i}].weight=this.value;debouncedSave()"/>
-      <button class="row-del-btn" onclick="removeEquipItem(${i})">✕</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="number" class="equip-qty" value="${item.qty || 1}" min="0"
+          oninput="currentChar.equipment[${i}].qty=parseInt(this.value)||1;debouncedSave()" placeholder="1"/>
+        <input type="text" value="${item.name || ''}" placeholder="Item name…" style="flex:1"
+          oninput="currentChar.equipment[${i}].name=this.value;debouncedSave()"/>
+        <input type="text" value="${item.weight || ''}" placeholder="wt" style="width:40px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:3px 4px;color:var(--text);font-size:11px;outline:none"
+          oninput="currentChar.equipment[${i}].weight=this.value;debouncedSave()"/>
+        <button class="row-del-btn" onclick="removeEquipItem(${i})">✕</button>
+      </div>
+      <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="Description / notes (optional)…"
+        style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:3px 8px;color:var(--text2);font-size:10px;outline:none;font-style:italic"
+        oninput="currentChar.equipment[${i}].desc=this.value;debouncedSave()"/>
     `;
     list.appendChild(row);
   });
@@ -19196,7 +19291,7 @@ function renderEquipList() {
 function addEquipItem() {
   if (!currentChar) return;
   if (!currentChar.equipment) currentChar.equipment = [];
-  currentChar.equipment.push({ name:'', qty:1, weight:'' });
+  currentChar.equipment.push({ name:'', qty:1, weight:'', desc:'' });
   renderEquipList();
   debouncedSave();
 }
@@ -21479,6 +21574,7 @@ function ensureWeaponData() {
   if (!currentChar.ammo)    currentChar.ammo = {};
   if (!currentChar.ammoCustom) currentChar.ammoCustom = {}; // player-defined ammo types: { key: { label, icon } }
   if (!currentChar.ammoBonus) currentChar.ammoBonus = {}; // magic ammo attack/damage bonus per ammo type, e.g. { arrows: 1 }
+  if (!currentChar.armorOwned) currentChar.armorOwned = []; // owned (not necessarily worn) mundane armor — [{key, name, worn, customAC, weight, notes}]
 }
 
 // ── Proficiency check ─────────────────────────────────────
@@ -23754,6 +23850,7 @@ function removeWeapon(idx) {
   currentChar.weapons.splice(idx, 1);
   renderAttacksPanel();
   renderFeatItemsWeapons();
+  debouncedSave();
 }
 
 function adjustAmmo(type, delta) {
@@ -24027,14 +24124,298 @@ function applyWeaponModal() {
   closeModal('weapon-edit-modal');
   renderAttacksPanel();
   renderFeatItemsWeapons();
+  debouncedSave();
   toast(_weaponEditIdx !== null ? 'Weapon updated' : 'Weapon added', 'ok');
 }
+
+// ── Armor ownership (mundane armor you carry, separate from what's
+// currently worn) — mirrors the weapon system above. Only one entry can be
+// "worn" at a time; toggling worn on one entry sets currentChar.ac_armor_key
+// (the same field magic armor already drives via syncMagicArmorToInventory)
+// and unmarks any other owned armor as worn.
+
+let _armorEditIdx = null;
+
+function openAddArmor() {
+  _armorEditIdx = null;
+  document.getElementById('armor-modal-title').textContent = 'Add Armor';
+  document.getElementById('am-name').value = '';
+  document.getElementById('am-custom-ac').value = '';
+  document.getElementById('am-magic-bonus').value = '0';
+  document.getElementById('am-weight').value = '';
+  document.getElementById('am-notes').value = '';
+  document.getElementById('am-worn').checked = false;
+  populateArmorModalDropdown();
+  document.getElementById('am-armor-key').value = '';
+  onArmorModalKeyChange();
+  openModal('armor-edit-modal');
+}
+
+function openArmorEdit(idx) {
+  ensureWeaponData();
+  const entry = currentChar.armorOwned[idx];
+  if (!entry) return;
+  _armorEditIdx = idx;
+  document.getElementById('armor-modal-title').textContent = 'Edit Armor';
+  populateArmorModalDropdown();
+  document.getElementById('am-armor-key').value = entry.key || '';
+  document.getElementById('am-name').value = entry.name || '';
+  document.getElementById('am-custom-ac').value = entry.customAC || '';
+  document.getElementById('am-magic-bonus').value = String(entry.magicBonus || 0);
+  document.getElementById('am-weight').value = entry.weight || '';
+  document.getElementById('am-notes').value = entry.notes || '';
+  document.getElementById('am-worn').checked = !!entry.worn;
+  onArmorModalKeyChange();
+  openModal('armor-edit-modal');
+}
+
+function populateArmorModalDropdown() {
+  const groups = { light: [], medium: [], heavy: [] };
+  PHB_ARMOUR.forEach(a => { if (a.key !== 'mage_armor' && groups[a.type]) groups[a.type].push(a); });
+  ['light','medium','heavy'].forEach(type => {
+    const grp = document.getElementById('am-group-' + type);
+    if (!grp) return;
+    grp.innerHTML = groups[type].map(a => `<option value="${a.key}">${a.name} (AC ${a.ac})</option>`).join('');
+  });
+}
+
+function onArmorModalKeyChange() {
+  const key = document.getElementById('am-armor-key').value;
+  const phb = PHB_ARMOUR.find(a => a.key === key);
+  const nameEl = document.getElementById('am-name');
+  const acEl   = document.getElementById('am-custom-ac');
+  const preview = document.getElementById('am-preview');
+  if (phb) {
+    if (!nameEl.value || nameEl.dataset.autoFilled === 'true') {
+      nameEl.value = phb.name;
+      nameEl.dataset.autoFilled = 'true';
+    }
+    acEl.disabled = true;
+    acEl.placeholder = `AC ${phb.ac} (from catalog)`;
+    acEl.value = '';
+    preview.innerHTML = `<span style="color:var(--text2)">Base AC ${phb.ac}</span> · ${phb.type} armor${phb.stealthDisadv ? ' · <span style="color:var(--amber)">Stealth Disadvantage</span>' : ''}${phb.strReq ? ' · Str ' + phb.strReq + ' required' : ''}`;
+  } else {
+    nameEl.dataset.autoFilled = '';
+    acEl.disabled = false;
+    acEl.placeholder = 'e.g. 11';
+    preview.textContent = '';
+  }
+}
+
+function applyArmorModal() {
+  ensureWeaponData();
+  const key = document.getElementById('am-armor-key').value;
+  const name = document.getElementById('am-name').value.trim();
+  const customAC = parseInt(document.getElementById('am-custom-ac').value) || 0;
+  const magicBonus = parseInt(document.getElementById('am-magic-bonus').value) || 0;
+  const weight = document.getElementById('am-weight').value.trim();
+  const notes = document.getElementById('am-notes').value.trim();
+  const worn = document.getElementById('am-worn').checked;
+
+  if (!key && !name) { toast('Enter an armor name', 'warn'); return; }
+  const phb = PHB_ARMOUR.find(a => a.key === key);
+  if (!key && !customAC) { toast('Enter a base AC for custom armor', 'warn'); return; }
+
+  const entry = {
+    key: key || null,
+    name: name || phb?.name || 'Armor',
+    customAC: key ? 0 : customAC,
+    magicBonus,
+    weight: weight || null,
+    notes: notes || null,
+    worn,
+  };
+
+  if (_armorEditIdx !== null) {
+    currentChar.armorOwned[_armorEditIdx] = entry;
+  } else {
+    currentChar.armorOwned.push(entry);
+  }
+
+  if (worn) applyArmorWornState(_armorEditIdx !== null ? _armorEditIdx : currentChar.armorOwned.length - 1);
+
+  closeModal('armor-edit-modal');
+  renderFeatItemsArmor();
+  if (typeof recalcAll === 'function') recalcAll();
+  debouncedSave();
+  toast(_armorEditIdx !== null ? 'Armor updated' : 'Armor added', 'ok');
+}
+
+// Marks exactly one armorOwned entry as worn, unmarking all others, and
+// points ac_armor_key at it (catalog armor only — a fully custom armor with
+// no PHB key still shows as "worn" in the owned list, but AC continues to
+// be driven by whatever ac_armor_key/manual AC setup already exists, since
+// there's no PHB_ARMOUR key to point at for a homebrew entry).
+function applyArmorWornState(wornIdx) {
+  currentChar.armorOwned.forEach((a, i) => { a.worn = (i === wornIdx); });
+  const wornEntry = currentChar.armorOwned[wornIdx];
+  if (wornEntry?.key) {
+    currentChar.ac_armor_key = wornEntry.key;
+  }
+}
+
+function toggleArmorWorn(idx) {
+  ensureWeaponData();
+  const entry = currentChar.armorOwned[idx];
+  if (!entry) return;
+  if (entry.worn) {
+    // Un-equipping the currently worn armor
+    entry.worn = false;
+    if (currentChar.ac_armor_key === entry.key) currentChar.ac_armor_key = '';
+  } else {
+    applyArmorWornState(idx);
+  }
+  renderFeatItemsArmor();
+  if (typeof recalcAll === 'function') recalcAll();
+  debouncedSave();
+}
+
+function removeArmorOwned(idx) {
+  ensureWeaponData();
+  const entry = currentChar.armorOwned[idx];
+  if (entry?.worn && entry.key && currentChar.ac_armor_key === entry.key) {
+    currentChar.ac_armor_key = '';
+  }
+  currentChar.armorOwned.splice(idx, 1);
+  renderFeatItemsArmor();
+  if (typeof recalcAll === 'function') recalcAll();
+  debouncedSave();
+}
+
+function renderFeatItemsArmor() {
+  const body = document.getElementById('fi-armor-body');
+  if (!body || !currentChar) return;
+  ensureWeaponData();
+  // Chains to the unified inventory view the same way weapons chains to
+  // armor — always fires regardless of whether this specific list (armor)
+  // happens to be empty.
+  if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
+
+  const armors = currentChar.armorOwned || [];
+  if (!armors.length) {
+    body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No armor added</div>';
+    return;
+  }
+
+  body.innerHTML = '';
+  armors.forEach((entry, idx) => {
+    const phb = PHB_ARMOUR.find(a => a.key === entry.key);
+    const baseAC = phb ? phb.ac : (entry.customAC || 0);
+    const acStr = `AC ${baseAC}${entry.magicBonus ? ' +' + entry.magicBonus : ''}`;
+
+    const row = document.createElement('div');
+    row.className = 'sp-spellbook-row';
+    row.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto auto auto;gap:0 8px;align-items:center';
+    row.innerHTML = `
+      <input type="checkbox" ${entry.worn?'checked':''} style="accent-color:var(--accent)"
+        onchange="toggleArmorWorn(${idx})" title="Worn"/>
+      <div>
+        <span style="font-family:var(--font-body);font-size:13px;color:var(--text)">${entry.name||phb?.name||'?'}</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:8px">${acStr}</span>
+      </div>
+      <span style="font-family:var(--font-ui);font-size:9px;color:${entry.worn?'var(--accent)':'var(--text3)'};letter-spacing:.5px">${entry.worn?'WORN':''}</span>
+      <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openArmorEdit(${idx})">✎</button>
+      <button class="sp-del-btn" style="opacity:1" onclick="removeArmorOwned(${idx})">✕</button>
+    `;
+    body.appendChild(row);
+  });
+}
+window.openAddArmor = openAddArmor;
+window.openArmorEdit = openArmorEdit;
+window.applyArmorModal = applyArmorModal;
+window.toggleArmorWorn = toggleArmorWorn;
+window.removeArmorOwned = removeArmorOwned;
+window.renderFeatItemsArmor = renderFeatItemsArmor;
+
+// Combines weapons, owned armor, magic items, and general gear into one
+// view — reads from the same four underlying arrays each type's own panel
+// already uses, so nothing needs syncing between them; adding or removing
+// an item anywhere (here or in its own dedicated panel) is reflected
+// everywhere automatically since it's literally the same data.
+function renderUnifiedInventory() {
+  const list = document.getElementById('inv-unified-list');
+  const countEl = document.getElementById('inv-summary-count');
+  if (!list || !currentChar) return;
+  ensureWeaponData();
+  ensureMagicItems();
+  if (!currentChar.equipment) currentChar.equipment = [];
+
+  const rows = [];
+
+  (currentChar.weapons || []).forEach((entry, idx) => {
+    const phb = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
+    rows.push({
+      badge: 'WPN', badgeColor: 'var(--red)',
+      name: entry.name || phb?.name || 'Weapon',
+      sub: entry.equipped ? 'Equipped' : '',
+      onEdit: `openWeaponEdit(${idx})`,
+      onRemove: `removeWeapon(${idx});renderFeatItemsWeapons()`,
+    });
+  });
+
+  (currentChar.armorOwned || []).forEach((entry, idx) => {
+    const phb = PHB_ARMOUR.find(a => a.key === entry.key);
+    rows.push({
+      badge: 'ARM', badgeColor: 'var(--accent2)',
+      name: entry.name || phb?.name || 'Armor',
+      sub: entry.worn ? 'Worn' : '',
+      onEdit: `openArmorEdit(${idx})`,
+      onRemove: `removeArmorOwned(${idx})`,
+    });
+  });
+
+  (currentChar.magicItems || []).forEach((item, idx) => {
+    rows.push({
+      badge: (item.rarity || 'ITEM').slice(0,4).toUpperCase(), badgeColor: RARITY_COLOURS[item.rarity] || 'var(--gold)',
+      name: item.customName || item.name,
+      sub: item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '',
+      onEdit: `event.stopPropagation();openMagicItemDetailModal(currentChar.magicItems[${idx}])`,
+      onRemove: `removeMagicItem(${idx})`,
+    });
+  });
+
+  (currentChar.equipment || []).forEach((item, idx) => {
+    if (!item.name) return; // skip blank rows the player hasn't filled in yet
+    rows.push({
+      badge: 'GEAR', badgeColor: 'var(--text3)',
+      name: `${item.qty && item.qty !== 1 ? item.qty + '× ' : ''}${item.name}`,
+      sub: item.weight || '',
+      onEdit: `document.getElementById('equip-list')?.scrollIntoView({behavior:'smooth',block:'center'})`,
+      onRemove: `removeEquipItem(${idx});renderEquipList()`,
+    });
+  });
+
+  if (countEl) countEl.textContent = rows.length ? `${rows.length} item${rows.length!==1?'s':''}` : '';
+
+  if (!rows.length) {
+    list.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No items yet — use + Add Item above</div>';
+    return;
+  }
+
+  list.innerHTML = rows.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius)">
+      <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
+      <div style="flex:1;min-width:0;overflow:hidden">
+        <div style="font-family:var(--font-body);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
+        ${r.sub ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${r.sub}</div>` : ''}
+      </div>
+      <button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="${r.onEdit}">✎</button>
+      <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="${r.onRemove}">✕</button>
+    </div>
+  `).join('');
+}
+window.renderUnifiedInventory = renderUnifiedInventory;
 
 function renderFeatItemsWeapons() {
   // Simpler weapon list in Feats & Items tab — just name, damage, equipped toggle, edit
   const body = document.getElementById('fi-weapons-body');
   if (!body || !currentChar) return;
   ensureWeaponData();
+  // Armor is always rendered alongside weapons — every existing call site
+  // that refreshes weapons should refresh armor too, and they're both on
+  // the same page, so piggybacking here avoids touching a dozen call sites
+  // individually.
+  if (typeof renderFeatItemsArmor === 'function') renderFeatItemsArmor();
 
   const weapons = currentChar.weapons || [];
   if (!weapons.length) {
@@ -24053,7 +24434,7 @@ function renderFeatItemsWeapons() {
     row.style.cssText = 'display:grid;grid-template-columns:auto 1fr auto auto auto;gap:0 8px;align-items:center';
     row.innerHTML = `
       <input type="checkbox" ${entry.equipped?'checked':''} style="accent-color:var(--accent)"
-        onchange="currentChar.weapons[${idx}].equipped=this.checked;renderAttacksPanel();renderFeatItemsWeapons()" title="Equipped"/>
+        onchange="currentChar.weapons[${idx}].equipped=this.checked;renderAttacksPanel();renderFeatItemsWeapons();debouncedSave()" title="Equipped"/>
       <div>
         <span style="font-family:var(--font-body);font-size:13px;color:var(--text)">${entry.name||phb?.name||'?'}${magicStr}</span>
         <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:8px">${dmg}</span>
@@ -24542,6 +24923,7 @@ function renderMagicItemsPanel() {
   const body = document.getElementById('magic-items-body');
   if (!body || !currentChar) return;
   ensureMagicItems();
+  if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
 
   const items = currentChar.magicItems;
   const maxSlots = getMaxAttunementSlots();
