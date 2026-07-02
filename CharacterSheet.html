@@ -3150,7 +3150,8 @@ select:not([multiple]) {
     <div style="padding:16px 20px">
       <div style="margin-bottom:12px">
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Name</label>
-        <input type="text" id="add-ammo-name" class="choice-select" style="width:100%" placeholder="e.g. Arrows, Blowgun Needles, Net...">
+        <select id="add-ammo-name" class="choice-select" style="width:100%" onchange="onAddAmmoNameChange()"></select>
+        <input type="text" id="add-ammo-custom-name" class="choice-select" style="width:100%;margin-top:8px;display:none" placeholder="Custom ammunition name…">
       </div>
       <div style="margin-bottom:14px">
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Starting Count</label>
@@ -24373,26 +24374,55 @@ function renderAmmoOverview(container) {
 
 function openAddAmmoModal() {
   ensureWeaponData();
-  document.getElementById('add-ammo-name').value = '';
+  const select = document.getElementById('add-ammo-name');
+  // Standard ammunition types already tracked by the Ammo Overview panel
+  // (PHB 2024 core types plus the DMG 2024 modern/futuristic rounds),
+  // skipping any the character already has a custom entry for under the
+  // same key, then a Custom Ammunition option for anything homebrew.
+  select.innerHTML = Object.entries(AMMO_TYPES)
+    .map(([key, def]) => `<option value="${key}">${def.label}</option>`)
+    .join('') + '<option value="__custom__">── Custom Ammunition ──</option>';
+  select.value = 'arrows';
+  document.getElementById('add-ammo-custom-name').value = '';
+  document.getElementById('add-ammo-custom-name').style.display = 'none';
   document.getElementById('add-ammo-count').value = '20';
   openModal('add-ammo-modal');
-  setTimeout(() => document.getElementById('add-ammo-name')?.focus(), 50);
 }
 window.openAddAmmoModal = openAddAmmoModal;
 
-function confirmAddAmmo() {
-  const name = document.getElementById('add-ammo-name').value.trim();
-  if (!name) { toast('Please enter a name for the ammunition.', 'info'); return; }
-  const count = Math.max(0, parseInt(document.getElementById('add-ammo-count').value) || 0);
+function onAddAmmoNameChange() {
+  const isCustom = document.getElementById('add-ammo-name').value === '__custom__';
+  const customEl = document.getElementById('add-ammo-custom-name');
+  customEl.style.display = isCustom ? '' : 'none';
+  if (isCustom) customEl.focus();
+}
+window.onAddAmmoNameChange = onAddAmmoNameChange;
 
+function confirmAddAmmo() {
+  const selected = document.getElementById('add-ammo-name').value;
+  const count = Math.max(0, parseInt(document.getElementById('add-ammo-count').value) || 0);
   ensureWeaponData();
-  const key = 'custom_' + name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') + '_' + Date.now().toString(36).slice(-4);
-  currentChar.ammoCustom[key] = { label: name, icon: '•' };
-  currentChar.ammo[key] = count;
+
+  if (selected === '__custom__') {
+    const name = document.getElementById('add-ammo-custom-name').value.trim();
+    if (!name) { toast('Please enter a name for the ammunition.', 'info'); return; }
+    const key = 'custom_' + name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') + '_' + Date.now().toString(36).slice(-4);
+    currentChar.ammoCustom[key] = { label: name, icon: '•' };
+    currentChar.ammo[key] = count;
+    toast(`Added ammunition: ${name}`, 'ok');
+  } else {
+    // A standard type — write directly into the same key the Ammo Overview
+    // panel already tracks, rather than creating a separate custom entry
+    // for something that isn't actually custom. Previously this modal
+    // always created a new custom entry regardless of the name typed, so
+    // adding "Arrows" here wouldn't connect to the Arrows tracker already
+    // shown elsewhere — it made a second, disconnected one.
+    currentChar.ammo[selected] = (currentChar.ammo[selected] || 0) + count;
+    toast(`Added ${count} ${AMMO_TYPES[selected]?.label || selected}`, 'ok');
+  }
 
   closeModal('add-ammo-modal');
   renderAttacksPanel();
-  toast(`Added ammunition: ${name}`, 'ok');
   debouncedSave();
 }
 window.confirmAddAmmo = confirmAddAmmo;
@@ -34291,31 +34321,35 @@ function populateFeaturesTab() {
 
   // ── Render ────────────────────────────────────────────────
   let html2 = '';
-  let lastGroupKey = null;
+  let lastLevelLabel = null;
 
   entries.forEach(e => {
-    // Group header: "Level N — Source (Type)" or "Background Feat", "Feat" etc
-    const lvlLabel    = e.level === 0 ? 'Racial' : e.level === null ? 'Additional' : `Level ${e.level}`;
-    const sourceLabel = `${e.source} (${e.sourceType})`;
-    const groupKey    = `${lvlLabel}__${sourceLabel}`;
+    // Group header is now level-only ("Level 1") rather than level+source
+    // ("Level 1 — Human (Race)" then separately "Level 1 — Warlock
+    // (Class)") — every feature gained at the same level sits under one
+    // header regardless of whether it came from race, class, subclass, or
+    // a feat. Each card carries its own small source badge instead, so
+    // that context isn't lost, just moved from a repeated group header
+    // onto the individual card.
+    const lvlLabel = e.level === 0 ? 'Racial' : e.level === null ? 'Additional' : `Level ${e.level}`;
 
-    if (groupKey !== lastGroupKey) {
-      lastGroupKey = groupKey;
-      const typeColour = {
-        'Race':             'var(--accent)',
-        'Class':            'var(--accent3)',
-        'Subclass':         'var(--accent2)',
-        'Background Feat':  'var(--amber)',
-        'Feat':             'var(--amber)',
-      }[e.sourceType] || 'var(--text3)';
-
+    if (lvlLabel !== lastLevelLabel) {
+      lastLevelLabel = lvlLabel;
       html2 += `
         <div class="feat-unified-header">
           <span class="feat-unified-level">${lvlLabel}</span>
-          <span class="feat-unified-source" style="color:${typeColour}">${sourceLabel}</span>
         </div>
       `;
     }
+
+    const typeColour = {
+      'Race':             'var(--accent)',
+      'Class':            'var(--accent3)',
+      'Subclass':         'var(--accent2)',
+      'Background Feat':  'var(--amber)',
+      'Feat':             'var(--amber)',
+    }[e.sourceType] || 'var(--text3)';
+    const sourceBadge = `<span class="feat-unified-source" style="color:${typeColour};font-size:9px">${e.source} (${e.sourceType})</span>`;
 
     const usageStr = e.usages
       ? (() => {
@@ -34345,6 +34379,7 @@ function populateFeaturesTab() {
           <span class="feat-card-name">${e.name}</span>
           ${usageStr}
         </div>
+        <div style="margin-top:-4px;margin-bottom:4px">${sourceBadge}</div>
         ${e.desc ? `<div class="feat-card-desc">${e.isHtml ? e.desc : e.desc.replace(/\|/g,'<br>').replace(/\n/g,'<br>')}</div>` : ''}
         ${spellLinks ? `<div style="margin-top:6px">${spellLinks}</div>` : ''}
       </div>
