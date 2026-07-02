@@ -24836,6 +24836,7 @@ function renderUnifiedInventory() {
   let totalWeight = 0; // running total, in lb — magic items are excluded since the catalog doesn't track their weight
 
   (currentChar.weapons || []).forEach((entry, idx) => {
+    if (entry._fromMagicItem) return; // proxy for an equipped magic weapon — the real entry renders from magicItems below instead
     const phb = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
     const qty = entry.qty || 1;
     const wtEach = parseWeightLb(entry.weight);
