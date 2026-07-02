@@ -3725,6 +3725,51 @@ select:not([multiple]) {
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="dm-add-gear-modal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      <span id="dm-gear-modal-title">Add Gear</span>
+      <span class="modal-close" onclick="closeModal('dm-add-gear-modal')">&#x2715;</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label class="field-label">Item Name</label>
+        <input id="dg-name" class="info-input" type="text" placeholder="Item name…"/>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label class="field-label">Quantity</label>
+          <input id="dg-qty" class="info-input" type="number" min="1" value="1"/>
+        </div>
+        <div>
+          <label class="field-label">Weight (optional)</label>
+          <input id="dg-weight" class="info-input" type="text" placeholder="e.g. 2 lb"/>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn-primary" onclick="dmApplyAddGear()">Add</button>
+      <button class="tbtn" onclick="closeModal('dm-add-gear-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="dm-add-item-type-modal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      <span id="dm-add-item-title">Add Item</span>
+      <span class="modal-close" onclick="closeModal('dm-add-item-type-modal')">&#x2715;</span>
+    </div>
+    <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:14px">What kind of item are you adding?</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('dm-add-item-type-modal');dmOpenAddWeaponForChar(_dmAddItemTarget.charId,_dmAddItemTarget.charName)">⚔ Weapon</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('dm-add-item-type-modal');dmOpenAddArmorForChar(_dmAddItemTarget.charId,_dmAddItemTarget.charName)">🛡 Armor</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('dm-add-item-type-modal');dmQuickGrantForChar(_dmAddItemTarget.charId,_dmAddItemTarget.charName)">✨ Magic Item</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('dm-add-item-type-modal');dmOpenAddGearForChar(_dmAddItemTarget.charId,_dmAddItemTarget.charName)">🎒 General Gear</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="add-item-type-modal">
   <div class="modal-box" style="max-width:380px">
     <div class="modal-title">
@@ -4722,6 +4767,208 @@ window.switchDMTab = switchDMTab;
 // character can patch just that card without a full list rebuild.
 let _partyCharCache = {};
 
+// Builds the DM's inventory summary for one character — same type-grouped
+// presentation as the player's own Inventory tab (Weapons / Armor / Magic
+// Items / Gear, weight totals, rarity colouring), but read from an
+// arbitrary character object rather than currentChar, and with a remove
+// button on every row so the DM can actually manage what's in a player's
+// pack, not just look at it. Adding new items already has its own path
+// (the DM panel's Items tab -> Grant to Player), so this focuses on
+// visibility + correction rather than duplicating that flow here too.
+function buildDMInventoryHTML(c, charId) {
+  const weapons  = c.weapons || [];
+  const armorOwned = c.armorOwned || [];
+  const magicItems = c.magicItems || [];
+  const equipment  = c.equipment || [];
+
+  const weaponRows = [];
+  const armorRows  = [];
+  const magicRows  = [];
+  const gearRows   = [];
+  let totalWeight = 0;
+
+  weapons.forEach((entry, idx) => {
+    if (entry._fromMagicItem) return; // proxy for an equipped magic weapon, shown via magicItems below instead
+    const qty = entry.qty || 1;
+    totalWeight += parseWeightLb(entry.weight) * qty;
+    weaponRows.push({
+      badge: 'WPN', color: 'var(--red)',
+      name: `${qty>1?qty+'× ':''}${entry.name||'Weapon'}`,
+      sub: entry.equipped ? 'Equipped' : '',
+      weight: entry.weight || '',
+      onRemove: `dmRemoveInventoryItem('${charId}','weapon',${idx})`,
+    });
+  });
+
+  armorOwned.forEach((entry, idx) => {
+    totalWeight += parseWeightLb(entry.weight);
+    armorRows.push({
+      badge: 'ARM', color: 'var(--accent2)',
+      name: entry.name || 'Armor',
+      sub: entry.worn ? 'Worn' : '',
+      weight: entry.weight || '',
+      onRemove: `dmRemoveInventoryItem('${charId}','armor',${idx})`,
+    });
+  });
+
+  magicItems.forEach((item, idx) => {
+    const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--gold)';
+    const rarityLabel = item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : '';
+    const attuneSub = item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '';
+    if (item.isWeapon && !item.isAmmo) {
+      weaponRows.push({
+        badge: 'WPN', color: rarityColor,
+        name: item.customName || item.name,
+        sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
+        weight: '',
+        onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
+      });
+    } else if (item.isArmour) {
+      armorRows.push({
+        badge: item.type==='shield'?'SHLD':'ARM', color: rarityColor,
+        name: item.customName || item.name,
+        sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
+        weight: '',
+        onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
+      });
+    } else {
+      magicRows.push({
+        badge: (item.rarity||'ITEM').slice(0,4).toUpperCase(), color: rarityColor,
+        name: item.customName || item.name,
+        sub: attuneSub,
+        weight: '',
+        onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
+      });
+    }
+  });
+
+  equipment.forEach((item, idx) => {
+    if (!item.name) return;
+    const qty = item.qty || 1;
+    totalWeight += parseWeightLb(item.weight) * qty;
+    gearRows.push({
+      badge: 'GEAR', color: 'var(--text3)',
+      name: `${qty>1?qty+'× ':''}${item.name}`,
+      sub: '', weight: item.weight || '',
+      onRemove: `dmRemoveInventoryItem('${charId}','gear',${idx})`,
+    });
+  });
+
+  const groups = [
+    { label: 'Weapons', rows: weaponRows },
+    { label: 'Armor',   rows: armorRows },
+    { label: 'Magic Items', rows: magicRows },
+    { label: 'Gear',    rows: gearRows },
+  ].filter(g => g.rows.length);
+
+  const totalCount = weaponRows.length + armorRows.length + magicRows.length + gearRows.length;
+  const wtStr = totalWeight > 0 ? ` · ${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb` : '';
+
+  const bodyHTML = totalCount ? groups.map(group => `
+    <div style="font-family:var(--font-ui);font-size:8px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);margin-top:4px">${group.label}</div>
+    ${group.rows.map(r => `
+      <div style="display:flex;align-items:center;gap:6px;padding:2px 0">
+        <span style="font-family:var(--font-ui);font-size:7px;font-weight:700;color:${r.color};border:1px solid ${r.color};border-radius:3px;padding:0 3px;flex-shrink:0">${r.badge}</span>
+        <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}${r.sub?` <span style="color:var(--text3)">· ${r.sub}</span>`:''}</span>
+        ${r.weight ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);flex-shrink:0">${r.weight}</span>` : ''}
+        <span style="cursor:pointer;color:var(--text3);font-size:11px;line-height:1;flex-shrink:0;padding:0 2px" onclick="${r.onRemove}" title="Remove">×</span>
+      </div>
+    `).join('')}
+  `).join('') : '<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">No items</div>';
+
+  return { totalCount, wtStr, bodyHTML };
+}
+
+// Removes one item from a player's inventory, directly from the DM panel.
+// `type` identifies which array it lives in ('weapon' | 'armor' | 'magic' |
+// 'gear'); `idx` is that array's index at render time. Re-fetches fresh
+// data first (rather than trusting the DM's local cache) so a concurrent
+// player-side change can't be clobbered by an index that's since shifted.
+async function dmRemoveInventoryItem(charId, type, idx) {
+  try {
+    const { content: c, sha } = await GH.getFile(`${charId}.json`);
+    let removedName = '';
+    if (type === 'weapon' && c.weapons?.[idx]) {
+      removedName = c.weapons[idx].name;
+      c.weapons.splice(idx, 1);
+    } else if (type === 'armor' && c.armorOwned?.[idx]) {
+      removedName = c.armorOwned[idx].name;
+      if (c.armorOwned[idx].worn && c.armorOwned[idx].key && c.ac_armor_key === c.armorOwned[idx].key) c.ac_armor_key = '';
+      c.armorOwned.splice(idx, 1);
+    } else if (type === 'magic' && c.magicItems?.[idx]) {
+      removedName = c.magicItems[idx].customName || c.magicItems[idx].name;
+      const removedUid = c.magicItems[idx]._uid;
+      c.magicItems.splice(idx, 1);
+      if (removedUid) {
+        c.weapons = (c.weapons||[]).filter(w => w._fromMagicItem !== removedUid);
+        c.customResources = (c.customResources||[]).filter(r => r._fromMagicItem !== removedUid);
+      }
+    } else if (type === 'gear' && c.equipment?.[idx]) {
+      removedName = c.equipment[idx].name;
+      c.equipment.splice(idx, 1);
+    } else {
+      toast('Item no longer exists — refreshing', 'warn');
+      loadDMCharList();
+      return;
+    }
+    await GH.putFile(`${charId}.json`, c, sha);
+    broadcastCharUpdate(charId, 'magicItems');
+    const cached = _partyCharCache[charId];
+    if (cached) Object.assign(cached, c);
+    toast(`Removed ${removedName || 'item'} from ${c.charName||charId}`, 'ok');
+    refreshSingleCharacterCard(charId);
+  } catch(e) {
+    toast('Failed to remove item: ' + e.message, 'error');
+  }
+}
+window.dmRemoveInventoryItem = dmRemoveInventoryItem;
+
+let _dmGearTarget = null;
+function dmOpenAddGearForChar(charId, charName) {
+  _dmGearTarget = { charId, charName };
+  document.getElementById('dm-gear-modal-title').textContent = `Add Gear — ${charName}`;
+  document.getElementById('dg-name').value = '';
+  document.getElementById('dg-qty').value = '1';
+  document.getElementById('dg-weight').value = '';
+  openModal('dm-add-gear-modal');
+}
+window.dmOpenAddGearForChar = dmOpenAddGearForChar;
+
+let _dmAddItemTarget = null;
+function dmOpenAddItemTypeModal(charId, charName) {
+  _dmAddItemTarget = { charId, charName };
+  document.getElementById('dm-add-item-title').textContent = `Add Item — ${charName}`;
+  openModal('dm-add-item-type-modal');
+}
+window.dmOpenAddItemTypeModal = dmOpenAddItemTypeModal;
+
+async function dmApplyAddGear() {
+  if (!_dmGearTarget) return;
+  const { charId, charName } = _dmGearTarget;
+  const name = document.getElementById('dg-name').value.trim();
+  const qty = Math.max(1, parseInt(document.getElementById('dg-qty').value) || 1);
+  const weight = document.getElementById('dg-weight').value.trim();
+  if (!name) { toast('Enter an item name', 'warn'); return; }
+
+  try {
+    const { content: c, sha } = await GH.getFile(`${charId}.json`);
+    if (!c.equipment) c.equipment = [];
+    c.equipment.push({ name, qty, weight: weight || null, desc: '' });
+    await GH.putFile(`${charId}.json`, c, sha);
+    broadcastCharUpdate(charId, 'magicItems');
+    const cached = _partyCharCache[charId];
+    if (cached) Object.assign(cached, c);
+    closeModal('dm-add-gear-modal');
+    toast(`${name} added to ${charName}`, 'ok');
+    refreshSingleCharacterCard(charId);
+  } catch(e) {
+    toast('Failed to add gear: ' + e.message, 'error');
+  } finally {
+    _dmGearTarget = null;
+  }
+}
+window.dmApplyAddGear = dmApplyAddGear;
+
 async function loadDMCharList() {
   const listEl   = document.getElementById('dm-char-list');
   const glanceEl = document.getElementById('dm-hp-glance');
@@ -4815,7 +5062,7 @@ async function loadDMCharList() {
         const cur = c.currency || {};
         const cp = parseInt(cur.cp)||0, sp = parseInt(cur.sp)||0, gpAmt = parseInt(cur.gp)||0, pp = parseInt(cur.pp)||0;
         const gpTotal = pp*10 + gpAmt + sp/10 + cp/100;
-        const invCount = (c.equipment||[]).filter(e=>e.name).length;
+        const dmInv = buildDMInventoryHTML(c, id);
         glanceRows.push(`
           <div id="dm-glance-${id}" onclick="document.getElementById('dm-char-card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'})"
             style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,.02)"
@@ -4890,12 +5137,15 @@ async function loadDMCharList() {
             <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);margin-left:auto">(${gpTotal.toFixed(2).replace(/\\.?0+$/,'')} gp total)</span>
           </div>
           <div style="margin-top:8px">
-            <div onclick="document.getElementById('dm-inv-${id}').style.display=document.getElementById('dm-inv-${id}').style.display==='none'?'':'none'"
-              style="cursor:pointer;display:flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:9px;color:var(--text3);user-select:none">
-              <span>▸</span> Inventory (${invCount} item${invCount!==1?'s':''})
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div onclick="document.getElementById('dm-inv-${id}').style.display=document.getElementById('dm-inv-${id}').style.display==='none'?'':'none'"
+                style="cursor:pointer;display:flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:9px;color:var(--text3);user-select:none">
+                <span>▸</span> Inventory (${dmInv.totalCount} item${dmInv.totalCount!==1?'s':''}${dmInv.wtStr})
+              </div>
+              <button class="tbtn" style="font-size:9px;padding:1px 7px" data-charid="${id}" data-charname="${(c.charName||id).replace(/"/g,'&quot;')}" onclick="dmOpenAddItemTypeModal(this.dataset.charid,this.dataset.charname)">+ Add</button>
             </div>
-            <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto">
-              ${invCount ? (c.equipment||[]).filter(e=>e.name).map(e => `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text2);padding:1px 0">${e.qty||1}× ${e.name}${e.weight?` <span style="color:var(--text3)">(${e.weight})</span>`:''}</div>`).join('') : '<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">No items</div>'}
+            <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:180px;overflow-y:auto">
+              ${dmInv.bodyHTML}
             </div>
           </div>
           <div style="display:flex;gap:5px;margin-top:8px;align-items:center;flex-wrap:wrap">
@@ -5016,7 +5266,7 @@ async function refreshSingleCharacterCard(charId) {
     const cur = c.currency || {};
     const cp = parseInt(cur.cp)||0, sp = parseInt(cur.sp)||0, gpAmt = parseInt(cur.gp)||0, pp = parseInt(cur.pp)||0;
     const gpTotal = pp*10 + gpAmt + sp/10 + cp/100;
-    const invCount = (c.equipment||[]).filter(e=>e.name).length;
+    const dmInv = buildDMInventoryHTML(c, id);
 
     const campList2  = (typeof _dmCampaigns !== 'undefined' && _dmCampaigns.length) ? _dmCampaigns : [];
     const charCamp   = campList2.find(cp2 => cp2.id === c._campaign);
@@ -5082,12 +5332,15 @@ async function refreshSingleCharacterCard(charId) {
         <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);margin-left:auto">(${gpTotal.toFixed(2).replace(/\.?0+$/,'')} gp total)</span>
       </div>
       <div style="margin-top:8px">
-        <div onclick="document.getElementById('dm-inv-${id}').style.display=document.getElementById('dm-inv-${id}').style.display==='none'?'':'none'"
-          style="cursor:pointer;display:flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:9px;color:var(--text3);user-select:none">
-          <span>▸</span> Inventory (${invCount} item${invCount!==1?'s':''})
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div onclick="document.getElementById('dm-inv-${id}').style.display=document.getElementById('dm-inv-${id}').style.display==='none'?'':'none'"
+            style="cursor:pointer;display:flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:9px;color:var(--text3);user-select:none">
+            <span>▸</span> Inventory (${dmInv.totalCount} item${dmInv.totalCount!==1?'s':''}${dmInv.wtStr})
+          </div>
+          <button class="tbtn" style="font-size:9px;padding:1px 7px" data-charid="${id}" data-charname="${(c.charName||id).replace(/"/g,'&quot;')}" onclick="dmOpenAddItemTypeModal(this.dataset.charid,this.dataset.charname)">+ Add</button>
         </div>
-        <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto">
-          ${invCount ? (c.equipment||[]).filter(e=>e.name).map(e => `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text2);padding:1px 0">${e.qty||1}× ${e.name}${e.weight?` <span style="color:var(--text3)">(${e.weight})</span>`:''}</div>`).join('') : '<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">No items</div>'}
+        <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:180px;overflow-y:auto">
+          ${dmInv.bodyHTML}
         </div>
       </div>
       <div style="display:flex;gap:5px;margin-top:8px;align-items:center;flex-wrap:wrap">
@@ -24059,6 +24312,7 @@ window.clearAmmoType = clearAmmoType;
 let _weaponEditIdx = null; // null = add new
 
 function openAddWeapon() {
+  _invModalDMTarget = null;
   _weaponEditIdx = null;
   document.getElementById('weapon-modal-title').textContent = 'Add Weapon';
   document.getElementById('wm-name').value = '';
@@ -24076,10 +24330,34 @@ function openAddWeapon() {
   openModal('weapon-edit-modal');
 }
 
+// DM equivalent — same modal, but saves to a specific remote character
+// instead of currentChar. Only supports adding (not editing an existing
+// remote weapon) — editing is still done from the player's own sheet.
+function dmOpenAddWeaponForChar(charId, charName) {
+  _invModalDMTarget = { charId, charName };
+  _weaponEditIdx = null;
+  document.getElementById('weapon-modal-title').textContent = `Add Weapon — ${charName}`;
+  document.getElementById('wm-name').value = '';
+  document.getElementById('wm-attack-bonus').value = '0';
+  document.getElementById('wm-damage-bonus').value = '0';
+  document.getElementById('wm-custom-damage').value = '';
+  document.getElementById('wm-desc').value = '';
+  document.getElementById('wm-qty').value = '1';
+  document.getElementById('wm-weight').value = '';
+  document.getElementById('wm-equipped').checked = true;
+  document.getElementById('wm-proficient').checked = true;
+  populateWeaponModalDropdown();
+  document.getElementById('wm-weapon-key').value = '';
+  onWeaponModalKeyChange();
+  openModal('weapon-edit-modal');
+}
+window.dmOpenAddWeaponForChar = dmOpenAddWeaponForChar;
+
 function openWeaponEdit(idx) {
   ensureWeaponData();
   const entry = currentChar.weapons[idx];
   if (!entry) return;
+  _invModalDMTarget = null;
   _weaponEditIdx = idx;
   document.getElementById('weapon-modal-title').textContent = 'Edit Weapon';
   populateWeaponModalDropdown();
@@ -24184,8 +24462,12 @@ function onWeaponModalKeyChange() {
   }
 }
 
-function applyWeaponModal() {
-  ensureWeaponData();
+// When set, the weapon/armor/gear modals save to a REMOTE character (via
+// GitHub) instead of currentChar — used when the DM opens "+ Add Item" from
+// a specific player's card in the Party tab. null means normal player use.
+let _invModalDMTarget = null;
+
+async function applyWeaponModal() {
   const key     = document.getElementById('wm-weapon-key').value;
   const name    = document.getElementById('wm-name').value.trim();
   const atkBonus = parseInt(document.getElementById('wm-attack-bonus').value) || 0;
@@ -24217,6 +24499,28 @@ function applyWeaponModal() {
     unarmedSource: (key === 'unarmed_strike' && unarmedSrc) ? parseInt(unarmedSrc.value) || 0 : undefined,
   };
 
+  if (_invModalDMTarget) {
+    const { charId, charName } = _invModalDMTarget;
+    try {
+      const { content: c, sha } = await GH.getFile(`${charId}.json`);
+      if (!c.weapons) c.weapons = [];
+      c.weapons.push(entry);
+      await GH.putFile(`${charId}.json`, c, sha);
+      broadcastCharUpdate(charId, 'magicItems');
+      const cached = _partyCharCache[charId];
+      if (cached) Object.assign(cached, c);
+      closeModal('weapon-edit-modal');
+      toast(`${entry.name} added to ${charName}`, 'ok');
+      refreshSingleCharacterCard(charId);
+    } catch(e) {
+      toast('Failed to add weapon: ' + e.message, 'error');
+    } finally {
+      _invModalDMTarget = null;
+    }
+    return;
+  }
+
+  ensureWeaponData();
   if (_weaponEditIdx !== null) {
     // Preserve versatile mode when editing
     entry.versatileMode = currentChar.weapons[_weaponEditIdx].versatileMode || false;
@@ -24241,6 +24545,7 @@ function applyWeaponModal() {
 let _armorEditIdx = null;
 
 function openAddArmor() {
+  _invModalDMTarget = null;
   _armorEditIdx = null;
   document.getElementById('armor-modal-title').textContent = 'Add Armor';
   document.getElementById('am-name').value = '';
@@ -24255,10 +24560,29 @@ function openAddArmor() {
   openModal('armor-edit-modal');
 }
 
+// DM equivalent — same modal, but saves to a specific remote character.
+function dmOpenAddArmorForChar(charId, charName) {
+  _invModalDMTarget = { charId, charName };
+  _armorEditIdx = null;
+  document.getElementById('armor-modal-title').textContent = `Add Armor — ${charName}`;
+  document.getElementById('am-name').value = '';
+  document.getElementById('am-custom-ac').value = '';
+  document.getElementById('am-magic-bonus').value = '0';
+  document.getElementById('am-weight').value = '';
+  document.getElementById('am-notes').value = '';
+  document.getElementById('am-worn').checked = false;
+  populateArmorModalDropdown();
+  document.getElementById('am-armor-key').value = '';
+  onArmorModalKeyChange();
+  openModal('armor-edit-modal');
+}
+window.dmOpenAddArmorForChar = dmOpenAddArmorForChar;
+
 function openArmorEdit(idx) {
   ensureWeaponData();
   const entry = currentChar.armorOwned[idx];
   if (!entry) return;
+  _invModalDMTarget = null;
   _armorEditIdx = idx;
   document.getElementById('armor-modal-title').textContent = 'Edit Armor';
   populateArmorModalDropdown();
@@ -24306,8 +24630,7 @@ function onArmorModalKeyChange() {
   }
 }
 
-function applyArmorModal() {
-  ensureWeaponData();
+async function applyArmorModal() {
   const key = document.getElementById('am-armor-key').value;
   const name = document.getElementById('am-name').value.trim();
   const customAC = parseInt(document.getElementById('am-custom-ac').value) || 0;
@@ -24330,6 +24653,33 @@ function applyArmorModal() {
     worn,
   };
 
+  if (_invModalDMTarget) {
+    const { charId, charName } = _invModalDMTarget;
+    try {
+      const { content: c, sha } = await GH.getFile(`${charId}.json`);
+      if (!c.armorOwned) c.armorOwned = [];
+      c.armorOwned.push(entry);
+      if (worn) {
+        const newIdx = c.armorOwned.length - 1;
+        c.armorOwned.forEach((a, i) => { a.worn = (i === newIdx); });
+        if (entry.key) c.ac_armor_key = entry.key;
+      }
+      await GH.putFile(`${charId}.json`, c, sha);
+      broadcastCharUpdate(charId, 'magicItems');
+      const cached = _partyCharCache[charId];
+      if (cached) Object.assign(cached, c);
+      closeModal('armor-edit-modal');
+      toast(`${entry.name} added to ${charName}`, 'ok');
+      refreshSingleCharacterCard(charId);
+    } catch(e) {
+      toast('Failed to add armor: ' + e.message, 'error');
+    } finally {
+      _invModalDMTarget = null;
+    }
+    return;
+  }
+
+  ensureWeaponData();
   if (_armorEditIdx !== null) {
     currentChar.armorOwned[_armorEditIdx] = entry;
   } else {
@@ -26250,6 +26600,11 @@ window.dmRenderItemsList = dmRenderItemsList;
 
 let _grantItemKey = null;
 
+// Set by dmQuickGrantForChar() so the NEXT grant-item action defaults to
+// this character instead of a blank dropdown — cleared after one use so it
+// doesn't silently affect unrelated later grants.
+let _pendingGrantPreselectCharId = null;
+
 async function openGrantItemModal(key) {
   _grantItemKey = key;
   const def = getEffectiveMagicItemsCatalog().find(i => i.key === key);
@@ -26274,8 +26629,23 @@ async function openGrantItemModal(key) {
     .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id))
     .map(({ id, char }) => `<option value="${id}">${char.charName||id}${char.playerName ? ' ('+char.playerName+')' : ''}</option>`)
     .join('');
+  if (_pendingGrantPreselectCharId) {
+    select.value = _pendingGrantPreselectCharId;
+    _pendingGrantPreselectCharId = null;
+  }
 }
 window.openGrantItemModal = openGrantItemModal;
+
+// Shortcut from a character's own card — jumps to the Items catalog with
+// this character already queued as the grant target, so picking an item
+// and clicking the grant button is the only step left, instead of also
+// having to re-select the player from a blank dropdown afterward.
+function dmQuickGrantForChar(charId, charName) {
+  _pendingGrantPreselectCharId = charId;
+  switchDMTab('items');
+  toast(`Pick an item to grant to ${charName}`, 'ok');
+}
+window.dmQuickGrantForChar = dmQuickGrantForChar;
 
 async function confirmGrantItem() {
   const charId = document.getElementById('grant-item-target')?.value;
