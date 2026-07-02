@@ -3730,7 +3730,7 @@ select:not([multiple]) {
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddWeapon()">⚔ Weapon</button>
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddArmor()">🛡 Armor</button>
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');switchPage('inventory');if(!_miBrowserOpen)toggleMagicItemBrowser();document.getElementById('mi-browser-body')?.scrollIntoView({behavior:'smooth',block:'center'})">✨ Magic Item</button>
-      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');addEquipItem();switchPage('inventory')">🎒 General Gear</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');addEquipItem();setTimeout(()=>document.querySelectorAll('.inv-gear-name-input')[document.querySelectorAll('.inv-gear-name-input').length-1]?.focus(),50)">🎒 General Gear</button>
     </div>
   </div>
 </div>
@@ -24539,24 +24539,16 @@ function renderUnifiedInventory() {
     }
   });
 
-  // Unlike the other three types, a blank equipment row the player just
-  // added has nothing to click through to elsewhere — it IS the thing
-  // being edited, inline, in its own panel below. Previously these were
-  // hidden entirely from this list until named, which made "+ Add Item →
-  // General Gear" look like it did nothing at all. Now it shows up
-  // immediately with a placeholder name so there's visible confirmation
-  // something was added.
+  // Unlike the other three types, general gear has nothing worth a catalog
+  // dropdown or bonus fields — it's just a name, quantity, and weight. So
+  // instead of a clickable summary row that sends you off to a separate
+  // Equipment card just to type a name, these render as real inline inputs
+  // right here — the whole point of "+ Add Item → General Gear" is that
+  // adding something should be possible without leaving this panel at all.
   (currentChar.equipment || []).forEach((item, idx) => {
     const qty = item.qty || 1;
     totalWeight += parseWeightLb(item.weight) * qty;
-    gearRows.push({
-      badge: 'GEAR', badgeColor: 'var(--text3)',
-      name: item.name || 'New item — click to name it',
-      qty, weight: item.weight || '',
-      sub: '',
-      onClick: `document.getElementById('equip-name-${idx}')?.scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('equip-name-${idx}')?.focus()`,
-      onRemove: `removeEquipItem(${idx});renderEquipList()`,
-    });
+    gearRows.push({ isGear: true, idx, item });
   });
 
   const groups = [
@@ -24580,9 +24572,20 @@ function renderUnifiedInventory() {
   // Whole row is clickable (matching how magic item / spell rows work
   // elsewhere in the sheet) — only the ✕ button opts out via
   // stopPropagation, so removing an item doesn't also trigger its view/edit.
+  // Gear rows are the one exception — real inputs instead of a click target.
   list.innerHTML = groups.map((group, gi) => `
     <div style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-top:${gi>0?'8px':'0'};padding:0 2px">${group.label}</div>
-    ${group.rows.map(r => `
+    ${group.rows.map(r => r.isGear ? `
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius)">
+      <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:var(--text3);border:1px solid var(--text3);border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">GEAR</span>
+      <input type="number" min="1" value="${r.item.qty||1}" style="width:34px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:11px;flex-shrink:0"
+        oninput="currentChar.equipment[${r.idx}].qty=parseInt(this.value)||1;debouncedSave()" onchange="renderUnifiedInventory()"/>
+      <input type="text" value="${(r.item.name||'').replace(/"/g,'&quot;')}" placeholder="Item name…" class="inv-gear-name-input" style="flex:1;min-width:0;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px"
+        oninput="currentChar.equipment[${r.idx}].name=this.value;debouncedSave()"/>
+      <input type="text" value="${(r.item.weight||'').replace(/"/g,'&quot;')}" placeholder="wt" style="width:44px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:11px;flex-shrink:0"
+        oninput="currentChar.equipment[${r.idx}].weight=this.value;debouncedSave()" onchange="renderUnifiedInventory()"/>
+      <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="removeEquipItem(${r.idx})">✕</button>
+    </div>` : `
     <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer"
       onclick="${r.onClick}" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
