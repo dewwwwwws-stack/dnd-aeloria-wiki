@@ -536,6 +536,27 @@ select:not([multiple]) {
   box-shadow: var(--shadow-lg);
 }
 
+/* Used by the spell/item detail modals specifically — same solid
+   treatment as .modal-box, but without a max-width so each usage can set
+   its own (they need more room for full descriptions). Previously had no
+   matching CSS rule at all, so these rendered fully transparent, showing
+   the blurred sheet straight through behind the text. */
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .modal-title {
   font-family: var(--font-label);
   font-size: 14px;
@@ -715,6 +736,21 @@ select:not([multiple]) {
 }
 .sp-name.ritual-only { color: var(--gold); font-style: italic; }
 .sp-tags { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
+.attune-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-ui); font-size: 10px; font-weight: 600; letter-spacing: .4px;
+  padding: 3px 9px; border-radius: 10px;
+  border: 1px solid var(--border2); background: var(--bg3); color: var(--text2);
+  transition: all .12s;
+}
+.attune-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.attune-btn:disabled { opacity: .5; }
+.attune-btn.is-attuned { border-color: var(--gold); background: var(--gold-faint); color: var(--gold); }
+.attune-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 1.5px solid currentColor; flex-shrink: 0;
+}
+.attune-btn.is-attuned .attune-dot { background: var(--gold); }
 .sp-tag {
   font-family: var(--font-ui); font-size: 8px; letter-spacing: .5px;
   padding: 1px 4px; border-radius: 3px; border: 1px solid;
@@ -6168,6 +6204,19 @@ function openMagicItemDetailModal(keyOrItem) {
     : keyOrItem;
   if (!item) return;
 
+  // If this is an owned item (not just a catalog preview) whose bonus tier
+  // hasn't been chosen yet, go straight to the picker instead of showing a
+  // detail view that's incomplete/incorrect until that choice is made —
+  // covers items added before this fix existed, or granted by a DM.
+  if (item._uid) {
+    const fx = item.effects || {};
+    const needsBonusPick = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable';
+    if (needsBonusPick && !item.magicBonus) {
+      const idx = (currentChar.magicItems || []).indexOf(item);
+      if (idx !== -1) { openMagicItemEdit(idx); return; }
+    }
+  }
+
   const titleEl = document.getElementById('mi-detail-title');
   const metaEl  = document.getElementById('mi-detail-meta');
   const tagsEl  = document.getElementById('mi-detail-tags');
@@ -7806,7 +7855,7 @@ const PHB_CLASS_CHOICES = {
     {
       "id": "genie_kind",
       "label": "Genie Kind",
-      "minLevel": 1,
+      "minLevel": 3,
       "type": "dropdown",
       "options": ["Dao (Earth)","Djinni (Air)","Efreeti (Fire)","Marid (Water)"],
       "showIfSubclass": "the genie",
@@ -16247,7 +16296,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"amulet_of_health","name":"Amulet of Health","rarity":"rare","type":"wondrous item","desc":"My Constitution score is 19 while I'm wearing this amulet, provided that my Constitution is not already 19 or higher.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"scoresOverride":[0,0,19,0,0,0]}},
 {"key":"armor_of_resistance","name":"Armor of Resistance","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"Select the damage type that this armor gives Resistance to using the square button in this line. While I'm wearing this armor and attuned to it, I gain Resistance to one type of damage.","attunement":true,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
 {"key":"armor_of_vulnerability","name":"Armor of Vulnerability","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"While wearing this armor, I have Resistance to one of the following damage types: Bludgeoning, Piercing, or Slashing; unfortunately, I have Vulnerability to the other two until I am targeted by a Remove Curse spell.","attunement":true,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
-{"key":"armor___1___2__or__3","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"name":"Armor, +1, +2, or +3","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"I have a bonus to AC while wearing this armor. The bonus is determined by the rarity of the magic item: rare (+1), very rare (+2), or legendary (+3). Select the bonus using the little square button in this magic item line.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
+{"key":"armor___1___2__or__3","rarityByBonus":{"1":"rare","2":"very rare","3":"legendary"},"name":"Armor, +1, +2, or +3","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"I have a bonus to AC while wearing this armor. The bonus is determined by the rarity of the magic item: rare (+1), very rare (+2), or legendary (+3). Select the bonus using the little square button in this magic item line.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
 {"key":"arrow_catching_shield","name":"Arrow-Catching Shield","rarity":"rare","type":"shield","desc":"I gain an additional +2 bonus to AC against ranged attacks while I wield this shield. This is not calculated into the AC on the 1st page. In addition, whenever an attacker makes a ranged attack against a target within 5 feet of me, I can use my reaction to become the target of the attack instead.","attunement":true,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
 {"key":"bead_of_force","name":"Bead of Force","rarity":"rare","type":"wondrous item","desc":"Once as a Magic action, I can throw this sphere 60 ft, creating a 10-ft radius explosion on impact. All creatures within the explosion must make a DC 15 Dex save or take 5d4 force damage and are trapped in a sphere of transparent force that encloses the area for 1 minute. The sphere can be moved from the in- and outside.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"belt_of_dwarvenkind","name":"Belt of Dwarvenkind","rarity":"rare","type":"wondrous item","desc":"While wearing this belt, my Con increases by 2 (to max 20), I get adv. on Cha (Persuasion) checks to interact with dwarves, adv. on saves vs. poison, resistance to poison damage, darkvision 60 ft, and known Dwarvish. Each day at dawn, there is a 50% chance I grow a full beard or my current beard becomes visibly thicker.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -19748,7 +19797,7 @@ const RARITY_COLOURS = {
   common:            '#b0d4c0',
   uncommon:          '#4dcc85',
   rare:              '#3a7fc1',
-  'very rare':       '#7a5a9a',
+  'very rare':       '#d94fd1',   // vibrant magenta — was a dull, low-contrast purple too close to the sheet's own accent colour
   legendary:         '#c9a84c',
   artifact:          '#c04040',
   'primeval vestige':'#20b8c4',   // Dorenia scaling items — teal
@@ -25861,19 +25910,22 @@ function renderMagicItemsPanel() {
         `;
       }
 
+      const attuneControl = canToggleAttune ? `
+        <button class="attune-btn ${isAttuned?'is-attuned':''}" style="cursor:${over&&!isAttuned?'not-allowed':'pointer'}"
+          title="${isAttuned?'Attuned — click to unattune':over?'No attunement slots free':'Click to attune'}"
+          onclick="toggleAttunement(${idx})" ${over&&!isAttuned?'disabled':''}>
+          <span class="attune-dot"></span>${isAttuned?'Attuned':'Attune'}
+        </button>
+      ` : (item.attunement ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px">Requires Attunement</span>` : '');
+
       row.innerHTML = `
         <div style="display:flex;align-items:flex-start;gap:8px">
-          ${canToggleAttune ? `
-            <button class="sp-pip ${isAttuned?'prepared':''}" style="cursor:${over&&!isAttuned?'not-allowed':'pointer'};margin-top:3px;flex-shrink:0"
-              title="${isAttuned?'Attuned — click to unattune':over?'No attunement slots free':'Click to attune'}"
-              onclick="toggleAttunement(${idx})" ${over&&!isAttuned?'disabled':''}></button>
-          ` : '<div style="width:14px"></div>'}
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span style="font-family:var(--font-body);font-size:13px;color:var(--text);font-weight:500">${item.customName||item.name}</span>
               ${item.isCustom ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);letter-spacing:.5px;border:1px solid var(--border2);padding:1px 4px;border-radius:3px">CUSTOM</span>` : ''}
               ${item.rarity === 'primeval vestige' ? `<span style="font-family:var(--font-ui);font-size:8px;color:#20b8c4;letter-spacing:.5px;border:1px solid #20b8c4;padding:1px 4px;border-radius:3px">VESTIGE ✎</span>` : ''}
-              ${item.attunement ? `<span style="font-family:var(--font-ui);font-size:8px;color:${isAttuned?'var(--gold)':'var(--text3)'};letter-spacing:.5px;border:1px solid ${isAttuned?'var(--gold)':'var(--border2)'};padding:1px 4px;border-radius:3px">${isAttuned?'ATTUNED':'ATTUNE'}</span>` : ''}
+              ${attuneControl}
               ${item._resourceId ? (() => {
                 const res = (currentChar.customResources || []).find(r => r.id === item._resourceId);
                 if (!res) return '';
@@ -25901,7 +25953,7 @@ function renderMagicItemsPanel() {
       row.title = 'Click to view item details';
       row.addEventListener('click', (e) => {
         if (e.target.closest('.sp-del-btn') || e.target.closest('.magic-item-edit-btn')
-          || e.target.closest('.sp-pip') || e.target.closest('select') || e.target.closest('input')
+          || e.target.closest('.sp-pip') || e.target.closest('.attune-btn') || e.target.closest('select') || e.target.closest('input')
           || e.target.closest('label')) return;
         openMagicItemDetailModal(currentChar.magicItems[idx]);
       });
@@ -26147,6 +26199,51 @@ function renderMagicItemBrowser() {
 // codebase has hit before: two near-identical implementations of the same
 // logic, only one of which gets fixed when something changes).
 // Returns { added: boolean, item, reason } — reason is set when skipped.
+// Once a variable item's bonus tier is chosen, its catalog name/description
+// mentioning every possible tier ("Rod of the Pact Keeper, +1, +2, or +3",
+// "...uncommon (+1), rare (+2), or very rare (+3)...") is no longer useful —
+// only the chosen tier matters. These regenerate a cleaned name/description
+// from the ORIGINAL catalog text (item._baseName/_baseDesc) each time,
+// rather than mutating item.name/desc repeatedly in place, so choosing a
+// different tier later re-derives correctly instead of compounding.
+function getCleanedItemName(baseName, magicBonus) {
+  if (!magicBonus || !baseName) return baseName;
+  return baseName.replace(/,\s*\+\d+(?:\s*,\s*\+\d+)*\s*(?:,?\s*or\s*\+\d+)?\s*$/i, `, +${magicBonus}`);
+}
+function getCleanedItemDesc(baseDesc, magicBonus, rarityByBonus) {
+  if (!magicBonus || !baseDesc) return baseDesc;
+  const tierRarity = rarityByBonus?.[String(magicBonus)];
+  const tierPhrase = tierRarity ? `${tierRarity} (+${magicBonus})` : `+${magicBonus}`;
+  const RARITY_WORD = '(?:common|uncommon|rare|very rare|legendary)';
+  const pattern = new RegExp(`\\b${RARITY_WORD}\\s*\\(\\+\\d+\\)(?:\\s*,\\s*${RARITY_WORD}\\s*\\(\\+\\d+\\))*(?:\\s*,?\\s*or\\s*${RARITY_WORD}\\s*\\(\\+\\d+\\))?`, 'i');
+  // Only replace if the pattern actually matches — some items (e.g. the
+  // generic Shield) never spell out per-tier numbers in their text at all,
+  // so there's nothing to clean and the description is left untouched
+  // rather than risking a bad substitution.
+  return pattern.test(baseDesc) ? baseDesc.replace(pattern, tierPhrase) : baseDesc;
+}
+// Applies the cleanup to an item instance in place, regenerating from its
+// preserved base text — call this any time magicBonus changes.
+function refreshVariableItemText(item) {
+  if (!item._baseName) {
+    // Item was added before this feature existed, so it never got its
+    // base text preserved — backfill from the catalog definition rather
+    // than silently skipping the cleanup for every item added earlier.
+    const def = item.key ? getEffectiveMagicItemsCatalog().find(i => i.key === item.key) : null;
+    if (def) {
+      item._baseName = def.name;
+      item._baseDesc = def.desc;
+      if (!item.rarityByBonus && def.rarityByBonus) item.rarityByBonus = def.rarityByBonus;
+      if (!item.maxBonus && def.maxBonus) item.maxBonus = def.maxBonus;
+    } else {
+      return; // no catalog match (e.g. a fully custom item) — nothing to derive from
+    }
+  }
+  item.name = getCleanedItemName(item._baseName, item.magicBonus);
+  item.desc = getCleanedItemDesc(item._baseDesc, item.magicBonus, item.rarityByBonus);
+}
+window.refreshVariableItemText = refreshVariableItemText;
+
 function addMagicItemToCharacter(char, key) {
   if (!char.magicItems) char.magicItems = [];
   const def = getEffectiveMagicItemsCatalog().find(i => i.key === key);
@@ -26159,12 +26256,21 @@ function addMagicItemToCharacter(char, key) {
 
   const compatKeys = (def.isWeapon && !def.isAmmo) ? getCompatibleWeaponKeys(def.type) : [];
   const compatArmourKeys = (def.isArmour && def.type !== 'shield') ? getCompatibleArmourKeys(def.type) : [];
+  const isVariableItem = !!(def.rarityByBonus || def.maxBonus || def.effects?.weaponBonus === 'variable' || def.effects?.spellAtkBonus === 'variable' || def.effects?.spellDCBonus === 'variable' || def.effects?.otherBonus === 'variable');
   const newItem = {
     key: def.key, name: def.name, rarity: def.rarity,
     type: def.type, desc: def.desc,
     attunement: def.attunement, attuned: false,
     isWeapon: def.isWeapon, isArmour: def.isArmour, isAmmo: def.isAmmo,
     effects: def.effects || null,
+    rarityByBonus: def.rarityByBonus || null,
+    maxBonus: def.maxBonus || null,
+    // Preserved so the cleaned-up display name/desc (once a tier is
+    // chosen) can always be re-derived from the original catalog text,
+    // rather than mutating name/desc repeatedly and risking compounding
+    // errors if the player changes tiers again later.
+    _baseName: isVariableItem ? def.name : undefined,
+    _baseDesc: isVariableItem ? def.desc : undefined,
     customName: '', notes: '',
     magicBonus: 0,
     weaponKey: compatKeys.length === 1 ? compatKeys[0] : null,
@@ -26219,6 +26325,17 @@ function addMagicItem(key) {
   recalcAll();
   debouncedSave();
   toast(`${result.item.name} added`, 'ok');
+
+  // If this item's bonus (and often its rarity) varies by tier, prompt for
+  // it right away instead of leaving the player to discover the picker
+  // buried in Edit Notes afterward — the whole point of a variable item is
+  // that it isn't usable/correctly labeled until a tier is chosen.
+  const fx = result.item.effects || {};
+  const needsBonusPick = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable';
+  if (needsBonusPick) {
+    const newIdx = currentChar.magicItems.length - 1;
+    setTimeout(() => openMagicItemEdit(newIdx), 150);
+  }
 }
 
 // ── Magic item edit modal ─────────────────────────────────
@@ -26278,6 +26395,7 @@ function applyMagicItemEdit() {
   item.notes      = document.getElementById('mi-edit-notes').value.trim();
   const bonusSel = document.getElementById('mi-edit-bonus');
   if (bonusSel) item.magicBonus = parseInt(bonusSel.value) || 0;
+  refreshVariableItemText(item);
   closeModal('mi-edit-modal');
   renderMagicItemsPanel();
   recalcAll();
@@ -34310,7 +34428,15 @@ function populateFeaturesTab() {
 
     for (const def of allDefs) {
       if (!def.wires?.includes('display')) continue;
-      if (def.minLevel && eLv < def.minLevel) continue;
+      // A choice tied to a specific subclass (showIfSubclass) can never
+      // genuinely be available before level 3, since that's when any
+      // subclass is first chosen — regardless of what raw minLevel value
+      // happens to be stored on the choice definition itself. Same
+      // defensive floor as the subclass features list, applied here too
+      // since this is a separate lookup path that had its own instance of
+      // the same stale-data problem (Genie Kind was minLevel:1).
+      const effMinLevel = def.showIfSubclass ? Math.max(3, def.minLevel || 1) : (def.minLevel || 1);
+      if (eLv < effMinLevel) continue;
       const saved = currentChar.class_choices?.[def.id];
       if (!saved || (Array.isArray(saved) && !saved.length)) continue;
 
@@ -34323,7 +34449,7 @@ function populateFeaturesTab() {
             return sp ? `${n} [${sp.name}]` : n;
           }).filter(Boolean).join(', ')
         : saved;
-      const charLv = clsLvToCharLv(eCls, def.minLevel || 1);
+      const charLv = clsLvToCharLv(eCls, effMinLevel);
 
       // Look up per-option description if available
       let desc = '';
