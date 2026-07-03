@@ -4898,8 +4898,9 @@ function buildDMInventoryHTML(c, charId) {
   });
 
   magicItems.forEach((item, idx) => {
-    const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--gold)';
-    const rarityLabel = item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : '';
+    const effRarity = getEffectiveItemRarity(item);
+    const rarityColor = RARITY_COLOURS[effRarity] || 'var(--gold)';
+    const rarityLabel = effRarity ? effRarity.charAt(0).toUpperCase()+effRarity.slice(1) : '';
     const attuneSub = item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '';
     if (item.isWeapon && !item.isAmmo) {
       weaponRows.push({
@@ -4919,7 +4920,7 @@ function buildDMInventoryHTML(c, charId) {
       });
     } else {
       magicRows.push({
-        badge: (item.rarity||'ITEM').slice(0,4).toUpperCase(), color: rarityColor,
+        badge: (effRarity||'ITEM').slice(0,4).toUpperCase(), color: rarityColor,
         name: item.customName || item.name,
         sub: attuneSub,
         weight: '',
@@ -6175,11 +6176,12 @@ function openMagicItemDetailModal(keyOrItem) {
   if (!titleEl || !metaEl || !tagsEl || !bodyEl || !notesEl) return;
 
   titleEl.textContent = item.customName || item.name;
-  titleEl.style.color = RARITY_COLOURS[item.rarity] || 'var(--text)';
+  const effRarity = getEffectiveItemRarity(item);
+  titleEl.style.color = RARITY_COLOURS[effRarity] || 'var(--text)';
 
-  const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--text2)';
+  const rarityColor = RARITY_COLOURS[effRarity] || 'var(--text2)';
   const metaParts = [
-    `<span class="meta-pill" style="text-transform:capitalize;color:${rarityColor};border:1px solid ${rarityColor}44">${item.rarity || 'common'}</span>`,
+    `<span class="meta-pill" style="text-transform:capitalize;color:${rarityColor};border:1px solid ${rarityColor}44">${effRarity || 'common'}</span>`,
     `<span class="meta-pill">${item.type || 'wondrous item'}</span>`,
   ];
   if (item.attunement) metaParts.push('<span class="meta-pill" style="color:var(--gold)">Requires Attunement</span>');
@@ -16155,7 +16157,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"adamantine_armor","name":"Adamantine Armor","rarity":"uncommon","type":"armor (medium or heavy)","desc":"This armor is reinforced with adamantine, one of the hardest substances in existence. While I'm wearing it, any Critical Hit against me becomes a normal hit.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
 {"key":"adamantine_weapon","name":"Adamantine Weapon","rarity":"uncommon","type":"weapon (any melee)","desc":"Whenever a weapon made or coated with adamantine hits an object, the hit is a Critical Hit.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"alchemy_jug","name":"Alchemy Jug","rarity":"uncommon","type":"wondrous item","desc":"As an action, command the jug to produce liquid; or an action to uncorked it and pour 2 gal/min. After producing, it only makes the same up to its max, until next dawn. Oil (1 qt), acid (8 fl oz), basic poison (1/2 fl oz), beer (4 gal), honey/wine (1 gal), fresh water (8 gal), mayonnaise/vinegar (2 gal), salt water (12 gal).","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"ammunition___1___2__or__3","name":"Ammunition, +1, +2, or +3","rarity":"uncommon","type":"weapon (any ammunition)","desc":"I have a bonus to attack and damage rolls made with this piece of magic ammunition. The bonus is determined by the rarity of the magic item: uncommon (+1), rare (+2), or very rare (+3). Once it hits a target, the ammunition is no longer magical. Select the bonus using the little square button in this magic item line.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":true,"effects":{"weaponBonus":"variable"}},
+{"key":"ammunition___1___2__or__3","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"name":"Ammunition, +1, +2, or +3","rarity":"uncommon","type":"weapon (any ammunition)","desc":"I have a bonus to attack and damage rolls made with this piece of magic ammunition. The bonus is determined by the rarity of the magic item: uncommon (+1), rare (+2), or very rare (+3). Once it hits a target, the ammunition is no longer magical. Select the bonus using the little square button in this magic item line.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":true,"effects":{"weaponBonus":"variable"}},
 {"key":"amulet_of_proof_against_detection_and_location","name":"Amulet of Proof against Detection and Location","rarity":"rare","type":"wondrous item","desc":"While wearing this amulet, you are hidden from divination magic. You cannot be targeted by any divination spell or perceived through magical scrying sensors unless you allow it.\n\nShielded Bond. During a short or long rest, you can choose up to four willing creatures within 30 feet of you to share this protection. For the next 24 hours, or until you are Incapacitated, the chosen creatures gain the benefits of this amulet. Once you use this property, you cannot do so again until you finish a short or long rest.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"baba_yaga_s_dancing_broom","name":"Baba Yaga's Dancing Broom","rarity":"uncommon","type":"wondrous item","desc":"As a Magic action, I can animate this broom. It becomes an Animated Broom that acts directly after me in initiative and obeys my commands (no action required). If the broom is reduced to 0 HP while animated, it's destroyed. As a Bonus Action, I can cause the broom to become inanimate.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"bag_of_holding","name":"Bag of Holding","rarity":"uncommon","type":"wondrous item","desc":"This bag is 2 ft in diameter at the mouth, 4 ft deep, and 5 lb regardless of content. It can hold up to 500 lb, not exceeding a volume of 64 cu ft. Retrieving an item from it requires an action. If it's overloaded, pierced, or torn, it's destroyed with its contents in the Astral plane. If turned inside out, all its contents spill forth.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -16220,12 +16222,12 @@ const DMG_MAGIC_ITEMS = [
 {"key":"ring_of_warmth","name":"Ring of Warmth","rarity":"uncommon","type":"ring","desc":"While wearing this ring, Cold damage you receive is reduced by 2d8. Yourself and anything you carry are unharmed by temperatures as low as -50 \\u00B0F.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ring_of_water_walking","name":"Ring of Water Walking","rarity":"uncommon","type":"ring","desc":"While wearing this ring, I can stand on and move across any liquid surface as if it were solid ground.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"robe_of_useful_items","name":"Robe of Useful Items","rarity":"uncommon","type":"wondrous item","desc":"You can take a Magic action to detach one of the many patches, causing it to become the object or creature it represents. It has two patches each of a Bullseye Lantern (filled and lit), Dagger, Mirror, Pole, Rope (coiled), Sack. In addition, it has 4d4 patches that are determined by the DM.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"rod_of_the_pact_keeper___1___2__or__3","name":"Rod of the Pact Keeper, +1, +2, or +3","rarity":"uncommon","type":"rod","desc":"While holding this rod, I gain a bonus to spell attack rolls and to the saving throw DCs of my warlock spells, determined by the rod's rarity: uncommon (+1), rare (+2), or very rare (+3). As an action once per long rest, I can regain one warlock spell slot while holding the rod.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":"variable","spellDCBonus":"variable"}},
+{"key":"rod_of_the_pact_keeper___1___2__or__3","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"name":"Rod of the Pact Keeper, +1, +2, or +3","rarity":"uncommon","type":"rod","desc":"While holding this rod, I gain a bonus to spell attack rolls and to the saving throw DCs of my warlock spells, determined by the rod's rarity: uncommon (+1), rare (+2), or very rare (+3). As an action once per long rest, I can regain one warlock spell slot while holding the rod.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":"variable","spellDCBonus":"variable"}},
 {"key":"rope_of_climbing","name":"Rope of Climbing","rarity":"uncommon","type":"wondrous item","desc":"This 60-ft rope can hold 3000 lb. As a Magic action, you can hold one end of the rope and command its other end to: start/stop moving (10 ft per turn), (un)fasten itself, coil itself, or (un)knot itself (50 ft length, adv. to climb it). It has AC 20, 20 HP, heals 1 HP/5 min.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"saddle_of_the_cavalier","name":"Saddle of the Cavalier","rarity":"uncommon","type":"wondrous item","desc":"While you are seated in it and astride a mount, Attack rolls against the mount have Disadvantage and you can't be dismounted against your will, unless you are Incapacitated.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"sending_stones","name":"Sending Stones","rarity":"uncommon","type":"wondrous item","desc":"While I touch one of this pair of stones, I can use an action to cast Sending, targeting the bearer of the other stone. If no creature has the other stone, the spell won't cast. Once it is cast, neither stone can be used again until the next dawn. Sending allows each bearer to communicate up to 25 words.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"sentinel_shield","name":"Sentinel Shield","rarity":"uncommon","type":"shield","desc":"While holding this shield, you have Advantage on Initiative rolls and Wisdom (Perception) checks.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
-{"key":"shield___1___2__or__3","name":"Shield, +1, +2, or +3","rarity":"uncommon","type":"shield","desc":"While holding this Shield, you have a bonus to AC determined by the Shield's rarity, in addition to the Shield's normal bonus to AC.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
+{"key":"shield___1___2__or__3","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"name":"Shield, +1, +2, or +3","rarity":"uncommon","type":"shield","desc":"While holding this Shield, you have a bonus to AC determined by the Shield's rarity, in addition to the Shield's normal bonus to AC.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
 {"key":"slippers_of_spider_climbing","name":"Slippers of Spider Climbing","rarity":"uncommon","type":"wondrous item","desc":"While you wear these light shoes, you can move up, down, and across vertical surfaces and upside down along ceilings, while leaving my hands free. You have a climbing speed equal to my walking speed. However, the slippers don't allow me to move this way on a slippery surface, such as one covered by ice or oil.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"staff_of_the_adder","name":"Staff of the Adder","rarity":"uncommon","type":"staff","desc":"As a bonus action, I can speak this staff's command word to animate its snake head for 1 minute or make it inanimate again. While animated, I can use it in melee (1d6 piercing + DC 15 Con save or 3d6 poison), but it can be attacked and has AC 15 and 20 HP (full every time). If it reaches 0 HP, the staff is destroyed.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"staff_of_the_python","name":"Staff of the Python","rarity":"uncommon","type":"staff","desc":"As a Magic action, you can throw this staff to an unoccupied space within 10 feet, transforming it to a Giant Constrictor Snake. It shares your Initiative and takes its turn immediately after you. You can command it mentally on your turn if within 60 ft. As a bonus action, you can command it to revert back to a staff. If the snake reaches 0 HP, the staff is destroyed.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -16236,16 +16238,16 @@ const DMG_MAGIC_ITEMS = [
 {"key":"wand_of_magic_missiles","name":"Wand of Magic Missiles","rarity":"uncommon","type":"wand","desc":"This wand has 7 charges, regaining 1d6+1 at dawn. While holding it, you can expend 1 to 3 of its charges to cast Magic Missile from it as a 1st level spell. The spell level increases by one for each charge expended after the first. When the last charge is used, roll 1d20. On a 1, the wand crumbles into ashes.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"wand_of_secrets","name":"Wand of Secrets","rarity":"uncommon","type":"wand","desc":"The wand has 3 charges. While holding it, you can take a Magic action to expend 1 charge, and if a secret door or trap is within 60 feet of you, the wand pulses and points at the one nearest to you. The wand regains 1d3 expended charges daily at dawn.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"wand_of_web","name":"Wand of Web","rarity":"uncommon","type":"wand","desc":"This wand has 7 charges and regains 1d6+1 expended charges daily at dawn. While holding it, you can expend 1 of its charges to cast Web (save DC 13) from it. If I expend the wand's last charge, roll 1d20. On a 1, the wand crumbles into ashes and is destroyed.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"charges":{"max":7,"recovery":"dawn"},"grantedSpells":[{"spellName":"Web","grantType":"itemCharges","chargeCost":1}]},
-{"key":"wand_of_the_war_mage","name":"Wand of the War Mage","rarity":"uncommon","type":"wand","desc":"While holding this wand, I gain a bonus to spell attack rolls determined by the wand's rarity: uncommon (+1), rare (+2), or very rare (+3). In addition, I ignore Half Cover when making a spell attack roll.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":"variable"}},
+{"key":"wand_of_the_war_mage","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"name":"Wand of the War Mage","rarity":"uncommon","type":"wand","desc":"While holding this wand, I gain a bonus to spell attack rolls determined by the wand's rarity: uncommon (+1), rare (+2), or very rare (+3). In addition, I ignore Half Cover when making a spell attack roll.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":"variable"}},
 {"key":"weapon_of_warning","name":"Weapon of Warning","rarity":"uncommon","type":"weapon (any simple or martial)","desc":"While this weapon is within your reach, and you are attuned to it, you and your allies within 30 ft magically awaken when combat begin, unless a magically induced sleep. You also have Advantage on Initiative rolls.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"weapon___1___2__or__3","name":"Weapon, +1, +2, or +3","rarity":"uncommon","type":"weapon (any)","desc":"You have a bonus to attack and damage rolls made with this magic weapon. The bonus is determined by the rarity of the magic item: uncommon (+1), rare (+2), or very rare (+3).","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
+{"key":"weapon___1___2__or__3","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"name":"Weapon, +1, +2, or +3","rarity":"uncommon","type":"weapon (any)","desc":"You have a bonus to attack and damage rolls made with this magic weapon. The bonus is determined by the rarity of the magic item: uncommon (+1), rare (+2), or very rare (+3).","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
 {"key":"wind_fan","name":"Wind Fan","rarity":"uncommon","type":"wondrous item","desc":"While holding this fan, you can cast Gust of Wind (save DC 13) from it. Each subsequent time the fan is used before the next dawn, it has a cumulative 20 percent chance of not working; if the fan fails to work, it tears into useless, nonmagical tatters.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"winged_boots","name":"Winged Boots","rarity":"uncommon","type":"wondrous item","desc":"These boots have 4 charges and regain 1d4 expended charges at dawn. While wearing these boots, you can take a Magic action to expend 1 charge to gain a Fly Speed of 30 feet for 1 hour. If you are flying when the duration expires, descend 30 ft per round until you land.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"wraps_of_unarmed_power","name":"Wraps of Unarmed Power, +1, +2, or +3","rarity":"uncommon","type":"wondrous item","desc":"While wearing these wraps, you have a bonus to attack rolls and damage rolls made with your Unarmed Strikes. The bonus is determined by the wraps’ rarity, and those strikes deal your choice of Force damage or their normal damage type. The bonus is determined by rarity: uncommon (+1), rare (+2), or very rare (+3).","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
+{"key":"wraps_of_unarmed_power","name":"Wraps of Unarmed Power, +1, +2, or +3","rarity":"uncommon","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"type":"wondrous item","desc":"While wearing these wraps, you have a bonus to attack rolls and damage rolls made with your Unarmed Strikes. The bonus is determined by the wraps’ rarity, and those strikes deal your choice of Force damage or their normal damage type. The bonus is determined by rarity: uncommon (+1), rare (+2), or very rare (+3).","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
 {"key":"amulet_of_health","name":"Amulet of Health","rarity":"rare","type":"wondrous item","desc":"My Constitution score is 19 while I'm wearing this amulet, provided that my Constitution is not already 19 or higher.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"scoresOverride":[0,0,19,0,0,0]}},
 {"key":"armor_of_resistance","name":"Armor of Resistance","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"Select the damage type that this armor gives Resistance to using the square button in this line. While I'm wearing this armor and attuned to it, I gain Resistance to one type of damage.","attunement":true,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
 {"key":"armor_of_vulnerability","name":"Armor of Vulnerability","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"While wearing this armor, I have Resistance to one of the following damage types: Bludgeoning, Piercing, or Slashing; unfortunately, I have Vulnerability to the other two until I am targeted by a Remove Curse spell.","attunement":true,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
-{"key":"armor___1___2__or__3","name":"Armor, +1, +2, or +3","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"I have a bonus to AC while wearing this armor. The bonus is determined by the rarity of the magic item: rare (+1), very rare (+2), or legendary (+3). Select the bonus using the little square button in this magic item line.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
+{"key":"armor___1___2__or__3","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"name":"Armor, +1, +2, or +3","rarity":"rare","type":"armor (light, medium, or heavy)","desc":"I have a bonus to AC while wearing this armor. The bonus is determined by the rarity of the magic item: rare (+1), very rare (+2), or legendary (+3). Select the bonus using the little square button in this magic item line.","attunement":false,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":{"weaponBonus":"variable"}},
 {"key":"arrow_catching_shield","name":"Arrow-Catching Shield","rarity":"rare","type":"shield","desc":"I gain an additional +2 bonus to AC against ranged attacks while I wield this shield. This is not calculated into the AC on the 1st page. In addition, whenever an attacker makes a ranged attack against a target within 5 feet of me, I can use my reaction to become the target of the attack instead.","attunement":true,"isWeapon":false,"isArmour":true,"isAmmo":false,"effects":null},
 {"key":"bead_of_force","name":"Bead of Force","rarity":"rare","type":"wondrous item","desc":"Once as a Magic action, I can throw this sphere 60 ft, creating a 10-ft radius explosion on impact. All creatures within the explosion must make a DC 15 Dex save or take 5d4 force damage and are trapped in a sphere of transparent force that encloses the area for 1 minute. The sphere can be moved from the in- and outside.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"belt_of_dwarvenkind","name":"Belt of Dwarvenkind","rarity":"rare","type":"wondrous item","desc":"While wearing this belt, my Con increases by 2 (to max 20), I get adv. on Cha (Persuasion) checks to interact with dwarves, adv. on saves vs. poison, resistance to poison damage, darkvision 60 ft, and known Dwarvish. Each day at dawn, there is a 50% chance I grow a full beard or my current beard becomes visibly thicker.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -16574,7 +16576,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"obsidian_flint_dragon_plate","name":"Obsidian Flint Dragon Plate","rarity":"Legendary","type":"armor (plate)","attunement":false,"attuned":false,"desc":"I gain a +2 bonus to AC and resistance to poison damage while I wear this plate armor. In addition, I gain advantage on ability checks and saving throws made to avoid or end the grappled condition on myself.","effects":[],"source":"2014"},
 {"key":"shield_of_the_hidden_lord","name":"Shield of the Hidden Lord","rarity":"Legendary","type":"shield","attunement":false,"attuned":false,"desc":"While holding this shield, I benefit from a +2 bonus to AC. This shield has imprisoned the pit fiend Gargauth within it, and while wearing the shield I can communicate with him telepathically. Gargauth can perceive the world through the shield, and I can allow him to communicate telepathically with any creature within 120 ft of it. See 'Notes' page for more.","effects":[],"source":"2014"},
 {"key":"soul_coin","name":"Soul Coin","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"Soul coins are 5-inch-diameter, 1-inch-thick coins of infernal iron. Each coin contains the soul of a lawful evil creature. I can use a soul coin as an action to hear the imprisoned soul speak and ask it a question which it must answer truthfully. Using 1 charge from the coin allows me to impose disadvantage on an attack roll, ability check, or saving throw of a creature I can see within 60 ft, or to gain advantage on one of my own rolls. A coin has 3 charges and is destroyed when all charges are expended. See 'Notes' page for more.","effects":[],"source":"2014"},
-{"key":"enhanced_arcane_focus___1_or__2","name":"Enhanced Arcane Focus, +1 or +2","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"While I am holding this arcane focus (rod, staff, or wand), I gain a +1 bonus to spell attack rolls (or +2 if the artificer that created it is level 10 or higher). In addition, I ignore half cover when making a spell attack.","effects":{"spellAtkBonus":"variable"},"source":"2014"},
+{"key":"enhanced_arcane_focus___1_or__2","name":"Enhanced Arcane Focus, +1 or +2","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"While I am holding this arcane focus (rod, staff, or wand), I gain a +1 bonus to spell attack rolls (or +2 if the artificer that created it is level 10 or higher). In addition, I ignore half cover when making a spell attack.","maxBonus":2,"effects":{"spellAtkBonus":"variable"},"source":"2014"},
 {"key":"radiant_weapon","name":"Radiant Weapon","rarity":"Uncommon","type":"weapon (any)","attunement":false,"attuned":false,"desc":"This item adds a +1 on its to hit and damage, has 4 charges, and regains 1d4 at dawn. As a bonus action, I can have it start/stop shedding light, bright in 30 ft, dim in another 30 ft. As a reaction if hit by an attack, I can use 1 charge to blind the attacker until the end of its next turn unless it makes a Con save (my spell DC).","effects":[],"source":"2014"},
 {"key":"arcane_propulsion_arm","name":"Arcane Propulsion Arm","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"Once attached to my wrist, elbow, or shoulder, this prosthetic magically forms a copy of the appendage it's replacing. It can't be removed against my will, but I can as an action. I can use it as a proficient melee weapon with the thrown property. After a throwing attack with it, it returns and reattaches immediately.","effects":[],"source":"2014"},
 {"key":"belashyrra_s_beholder_crown","name":"Belashyrra's Beholder Crown","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This symbiotic crown of dark purple and mauve stone attaches to my skull and removing it requires ending a curse. It allows me to see normally in magical and normal darkness (devil's sight) out to 120 ft. It has 10 charges, regaining 1d6+3 at dawn, which I can use to cast several spells with spell save DC 16.","effects":[],"source":"2014"},
@@ -16708,7 +16710,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"witchlight_watch","name":"Witchlight Watch","rarity":"Legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action once per 8 hours, I can use this ornate pocket watch to initiate the (un)packing of the carnival over the next hour. I can use it to cast Fire Bolt, Message, and Invisibility. After it casts Invisibility, I roll a d8. On a roll of 3 or 8, I can't cast this again until the next dawn. See Notes page.","effects":[],"source":"2014"},
 {"key":"amethyst_lodestone","name":"Amethyst Lodestone","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This fist-sized chunk of amethyst is infused with an amethyst dragon's ability to bend gravitational forces. While I am carrying the lodestone, I have advantage on Strength saving throws. The lodestone has 6 charges (regains 1d6 at dawn). While holding it, I can use its charges to cast Telekinesis (2 charges) or Reverse Gravity (3 charges).","effects":[],"source":"2014"},
 {"key":"crystal_blade","name":"Crystal Blade","rarity":"Rare","type":"weapon (any sword)","attunement":false,"attuned":false,"desc":"This magic sword has 3 charges, regaining 1d3 at dawn. It deals an extra 1d8 radiant damage. When it does so to a creature, I can expend 1 charge to heal myself for the same amount. As a bonus action, I can have it start or stop shedding light: either 30 ft bright light and 30 ft dim, or only 10 ft dim.","effects":[],"source":"2014"},
-{"key":"dragonhide_belt___1___2__or__3","name":"Dragonhide Belt, +1, +2, or +3","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This finely detailed belt is made of dragonhide. While wearing it, I gain a bonus to the save DCs of my ki features determined by its rarity: uncommon (+1), rare (+2), or very rare (+3). As an action, I can use it to regain ki points equal to a roll of my Martial Arts die. I can't use this action again until the next dawn.","effects":[],"source":"2014"},
+{"key":"dragonhide_belt___1___2__or__3","name":"Dragonhide Belt, +1, +2, or +3","rarity":"uncommon","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"type":"wondrous item","attunement":false,"attuned":false,"desc":"This finely detailed belt is made of dragonhide. While wearing it, I gain a bonus to the save DCs of my ki features determined by its rarity: uncommon (+1), rare (+2), or very rare (+3). As an action, I can use it to regain ki points equal to a roll of my Martial Arts die. I can't use this action again until the next dawn.","effects":{"otherBonus":"variable"},"source":"2014"},
 {"key":"dragon_wing_bow","name":"Dragon Wing Bow","rarity":"Rare","type":"weapon (any bow)","attunement":false,"attuned":false,"desc":"This bow is made from the wing of a dragon. I gain a +3 bonus to attack and damage rolls with this magic bow. When I draw it, spectral wings appear on my back, granting me a fly speed equal to my walking speed until the end of my next turn. Attacks with this bow deal an extra 1d6 damage of the same type dealt by the dragon that provided the wing. If no ammunition is loaded in it, the weapon creates its own that lasts until it hits or misses a target.","effects":[],"source":"2014"},
 {"key":"emerald_pen","name":"Emerald Pen","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This pen is tipped with an emerald nib and requires no ink to write. While holding this pen, I can cast Illusory Script at will, requiring no material components.","effects":[],"source":"2014"},
 {"key":"flail_of_tiamat","name":"Flail of Tiamat","rarity":"Legendary","type":"weapon (flail)","attunement":false,"attuned":false,"desc":"This magical flail adds a +3 bonus to its attack and damage rolls and deals +5d4 damage. As an action once per dawn, I can have it breathe flames in a 90-ft cone that deals 14d6 damage, Dex save DC 18 to halve. Damage type is acid, cold, fire, lightning, or poison, which I can choose when I deal the damage (cone or hit).","effects":[],"source":"2014"},
@@ -16869,7 +16871,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"warrior_s_passkey","name":"Warrior's Passkey","rarity":"Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This silver skeleton key is warm to the touch. I can use it to cast Knock while in its key form. As a bonus action, I can transform it into a magic +1 longsword that deals 1d10 force damage and I'm proficient with. The sword reverts back to a key if it leaves my grasp, I use a bonus action to do so, or my attunement ends.","effects":[],"source":"2014"},
 {"key":"weapon_of_throne_s_command","name":"Weapon of Throne's Command","rarity":"Very Rare","type":"weapon (any)","attunement":false,"attuned":false,"desc":"This +1 weapon grants me proficiency with Intimidation and Persuasion. It has 5 charges, regaining 1d4 at dawn. As a bonus action, I can expend charges to cast a spell from it with save DC 16: Command (1 charge), Zone of Truth (2), Compulsion (4), Banishment (4), or Dominate Person (5).","effects":[],"source":"2014","charges":{"max":5,"recovery":"dawn"},"grantedSpells":[{"spellName":"Command","grantType":"itemCharges","chargeCost":1},{"spellName":"Zone of Truth","grantType":"itemCharges","chargeCost":2},{"spellName":"Compulsion","grantType":"itemCharges","chargeCost":4},{"spellName":"Banishment","grantType":"itemCharges","chargeCost":4},{"spellName":"Dominate Person","grantType":"itemCharges","chargeCost":5}]},
 {"key":"winged_ammunition","name":"Winged Ammunition","rarity":"Uncommon","type":"weapon (any ammunition)","attunement":false,"attuned":false,"desc":"Ranged weapon attack rolls made with this magic ammunition ignore half and three-quarters cover. In addition, attacking at long range doesn't impose disadvantage on ranged weapon attack rolls made with this ammunition.","effects":[],"source":"2014"},
-{"key":"wraps_of_unarmed_prowess","name":"Wraps of Unarmed Prowess, +1, +2, or +3","rarity":"Uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"While wearing these cloth wraps, my unarmed strikes are considered magical for the purpose of overcoming immunity and resistance to nonmagical attacks, and I gain a bonus to their attack and damage rolls. The bonus is determined by rarity: uncommon (+1), rare (+2), or very rare (+3).","effects":[],"source":"2014"},
+{"key":"wraps_of_unarmed_prowess","name":"Wraps of Unarmed Prowess, +1, +2, or +3","rarity":"uncommon","rarityByBonus":{"1":"uncommon","2":"rare","3":"very rare"},"type":"wondrous item","attunement":false,"attuned":false,"desc":"While wearing these cloth wraps, my unarmed strikes are considered magical for the purpose of overcoming immunity and resistance to nonmagical attacks, and I gain a bonus to their attack and damage rolls. The bonus is determined by rarity: uncommon (+1), rare (+2), or very rare (+3).","effects":{"weaponBonus":"variable"},"source":"2014"},
 {"key":"chime_of_exile","name":"Chime of Exile","rarity":"Very Rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This silver chime is engraved with delicate magic sigils. As an action once per dawn, I can hold the chime and cast the Banishment spell (save DC 20). If the target of the spell has 50 hit points or fewer, it automatically fails its saving throw.","effects":[],"source":"2014"},
 {"key":"antigravity_belt","name":"Antigravity Belt","rarity":"Priceless","type":"futuristic item","attunement":false,"attuned":false,"desc":"This belt has 10 charges per energy cell, which can be replaced as a (bonus) action if empty. As a bonus action, I can use charges to activate it for 1 min per charge, causing me to float in place. As a bonus action and when activating it, I can move 20 ft vertically. I can push off to move horizontally at half my speed.","effects":[],"source":"2014"},
 {"key":"robot_controller","name":"Robot Controller","rarity":"Priceless","type":"futuristic item","attunement":false,"attuned":false,"desc":"This handheld device has 3 charges per energy cell, which can be replaced as a (bonus) action if empty. As an action, I can use 1 charge to Control one construct within 60 ft or Disrupt all within 30 ft to become incapacitated. They can make a DC 15 Wisdom save to resist and repeat the save. See Notes page.","effects":[],"source":"2014"},
@@ -24923,7 +24925,8 @@ function renderFeatItemsArmor() {
 
   magicArmors.forEach(({ item, i }) => {
     const isShield = item.type === 'shield';
-    const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--accent2)';
+    const effRarity = getEffectiveItemRarity(item);
+    const rarityColor = RARITY_COLOURS[effRarity] || 'var(--accent2)';
     const attuneStr = item.attunement ? (item.attuned ? ' · Attuned' : ' · Not attuned') : '';
     const toggleFn = isShield ? 'toggleMagicShieldEquipped' : 'toggleMagicArmorEquipped';
     const row = document.createElement('div');
@@ -24935,7 +24938,7 @@ function renderFeatItemsArmor() {
       <div>
         <span style="font-family:var(--font-body);font-size:13px;color:${rarityColor}">${item.customName||item.name}</span>
         <span style="font-family:var(--font-ui);font-size:9px;color:${rarityColor};border:1px solid ${rarityColor};border-radius:3px;padding:0 4px;margin-left:6px">${isShield?'SHIELD':'MAGIC'}</span>
-        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:6px">${item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : ''}${attuneStr}</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:6px">${effRarity ? effRarity.charAt(0).toUpperCase()+effRarity.slice(1) : ''}${attuneStr}</span>
       </div>
       <span style="font-family:var(--font-ui);font-size:9px;color:${item.equipped?rarityColor:'var(--text3)'};letter-spacing:.5px">${item.equipped?'WORN':''}</span>
       <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openMagicItemDetailModal(currentChar.magicItems[${i}])" title="View in Magic Items">✎</button>
@@ -25006,14 +25009,15 @@ function renderUnifiedInventory() {
   });
 
   (currentChar.magicItems || []).forEach((item, idx) => {
-    const rarityLabel = item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : '';
+    const effRarity = getEffectiveItemRarity(item);
+    const rarityLabel = effRarity ? effRarity.charAt(0).toUpperCase()+effRarity.slice(1) : '';
     const attuneSub = item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '';
     const onClick = `openMagicItemDetailModal(currentChar.magicItems[${idx}])`;
     const onRemove = `removeMagicItem(${idx})`;
 
     if (item.isWeapon && !item.isAmmo) {
       weaponRows.push({
-        badge: 'WPN', badgeColor: RARITY_COLOURS[item.rarity] || 'var(--red)',
+        badge: 'WPN', badgeColor: RARITY_COLOURS[effRarity] || 'var(--red)',
         name: item.customName || item.name,
         qty: 1, weight: '',
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
@@ -25021,7 +25025,7 @@ function renderUnifiedInventory() {
       });
     } else if (item.isArmour) {
       armorRows.push({
-        badge: item.type === 'shield' ? 'SHLD' : 'ARM', badgeColor: RARITY_COLOURS[item.rarity] || 'var(--accent2)',
+        badge: item.type === 'shield' ? 'SHLD' : 'ARM', badgeColor: RARITY_COLOURS[effRarity] || 'var(--accent2)',
         name: item.customName || item.name,
         qty: 1, weight: '',
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
@@ -25029,7 +25033,7 @@ function renderUnifiedInventory() {
       });
     } else {
       magicRows.push({
-        badge: (item.rarity || 'ITEM').slice(0,4).toUpperCase(), badgeColor: RARITY_COLOURS[item.rarity] || 'var(--gold)',
+        badge: (effRarity || 'ITEM').slice(0,4).toUpperCase(), badgeColor: RARITY_COLOURS[effRarity] || 'var(--gold)',
         name: item.customName || item.name,
         qty: 1, weight: '',
         sub: attuneSub,
@@ -25163,7 +25167,8 @@ function renderFeatItemsWeapons() {
   });
 
   magicWeapons.forEach(({ item, i }) => {
-    const rarityColor = RARITY_COLOURS[item.rarity] || 'var(--gold)';
+    const effRarity = getEffectiveItemRarity(item);
+    const rarityColor = RARITY_COLOURS[effRarity] || 'var(--gold)';
     const attuneStr = item.attunement ? (item.attuned ? ' · Attuned' : ' · Not attuned') : '';
     const row = document.createElement('div');
     row.className = 'sp-spellbook-row';
@@ -25174,7 +25179,7 @@ function renderFeatItemsWeapons() {
       <div>
         <span style="font-family:var(--font-body);font-size:13px;color:${rarityColor}">${item.customName||item.name}</span>
         <span style="font-family:var(--font-ui);font-size:9px;color:${rarityColor};border:1px solid ${rarityColor};border-radius:3px;padding:0 4px;margin-left:6px">MAGIC</span>
-        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:6px">${item.rarity ? item.rarity.charAt(0).toUpperCase()+item.rarity.slice(1) : ''}${attuneStr}</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:6px">${effRarity ? effRarity.charAt(0).toUpperCase()+effRarity.slice(1) : ''}${attuneStr}</span>
       </div>
       <span style="font-family:var(--font-ui);font-size:9px;color:${item.equipped?rarityColor:'var(--text3)'};letter-spacing:.5px">${item.equipped?'EQUIP':''}</span>
       <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openMagicItemDetailModal(currentChar.magicItems[${i}])" title="View in Magic Items">✎</button>
@@ -25384,6 +25389,19 @@ function getMagicalSecretsOptions() {
 //     effects, customName, notes, weaponKey (if weapon), armourKey (if armour),
 //     magicBonus (weapon/armour +1/+2/+3 override) }
 // ]
+
+// Resolves the ACTUAL rarity of an item, accounting for items whose rarity
+// scales with a chosen magic bonus (Rod of the Pact Keeper, Wand of the War
+// Mage, generic +1/+2/+3 weapons/armor, etc.) — item.rarity alone is only
+// the catalog's base/default and doesn't reflect which tier the player
+// actually has equipped.
+function getEffectiveItemRarity(item) {
+  if (item?.rarityByBonus && item.magicBonus) {
+    return item.rarityByBonus[String(item.magicBonus)] || item.rarity;
+  }
+  return item?.rarity;
+}
+window.getEffectiveItemRarity = getEffectiveItemRarity;
 
 function ensureMagicItems() {
   if (!currentChar) return;
@@ -25692,7 +25710,7 @@ function renderMagicItemsPanel() {
   const RARITY_ORDER = ['common','uncommon','rare','very rare','legendary','artifact','primeval vestige'];
   const grouped = {};
   items.forEach((item, idx) => {
-    const r = item.rarity || 'common';
+    const r = (getEffectiveItemRarity(item) || 'common').toLowerCase();
     if (!grouped[r]) grouped[r] = [];
     grouped[r].push({ item, idx });
   });
@@ -25726,6 +25744,10 @@ function renderMagicItemsPanel() {
         if (fx.spellDCBonus) {
           const v = fx.spellDCBonus === 'variable' ? (item.magicBonus || 0) : fx.spellDCBonus;
           effectBadges.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">+${v} Spell DC</span>`);
+        }
+        if (fx.otherBonus) {
+          const v = fx.otherBonus === 'variable' ? (item.magicBonus || 0) : fx.otherBonus;
+          effectBadges.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">+${v} Bonus</span>`);
         }
         if (fx.scoresOverride) {
           const ABNAMES = ['STR','DEX','CON','INT','WIS','CHA'];
@@ -26213,15 +26235,33 @@ function openMagicItemEdit(idx) {
   document.getElementById('mi-edit-customname').value  = item.customName || '';
   document.getElementById('mi-edit-notes').value       = item.notes || '';
   const bonusSel = document.getElementById('mi-edit-bonus');
-  if (bonusSel) bonusSel.value = String(item.magicBonus || 0);
+  if (bonusSel) {
+    // Tier range comes from rarityByBonus's keys when present (items whose
+    // rarity scales with the bonus), otherwise an explicit maxBonus field
+    // (items like Enhanced Arcane Focus that only go up to +2 and don't
+    // change rarity) — falls back to 3 as a reasonable default.
+    const maxBonus = item.rarityByBonus ? Math.max(...Object.keys(item.rarityByBonus).map(Number)) : (item.maxBonus || 3);
+    bonusSel.innerHTML = '<option value="0">None</option>' +
+      Array.from({length: maxBonus}, (_, i) => i+1).map(n => `<option value="${n}">+${n}</option>`).join('');
+    bonusSel.value = String(item.magicBonus || 0);
+  }
 
-  // Show the bonus-tier field for any "variable" item — weapon, or spell attack/DC
+  // Show the bonus-tier field for any "variable" item — weapon, armor,
+  // spell attack/DC, or another kind of scaling bonus (e.g. Dragonhide
+  // Belt's ki save DC). Checks the actual 'variable' marker on each effect
+  // key directly, rather than the old item.isWeapon shortcut, which
+  // silently missed armor- and shield-type variable items entirely.
   const fx = item.effects || {};
-  const hasVariableBonus = item.isWeapon || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable';
+  const hasVariableBonus = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable';
   const bonusRow = document.getElementById('mi-edit-bonus-row');
   if (bonusRow) bonusRow.style.display = hasVariableBonus ? '' : 'none';
   const bonusLabel = document.querySelector('#mi-edit-bonus-row .field-label');
-  if (bonusLabel) bonusLabel.textContent = item.isWeapon ? 'Magic Bonus (weapon)' : 'Magic Bonus (spell)';
+  if (bonusLabel) {
+    const labelText = fx.weaponBonus === 'variable' ? (item.isArmour ? 'Magic Bonus (armor)' : 'Magic Bonus (weapon)')
+      : (fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable') ? 'Magic Bonus (spell)'
+      : 'Magic Bonus';
+    bonusLabel.textContent = labelText;
+  }
 
   const desc = document.getElementById('mi-edit-desc');
   if (desc) desc.innerHTML = item.desc ? renderItemMarkdown(item.desc) : '<em style="color:var(--text3)">No description available.</em>';
