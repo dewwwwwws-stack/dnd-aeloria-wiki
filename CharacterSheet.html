@@ -27138,9 +27138,13 @@ function renderClassFeatures() {
     const subKey  = getSubclassKey(cls, entry.subclass);
     const subData = subKey ? PHB_SUBCLASSES[subKey] : null;
     if (subData?.features) {
-      subData.features.filter(f => f.level <= eLv).forEach((f, i) => {
+      // Clamped to a minimum of level 3 — see populateFeaturesTab for why:
+      // 2024 rules guarantee no subclass feature unlocks before level 3 for
+      // any class, but a lot of the underlying data (mostly older Domain/
+      // Circle-style subclasses) still has features tagged at level 1 or 2.
+      subData.features.filter(f => Math.max(3, f.level) <= eLv).forEach((f, i) => {
         classEntries.push({
-          id: `scf_${ci}_${i}`, name: f.name, level: f.level,
+          id: `scf_${ci}_${i}`, name: f.name, level: Math.max(3, f.level),
           source: subData.name || entry.subclass,
           desc: f.desc, usages: f.usages, recovery: f.recovery,
           isTable: f.isTable || false,
@@ -29055,7 +29059,11 @@ function renderResourceTracker() {
     const eSubKey = getSubclassKey(eCls, entry.subclass);
     if (eSubKey) {
       [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])].forEach(r => {
-        if (eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) allDefs.push(r);
+        // 2024 rules guarantee no subclass feature unlocks before level 3 —
+        // same reasoning as the Features tab fix — but a lot of the
+        // underlying resource data has minLevel:1 as an unexamined
+        // default rather than an intentional level-1 unlock, so clamp it.
+        if (eLv >= Math.max(3, r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) allDefs.push(r);
       });
     }
   });
@@ -29114,7 +29122,7 @@ function renderResourceTracker() {
     if (!subData?.features) return;
     subData.features.forEach(f => {
       if (!f.usages || !f.recovery || f.isTable) return;
-      if (eLv < (f.level||1)) return;
+      if (eLv < Math.max(3, f.level||1)) return;
       const id = 'scfeat_' + eSubKey.replace(/[^a-z0-9]/g,'_') + '_' + f.name.replace(/[^a-z0-9]/gi,'_').toLowerCase();
       if (allDefs.find(d => d.id === id)) return;
       const usagesVal = typeof f.usages === 'number' ? f.usages
@@ -30003,11 +30011,16 @@ function buildAllResourceDefs() {
     const eLv  = getClassLevelCount(eCls);
     const eSubKey = getSubclassKey(eCls, entry.subclass);
     if (eSubKey) {
-      [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])].forEach(add);
+      // Same level-3 floor as everywhere else — a manually-defined
+      // subclass resource with minLevel:1 in the data shouldn't be
+      // reachable before the subclass itself could even be chosen.
+      [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])]
+        .filter(r => eLv >= Math.max(3, r.minLevel||1))
+        .forEach(add);
       // Auto-generated subclass feature resources
       const subData = PHB_SUBCLASSES[eSubKey];
       (subData?.features||[]).forEach(f => {
-        if (!f.usages || !f.recovery || f.isTable || eLv < (f.level||1)) return;
+        if (!f.usages || !f.recovery || f.isTable || eLv < Math.max(3, f.level||1)) return;
         // Optional gating: only generate this resource if a specific class_choice matches (e.g. Armorer's chosen armor model)
         if (f.requiresChoice) {
           const chosenVal = (currentChar.class_choices?.[f.requiresChoice.id] || '').toLowerCase();
@@ -34156,12 +34169,20 @@ function populateFeaturesTab() {
           usages: null, recovery: null,
         });
       }
-      (eSubData.features || []).filter(f => f.level <= eLv && f.name?.trim()).forEach((f, i) => {
+      (eSubData.features || []).filter(f => Math.max(3, f.level) <= eLv && f.name?.trim()).forEach((f, i) => {
         // Strip level suffix like " (Drakewarden 7)" for clean display
         const _cleanSubName = (f.name||'').replace(/\s*\([A-Za-z\s]+\d+\)\s*$/, '').trim();
         f = { ...f, name: _cleanSubName };
-        // Subclass feature levels are relative to class level; convert to char level
-        const fCharLv = clsLvToCharLv(eCls, f.level);
+        // Subclass feature levels are relative to class level; convert to
+        // char level. Clamped to a minimum of class-level 3 first — under
+        // 2024 rules every class picks its subclass (and gains its first
+        // subclass features) at level 3, with no exceptions, but a lot of
+        // the underlying subclass data here (mostly the older Domain/
+        // Circle-style subclasses) still has its initial features tagged
+        // at level 1 or 2 from before that rule existed. This corrects the
+        // displayed level without needing to hand-edit each one.
+        const fClassLv = Math.max(3, f.level);
+        const fCharLv = clsLvToCharLv(eCls, fClassLv);
         entries.push({
           level: fCharLv, id: `sub_${ci}_${f.level}_${i}`, name: f.name,
           source: entry.subclass, sourceType: 'Subclass',
@@ -34216,9 +34237,18 @@ function populateFeaturesTab() {
         _featDesc += ' | <button class="btn-sm" style="font-size:9px;padding:2px 8px;cursor:pointer;background:var(--accent);border:none;border-radius:var(--radius);color:#000;font-weight:600" onclick="openFeatSpellPicker(\'' + _featSlotId + '\',\'' + f.name.replace(/'/g,"\'") + '\',SPELL_FEATS[\'' + _featFk + '\'])">✦ Choose Spells</button>';
       }
     }
+    // Any feat with "[Origin]" in its name is, by 2024 rules definition,
+    // an Origin feat — always granted at level 1 (from your Background, or
+    // occasionally a level-1 racial/class feature). A manually-added one
+    // (rather than the auto-granted background feat handled above) still
+    // belongs at Level 1 under Background, not in the level-less
+    // "Additional" bucket every other manually-added feat falls into.
+    const isManualOriginFeat = /\[Origin\]/i.test(f.name);
     entries.push({
-      level: null, id: `feat_manual_${i}`, name: f.name,
-      source: 'Manual', sourceType: 'Feat',
+      level: isManualOriginFeat ? 1 : null,
+      id: `feat_manual_${i}`, name: f.name,
+      source: isManualOriginFeat ? (bg?.name || 'Background') : 'Manual',
+      sourceType: isManualOriginFeat ? 'Background Feat' : 'Feat',
       desc: _featDesc, usages: null, recovery: null,
       isHtml: !!_featSf,
     });
