@@ -4933,17 +4933,19 @@ function buildDMInventoryHTML(c, charId) {
     });
   });
 
+  const charName = (c.charName || charId).replace(/'/g, "\\'");
   magicItems.forEach((item, idx) => {
     const effRarity = getEffectiveItemRarity(item);
     const rarityColor = RARITY_COLOURS[effRarity] || 'var(--gold)';
     const rarityLabel = effRarity ? effRarity.charAt(0).toUpperCase()+effRarity.slice(1) : '';
     const attuneSub = item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '';
+    const onEdit = `dmOpenItemEdit('${charId}','${charName}',${idx})`;
     if (item.isWeapon && !item.isAmmo) {
       weaponRows.push({
         badge: 'WPN', color: rarityColor,
         name: item.customName || item.name,
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
-        weight: '',
+        weight: '', onEdit,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     } else if (item.isArmour) {
@@ -4951,7 +4953,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: item.type==='shield'?'SHLD':'ARM', color: rarityColor,
         name: item.customName || item.name,
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
-        weight: '',
+        weight: '', onEdit,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     } else {
@@ -4959,7 +4961,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: (effRarity||'ITEM').slice(0,4).toUpperCase(), color: rarityColor,
         name: item.customName || item.name,
         sub: attuneSub,
-        weight: '',
+        weight: '', onEdit,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     }
@@ -4994,6 +4996,7 @@ function buildDMInventoryHTML(c, charId) {
         <span style="font-family:var(--font-ui);font-size:7px;font-weight:700;color:${r.color};border:1px solid ${r.color};border-radius:3px;padding:0 3px;flex-shrink:0">${r.badge}</span>
         <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}${r.sub?` <span style="color:var(--text3)">· ${r.sub}</span>`:''}</span>
         ${r.weight ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);flex-shrink:0">${r.weight}</span>` : ''}
+        ${r.onEdit ? `<span style="cursor:pointer;color:var(--text3);font-size:10px;line-height:1;flex-shrink:0;padding:0 2px" onclick="${r.onEdit}" title="Edit notes">✎</span>` : ''}
         <span style="cursor:pointer;color:var(--text3);font-size:11px;line-height:1;flex-shrink:0;padding:0 2px" onclick="${r.onRemove}" title="Remove">×</span>
       </div>
     `).join('')}
@@ -5039,7 +5042,7 @@ async function dmRemoveInventoryItem(charId, type, idx) {
     const cached = _partyCharCache[charId];
     if (cached) Object.assign(cached, c);
     toast(`Removed ${removedName || 'item'} from ${c.charName||charId}`, 'ok');
-    refreshSingleCharacterCard(charId);
+    refreshSingleCharacterCard(charId, c);
   } catch(e) {
     toast('Failed to remove item: ' + e.message, 'error');
   }
@@ -5083,7 +5086,7 @@ async function dmApplyAddGear() {
     if (cached) Object.assign(cached, c);
     closeModal('dm-add-gear-modal');
     toast(`${name} added to ${charName}`, 'ok');
-    refreshSingleCharacterCard(charId);
+    refreshSingleCharacterCard(charId, c);
   } catch(e) {
     toast('Failed to add gear: ' + e.message, 'error');
   } finally {
@@ -5372,11 +5375,17 @@ function updatePartySummaryText() {
 // riskier to splice in safely than a small amount of duplication, given how
 // much nested template-literal markup is involved. If the card layout ever
 // changes, both copies need updating.
-async function refreshSingleCharacterCard(charId) {
+async function refreshSingleCharacterCard(charId, knownFreshData) {
   const cardEl = document.getElementById('dm-char-card-' + charId);
   if (!cardEl) { loadDMCharList(); return; } // no existing card to patch — fall back to a full load
   try {
-    const { content: c } = await GH.getFile(charId + '.json');
+    // When the caller just wrote this exact data via GH.putFile (e.g.
+    // right after removing/adding an item), use it directly instead of
+    // re-fetching — GitHub's Contents API can briefly return a stale read
+    // immediately after a write, which is exactly why a removed item
+    // could still appear to be present until a full page reload forced a
+    // later, now-consistent fetch.
+    const c = knownFreshData || (await GH.getFile(charId + '.json')).content;
     _partyCharCache[charId] = c;
 
     const hpCur = parseInt(c.hp_current) || 0;
@@ -24703,7 +24712,7 @@ async function applyWeaponModal() {
       if (cached) Object.assign(cached, c);
       closeModal('weapon-edit-modal');
       toast(`${entry.name} added to ${charName}`, 'ok');
-      refreshSingleCharacterCard(charId);
+      refreshSingleCharacterCard(charId, c);
     } catch(e) {
       toast('Failed to add weapon: ' + e.message, 'error');
     } finally {
@@ -24862,7 +24871,7 @@ async function applyArmorModal() {
       if (cached) Object.assign(cached, c);
       closeModal('armor-edit-modal');
       toast(`${entry.name} added to ${charName}`, 'ok');
-      refreshSingleCharacterCard(charId);
+      refreshSingleCharacterCard(charId, c);
     } catch(e) {
       toast('Failed to add armor: ' + e.message, 'error');
     } finally {
@@ -26342,12 +26351,9 @@ function addMagicItem(key) {
 
 let _miEditIdx = null;
 
-function openMagicItemEdit(idx) {
-  ensureMagicItems();
-  const item = currentChar.magicItems[idx];
-  if (!item) return;
-  _miEditIdx = idx;
-
+// Shared by both the normal (player's own item) and DM-remote edit paths —
+// fills in the modal's fields from whatever item object it's given.
+function populateMagicItemEditForm(item) {
   document.getElementById('mi-edit-title').textContent = item.name;
   document.getElementById('mi-edit-customname').value  = item.customName || '';
   document.getElementById('mi-edit-notes').value       = item.notes || '';
@@ -26382,19 +26388,75 @@ function openMagicItemEdit(idx) {
 
   const desc = document.getElementById('mi-edit-desc');
   if (desc) desc.innerHTML = item.desc ? renderItemMarkdown(item.desc) : '<em style="color:var(--text3)">No description available.</em>';
+}
 
+function openMagicItemEdit(idx) {
+  ensureMagicItems();
+  const item = currentChar.magicItems[idx];
+  if (!item) return;
+  _invModalDMTarget = null;
+  _miEditIdx = idx;
+  populateMagicItemEditForm(item);
   openModal('mi-edit-modal');
 }
 
-function applyMagicItemEdit() {
+// DM-remote equivalent — same modal and same form-population logic, but
+// saves to a specific player's file instead of currentChar. This is the
+// only place a DM could adjust a variable item's chosen bonus tier (e.g.
+// Rod of the Pact Keeper) without asking the player to do it themselves.
+async function dmOpenItemEdit(charId, charName, idx) {
+  try {
+    const { content: c } = await GH.getFile(`${charId}.json`);
+    const item = c.magicItems?.[idx];
+    if (!item) { toast('Item no longer exists — refreshing', 'warn'); refreshSingleCharacterCard(charId); return; }
+    _invModalDMTarget = { charId, charName, idx };
+    document.getElementById('mi-edit-title').textContent = `${item.name} — ${charName}`;
+    populateMagicItemEditForm(item);
+    openModal('mi-edit-modal');
+  } catch(e) {
+    toast('Failed to load item: ' + e.message, 'error');
+  }
+}
+window.dmOpenItemEdit = dmOpenItemEdit;
+
+async function applyMagicItemEdit() {
+  const customName = document.getElementById('mi-edit-customname').value.trim();
+  const notes      = document.getElementById('mi-edit-notes').value.trim();
+  const bonusSel   = document.getElementById('mi-edit-bonus');
+  const magicBonus = bonusSel ? (parseInt(bonusSel.value) || 0) : undefined;
+
+  if (_invModalDMTarget) {
+    const { charId, charName, idx } = _invModalDMTarget;
+    try {
+      const { content: c, sha } = await GH.getFile(`${charId}.json`);
+      const item = c.magicItems?.[idx];
+      if (!item) { toast('Item no longer exists', 'warn'); closeModal('mi-edit-modal'); _invModalDMTarget = null; return; }
+      item.customName = customName;
+      item.notes = notes;
+      if (magicBonus !== undefined) item.magicBonus = magicBonus;
+      refreshVariableItemText(item);
+      await GH.putFile(`${charId}.json`, c, sha);
+      broadcastCharUpdate(charId, 'magicItems');
+      const cached = _partyCharCache[charId];
+      if (cached) Object.assign(cached, c);
+      closeModal('mi-edit-modal');
+      toast(`${item.customName || item.name} updated for ${charName}`, 'ok');
+      refreshSingleCharacterCard(charId, c);
+    } catch(e) {
+      toast('Failed to save item: ' + e.message, 'error');
+    } finally {
+      _invModalDMTarget = null;
+    }
+    return;
+  }
+
   ensureMagicItems();
   if (_miEditIdx === null) return;
   const item = currentChar.magicItems[_miEditIdx];
   if (!item) return;
-  item.customName = document.getElementById('mi-edit-customname').value.trim();
-  item.notes      = document.getElementById('mi-edit-notes').value.trim();
-  const bonusSel = document.getElementById('mi-edit-bonus');
-  if (bonusSel) item.magicBonus = parseInt(bonusSel.value) || 0;
+  item.customName = customName;
+  item.notes      = notes;
+  if (magicBonus !== undefined) item.magicBonus = magicBonus;
   refreshVariableItemText(item);
   closeModal('mi-edit-modal');
   renderMagicItemsPanel();
