@@ -8750,9 +8750,9 @@ const PHB_CLASS_RESOURCES     = {
       "maxByLevel": [
         0,
         0,
-        0,
-        0,
-        0,
+        1,
+        1,
+        1,
         1,
         1,
         1,
@@ -30535,7 +30535,7 @@ window.restorePsionicDice = restorePsionicDice;
 
 // ── Magical Cunning: restore half (round up) of expended Pact Magic slots ──
 function restorePactSlots() {
-  const level   = getLevel();
+  const level   = getClassEntry('warlock')?.levels?.length || 0;
   const slotLv  = getWarlockSlotLevel(level);
   const total   = (SLOTS_WARLOCK[level] || [0])[0] || 0;
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
