@@ -17799,6 +17799,19 @@ function getPrimarySubclass() {
 // the multiclass), which has nothing to do with which class is actually
 // the spellcaster. A Fighter 1 / Warlock 6 character needs this to find
 // Warlock even though Fighter sits at index 0.
+// Checks whether the character has the given class at all, anywhere in
+// their class list — unlike checking getPrimaryClass(), this correctly
+// handles a multiclass character where the relevant class isn't the one
+// listed first (e.g. Fighter 1 / Druid 6 still needs Wild Shape to show).
+function hasClass(name) {
+  const target = name.toLowerCase().trim();
+  return getAllClasses().some(e => (e.class||'').toLowerCase().trim() === target);
+}
+function getClassEntry(name) {
+  const target = name.toLowerCase().trim();
+  return getAllClasses().find(e => (e.class||'').toLowerCase().trim() === target);
+}
+
 function getSpellcastingClass() {
   const classes = getAllClasses();
   const caster = classes.find(e => CLASS_SPELL_ABILITY[(e.class||'').toLowerCase().trim()]);
@@ -18750,8 +18763,9 @@ function calcSpeed() {
   const featBonus = parseInt(currentChar._featSpeedBonus) || 0;
   const mutableFormSpeedBonus = isEffectActive('mutable_form') ? 5 : 0;
   // Armorer (Infiltrator model): Powered Steps grants +5 ft Speed
-  const isInfiltratorArmorer = getPrimaryClass().toLowerCase() === 'artificer' && getPrimarySubclass().toLowerCase() === 'armorer'
-    && (currentChar.class_choices?.armor_model || '').toLowerCase() === 'infiltrator' && getClassLevelCount('artificer') >= 3;
+  const artiEntry = getAllClasses().find(e => (e.class||'').toLowerCase().trim() === 'artificer');
+  const isInfiltratorArmorer = (artiEntry?.subclass||'').toLowerCase() === 'armorer'
+    && (currentChar.class_choices?.armor_model || '').toLowerCase() === 'infiltrator' && (artiEntry?.levels?.length||0) >= 3;
   const infiltratorSpeedBonus = isInfiltratorArmorer ? 5 : 0;
   let final = Math.max(0, base + featBonus + mutableFormSpeedBonus + infiltratorSpeedBonus - penalty);
 
@@ -18833,10 +18847,12 @@ function getAutoACMethod() {
   }
 
   // No armor — check class/subclass for unarmored defense
-  const cls = getPrimaryClass().toLowerCase();
+  const _udEntry = getAllClasses().find(e => CLASS_DEFAULT_AC[(e.class||'').toLowerCase().trim()]);
+  const cls = (_udEntry?.class || '').toLowerCase().trim();
   if (CLASS_DEFAULT_AC[cls]) return CLASS_DEFAULT_AC[cls];
 
-  const sub = (currentChar.subclass || getAllClasses().find(c=>c.subclass)?.subclass || '');
+  const _subEntry = getAllClasses().find(e => SUBCLASS_DEFAULT_AC[e.subclass || '']);
+  const sub = _subEntry?.subclass || '';
   if (sub && SUBCLASS_DEFAULT_AC[sub]) return SUBCLASS_DEFAULT_AC[sub];
 
   // Check Armor of Shadows invocation
@@ -19070,15 +19086,15 @@ function calcAC() {
   // Mage Armor: 13 + DEX when not wearing physical armor (Bladesong stacks on top)
   if (isEffectActive('mage_armor') && !isWearingArmor) candidates.push(13 + dex + bsBonus);
 
-  const cls = getPrimaryClass().toLowerCase();
-  const sub = (currentChar.subclass || getAllClasses().find(c=>c.subclass)?.subclass || '');
-  const subLower = sub.toLowerCase();
+  const monkSub = (getClassEntry('monk')?.subclass || '').toLowerCase();
+  const sorcSub = (getClassEntry('sorcerer')?.subclass || '').toLowerCase();
+  const palSub  = (getClassEntry('paladin')?.subclass || '').toLowerCase();
 
-  if (cls === 'barbarian')
+  if (hasClass('barbarian'))
     candidates.push(10 + dex + abilityMod(abs.con));            // Unarmored Defense (CON)
-  if (cls === 'monk' || subLower.includes('mercy') || subLower.includes('open hand') || subLower.includes('shadow') || subLower.includes('four elements') || subLower.includes('kensei') || subLower.includes('drunken') || subLower.includes('long death') || subLower.includes('sun soul') || subLower.includes('astral self'))
+  if (hasClass('monk') || monkSub.includes('mercy') || monkSub.includes('open hand') || monkSub.includes('shadow') || monkSub.includes('four elements') || monkSub.includes('kensei') || monkSub.includes('drunken') || monkSub.includes('long death') || monkSub.includes('sun soul') || monkSub.includes('astral self'))
     candidates.push(10 + dex + abilityMod(abs.wis));            // Unarmored Defense (WIS)
-  if (subLower.includes('draconic') || subLower.includes('noble genies'))
+  if (sorcSub.includes('draconic') || palSub.includes('noble genies'))
     candidates.push(10 + dex + abilityMod(abs.cha));            // Unarmored Defense (CHA)
 
   // Natural armor — always a candidate regardless of worn armor
@@ -19119,9 +19135,9 @@ function calcACBreakdown() {
   const naturalAC     = naturalBase ? (naturalType === 'flat' ? naturalBase : naturalBase + dex) : 0;
 
   // Unarmored candidates with labels
-  const cls = getPrimaryClass().toLowerCase();
-  const sub = (currentChar.subclass || getAllClasses().find(c=>c.subclass)?.subclass || '');
-  const subLower = sub.toLowerCase();
+  const monkSub2 = (getClassEntry('monk')?.subclass || '').toLowerCase();
+  const sorcSub2 = (getClassEntry('sorcerer')?.subclass || '').toLowerCase();
+  const palSub2  = (getClassEntry('paladin')?.subclass || '').toLowerCase();
   const bsBonus = (isEffectActive('bladesong') && !currentChar.ac_armor_key) ? intM : 0;
 
   const candidates = []; // { val, label }
@@ -19157,11 +19173,11 @@ function calcACBreakdown() {
     : `10 + DEX ${s(dex)}`;
   candidates.push({ val: 10 + dex + bsBonus, label: baseLabel });
 
-  if (cls === 'barbarian')
+  if (hasClass('barbarian'))
     candidates.push({ val: 10 + dex + con, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CON ${s(con)}` });
-  if (cls === 'monk' || subLower.includes('mercy') || subLower.includes('open hand') || subLower.includes('shadow') || subLower.includes('four elements') || subLower.includes('kensei') || subLower.includes('drunken') || subLower.includes('long death') || subLower.includes('sun soul') || subLower.includes('astral self'))
+  if (hasClass('monk') || monkSub2.includes('mercy') || monkSub2.includes('open hand') || monkSub2.includes('shadow') || monkSub2.includes('four elements') || monkSub2.includes('kensei') || monkSub2.includes('drunken') || monkSub2.includes('long death') || monkSub2.includes('sun soul') || monkSub2.includes('astral self'))
     candidates.push({ val: 10 + dex + wis, label: `Unarmored Defense: 10 + DEX ${s(dex)} + WIS ${s(wis)}` });
-  if (subLower.includes('draconic') || subLower.includes('noble genies'))
+  if (sorcSub2.includes('draconic') || palSub2.includes('noble genies'))
     candidates.push({ val: 10 + dex + cha, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CHA ${s(cha)}` });
 
   if (naturalAC)
@@ -19256,7 +19272,7 @@ function onMageArmorToggle(checked) {
   // Verify a slot is available before showing modal
   ensureSpellData();
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
-  const cls = getPrimaryClass().toLowerCase().trim();
+  const cls = getSpellcastingClass();
   const lvl = getLevel();
   const mcSlots = getMulticlassSpellSlots();
   const slots = mcSlots ? mcSlots : getSpellSlots(cls, lvl);
@@ -19299,7 +19315,7 @@ function _doActivateMageArmor(consumeSlot) {
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
 
   if (consumeSlot) {
-    const cls = getPrimaryClass().toLowerCase().trim();
+    const cls = getSpellcastingClass();
     const lvl = getLevel();
     const mcSlots = getMulticlassSpellSlots();
     const slots = mcSlots ? mcSlots : getSpellSlots(cls, lvl);
@@ -19952,8 +19968,9 @@ function syncRageResistances() {
   let grantList = [];
   if (currentChar._rageActive) {
     grantList = ['bludgeoning', 'piercing', 'slashing'];
-    const subclass = (getPrimarySubclass() || '').toLowerCase();
-    const barbLv = getClassLevelCount('barbarian') || 0;
+    const barbEntry = getAllClasses().find(e => (e.class||'').toLowerCase().trim() === 'barbarian');
+    const subclass = (barbEntry?.subclass || '').toLowerCase();
+    const barbLv = barbEntry?.levels?.length || 0;
     // Path of Lament's Otherworldly Anguish (level 10+): "Resistance to
     // Cold and Necrotic damage while Raging" — plain always-on-while-
     // raging wording, unlike Zealot's Rage of the Gods (a separate
@@ -20643,7 +20660,7 @@ function populateAllTabs() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   renderCompanionTab();
   updateWildShapeTabVisibility();
-  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
+  if (hasClass('druid')) renderWildShapeList();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -21219,7 +21236,7 @@ function openSlotOverrideModal() {
   const overrides = currentChar.spell_slot_overrides || {};
 
   // Build the current slot counts (class defaults)
-  const cls = getPrimaryClass().toLowerCase().trim();
+  const cls = getSpellcastingClass();
   const level = getLevel();
   const defaultSlots = getMulticlassSpellSlots() || getSpellSlots(cls, level) || [];
 
@@ -21884,14 +21901,16 @@ function getRacialBonusSpells() {
   const race    = currentChar.race?.toLowerCase().trim();
   const subrace = currentChar.subrace?.toLowerCase().trim();
   const level   = getLevel();
-  const cls     = getPrimaryClass().toLowerCase().trim();
-  if (!race && !cls) return [];
+  if (!race && !getAllClasses().length) return [];
 
   // Collect spells from race key AND subrace compound key ("race/subracekey")
   const raceSrc    = (race ? RACIAL_BONUS_SPELLS[race] : null)    || [];
   const subKey     = (race && subrace) ? `${race}/${subrace}` : null;
   const subSrc     = (subKey && RACIAL_BONUS_SPELLS[subKey]) || [];
-  const classSrc   = CLASS_BONUS_SPELLS[cls] || [];
+  // Merge bonus spells from EVERY class the character has, not just
+  // whichever is listed first — a Fighter 1 / Psion 6 character still
+  // needs their Psion bonus cantrip.
+  const classSrc   = getAllClasses().flatMap(e => CLASS_BONUS_SPELLS[(e.class||'').toLowerCase().trim()] || []);
   const allSpells  = [...raceSrc, ...subSrc, ...classSrc];
 
   return allSpells
@@ -23032,7 +23051,7 @@ function calcWeaponAttack(entry) {
 
   // Frenzy (Path of the Berserker): bonus dice on the first hit each turn while Raging + using Reckless Attack
   let frenzyDieStr = null;
-  const _berserkerLv = (getSubclassKey('barbarian', getPrimarySubclass()) === 'berserker') ? getClassLevelCount('barbarian') : 0;
+  const _berserkerLv = (getSubclassKey('barbarian', getClassEntry('barbarian')?.subclass || '') === 'berserker') ? getClassLevelCount('barbarian') : 0;
   if (_berserkerLv >= 3 && !isRanged && abilityKey === 'str' && isEffectActive('rage') && isEffectActive('reckless_attack')) {
     frenzyDieStr = _berserkerLv >= 16 ? '4d6' : _berserkerLv >= 9 ? '3d6' : '2d6';
   }
@@ -25001,7 +25020,7 @@ function renderAttacksPanel() {
     hasAnyAttack = true;
 
     // Elemental Affinity (Draconic Sorcerer only): +CHA mod to damage of chosen element
-    const _isSorcerer = getPrimaryClass().toLowerCase() === 'sorcerer';
+    const _isSorcerer = hasClass('sorcerer');
     const elemAffinity = _isSorcerer ? (currentChar.class_choices?.draconic_affinity || currentChar.class_choices?.elemental_affinity || '').toLowerCase() : '';
     const chaMod = abilityMod(getAbilities().cha);
 
@@ -28050,7 +28069,7 @@ function onClassChange() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   renderCompanionTab();
   updateWildShapeTabVisibility();
-  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
+  if (hasClass('druid')) renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -28085,7 +28104,7 @@ function onSubclassChange() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   renderCompanionTab();
   updateWildShapeTabVisibility();
-  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
+  if (hasClass('druid')) renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -29766,15 +29785,14 @@ function toggleChoicePill(id, value, maxCount) {
 function applyChoiceEffects() {
   if (!currentChar) return;
   const choices = currentChar.class_choices || {};
-  const cls     = getPrimaryClass().toLowerCase().trim();
 
   // Self-heal stale/duplicate Pact Boon selections and other invalidated invocations
   // on every recalc, not just when the player manually toggles one.
   if (typeof pruneInvalidInvocations === 'function') pruneInvalidInvocations();
 
   // Metamorph: auto-add organic weapons when Metamorph subclass selected
-  const _sub_for_meta = getPrimarySubclass().toLowerCase();
-  if (cls === 'psion' && _sub_for_meta === 'metamorph') {
+  const _isMetamorph = (getClassEntry('psion')?.subclass || '').toLowerCase() === 'metamorph';
+  if (_isMetamorph) {
     ensureWeaponData();
     const organicKeys = ['bone_blade','flesh_maul','viscera_launcher'];
     organicKeys.forEach(wk => {
@@ -29804,7 +29822,6 @@ function applyChoiceEffects() {
     }
   }
 
-  const sub     = getPrimarySubclass().toLowerCase().trim();
   const level   = getLevel();
 
   // ── Expertise from skill selections ──────────────────────
@@ -29837,13 +29854,13 @@ function applyChoiceEffects() {
   });
   currentChar._autoSkillProfs = [];
 
-  if (cls === 'cleric' && choices.divine_order === 'thaumaturge' && choices.divine_order_skill) {
+  if (hasClass('cleric') && choices.divine_order === 'thaumaturge' && choices.divine_order_skill) {
     const sk = SKILLS.find(s => s.name === choices.divine_order_skill);
     if (sk) { currentChar.skill_profs[sk.key] = true; currentChar._autoSkillProfs.push(sk.key); }
   }
 
   // ── Barbarian: Primal Knowledge skill (lv3) ──────────────
-  if (cls === 'barbarian' && choices.primal_knowledge_skill) {
+  if (hasClass('barbarian') && choices.primal_knowledge_skill) {
     const arr = Array.isArray(choices.primal_knowledge_skill) ? choices.primal_knowledge_skill : [choices.primal_knowledge_skill];
     arr.forEach(name => {
       const sk = SKILLS.find(s => s.name === name);
@@ -29852,13 +29869,13 @@ function applyChoiceEffects() {
   }
 
   // ── Druid: Primal Order Magician skill ──────────────────────
-  if (cls === 'druid' && choices.primal_order === 'Magician' && choices.primal_order_skill) {
+  if (hasClass('druid') && choices.primal_order === 'Magician' && choices.primal_order_skill) {
     const sk = SKILLS.find(s => s.name === choices.primal_order_skill);
     if (sk) { currentChar.skill_profs[sk.key] = true; currentChar._autoSkillProfs.push(sk.key); }
   }
 
   // ── Ancestral Sorcery: Ancestor's Lore skill ─────────────
-  if (cls === 'sorcerer' && choices.ancestral_skill) {
+  if (hasClass('sorcerer') && choices.ancestral_skill) {
     const sk = SKILLS.find(s => s.name === choices.ancestral_skill);
     if (sk) { currentChar.skill_profs[sk.key] = true; currentChar._autoSkillProfs.push(sk.key); }
   }
@@ -29912,7 +29929,8 @@ function applyChoiceEffects() {
   }
 
   // ── Armorer: Arcane Armor weapon (Force Demolisher / Thunder Pulse / Lightning Launcher) ──
-  if (cls === 'artificer' && sub === 'armorer') {
+  const _artiEntryForArmor = getClassEntry('artificer');
+  if ((_artiEntryForArmor?.subclass||'').toLowerCase() === 'armorer') {
     ensureWeaponData();
     const modelKeyMap = { 'dreadnaught': 'force_demolisher', 'guardian': 'thunder_pulse', 'infiltrator': 'lightning_launcher' };
     const chosenModel = (choices.armor_model || 'guardian').toLowerCase();
@@ -29988,7 +30006,7 @@ function applyChoiceEffects() {
 
   // ── Elemental affinity (Draconic Sorcerer) ───────────────
   currentChar._elementalAffinity = null;
-  if (cls === 'sorcerer' && sub === 'draconic sorcery' && choices.draconic_affinity) {
+  if ((getClassEntry('sorcerer')?.subclass||'').toLowerCase() === 'draconic sorcery' && choices.draconic_affinity) {
     currentChar._elementalAffinity = choices.draconic_affinity;
   }
 
@@ -31074,9 +31092,16 @@ function buildAllResourceDefs() {
   const seen  = new Set();
   const add   = (r) => { if (r?.id && !seen.has(r.id)) { seen.add(r.id); defs.push(r); } };
 
-  // Class resources
-  (PHB_CLASS_RESOURCES[cls]||[]).forEach(add);
-  (SUPPLEMENTAL_CLASS_RESOURCES[cls]||[]).forEach(add);
+  // Class resources — gathered from EVERY class the character has, not
+  // just getPrimaryClass() (whichever happens to be listed first). This is
+  // exactly why a base-class resource like Warlock's Magical Cunning
+  // wasn't working for a Fighter 1 / Warlock 6 character: Fighter being
+  // first meant only Fighter's own resources were ever being collected.
+  getAllClasses().forEach(entry => {
+    const eCls = (entry.class || '').toLowerCase().trim();
+    (PHB_CLASS_RESOURCES[eCls]||[]).forEach(add);
+    (SUPPLEMENTAL_CLASS_RESOURCES[eCls]||[]).forEach(add);
+  });
 
   // Subclass resources
   getAllClasses().forEach(entry => {
@@ -31439,7 +31464,7 @@ function onRaceChange() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   renderCompanionTab();
   updateWildShapeTabVisibility();
-  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
+  if (hasClass('druid')) renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -31465,7 +31490,7 @@ function onSubraceChange() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   renderCompanionTab();
   updateWildShapeTabVisibility();
-  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
+  if (hasClass('druid')) renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -31623,8 +31648,9 @@ renderSkillsBlock = function() {
   const joat   = hasJackOfAllTrades();
   const halfProf = Math.floor(prof / 2);
   // Armorer (Infiltrator model): Dampening Field grants Advantage on DEX (Stealth) checks
-  const isInfiltratorArmorer = getPrimaryClass().toLowerCase() === 'artificer' && getPrimarySubclass().toLowerCase() === 'armorer'
-    && (currentChar.class_choices?.armor_model || '').toLowerCase() === 'infiltrator' && getClassLevelCount('artificer') >= 3;
+  const artiEntry2 = getClassEntry('artificer');
+  const isInfiltratorArmorer = (artiEntry2?.subclass||'').toLowerCase() === 'armorer'
+    && (currentChar.class_choices?.armor_model || '').toLowerCase() === 'infiltrator' && (artiEntry2?.levels?.length||0) >= 3;
   if (!currentChar.skill_profs)  currentChar.skill_profs  = {};
   if (!currentChar.skill_expert) currentChar.skill_expert = {};
   block.innerHTML = '';
@@ -31808,7 +31834,7 @@ function onBackgroundChange() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   renderCompanionTab();
   updateWildShapeTabVisibility();
-  if (getPrimaryClass().toLowerCase() === 'druid') renderWildShapeList();
+  if (hasClass('druid')) renderWildShapeList();
   renderClassFeatures();
   renderClassChoices();
   renderResourceTracker();
@@ -33820,7 +33846,7 @@ function renderSkillSetupBody() {
   // being closed and reopened.
   _skillSetupState._skilledCount = getSkilledFeatCount();
 
-  const cls   = getPrimaryClass().toLowerCase().trim();
+  const cls   = (currentChar.levelPlan?.[1] || getPrimaryClass()).toLowerCase().trim();
   const race  = (currentChar.race   || '').toLowerCase().trim();
   const bgKey = currentChar.background || '';
   const bg    = bgKey ? PHB_BACKGROUNDS[bgKey] : null;
@@ -35583,7 +35609,7 @@ function populateFeaturesTab() {
   });
 
   // ── Psionic Disciplines (Psion only) ─────────────────────
-  if (cls === 'psion') {
+  if (hasClass('psion')) {
     const selectedDiscs = (currentChar.class_choices?.psionic_disciplines || []);
     if (selectedDiscs.length) {
       html2 += `<div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin:12px 0 6px;padding-top:8px;border-top:1px solid var(--border)">Psionic Disciplines</div>`;
@@ -36787,16 +36813,15 @@ window.setCompanionTempHP = setCompanionTempHP;
 
 function getWildShapeMaxCR() {
   if (!currentChar) return 0;
-  const cls = getPrimaryClass().toLowerCase();
-  if (cls !== 'druid') return 0;
+  if (!hasClass('druid')) return 0;
   return getWildShapeMaxCRNum();
 }
 
 function getWildShapeUsesMax() {
   if (!currentChar) return 0;
-  const cls = getPrimaryClass().toLowerCase();
-  if (cls !== 'druid') return 0;
-  const lv = getLevel();
+  const druidEntry = getClassEntry('druid');
+  if (!druidEntry) return 0;
+  const lv = druidEntry.levels?.length || 0;
   // PHB 2024: 2 uses lv2–5, 3 uses lv6–17, 4 uses lv18+
   if (lv >= 18) return 4;
   if (lv >= 6)  return 3;
@@ -36916,7 +36941,7 @@ function getTitanFormCards() {
 function canWildShapeFly() { return getLevel() >= 8; }
 
 function getWildShapeMaxCRNum() {
-  const lv = getLevel();
+  const lv = getClassEntry('druid')?.levels?.length || 0;
   if (lv < 2) return 0;
   // Circle of the Moon: CR = floor(level / 3), min 1 at level 3
   if (isMoonDruid() && lv >= 3) return Math.max(1, Math.floor(lv / 3));
@@ -36927,7 +36952,7 @@ function getWildShapeMaxCRNum() {
 }
 
 function getWildShapeKnownFormsMax() {
-  const lv = getLevel();
+  const lv = getClassEntry('druid')?.levels?.length || 0;
   if (lv >= 8) return 8;
   if (lv >= 4) return 6;
   if (lv >= 2) return 4;
@@ -36937,8 +36962,7 @@ function getWildShapeKnownFormsMax() {
 function updateWildShapeTabVisibility() {
   const tab = document.getElementById('tab-wildshape');
   if (!tab) return;
-  const cls = getPrimaryClass().toLowerCase();
-  const isWildShaper = cls === 'druid';
+  const isWildShaper = hasClass('druid');
   tab.style.display = isWildShaper ? '' : 'none';
   if (!isWildShaper && document.getElementById('page-wildshape')?.classList.contains('active')) {
     switchPage('main');
@@ -37255,9 +37279,8 @@ function renderFamiliarBlock() {
 function updateWildCompanionUI() {
   const section = document.getElementById('ws-wildcompanion');
   if (!section || !currentChar) return;
-  const cls = getPrimaryClass().toLowerCase();
-  const level = getLevel();
-  const show = cls === 'druid' && level >= 2;
+  const druidLv = getClassEntry('druid')?.levels?.length || 0;
+  const show = druidLv >= 2;
   section.style.display = show ? '' : 'none';
 
   if (show) {
