@@ -2500,13 +2500,23 @@ select:not([multiple]) {
                 <div id="hd-rows" style="display:flex;flex-direction:column;gap:6px"></div>
               </div>
               <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-                <div class="field-label" style="margin-bottom:6px">Resistances &amp; Immunities</div>
-                <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px">Click a damage type to cycle: none → Resistant → Immune → Vulnerable</div>
-                <div id="resist-grid"></div>
-                <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-                  <label class="field-label" style="margin-bottom:4px;display:block">Condition Immunities</label>
-                  <div id="cond-immunity-grid"></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                  <div class="field-label" style="margin-bottom:0">Resistances &amp; Immunities</div>
+                  <button class="tbtn" style="font-size:9px;padding:3px 9px" onclick="openResistEditModal()">Edit</button>
                 </div>
+                <div id="resist-active-summary" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="resist-edit-modal" class="modal-overlay hidden">
+            <div class="modal-box" style="max-width:520px;max-height:85vh;overflow-y:auto">
+              <div class="modal-title">Resistances &amp; Immunities <button class="tbtn" style="float:right" onclick="closeModal('resist-edit-modal')">✕ Close</button></div>
+              <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin:8px 0">Click a damage type to cycle: none → Resistant → Immune → Vulnerable</div>
+              <div id="resist-grid"></div>
+              <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
+                <label class="field-label" style="margin-bottom:4px;display:block">Condition Immunities</label>
+                <div id="cond-immunity-grid"></div>
               </div>
             </div>
           </div>
@@ -19351,14 +19361,35 @@ function hpMethodFormula(method) {
 
   if (isMulticlass()) {
     const classes = getAllClasses();
-    const dieSummary = classes.map(e => {
-      const die = getHitDieForClass(e.class);
-      const lv  = e.levels?.length || 0;
-      return `${lv}×d${die}`;
-    }).join(' + ');
+    const plan = currentChar.levelPlan || {};
+    const lv1Class = plan[1] || classes[0]?.class || '';
+    const lv1Die = getHitDieForClass(lv1Class);
     const total = calcHPMax(method);
-    if (method === 'roll') return `Roll ${dieSummary} + CON(${conStr})×${level}${toughStr} → click Apply to roll`;
-    return `${dieSummary} + CON(${conStr})×${level}${toughStr} = ${total} HP`;
+
+    // Remaining levels (everything after level 1) grouped by class, since
+    // level 1 always uses its max die value regardless of method — this
+    // needs to be shown separately or the displayed formula looks
+    // inconsistent with the total even though the total itself is correct.
+    const remainingByClass = {};
+    for (let lv = 2; lv <= level; lv++) {
+      const cls = (plan[lv] || classes[0]?.class || '').toLowerCase();
+      remainingByClass[cls] = (remainingByClass[cls] || 0) + 1;
+    }
+    const remainingSummary = Object.entries(remainingByClass).map(([cls, count]) => {
+      const die = getHitDieForClass(cls);
+      return `${count}×d${die}`;
+    }).join(' + ');
+
+    if (method === 'roll') {
+      return `Roll: Lv1 d${lv1Die}(max) + ${remainingSummary || '0'} + CON(${conStr})×${level}${toughStr} → click Apply to roll`;
+    }
+    if (method === 'maximum') {
+      // Every level (including level 1) is already maxed uniformly, so no separate breakout needed here.
+      const dieSummary = classes.map(e => `${e.levels?.length||0}×d${getHitDieForClass(e.class)}`).join(' + ');
+      return `${dieSummary} (all max) + CON(${conStr})×${level}${toughStr} = ${total} HP`;
+    }
+    // average
+    return `Lv1: d${lv1Die}(${lv1Die})${conStr} + ${remainingSummary || '0'}(avg)${conStr} each${toughStr} = ${total} HP`;
   }
 
   const hd  = getHitDie();
@@ -19772,10 +19803,12 @@ function updateHDDisplay() {
     row.innerHTML = `
       <span style="font-family:var(--font-ui);font-size:11px;color:var(--gold);min-width:70px">${classes.length > 1 ? clsName + ' ' : ''}${total}d${die}</span>
       <span style="font-family:var(--font-ui);font-size:11px;color:${available>0?'var(--text2)':'var(--text3)'};white-space:nowrap">${available} available (${used}/${total} spent)</span>
-      <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed('${clsKey}',-1)" title="Restore a ${clsName} hit die">−</button>
-      <input type="number" min="0" max="${total}" value="${used}" style="width:48px;font-size:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:2px"
-        onchange="setHitDiceUsed('${clsKey}',parseInt(this.value)||0)" title="${clsName} hit dice spent"/>
-      <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed('${clsKey}',1)" title="Mark a ${clsName} hit die as spent">+</button>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:auto">
+        <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed('${clsKey}',-1)" title="Restore a ${clsName} hit die">−</button>
+        <input type="number" min="0" max="${total}" value="${used}" style="width:48px;font-size:12px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:2px"
+          onchange="setHitDiceUsed('${clsKey}',parseInt(this.value)||0)" title="${clsName} hit dice spent"/>
+        <button class="sp-del-btn" style="opacity:1;font-size:14px" onclick="adjustHitDiceUsed('${clsKey}',1)" title="Mark a ${clsName} hit die as spent">+</button>
+      </div>
     `;
     rowsEl.appendChild(row);
   });
@@ -19962,58 +19995,68 @@ function syncSubclassResistances() {
   if (!currentChar.damageStates) currentChar.damageStates = {};
   const prevAuto = currentChar._autoGrantedSubclassResistances || [];
 
-  const subclass = (getPrimarySubclass() || '').toLowerCase();
-  const cls = getPrimaryClass().toLowerCase().trim();
-  const subKey = getSubclassKey(cls, subclass);
-  const level = getClassLevelCount(cls) || getLevel();
-
   let grantList = [];
 
-  const tableEntry = subKey ? SUBCLASS_RESISTANCE_TABLE[subKey] : null;
-  if (tableEntry && level >= tableEntry.minLevel) {
-    grantList.push(...tableEntry.types);
-  }
+  // Check EVERY class the character has, not just getPrimaryClass() —
+  // that only reflects array order (whichever class was entered first in
+  // the multiclass list), not which class actually has more levels or is
+  // the character's real "main" class. A Fighter 1 / Warlock 6 character
+  // needs their Warlock subclass checked regardless of which one happens
+  // to sit at index 0.
+  getAllClasses().forEach(entry => {
+    const cls = (entry.class || '').toLowerCase().trim();
+    const subclass = (entry.subclass || '').toLowerCase();
+    if (!cls || !subclass) return;
+    const subKey = getSubclassKey(cls, subclass);
+    if (!subKey) return;
+    const level = entry.levels?.length || 0;
 
-  // Draconic Sorcery's Elemental Affinity (level 6+): choice-dependent,
-  // same pattern as Dragonborn's ancestry — read the stored choice rather
-  // than guessing.
-  if (subKey === 'sorcerer/draconic' && level >= 6) {
-    const affinity = (currentChar.class_choices?.draconic_affinity || currentChar.class_choices?.elemental_affinity || '').toLowerCase();
-    if (affinity) grantList.push(affinity);
-  }
-
-  // Genie Warlock's Elemental Gift (level 3+, tied to Genie Kind choice).
-  if (subKey === 'warlock/the genie' && level >= 3) {
-    const genieKind = (currentChar.class_choices?.genie_kind || '').toLowerCase().replace(/\s*\(.*\)/, '').trim();
-    const dmgType = GENIE_KIND_RESISTANCE[genieKind];
-    if (dmgType) grantList.push(dmgType);
-  }
-
-  // Wild Heart Barbarian's Rage of the Wilds — Bear aspect grants a broad
-  // resistance to everything except Force/Necrotic/Psychic/Radiant. Made
-  // changeable at will via a plain selector rather than gated to "only
-  // when you enter Rage," per request — Eagle/Wolf grant no resistance.
-  if (subKey === 'barbarian/wild heart' && level >= 3) {
-    const aspect = (currentChar.class_choices?.wild_heart_aspect || '').toLowerCase();
-    if (aspect === 'bear') {
-      grantList.push(...DAMAGE_TYPES.map(t => t.toLowerCase()).filter(t => !['force','necrotic','psychic','radiant'].includes(t)));
+    const tableEntry = SUBCLASS_RESISTANCE_TABLE[subKey];
+    if (tableEntry && level >= tableEntry.minLevel) {
+      grantList.push(...tableEntry.types);
     }
-  }
 
-  // Hell Knight's Infernal Resilience — RAW re-chooses at the end of each
-  // rest and is further conditioned on wearing Heavy armor or a Shield;
-  // simplified to a plain changeable-at-will selector per request.
-  if (subKey === 'fighter/hell knight' && level >= 7) {
-    const type = (currentChar.class_choices?.infernal_resilience_type || '').toLowerCase();
-    if (type) grantList.push(type);
-  }
+    // Draconic Sorcery's Elemental Affinity (level 6+): choice-dependent,
+    // same pattern as Dragonborn's ancestry — read the stored choice
+    // rather than guessing.
+    if (subKey === 'sorcerer/draconic' && level >= 6) {
+      const affinity = (currentChar.class_choices?.draconic_affinity || currentChar.class_choices?.elemental_affinity || '').toLowerCase();
+      if (affinity) grantList.push(affinity);
+    }
 
-  // Fiend Warlock's Fiendish Resilience — same simplification: RAW
-  // re-chooses at the end of each rest, here just changeable at will.
-  if (subKey === 'warlock/the fiend' && level >= 10) {
-    const type = (currentChar.class_choices?.fiendish_resilience_type || '').toLowerCase();
-    if (type) grantList.push(type);
-  }
+    // Genie Warlock's Elemental Gift (level 3+, tied to Genie Kind choice).
+    if (subKey === 'warlock/the genie' && level >= 3) {
+      const genieKind = (currentChar.class_choices?.genie_kind || '').toLowerCase().replace(/\s*\(.*\)/, '').trim();
+      const dmgType = GENIE_KIND_RESISTANCE[genieKind];
+      if (dmgType) grantList.push(dmgType);
+    }
+
+    // Wild Heart Barbarian's Rage of the Wilds — Bear aspect grants a
+    // broad resistance to everything except Force/Necrotic/Psychic/
+    // Radiant. Changeable at will via a plain selector rather than gated
+    // to "only when you enter Rage," per request — Eagle/Wolf grant none.
+    if (subKey === 'barbarian/wild heart' && level >= 3) {
+      const aspect = (currentChar.class_choices?.wild_heart_aspect || '').toLowerCase();
+      if (aspect === 'bear') {
+        grantList.push(...DAMAGE_TYPES.map(t => t.toLowerCase()).filter(t => !['force','necrotic','psychic','radiant'].includes(t)));
+      }
+    }
+
+    // Hell Knight's Infernal Resilience — RAW re-chooses at the end of
+    // each rest and is further conditioned on wearing Heavy armor or a
+    // Shield; simplified to a plain changeable-at-will selector per request.
+    if (subKey === 'fighter/hell knight' && level >= 7) {
+      const type = (currentChar.class_choices?.infernal_resilience_type || '').toLowerCase();
+      if (type) grantList.push(type);
+    }
+
+    // Fiend Warlock's Fiendish Resilience — same simplification: RAW
+    // re-chooses at the end of each rest, here just changeable at will.
+    if (subKey === 'warlock/the fiend' && level >= 10) {
+      const type = (currentChar.class_choices?.fiendish_resilience_type || '').toLowerCase();
+      if (type) grantList.push(type);
+    }
+  });
 
   grantList = [...new Set(grantList)];
 
@@ -20127,20 +20170,55 @@ const RESIST_STATE_CYCLE = [null, 'resistant', 'immune', 'vulnerable'];
 
 function renderResistances() {
   const grid = document.getElementById('resist-grid');
-  if (!grid) return;
-  if (!currentChar.damageStates) currentChar.damageStates = {};
-  grid.innerHTML = '';
-  for (const type of DAMAGE_TYPES) {
-    const key = type.toLowerCase();
-    const state = currentChar.damageStates[key] || null;
-    const pill = document.createElement('div');
-    pill.className = 'resist-pill' + (state ? ' ' + state : '');
-    pill.innerHTML = `<div class="resist-dot"></div>${type}`;
-    pill.title = state ? `${type}: ${state.charAt(0).toUpperCase()+state.slice(1)} — click to change` : `${type} — click to set`;
-    pill.onclick = () => cycleResistance(key);
-    grid.appendChild(pill);
+  if (grid) {
+    if (!currentChar.damageStates) currentChar.damageStates = {};
+    grid.innerHTML = '';
+    for (const type of DAMAGE_TYPES) {
+      const key = type.toLowerCase();
+      const state = currentChar.damageStates[key] || null;
+      const pill = document.createElement('div');
+      pill.className = 'resist-pill' + (state ? ' ' + state : '');
+      pill.innerHTML = `<div class="resist-dot"></div>${type}`;
+      pill.title = state ? `${type}: ${state.charAt(0).toUpperCase()+state.slice(1)} — click to change` : `${type} — click to set`;
+      pill.onclick = () => cycleResistance(key);
+      grid.appendChild(pill);
+    }
   }
+  renderResistSummary();
 }
+
+// Compact inline summary shown on the Main Sheet — only ever shows entries
+// that are actually set (resistances/immunities/vulnerabilities and
+// condition immunities), rather than all 13 damage types + all conditions
+// taking up space regardless of whether the character has any of them.
+function renderResistSummary() {
+  const el = document.getElementById('resist-active-summary');
+  if (!el) return;
+  const states = currentChar?.damageStates || {};
+  const condImm = currentChar?.conditionImmunities || [];
+  const STATE_COLOR = { resistant: 'var(--accent3)', immune: 'var(--gold)', vulnerable: 'var(--red)' };
+  const STATE_LABEL = { resistant: 'Res', immune: 'Imm', vulnerable: 'Vuln' };
+
+  const pills = [];
+  Object.entries(states).forEach(([type, state]) => {
+    const color = STATE_COLOR[state] || 'var(--text3)';
+    pills.push(`<span class="resist-pill ${state}" style="cursor:default">${type.charAt(0).toUpperCase()+type.slice(1)} <span style="opacity:.7">(${STATE_LABEL[state]||state})</span></span>`);
+  });
+  condImm.forEach(cond => {
+    pills.push(`<span class="condition-pill active" style="cursor:default">${cond} <span style="opacity:.7">(Immune)</span></span>`);
+  });
+
+  el.innerHTML = pills.length
+    ? pills.join('')
+    : `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">None set — click Edit to add</span>`;
+}
+
+function openResistEditModal() {
+  openModal('resist-edit-modal');
+  renderResistances();
+  renderConditionImmunities();
+}
+window.openResistEditModal = openResistEditModal;
 
 function cycleResistance(key) {
   if (!currentChar) return;
@@ -20157,17 +20235,19 @@ window.cycleResistance = cycleResistance;
 
 function renderConditionImmunities() {
   const grid = document.getElementById('cond-immunity-grid');
-  if (!grid) return;
-  if (!currentChar.conditionImmunities) currentChar.conditionImmunities = [];
-  grid.innerHTML = '';
-  for (const cond of CONDITIONS_5E) {
-    const isActive = currentChar.conditionImmunities.includes(cond);
-    const pill = document.createElement('div');
-    pill.className = 'condition-pill' + (isActive ? ' active' : '');
-    pill.innerHTML = `<div class="condition-dot"></div>${cond}`;
-    pill.onclick = () => toggleConditionImmunity(cond);
-    grid.appendChild(pill);
+  if (grid) {
+    if (!currentChar.conditionImmunities) currentChar.conditionImmunities = [];
+    grid.innerHTML = '';
+    for (const cond of CONDITIONS_5E) {
+      const isActive = currentChar.conditionImmunities.includes(cond);
+      const pill = document.createElement('div');
+      pill.className = 'condition-pill' + (isActive ? ' active' : '');
+      pill.innerHTML = `<div class="condition-dot"></div>${cond}`;
+      pill.onclick = () => toggleConditionImmunity(cond);
+      grid.appendChild(pill);
+    }
   }
+  renderResistSummary();
 }
 
 function toggleConditionImmunity(cond) {
