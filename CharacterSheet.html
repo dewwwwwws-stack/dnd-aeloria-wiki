@@ -31533,10 +31533,17 @@ function applyRaceDefaults(race, subrace) {
   const dv = Math.max(rd.darkvision || 0, srd?.darkvision || 0);
   currentChar._darkvision = dv;
 
-  // Damage resistances
+  // Damage resistances — a subrace's own resistance OVERRIDES the base
+  // race's rather than merging with it. The base race's dmgres is really
+  // just a fallback default for players who haven't picked a specific
+  // subrace/legacy; once a specific one is chosen, its own resistance is
+  // authoritative. This was exactly why Chthonic and Infernal Tiefling
+  // legacies were incorrectly also showing Abyssal's Poison resistance —
+  // merging the base "tiefling" default (Poison) with each legacy's own
+  // (Necrotic, Fire) instead of letting the legacy's own value replace it.
   const baseRes  = rd.dmgres || [];
   const subRes   = srd?.dmgres || [];
-  currentChar._dmgres = [...new Set([...baseRes, ...subRes])];
+  currentChar._dmgres = subRes.length ? [...new Set(subRes)] : [...new Set(baseRes)];
   syncRacialResistances();
 
   // Render the racial traits panel
