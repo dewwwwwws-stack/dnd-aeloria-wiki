@@ -2499,13 +2499,6 @@ select:not([multiple]) {
                 <div class="field-label" style="margin-bottom:6px">Hit Dice</div>
                 <div id="hd-rows" style="display:flex;flex-direction:column;gap:6px"></div>
               </div>
-              <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                  <div class="field-label" style="margin-bottom:0">Resistances &amp; Immunities</div>
-                  <button class="tbtn" style="font-size:9px;padding:3px 9px" onclick="openResistEditModal()">Edit</button>
-                </div>
-                <div id="resist-active-summary" style="display:flex;flex-wrap:wrap;gap:5px"></div>
-              </div>
             </div>
           </div>
 
@@ -2528,6 +2521,13 @@ select:not([multiple]) {
               <div id="saves-block"></div>
               <textarea class="sheet-textarea" id="saves-notes" data-key="saves_notes"
                 placeholder="Notes: advantage vs poison, magic resistance…" style="min-height:40px;margin-top:8px"></textarea>
+              <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                  <div class="field-label" style="margin-bottom:0">Resistances &amp; Immunities</div>
+                  <button class="tbtn" style="font-size:9px;padding:3px 9px" onclick="openResistEditModal()">Edit</button>
+                </div>
+                <div id="resist-active-summary" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+              </div>
             </div>
             <div class="panel">
               <div class="panel-title">Skills
@@ -17793,6 +17793,17 @@ function getPrimaryClass() {
 function getPrimarySubclass() {
   return currentChar?.classes?.[0]?.subclass || currentChar?.subclass || '';
 }
+// Finds whichever of the character's classes actually has a spellcasting
+// ability, rather than assuming it's getPrimaryClass() — that only
+// reflects array order (whichever class was entered first when building
+// the multiclass), which has nothing to do with which class is actually
+// the spellcaster. A Fighter 1 / Warlock 6 character needs this to find
+// Warlock even though Fighter sits at index 0.
+function getSpellcastingClass() {
+  const classes = getAllClasses();
+  const caster = classes.find(e => CLASS_SPELL_ABILITY[(e.class||'').toLowerCase().trim()]);
+  return caster ? (caster.class||'').toLowerCase().trim() : getPrimaryClass().toLowerCase().trim();
+}
 function getAllClasses() {
   if (!currentChar) return [];
   // Valid multiclass data
@@ -20738,7 +20749,7 @@ function getWarlockSlotLevel(level) {
 // ═══════════════════════════════════════════════════════════
 
 function getSpellAbility() {
-  const cls = getPrimaryClass().toLowerCase().trim();
+  const cls = getSpellcastingClass();
   return CLASS_SPELL_ABILITY[cls] || null;
 }
 
@@ -20748,7 +20759,7 @@ function calcSpellStats() {
   const abs     = getAbilities();
   const prof    = getProf();
   const level   = getLevel();
-  const cls     = getPrimaryClass().toLowerCase().trim();
+  const cls     = getSpellcastingClass();
 
   if (!ability) return { ability:null, dc:0, atk:0, prepLimit:null };
 
@@ -20774,8 +20785,7 @@ function calcSpellStats() {
 function renderSpellStats() {
   if (!currentChar) return;
   const { ability, dc, atk, prepLimit, dcFormula, atkFormula, spellAtkAdv, atkBonus, dcBonus } = calcSpellStats();
-  const cls   = getPrimaryClass().toLowerCase().trim();
-  const type  = CLASS_CASTER_TYPE[cls] || 'none';
+  const cls   = getSpellcastingClass();
 
   const abilEl  = document.getElementById('sp-ability');
   const dcEl    = document.getElementById('sp-dc');
@@ -21274,7 +21284,7 @@ window.clearSlotOverrides = clearSlotOverrides;
 function renderSpellSlots() {
   const container = document.getElementById('spell-slots-container');
   if (!container || !currentChar) return;
-  const cls      = getPrimaryClass().toLowerCase().trim();
+  const cls      = getSpellcastingClass();
   const level    = getLevel();
   console.debug('[renderSpellSlots] cls=', cls, 'level=', level);
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
@@ -21309,6 +21319,18 @@ function renderSpellSlots() {
     if (!hasAny && !hasWarlock) {
       container.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);padding:10px 0;letter-spacing:.5px;text-align:center">No spell slots at this level combination</div>';
     }
+    return;
+  }
+
+  // A non-Warlock-table multiclass combo (e.g. Fighter + Warlock) correctly
+  // has no combined mcSlots table entry — Warlock never joins that table —
+  // but the character still has Warlock's own Pact Magic slots to show.
+  // This has to be checked before falling through to the single-class
+  // path below, which would otherwise use getPrimaryClass() (whichever
+  // class happens to be listed first) instead of recognizing Warlock is
+  // one of the classes at all.
+  if (hasWarlock && warlockEntry) {
+    renderPactMagicSlots(container, warlockEntry.levels?.length || 0);
     return;
   }
 
