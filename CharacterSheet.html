@@ -30072,12 +30072,12 @@ function renderResourceTracker() {
 
     // Core class resources (using class's own level)
     (PHB_CLASS_RESOURCES[eCls]||[]).forEach(r => {
-      if (!allDefs.find(d => d.id === r.id) && eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'display' || r.type === 'modal-button')) allDefs.push(r);
+      if (!allDefs.find(d => d.id === r.id) && eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'display' || r.type === 'modal-button')) allDefs.push({...r, _resClass: eCls});
     });
 
     // Supplemental class resources
     (SUPPLEMENTAL_CLASS_RESOURCES[eCls]||[]).forEach(r => {
-      if (eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) allDefs.push(r);
+      if (eLv >= (r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) allDefs.push({...r, _resClass: eCls});
     });
 
     // Warlock pact slots are tracked exclusively in the Spells tab — not shown here
@@ -30338,7 +30338,8 @@ function getResourceMax(def, level, prof) {
 }
 
 function renderResourceEntry(def, level, prof) {
-  const max  = getResourceMax(def, level, prof);
+  const effLevel = def._resClass ? getClassLevelCount(def._resClass) : level;
+  const max  = getResourceMax(def, effLevel, prof);
   const used = parseInt(currentChar.resources[def.id]) || 0;
   const avail = Math.max(0, max - used);
   const isPool = def.type === 'pool';
@@ -30366,7 +30367,7 @@ function renderResourceEntry(def, level, prof) {
   if (def.dieFormula) {
     try {
       const _dieVal = Function('level','prof','int_mod','wis_mod','cha_mod',
-        `return (${def.dieFormula})`)(level, prof,
+        `return (${def.dieFormula})`)(effLevel, prof,
         abilityMod(getAbilities().int), abilityMod(getAbilities().wis), abilityMod(getAbilities().cha));
       if (_dieVal) {
         const _dieStr = typeof _dieVal === 'string' ? _dieVal : `d${_dieVal}`;
@@ -30562,7 +30563,7 @@ window.restorePactSlots = restorePactSlots;
 
 // ── Arcane Recovery: open modal to choose which slots to recover ──
 function openArcaneRecoveryModal(resourceId, max) {
-  const level = getLevel();
+  const level = getClassLevelCount('wizard');
   const budget = Math.ceil(level / 2);
   const slots = getSpellSlots('wizard', level) || [];
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
@@ -30628,7 +30629,7 @@ function adjustArcaneRecoveryPick(lv, delta) {
   if (currentChar._arcaneRecoveryPick[lv] === 0) delete currentChar._arcaneRecoveryPick[lv];
 
   // Re-render with fresh slot info
-  const level = getLevel();
+  const level = getClassLevelCount('wizard');
   const budget = Math.ceil(level / 2);
   const slots = getSpellSlots('wizard', level) || [];
   const slotInfo = [];
@@ -30655,7 +30656,7 @@ function confirmArcaneRecovery() {
   Object.entries(picks).forEach(([lvStr, count]) => {
     const lv = parseInt(lvStr);
     let cleared = 0;
-    const total = (getSpellSlots('wizard', getLevel()) || [])[lv - 1] || 0;
+    const total = (getSpellSlots('wizard', getClassLevelCount('wizard')) || [])[lv - 1] || 0;
     for (let i = total - 1; i >= 0 && cleared < count; i--) {
       if (currentChar.spell_slots_used[`slot_${lv}_${i}`]) {
         currentChar.spell_slots_used[`slot_${lv}_${i}`] = false;
@@ -31099,8 +31100,8 @@ function buildAllResourceDefs() {
   // first meant only Fighter's own resources were ever being collected.
   getAllClasses().forEach(entry => {
     const eCls = (entry.class || '').toLowerCase().trim();
-    (PHB_CLASS_RESOURCES[eCls]||[]).forEach(add);
-    (SUPPLEMENTAL_CLASS_RESOURCES[eCls]||[]).forEach(add);
+    (PHB_CLASS_RESOURCES[eCls]||[]).forEach(r => add({...r, _resClass: eCls}));
+    (SUPPLEMENTAL_CLASS_RESOURCES[eCls]||[]).forEach(r => add({...r, _resClass: eCls}));
   });
 
   // Subclass resources
