@@ -6680,12 +6680,18 @@ function enterApp() {
   const dmBtn = document.getElementById('dm-topbar-btn');
   if (dmBtn) dmBtn.style.display = isDM ? '' : 'none';
 
-  // Apply this character's own saved theme, if they have one — theme
-  // choice belongs to the character, not just this browser, so switching
-  // between characters on the same device shows each one's own look.
-  // Falls back to whatever's already applied (this browser's last-used
-  // theme) for a character who's never picked one.
-  if (currentChar?.themePreference) applyThemeFull(currentChar.themePreference);
+  // Apply this character's own saved theme — if they don't have one,
+  // reset to the plain default first (visually only, without writing it
+  // as their "preference") so they can never inherit whatever a
+  // previously-viewed character's theme happened to be, if switching
+  // characters without logging out in between.
+  if (currentChar?.themePreference) {
+    applyThemeFull(currentChar.themePreference);
+  } else {
+    document.documentElement.setAttribute('data-theme', 'default-dark');
+    const _themeBtn = document.getElementById('theme-toggle-btn');
+    if (_themeBtn) _themeBtn.textContent = '☀';
+  }
 
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
@@ -6797,6 +6803,7 @@ openModal = function(id) {
 
 function doLogout() {
   currentChar = null; currentCharSHA = null; isDM = false;
+  applyThemeFull('default-dark');
   document.getElementById('login-screen').style.display = '';
   document.getElementById('app').classList.remove('visible');
   document.getElementById('login-pin').value = '';
@@ -35080,22 +35087,24 @@ function _migrateThemeKey(raw) {
 }
 
 function initTheme() {
-  const saved = _migrateThemeKey(localStorage.getItem('aeloria-theme'));
-  applyThemeFull(saved);
+  // No browser-level persistence — the login screen and any pre-character
+  // state always shows the plain default. Theme only ever comes from
+  // whichever character is actually loaded (see enterApp), not from
+  // whatever was last viewed on this device.
+  applyThemeFull('default-dark');
 }
 
-// Sets the full theme (e.g. "crimson-dark"). Always updates localStorage
-// (so the login screen and any character without its own preference has
-// something sensible to show); also saves onto the currently loaded
-// character, if any, so the choice travels with that character rather
-// than just this browser.
+// Sets the full theme (e.g. "crimson-dark") and saves it onto the
+// currently loaded character, if any — deliberately NOT persisted to
+// localStorage, so the color scheme only ever reflects the specific
+// character you've loaded, not something carried over between different
+// characters viewed on the same device.
 function applyThemeFull(themeKey) {
   const key = _migrateThemeKey(themeKey);
   document.documentElement.setAttribute('data-theme', key);
   const isDark = key.endsWith('-dark');
   const btn = document.getElementById('theme-toggle-btn');
   if (btn) btn.textContent = isDark ? '☀' : '🌙';
-  localStorage.setItem('aeloria-theme', key);
   if (typeof currentChar !== 'undefined' && currentChar) {
     currentChar.themePreference = key;
     if (typeof debouncedSave === 'function') debouncedSave();
