@@ -3061,10 +3061,11 @@ select:not([multiple]) {
           <select id="summon-slot-select" class="field-select" style="width:120px" onchange="renderSummonTab()">
             <option value="">Slot level…</option>
           </select>
-          <select id="summon-form-select" class="field-select" style="width:150px;display:none" onchange="renderSummonTab()">
+          <select id="summon-form-select" class="field-select" style="width:150px;display:none" onchange="if(currentChar)currentChar._activeSummonForm=this.value;renderSummonTab();syncSummonSharedResistance();debouncedSave()">
           </select>
         </div>
         <div id="summon-note" style="font-family:var(--font-body);font-size:11px;color:var(--text3)"></div>
+        <div id="summon-spell-desc" style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.6;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:none"></div>
       </div>
       <div id="summon-stat-block"></div>
     </div>
@@ -16354,7 +16355,6 @@ const PHB_SPELL_LIST = [
 {"key":"fizban_s_platinum_shield","name":"Fizban's Platinum Shield","level":6,"school":"Abjuration","time":"1 bns","range":"60 ft","duration":"Conc, 1 min","components":"V,S,M\u0192","conc":true,"ritual":false,"classes":["sorcerer","wizard"],"desc":"1 crea Acid, Cold, Fire, Lightn. & Poison resist., half cover, better Dex saves; 1 bns change crea (500gp)","tags":[],"source":"2014","descFull":"You create a field of silvery light that surrounds a creature of your choice within range (you can choose yourself). The field sheds dim light out to 5 feet. While surrounded by the field, a creature gains the following benefits:\n   "},
 {"key":"nathair_s_mischief","name":"Nathair's Mischief","level":2,"school":"Illusion","time":"1 a","range":"60 ft","duration":"Conc, 1 min","components":"S,M","conc":true,"ritual":false,"classes":["bard","sorcerer","wizard"],"desc":"20-ft cube of magic, roll d4 for effect; At start of my turn, move cube 10 ft and reroll effect; see book","tags":[],"source":"2014","descFull":"You fill a 20-foot cube you can see within range with fey and draconic magic. Roll on the Mischievous Surge table to determine the magical effect produced, and roll again at the start of each of your turns until the spell ends. You can move the cube up to 10 feet before you roll.\n\nMischievous Surge"},
 {"key":"rime_s_binding_ice","name":"Rime's Binding Ice","level":2,"school":"Evocation","time":"1 a","range":"S:30","duration":"Instantaneous","components":"S,M","conc":false,"ritual":false,"classes":["sorcerer","wizard"],"desc":"All in area 3d8+1d8/SL Cold dmg and speed 0 for 1 min until 1 a to undo; save halves, normal speed","tags":[],"source":"2014","descFull":"A burst of cold energy emanates from you in a 30-foot cone. Each creature in that area must make a Constitution saving throw. On a failed save, a creature takes 3d8 cold damage and is hindered by ice formations for 1 minute, or until it or another creature within reach of it uses an action to break away the ice. A creature hindered by ice has its speed reduced to 0. On a successful save, a creature takes half as much damage and isn't hindered by ice."},
-{"key":"summon_draconic_spirit","name":"Summon Draconic Spirit","level":5,"school":"Conjuration","time":"1 a","range":"60 ft","duration":"Conc, 1 h","components":"V,S,M\u0192","conc":true,"ritual":false,"classes":["druid","sorcerer","wizard"],"desc":"Summon choice of Draconic Spirit; obeys commands; takes turn after mine; vanishes at 0 hp (500gp)","tags":[],"source":"2014","descFull":"You call forth a draconic spirit. It manifests in an unoccupied space that you can see within range. This corporeal form uses the Draconic Spirit stat block. When you cast this spell, choose a family of dragon: chromatic, gem, or metallic. The creature resembles a dragon of the chosen family, which determines certain traits in its stat block. The creature disappears when it drops to 0 hit points or when the spell ends.\n   The creature is an ally to you and your companions. In combat, the creature shares your initiative count, but it takes its turn immediately after yours. It obeys your verbal commands (no action required by you). If you don't issue any, it takes the Dodge action and uses its move to avoid danger."},
 {"key":"borrowed_knowledge","name":"Borrowed Knowledge","level":2,"school":"Divination","time":"1 a","range":"Self","duration":"1 h","components":"V,S,M\u0192","conc":false,"ritual":false,"classes":["bard","cleric","warlock","wizard"],"desc":"Gain proficiency with one skill; ends early if cast again (25gp)","tags":[],"source":"2014","descFull":"You draw on knowledge from spirits of the past. Choose one skill in which you lack proficiency. For the spell's duration, you have proficiency in the chosen skill. The spell ends early if you cast it again."},
 {"key":"kinetic_jaunt","name":"Kinetic Jaunt","level":2,"school":"Transmutation","time":"1 bns","range":"Self","duration":"Conc, 1 min","components":"S","conc":true,"ritual":false,"classes":["artificer","bard","sorcerer","wizard"],"desc":"+10 ft walk spd; provoke no opportunity atks; move through crea space, counts not as difficult terrain","tags":[],"source":"2014","descFull":"You magically empower your movement with dance-like steps, giving yourself the following benefits for the duration.\n \u2022 Your walking speed increases by 10 feet.\n \u2022 You don't provoke opportunity attacks.\n \u2022 You can move through the space of another creature, and it doesn't count as difficult terrain. If you end your turn in another creature's space, you are shunted to the last unoccupied space you occupied, and you take 1d8 force damage."},
 {"key":"silvery_barbs","name":"Silvery Barbs","level":1,"school":"Enchantment","time":"1 rea","range":"60 ft","duration":"Instantaneous","components":"V","conc":false,"ritual":false,"classes":["bard","sorcerer","wizard"],"desc":"1 crea reroll d20 and use lowest for atk, check, or save; 1 crea adv. next atk, check, or save in 1 min","tags":[],"source":"2014","descFull":"You magically distract the triggering creature and turn its momentary uncertainty into encouragement for another creature. The triggering creature must reroll the d20 and use the lower roll.\n   You can then choose a different creature you can see within range (you can choose yourself). The chosen creature has advantage on the next attack roll, ability check, or saving throw it makes within 1 minute. A creature can be empowered by only one use of this spell at a time."},
@@ -20239,6 +20239,36 @@ function syncItemResistances() {
 }
 window.syncItemResistances = syncItemResistances;
 
+// "Shared Resistances" (currently unique to Summon Dragon's Draconic
+// Spirit): while the spell/form is selected, the CASTER personally gains
+// resistance to whichever of the five types is currently chosen — not
+// just the summoned creature. Auto-retracts if the form changes, the
+// spell is deselected, or a different summon spell is picked instead.
+function syncSummonSharedResistance() {
+  if (!currentChar) return;
+  if (!currentChar.damageStates) currentChar.damageStates = {};
+  const prevAuto = currentChar._autoGrantedSummonResistance || null;
+
+  let grant = null;
+  const spellKey = currentChar._activeSummonSpell;
+  const def = spellKey ? SUMMON_SPELL_DEFS?.[spellKey] : null;
+  if (def?.sharedResistance) {
+    const form = currentChar._activeSummonForm;
+    if (form) grant = form.toLowerCase();
+  }
+
+  if (prevAuto && prevAuto !== grant && currentChar.damageStates[prevAuto] === 'resistant') {
+    delete currentChar.damageStates[prevAuto];
+  }
+  if (grant && !currentChar.damageStates[grant]) {
+    currentChar.damageStates[grant] = 'resistant';
+  }
+
+  currentChar._autoGrantedSummonResistance = grant;
+  if (typeof renderResistances === 'function') renderResistances();
+}
+window.syncSummonSharedResistance = syncSummonSharedResistance;
+
 // Same color -> damage type mapping used for Dragonborn ancestry.
 const DRAGON_COLOR_DAMAGE = { black:'acid', blue:'lightning', brass:'fire', bronze:'lightning', copper:'acid', gold:'fire', green:'poison', red:'fire', silver:'cold', white:'cold' };
 
@@ -20473,6 +20503,7 @@ function recalcAll() {
   renderAttacksPanel();
   syncSubclassResistances();
   syncItemResistances();
+  if (typeof syncSummonSharedResistance === 'function') syncSummonSharedResistance();
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   // Auto-update HP max if using a calculated method
   refreshAutoHPMax();
@@ -34834,7 +34865,7 @@ window.modSign = modSign;
 // Spells that trigger the Summon tab
 const SUMMON_SPELL_KEYS = new Set([
   'summon_aberration','summon_beast','summon_celestial','summon_construct',
-  'summon_draconic_spirit','summon_dragon','summon_elemental','summon_fey',
+  'summon_dragon','summon_elemental','summon_fey',
   'summon_fiend','summon_lesser_demons','summon_shadowspawn','summon_undead',
   'summon_astral_entity','conjure_animals','conjure_elemental','conjure_fey',
   'conjure_minor_elementals','conjure_woodland_beings','animate_dead',
@@ -34914,45 +34945,31 @@ const SUMMON_SPELL_DEFS = {
     multiattack: lv => lv >= 6 ? 2 : 1,
     note:'Material determines damage type: Clay=Bludgeoning, Metal=Slashing, Stone=Bludgeoning.',
   },
-  summon_draconic_spirit: {
-    name:'Summon Draconic Spirit', minSlot:5,
-    forms:['Chromatic','Metallic','Gem'],
-    ac: lv => 14 + lv,
-    hp: lv => 50 + (lv-5)*10,
-    speed:'30 ft, Fly 60 ft, Swim 30 ft',
-    type:'Dragon', size:'Large',
-    scores:{str:19,dex:14,con:17,int:10,wis:14,cha:14},
-    resistances:'Varies by damage type chosen',
-    senses:'Blindsight 30 ft, Darkvision 60 ft',
-    languages:'Draconic, understands languages you know',
-    attacks: lv => [
-      {name:'Rend', bonus:null, dmg:`1d6+${lv-1}`, type:'Piercing', range:'10 ft'},
-      {name:'Breath (Recharge 5–6)', bonus:null, dc: 8+Math.ceil(lv/4)+3, dmg:`${lv}d6`, type:'varies', range:'30 ft cone/line', note:'Half damage on save'},
-    ],
-    multiattack: lv => 3,
-    note:'On cast choose damage type (Chromatic: Acid/Cold/Fire/Lightning/Poison; Metallic: same options; Gem: Psychic/Radiant/Thunder).',
-  },
-  // Summon Dragon (2024 PHB, Wizard) is a distinct spell from Summon
-  // Draconic Spirit above, but both explicitly use the same Draconic
-  // Spirit stat block per their source text — this entry was missing
-  // entirely, which is why picking it left the slot-level dropdown empty.
+  // Summon Dragon (2024 PHB, Wizard) explicitly replaces the older 2014
+  // Summon Draconic Spirit — both used the identical Draconic Spirit stat
+  // block, so the 2014 version has been removed entirely rather than kept
+  // alongside its updated replacement.
   summon_dragon: {
     name:'Summon Dragon', minSlot:5,
-    forms:['Chromatic','Metallic','Gem'],
+    sharedResistance:true, // "Shared Resistances": you personally gain resistance to whichever type is chosen, for as long as the spell is active
+    // Not a "family" choice — this selector is the breath weapon's damage
+    // type for its next use, re-pickable each time (the dragon itself is
+    // resistant to all five simultaneously, always, regardless of pick).
+    forms:['Acid','Cold','Fire','Lightning','Poison'],
     ac: lv => 14 + lv,
     hp: lv => 50 + (lv-5)*10,
     speed:'30 ft, Fly 60 ft, Swim 30 ft',
     type:'Dragon', size:'Large',
     scores:{str:19,dex:14,con:17,int:10,wis:14,cha:14},
-    resistances:'Varies by damage type chosen',
+    resistances:'Acid, Cold, Fire, Lightning, Poison (always, all five)',
     senses:'Blindsight 30 ft, Darkvision 60 ft',
     languages:'Draconic, understands languages you know',
-    attacks: lv => [
+    attacks: (lv, form) => [
       {name:'Rend', bonus:null, dmg:`1d6+${lv-1}`, type:'Piercing', range:'10 ft'},
-      {name:'Breath (Recharge 5–6)', bonus:null, dc: 8+Math.ceil(lv/4)+3, dmg:`${lv}d6`, type:'varies', range:'30 ft cone/line', note:'Half damage on save'},
+      {name:'Breath (Recharge 5–6)', bonus:null, dc: 8+Math.ceil(lv/4)+3, dmg:`${lv}d6`, type: form || 'Acid/Cold/Fire/Lightning/Poison (choose)', range:'30 ft cone/line', note:'Half damage on save'},
     ],
     multiattack: lv => 3,
-    note:'On cast choose damage type (Chromatic: Acid/Cold/Fire/Lightning/Poison; Metallic: same options; Gem: Psychic/Radiant/Thunder).',
+    note:'Resistant to Acid, Cold, Fire, Lightning, and Poison at all times. When the Breath recharges and is used, choose which of those five damage types it deals — pick above.',
   },
   summon_elemental: {
     name:'Summon Elemental', minSlot:4,
@@ -35162,11 +35179,29 @@ function onSummonSpellChange() {
   const spellKey = document.getElementById('summon-spell-select')?.value;
   const formSel  = document.getElementById('summon-form-select');
   const slotSel  = document.getElementById('summon-slot-select');
+  const descEl   = document.getElementById('summon-spell-desc');
 
   // Always clear form select first
   if (formSel) { formSel.innerHTML = ''; formSel.style.display = 'none'; }
 
-  if (!spellKey) { renderSummonTab(); return; }
+  if (!spellKey) {
+    if (descEl) { descEl.style.display = 'none'; descEl.innerHTML = ''; }
+    if (currentChar) { currentChar._activeSummonSpell = null; debouncedSave(); }
+    syncSummonSharedResistance();
+    renderSummonTab(); return;
+  }
+
+  if (descEl) {
+    const spell = PHB_SPELL_LIST.find(s => s.key === spellKey);
+    const text = spell?.descFull || spell?.desc || '';
+    if (text) {
+      descEl.innerHTML = `<strong>${spell.name}</strong> — ${renderItemMarkdown(text)}`;
+      descEl.style.display = '';
+    } else {
+      descEl.style.display = 'none'; descEl.innerHTML = '';
+    }
+  }
+
   const def = SUMMON_SPELL_DEFS[spellKey];
   if (!def) {
     if (slotSel) slotSel.innerHTML = '<option value="">—</option>';
@@ -35185,15 +35220,23 @@ function onSummonSpellChange() {
     }
   }
 
-  // Populate form selector if applicable
+  // Populate form selector if applicable — restore the previously-saved
+  // choice if it's still valid for this spell, rather than always
+  // defaulting back to the first option.
   if (formSel && def.forms?.length) {
-    formSel.innerHTML = def.forms.map(f => `<option value="${f}">${f}</option>`).join('');
+    const savedForm = currentChar?._activeSummonForm;
+    const useForm = def.forms.includes(savedForm) ? savedForm : def.forms[0];
+    formSel.innerHTML = def.forms.map(f => `<option value="${f}" ${f===useForm?'selected':''}>${f}</option>`).join('');
     formSel.style.display = '';
+    if (currentChar) currentChar._activeSummonForm = useForm;
+  } else if (currentChar) {
+    currentChar._activeSummonForm = null;
   }
 
   // Persist active spell
   if (currentChar) { currentChar._activeSummonSpell = spellKey; debouncedSave(); }
 
+  syncSummonSharedResistance();
   renderSummonTab();
 }
 window.onSummonSpellChange = onSummonSpellChange;
