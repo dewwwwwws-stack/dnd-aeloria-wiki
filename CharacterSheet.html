@@ -5232,7 +5232,7 @@ function buildDMInventoryHTML(c, charId) {
     if (item.isWeapon && !item.isAmmo) {
       weaponRows.push({
         badge: 'WPN', color: rarityColor,
-        name: item.customName || item.name,
+        name: getItemDisplayName(item),
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
         weight: '', onEdit,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
@@ -5240,7 +5240,7 @@ function buildDMInventoryHTML(c, charId) {
     } else if (item.isArmour) {
       armorRows.push({
         badge: item.type==='shield'?'SHLD':'ARM', color: rarityColor,
-        name: item.customName || item.name,
+        name: getItemDisplayName(item),
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
         weight: '', onEdit,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
@@ -5248,7 +5248,7 @@ function buildDMInventoryHTML(c, charId) {
     } else {
       magicRows.push({
         badge: (effRarity||'ITEM').slice(0,4).toUpperCase(), color: rarityColor,
-        name: item.customName || item.name,
+        name: getItemDisplayName(item),
         sub: attuneSub,
         weight: '', onEdit,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
@@ -6523,7 +6523,7 @@ function openMagicItemDetailModal(keyOrItem) {
   const notesEl = document.getElementById('mi-detail-notes');
   if (!titleEl || !metaEl || !tagsEl || !bodyEl || !notesEl) return;
 
-  titleEl.textContent = item.customName || item.name;
+  titleEl.textContent = getItemDisplayName(item);
   const effRarity = getEffectiveItemRarity(item);
   titleEl.style.color = RARITY_COLOURS[effRarity] || 'var(--text)';
 
@@ -25905,7 +25905,7 @@ function renderUnifiedInventory() {
     if (item.isWeapon && !item.isAmmo) {
       weaponRows.push({
         badge: 'WPN', badgeColor: RARITY_COLOURS[effRarity] || 'var(--red)',
-        name: item.customName || item.name,
+        name: getItemDisplayName(item),
         qty, weight: effWeight,
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
         onClick, onRemove,
@@ -25914,7 +25914,7 @@ function renderUnifiedInventory() {
     } else if (item.isArmour) {
       armorRows.push({
         badge: item.type === 'shield' ? 'SHLD' : 'ARM', badgeColor: RARITY_COLOURS[effRarity] || 'var(--accent2)',
-        name: item.customName || item.name,
+        name: getItemDisplayName(item),
         qty, weight: effWeight,
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
         onClick, onRemove,
@@ -25923,7 +25923,7 @@ function renderUnifiedInventory() {
     } else {
       magicRows.push({
         badge: (effRarity || 'ITEM').slice(0,4).toUpperCase(), badgeColor: RARITY_COLOURS[effRarity] || 'var(--gold)',
-        name: item.customName || item.name,
+        name: getItemDisplayName(item),
         qty, weight: effWeight,
         sub: attuneSub,
         onClick, onRemove,
