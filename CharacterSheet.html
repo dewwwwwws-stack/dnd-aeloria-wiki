@@ -2576,6 +2576,36 @@ select:not([multiple]) {
             </div>
             <div id="resource-tracker-body"></div>
           </div>
+
+          <!-- Spellcasting summary (mirrors the Spells tab) — only shown
+               for characters with any spellcasting ability at all, so a
+               Fighter or Barbarian with no spellcasting doesn't see an
+               empty/dashed-out block taking up space. -->
+          <div id="ms-spellcasting-wrap" style="display:none">
+            <div class="panel" style="margin-top:10px">
+              <div class="panel-title">Spellcasting</div>
+              <div class="spell-stats-row">
+                <div class="spell-stat-box"><div class="spell-stat-label">Ability</div><div class="spell-stat-val" id="ms-sp-ability">—</div></div>
+                <div class="spell-stat-box"><div class="spell-stat-label">Save DC</div><div class="spell-stat-val" id="ms-sp-dc">—</div></div>
+                <div class="spell-stat-box"><div class="spell-stat-label">Spell Atk</div><div class="spell-stat-val" id="ms-sp-atk">—</div></div>
+                <div class="spell-stat-box"><div class="spell-stat-label" id="ms-sp-prep-label">Prepared</div><div class="spell-stat-val" id="ms-sp-prepared">—</div></div>
+              </div>
+              <div id="ms-sp-casting-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5"></div>
+            </div>
+
+            <div class="panel" style="margin-top:10px">
+              <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
+                <span>Spell Slots</span>
+                <div style="display:flex;gap:5px;align-items:center">
+                  <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--accent3);color:var(--accent3)" onclick="doShortRest()">☽ Short Rest</button>
+                  <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--gold);color:var(--gold)" onclick="doLongRest()">★ Long Rest</button>
+                  <button class="tbtn" style="font-size:9px;padding:2px 6px" onclick="openSlotOverrideModal()" title="Override slot counts">⚙</button>
+                </div>
+              </div>
+              <div id="ms-spell-slots-container"></div>
+            </div>
+          </div>
+
           <div class="panel" style="margin-top:10px">
             <div class="panel-title">Proficiencies &amp; Languages</div>
             <textarea class="sheet-textarea" id="ci-profs" data-key="proficiencies"
@@ -2887,7 +2917,7 @@ select:not([multiple]) {
           <div class="spell-stat-box"><div class="spell-stat-label">Ability</div><div class="spell-stat-val" id="sp-ability">—</div></div>
           <div class="spell-stat-box"><div class="spell-stat-label">Save DC</div><div class="spell-stat-val" id="sp-dc">—</div></div>
           <div class="spell-stat-box"><div class="spell-stat-label">Spell Atk</div><div class="spell-stat-val" id="sp-atk">—</div></div>
-          <div class="spell-stat-box"><div class="spell-stat-label" data-spell-prep-label>Prepared</div><div class="spell-stat-val" id="sp-prepared">—</div></div>
+          <div class="spell-stat-box"><div class="spell-stat-label" id="sp-prep-label">Prepared</div><div class="spell-stat-val" id="sp-prepared">—</div></div>
         </div>
         <div id="sp-casting-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5"></div>
         <div id="sp-active-effects" style="margin-top:8px;display:none"></div>
@@ -20443,6 +20473,7 @@ function recalcAll() {
   renderAttacksPanel();
   syncSubclassResistances();
   syncItemResistances();
+  if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   // Auto-update HP max if using a calculated method
   refreshAutoHPMax();
 }
@@ -20870,7 +20901,7 @@ function renderSpellStats() {
   const preparedCount = countPreparedSpells();
   if (prepEl) {
     const sc = getPrimarySpellcasting();
-    const lbl = document.querySelector('[data-spell-prep-label]');
+    const lbl = document.getElementById('sp-prep-label');
     if (sc && isSwapOnLR(sc.cls)) {
       if (lbl) lbl.textContent = 'PREPARED';
       prepEl.textContent = `${preparedCount} / ${Math.max(1, prepMax)}`;
@@ -20912,6 +20943,28 @@ function renderSpellStats() {
       noteEl.textContent = '';
     }
   }
+
+  // Mirror the computed state onto the Main Sheet copy of this panel,
+  // rather than duplicating all the branching logic above.
+  const mirrorPairs = [['sp-ability','ms-sp-ability'], ['sp-dc','ms-sp-dc'], ['sp-atk','ms-sp-atk'], ['sp-prepared','ms-sp-prepared']];
+  mirrorPairs.forEach(([srcId, dstId]) => {
+    const src = document.getElementById(srcId), dst = document.getElementById(dstId);
+    if (src && dst) {
+      dst.textContent = src.textContent;
+      dst.title = src.title;
+      dst.style.color = src.style.color;
+    }
+  });
+  const msNote = document.getElementById('ms-sp-casting-note');
+  if (msNote && noteEl) msNote.textContent = noteEl.textContent;
+  const msPrepLabel = document.getElementById('ms-sp-prep-label');
+  const srcPrepLabel = document.getElementById('sp-prep-label');
+  if (msPrepLabel && srcPrepLabel) msPrepLabel.textContent = srcPrepLabel.textContent;
+
+  // Show the Main Sheet spellcasting section only for characters who
+  // actually have a spellcasting class at all.
+  const wrap = document.getElementById('ms-spellcasting-wrap');
+  if (wrap) wrap.style.display = getPrimarySpellcasting() ? '' : 'none';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -21339,6 +21392,17 @@ function clearSlotOverrides() {
 window.clearSlotOverrides = clearSlotOverrides;
 
 function renderSpellSlots() {
+  _renderSpellSlotsInner();
+  // Mirror the fully-rendered result onto the Main Sheet copy — simplest
+  // way to guarantee this stays in sync regardless of which internal
+  // branch/early-return the inner function took.
+  const src = document.getElementById('spell-slots-container');
+  const dst = document.getElementById('ms-spell-slots-container');
+  if (src && dst) dst.innerHTML = src.innerHTML;
+}
+window.renderSpellSlots = renderSpellSlots;
+
+function _renderSpellSlotsInner() {
   const container = document.getElementById('spell-slots-container');
   if (!container || !currentChar) return;
   const cls      = getSpellcastingClass();
@@ -34791,9 +34855,9 @@ const SUMMON_SPELL_DEFS = {
     languages:'Deep Speech, understands your languages',
     profBonus: lv => Math.ceil(lv/4)+1,
     attacks: lv => [
-      {name:'Claw (Slaad)', bonus: lv+2, dmg:`1d10+${lv-2}`, type:'Slashing', range:'5 ft', note:"Target can't regain HP until spirit's next turn"},
-      {name:'Eye Ray (Beholderkin)', bonus: lv+2, dmg:`1d8+${lv-2}`, type:'Psychic', range:'150 ft'},
-      {name:'Psychic Slam (Mind Flayer)', bonus: lv+2, dmg:`1d8+${lv-2}`, type:'Psychic', range:'5 ft'},
+      {name:'Claw (Slaad)', bonus:null, dmg:`1d10+${lv-2}`, type:'Slashing', range:'5 ft', note:"Target can't regain HP until spirit's next turn"},
+      {name:'Eye Ray (Beholderkin)', bonus:null, dmg:`1d8+${lv-2}`, type:'Psychic', range:'150 ft'},
+      {name:'Psychic Slam (Mind Flayer)', bonus:null, dmg:`1d8+${lv-2}`, type:'Psychic', range:'5 ft'},
     ],
     traits: lv => ['Regeneration (Slaad): Regains 5 HP at start of each turn if it has ≥1 HP.','Whispering Aura (Mind Flayer): At start of each turn, creatures within 5 ft make WIS save (your DC) or take 2d6 Psychic damage.'],
     multiattack: lv => lv >= 6 ? 3 : lv >= 5 ? 2 : 1,
@@ -34803,15 +34867,14 @@ const SUMMON_SPELL_DEFS = {
     name:'Summon Beast', minSlot:2,
     forms:['Air','Land','Water'],
     ac: lv => 11 + lv,
-    hp: lv => 20 + (lv-2)*5,
-    hpLand: lv => 30 + (lv-2)*10,
+    hp: (lv, form) => form === 'Air' ? 20 + (lv-2)*5 : 30 + (lv-2)*5,
     speed: form => form==='Air' ? '30 ft, Fly 60 ft' : form==='Water' ? '30 ft, Swim 30 ft' : '30 ft, Burrow 15 ft',
     type:'Beast', size:'Small or Medium',
     scores:{str:18,dex:11,con:16,int:4,wis:14,cha:5},
     senses:'Darkvision 60 ft',
     languages:'Understands the languages you know',
     attacks: lv => [
-      {name:'Maul', bonus: lv+2, dmg:`1d8+${lv}`, type:'Slashing', range:'5 ft', note:'Air: targets with wings or fly speed have Disadv on attack rolls until start of beast\'s next turn'},
+      {name:'Maul', bonus:null, dmg:`1d8+${lv}`, type:'Slashing', range:'5 ft', note:'Air: targets with wings or fly speed have Disadv on attack rolls until start of beast\'s next turn'},
     ],
     multiattack: lv => lv >= 4 ? 2 : 1,
     note:'HP is higher for Land form. Air form gains 60 ft fly. Water form gains 30 ft swim.',
@@ -34828,8 +34891,8 @@ const SUMMON_SPELL_DEFS = {
     languages:'Celestial, understands your languages',
     attacks: (lv,form) => [
       form==='Avenger'
-        ? {name:'Radiant Bow', bonus:lv+2, dmg:`2d6+${lv-2}`, type:'Radiant', range:'150/600 ft'}
-        : {name:'Radiant Mace', bonus:lv+2, dmg:`1d10+${lv-2}`, type:'Radiant', range:'5 ft', note:`Heals ${Math.floor(lv/2)} HP`},
+        ? {name:'Radiant Bow', bonus:null, dmg:`2d6+${lv-2}`, type:'Radiant', range:'150/600 ft'}
+        : {name:'Radiant Mace', bonus:null, dmg:`1d10+${lv-2}`, type:'Radiant', range:'5 ft', note:`Heals ${Math.floor(lv/2)} HP`},
     ],
     traits: lv => ['Celestial Restoration (Defender): Use Bonus Action to heal one creature within 30 ft for 2d6+'+(Math.floor(lv/2))+' HP.'],
     multiattack: lv => lv >= 7 ? 2 : 1,
@@ -34846,7 +34909,7 @@ const SUMMON_SPELL_DEFS = {
     immunities:'Poison, Psychic', conditionImmunities:'Charmed, Exhausted, Frightened, Incapacitated, Paralyzed, Poisoned',
     senses:'Darkvision 60 ft', languages:'Understands the languages you know',
     attacks: lv => [
-      {name:'Slam', bonus:lv+2, dmg:`1d8+${lv}`, type:'varies', range:'5 ft', note:'Clay: target has Slowed; Metal: target has Disadv on next attack; Stone: target is Knocked Prone'},
+      {name:'Slam', bonus:null, dmg:`1d8+${lv}`, type:'varies', range:'5 ft', note:'Clay: target has Slowed; Metal: target has Disadv on next attack; Stone: target is Knocked Prone'},
     ],
     multiattack: lv => lv >= 6 ? 2 : 1,
     note:'Material determines damage type: Clay=Bludgeoning, Metal=Slashing, Stone=Bludgeoning.',
@@ -34863,7 +34926,7 @@ const SUMMON_SPELL_DEFS = {
     senses:'Blindsight 30 ft, Darkvision 60 ft',
     languages:'Draconic, understands languages you know',
     attacks: lv => [
-      {name:'Rend', bonus:lv+2, dmg:`1d6+${lv-1}`, type:'Piercing', range:'10 ft'},
+      {name:'Rend', bonus:null, dmg:`1d6+${lv-1}`, type:'Piercing', range:'10 ft'},
       {name:'Breath (Recharge 5–6)', bonus:null, dc: 8+Math.ceil(lv/4)+3, dmg:`${lv}d6`, type:'varies', range:'30 ft cone/line', note:'Half damage on save'},
     ],
     multiattack: lv => 3,
@@ -34879,7 +34942,7 @@ const SUMMON_SPELL_DEFS = {
     scores:{str:18,dex:15,con:17,int:8,wis:10,cha:10},
     senses:'Darkvision 60 ft', languages:'Primordial, understands your languages',
     attacks: lv => [
-      {name:'Slam', bonus:lv+2, dmg:`1d10+${lv}`, type:'varies', range:'5 ft', note:'Air: Pushed 10 ft; Earth: Restrained; Fire: 1d6 Fire; Water: Knocked Prone'},
+      {name:'Slam', bonus:null, dmg:`1d10+${lv}`, type:'varies', range:'5 ft', note:'Air: Pushed 10 ft; Earth: Restrained; Fire: 1d6 Fire; Water: Knocked Prone'},
     ],
     multiattack: lv => lv >= 6 ? 2 : 1,
     note:'Element chosen on cast determines damage type: Air=Lightning, Earth=Bludgeoning, Fire=Fire, Water=Cold.',
@@ -34895,7 +34958,7 @@ const SUMMON_SPELL_DEFS = {
     immunities:'Charmed, Frightened (Fuming only)',
     senses:'Darkvision 60 ft', languages:'Sylvan, understands your languages',
     attacks: lv => [
-      {name:'Shortsword', bonus:lv+2, dmg:`1d6+${lv}`, type:'Piercing', range:'5 ft', note:'Fuming: target Frightened; Mirthful: target Charmed; Tricksy: swap with target (Mirthful)'},
+      {name:'Shortsword', bonus:null, dmg:`1d6+${lv}`, type:'Piercing', range:'5 ft', note:'Fuming: target Frightened; Mirthful: target Charmed; Tricksy: swap with target (Mirthful)'},
     ],
     multiattack: lv => lv >= 5 ? 2 : 1,
     note:'Fuming: frightens on hit. Mirthful: charms on hit. Tricksy: teleport effect.',
@@ -34912,8 +34975,8 @@ const SUMMON_SPELL_DEFS = {
     immunities:'Poison (Demon)', senses:'Darkvision 60 ft',
     languages:'Abyssal/Infernal, understands your languages',
     attacks: lv => [
-      {name:'Hurl Flame', bonus:lv+2, dmg:`2d6+${lv-3}`, type:'Fire', range:'150 ft'},
-      {name:'Bite', bonus:lv+2, dmg:`1d12+${lv-3}`, type:'Piercing', range:'5 ft', note:'Demon: target takes 1d12 Poison'},
+      {name:'Hurl Flame', bonus:null, dmg:`2d6+${lv-3}`, type:'Fire', range:'150 ft'},
+      {name:'Bite', bonus:null, dmg:`1d12+${lv-3}`, type:'Piercing', range:'5 ft', note:'Demon: target takes 1d12 Poison'},
     ],
     multiattack: lv => lv >= 8 ? 3 : 2,
     note:'Demon has higher HP. Devil can fly. Yugoloth has highest base HP and resistances.',
@@ -34929,7 +34992,7 @@ const SUMMON_SPELL_DEFS = {
     immunities:'Necrotic, Poison', conditionImmunities:'Exhausted, Frightened, Poisoned',
     senses:'Darkvision 60 ft', languages:'Understands the languages you know',
     attacks: lv => [
-      {name:'Deathly Touch', bonus:lv+2, dmg:`1d8+${lv}`, type:'Necrotic', range:'5 ft', note:"Target can't regain HP until start of spirit's next turn (Putrid: target also Poisoned)"},
+      {name:'Deathly Touch', bonus:null, dmg:`1d8+${lv}`, type:'Necrotic', range:'5 ft', note:"Target can't regain HP until start of spirit's next turn (Putrid: target also Poisoned)"},
     ],
     multiattack: lv => lv >= 5 ? 2 : 1,
     note:'Skeletal has lower HP but full damage. Ghostly can fly. Putrid poisons targets.',
@@ -34981,7 +35044,7 @@ const SUMMON_SPELL_DEFS = {
     immunities:'Necrotic', senses:'Darkvision 60 ft',
     languages:'Understands languages you know',
     attacks: lv => [
-      {name:'Chilling Rend', bonus:lv+2, dmg:`1d8+${lv}`, type:'Cold', range:'5 ft', note:'Fury: extra attack; Despair: target Frightened; Fear: target Incapacitated'},
+      {name:'Chilling Rend', bonus:null, dmg:`1d8+${lv}`, type:'Cold', range:'5 ft', note:'Fury: extra attack; Despair: target Frightened; Fear: target Incapacitated'},
     ],
     multiattack: lv => lv >= 5 ? 2 : 1,
     note:'Fury deals extra damage; Despair frightens; Fear can incapacitate. All deal Cold damage.',
@@ -35044,6 +35107,15 @@ function getSummonSpells() {
     ...getRacialBonusSpells(),
     ...getSubclassBonusSpells().filter(s => s.available),
     ...getInvocationGrantedSpells(),
+    // A Spell Scroll in inventory containing a Summon/Conjure spell should
+    // trigger the tab too, same as actually knowing/preparing the spell —
+    // you can still cast it off the scroll even without it on your list.
+    ...(currentChar.magicItems || [])
+      .filter(item => (item.type||'').toLowerCase() === 'scroll' && item.scrollSpellKey)
+      .map(item => {
+        const phb = PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey);
+        return phb ? {key:item.scrollSpellKey, name:phb.name} : null;
+      }).filter(Boolean),
   ];
   const seen = new Set();
   return all.filter(s => {
@@ -35125,9 +35197,7 @@ function renderSummonTab() {
   }
 
   const ac = typeof def.ac === 'function' ? def.ac(slotLv, form) : def.ac;
-  const hp = typeof def.hp === 'function' ? def.hp(slotLv, form)
-           : typeof def.hpLand === 'function' && form === 'Land' ? def.hpLand(slotLv)
-           : 0;
+  const hp = typeof def.hp === 'function' ? def.hp(slotLv, form) : 0;
   const spd = typeof def.speed === 'function' ? def.speed(form) : def.speed;
   const attacks   = typeof def.attacks   === 'function' ? def.attacks(slotLv, form)   : [];
   const traits    = typeof def.traits    === 'function' ? def.traits(slotLv, form)    : (def.traits || []);
