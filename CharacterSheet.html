@@ -34932,6 +34932,28 @@ const SUMMON_SPELL_DEFS = {
     multiattack: lv => 3,
     note:'On cast choose damage type (Chromatic: Acid/Cold/Fire/Lightning/Poison; Metallic: same options; Gem: Psychic/Radiant/Thunder).',
   },
+  // Summon Dragon (2024 PHB, Wizard) is a distinct spell from Summon
+  // Draconic Spirit above, but both explicitly use the same Draconic
+  // Spirit stat block per their source text — this entry was missing
+  // entirely, which is why picking it left the slot-level dropdown empty.
+  summon_dragon: {
+    name:'Summon Dragon', minSlot:5,
+    forms:['Chromatic','Metallic','Gem'],
+    ac: lv => 14 + lv,
+    hp: lv => 50 + (lv-5)*10,
+    speed:'30 ft, Fly 60 ft, Swim 30 ft',
+    type:'Dragon', size:'Large',
+    scores:{str:19,dex:14,con:17,int:10,wis:14,cha:14},
+    resistances:'Varies by damage type chosen',
+    senses:'Blindsight 30 ft, Darkvision 60 ft',
+    languages:'Draconic, understands languages you know',
+    attacks: lv => [
+      {name:'Rend', bonus:null, dmg:`1d6+${lv-1}`, type:'Piercing', range:'10 ft'},
+      {name:'Breath (Recharge 5–6)', bonus:null, dc: 8+Math.ceil(lv/4)+3, dmg:`${lv}d6`, type:'varies', range:'30 ft cone/line', note:'Half damage on save'},
+    ],
+    multiattack: lv => 3,
+    note:'On cast choose damage type (Chromatic: Acid/Cold/Fire/Lightning/Poison; Metallic: same options; Gem: Psychic/Radiant/Thunder).',
+  },
   summon_elemental: {
     name:'Summon Elemental', minSlot:4,
     forms:['Air','Earth','Fire','Water'],
