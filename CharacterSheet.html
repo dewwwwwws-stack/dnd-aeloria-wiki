@@ -2758,6 +2758,47 @@ select:not([multiple]) {
             </div>
             <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px">Everything you carry, magical and mundane, in one place. Adding a weapon, armor, or magic item here also updates its own section below.</div>
             <button class="add-row-btn" onclick="openModal('add-item-type-modal')" style="margin-bottom:10px">+ Add Item</button>
+
+            <!-- Browse Magic Items — relocated here so picking "Magic Item"
+                 from + Add Item opens this in place, rather than navigating
+                 away to a separate Magic Items panel further down the page -->
+            <div style="margin-bottom:10px">
+              <div style="cursor:pointer;display:flex;align-items:center;justify-content:space-between"
+                onclick="toggleMagicItemBrowser()">
+                <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px">BROWSE DMG ITEMS</span>
+                <span id="mi-browser-toggle" style="font-size:10px;color:var(--text3)">▼ Expand</span>
+              </div>
+              <div id="mi-browser-body" style="display:none;margin-top:8px">
+                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+                  <input class="spell-search-input" id="mi-br-search" placeholder="Search items…"
+                    oninput="renderMagicItemBrowser()" style="flex:1;min-width:120px"/>
+                  <select class="spell-filter-sel" id="mi-br-rarity" onchange="renderMagicItemBrowser()">
+                    <option value="">All Rarities</option>
+                    <option value="common">Common</option>
+                    <option value="uncommon">Uncommon</option>
+                    <option value="rare">Rare</option>
+                    <option value="very rare">Very Rare</option>
+                    <option value="legendary">Legendary</option>
+                    <option value="artifact">Artifact</option>
+                    <option value="primeval vestige">Primeval Vestige</option>
+                  </select>
+                  <select class="spell-filter-sel" id="mi-br-type" onchange="renderMagicItemBrowser()">
+                    <option value="">All Types</option>
+                    <option value="weapon">Weapons</option>
+                    <option value="armour">Armour</option>
+                    <option value="wondrous">Wondrous / Other</option>
+                  </select>
+                  <select class="spell-filter-sel" id="mi-br-attune" onchange="renderMagicItemBrowser()">
+                    <option value="">Any Attunement</option>
+                    <option value="yes">Requires Attunement</option>
+                    <option value="no">No Attunement</option>
+                  </select>
+                </div>
+                <div id="mi-browser-count" style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:.5px"></div>
+                <div id="mi-browser-list" style="display:flex;flex-direction:column;gap:3px;max-height:500px;overflow-y:auto"></div>
+              </div>
+            </div>
+
             <div id="inv-unified-list" style="display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto"></div>
           </div>
 
@@ -2816,44 +2857,6 @@ select:not([multiple]) {
               <span id="attunement-tracker" style="display:flex;align-items:center"></span>
             </div>
             <div id="magic-items-body" style="margin-top:6px"></div>
-
-            <!-- Browse Magic Items -->
-            <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
-              <div style="cursor:pointer;display:flex;align-items:center;justify-content:space-between"
-                onclick="toggleMagicItemBrowser()">
-                <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px">BROWSE DMG ITEMS</span>
-                <span id="mi-browser-toggle" style="font-size:10px;color:var(--text3)">▼ Expand</span>
-              </div>
-              <div id="mi-browser-body" style="display:none;margin-top:8px">
-                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
-                  <input class="spell-search-input" id="mi-br-search" placeholder="Search items…"
-                    oninput="renderMagicItemBrowser()" style="flex:1;min-width:120px"/>
-                  <select class="spell-filter-sel" id="mi-br-rarity" onchange="renderMagicItemBrowser()">
-                    <option value="">All Rarities</option>
-                    <option value="common">Common</option>
-                    <option value="uncommon">Uncommon</option>
-                    <option value="rare">Rare</option>
-                    <option value="very rare">Very Rare</option>
-                    <option value="legendary">Legendary</option>
-                    <option value="artifact">Artifact</option>
-                    <option value="primeval vestige">Primeval Vestige</option>
-                  </select>
-                  <select class="spell-filter-sel" id="mi-br-type" onchange="renderMagicItemBrowser()">
-                    <option value="">All Types</option>
-                    <option value="weapon">Weapons</option>
-                    <option value="armour">Armour</option>
-                    <option value="wondrous">Wondrous / Other</option>
-                  </select>
-                  <select class="spell-filter-sel" id="mi-br-attune" onchange="renderMagicItemBrowser()">
-                    <option value="">Any Attunement</option>
-                    <option value="yes">Requires Attunement</option>
-                    <option value="no">No Attunement</option>
-                  </select>
-                </div>
-                <div id="mi-browser-count" style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:.5px"></div>
-                <div id="mi-browser-list" style="display:flex;flex-direction:column;gap:3px;max-height:500px;overflow-y:auto"></div>
-              </div>
-            </div>
           </div>
 
           <div class="panel">
@@ -4104,7 +4107,7 @@ select:not([multiple]) {
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddWeapon()">⚔ Weapon</button>
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');openAddArmor()">🛡 Armor</button>
-      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');switchPage('inventory');if(!_miBrowserOpen)toggleMagicItemBrowser();document.getElementById('mi-browser-body')?.scrollIntoView({behavior:'smooth',block:'center'})">✨ Magic Item</button>
+      <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');if(!_miBrowserOpen)toggleMagicItemBrowser();document.getElementById('mi-browser-body')?.scrollIntoView({behavior:'smooth',block:'start'});document.getElementById('mi-br-search')?.focus()">✨ Magic Item</button>
       <button class="tbtn" style="font-size:12px;padding:10px;justify-content:flex-start;text-align:left" onclick="closeModal('add-item-type-modal');addEquipItem();setTimeout(()=>document.querySelectorAll('.inv-gear-name-input')[document.querySelectorAll('.inv-gear-name-input').length-1]?.focus(),50)">🎒 General Gear</button>
     </div>
   </div>
@@ -6573,7 +6576,7 @@ function openMagicItemDetailModal(keyOrItem) {
   if (item.isAmmo)   tags.push('<span class="sp-tag">Ammunition</span>');
   tagsEl.innerHTML = tags.join('');
 
-  const fullDesc = item.desc || '';
+  const fullDesc = getEffectiveItemDesc(item);
   bodyEl.innerHTML = fullDesc
     ? renderItemMarkdown(fullDesc)
     : '<em style="color:var(--text3)">No description available.</em>';
@@ -25870,19 +25873,22 @@ function renderUnifiedInventory() {
       sub: entry.equipped ? 'Equipped' : '',
       onClick: `openWeaponEdit(${idx})`,
       onRemove: `removeWeapon(${idx});renderFeatItemsWeapons()`,
+      kind: 'weapon', rowIdx: idx,
     });
   });
 
   (currentChar.armorOwned || []).forEach((entry, idx) => {
     const phb = PHB_ARMOUR.find(a => a.key === entry.key);
-    totalWeight += parseWeightLb(entry.weight);
+    const qty = entry.qty || 1;
+    totalWeight += parseWeightLb(entry.weight) * qty;
     armorRows.push({
       badge: 'ARM', badgeColor: 'var(--accent2)',
       name: entry.name || phb?.name || 'Armor',
-      qty: 1, weight: entry.weight || '',
+      qty, weight: entry.weight || '',
       sub: entry.worn ? 'Worn' : '',
       onClick: `openArmorEdit(${idx})`,
       onRemove: `removeArmorOwned(${idx})`,
+      kind: 'armor', rowIdx: idx,
     });
   });
 
@@ -25903,6 +25909,7 @@ function renderUnifiedInventory() {
         qty, weight: effWeight,
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
         onClick, onRemove,
+        kind: 'magic', rowIdx: idx,
       });
     } else if (item.isArmour) {
       armorRows.push({
@@ -25911,6 +25918,7 @@ function renderUnifiedInventory() {
         qty, weight: effWeight,
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
         onClick, onRemove,
+        kind: 'magic', rowIdx: idx,
       });
     } else {
       magicRows.push({
@@ -25919,6 +25927,7 @@ function renderUnifiedInventory() {
         qty, weight: effWeight,
         sub: attuneSub,
         onClick, onRemove,
+        kind: 'magic', rowIdx: idx,
       });
     }
   });
@@ -25974,15 +25983,40 @@ function renderUnifiedInventory() {
       onclick="${r.onClick}" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
       <div style="flex:1;min-width:0;overflow:hidden">
-        <div style="font-family:var(--font-body);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.qty > 1 ? `${r.qty}× ` : ''}${r.name}</div>
+        <div style="font-family:var(--font-body);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
         ${r.sub ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${r.sub}</div>` : ''}
       </div>
       ${r.weight ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);flex-shrink:0">${r.weight}</span>` : ''}
+      <div style="display:flex;align-items:center;gap:3px;flex-shrink:0" onclick="event.stopPropagation()">
+        <button class="sp-del-btn" style="opacity:1;font-size:10px;padding:0 4px" onclick="adjustRowQty('${r.kind}',${r.rowIdx},-1)" title="Decrease quantity">−</button>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2);min-width:12px;text-align:center">${r.qty || 1}</span>
+        <button class="sp-del-btn" style="opacity:1;font-size:10px;padding:0 4px" onclick="adjustRowQty('${r.kind}',${r.rowIdx},1)" title="Increase quantity">+</button>
+      </div>
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="event.stopPropagation();${r.onRemove}">✕</button>
     </div>`).join('')}
   `).join('');
 }
 window.renderUnifiedInventory = renderUnifiedInventory;
+
+// Generic quantity stepper for the unified inventory view — routes to the
+// correct underlying array depending on which kind of row it came from.
+function adjustRowQty(kind, idx, delta) {
+  if (!currentChar) return;
+  let arr, field;
+  if (kind === 'weapon') { arr = currentChar.weapons; field = 'qty'; }
+  else if (kind === 'armor') { arr = currentChar.armorOwned; field = 'qty'; }
+  else if (kind === 'magic') { arr = currentChar.magicItems; field = 'quantity'; }
+  else return;
+  const entry = arr?.[idx];
+  if (!entry) return;
+  entry[field] = Math.max(1, (parseInt(entry[field]) || 1) + delta);
+  renderUnifiedInventory();
+  if (kind === 'weapon') renderFeatItemsWeapons();
+  if (kind === 'armor' && typeof renderFeatItemsArmor === 'function') renderFeatItemsArmor();
+  if (kind === 'magic') renderMagicItemsPanel();
+  debouncedSave();
+}
+window.adjustRowQty = adjustRowQty;
 
 // Extracts a numeric lb value from a free-text weight string (e.g. "10 lb",
 // "1.5", "3lb", "—") — returns 0 for anything unparseable rather than
@@ -26278,12 +26312,42 @@ function getMagicalSecretsOptions() {
 // the catalog's base/default and doesn't reflect which tier the player
 // actually has equipped.
 function getEffectiveItemRarity(item) {
+  // Spell scrolls follow the standard rarity-by-level table, not a fixed
+  // catalog default — a 5th-level scroll is Rare regardless of what the
+  // generic "Spell Scroll" catalog entry says.
+  if ((item?.type || '').toLowerCase() === 'scroll' && item?.scrollSpellKey) {
+    const lv = item.scrollSpellLevel ?? PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey)?.level ?? 0;
+    if (lv <= 1) return 'common';
+    if (lv <= 3) return 'uncommon';
+    if (lv <= 5) return 'rare';
+    if (lv <= 8) return 'very rare';
+    return 'legendary';
+  }
   if (item?.rarityByBonus && item.magicBonus) {
     return item.rarityByBonus[String(item.magicBonus)] || item.rarity;
   }
   return item?.rarity;
 }
 window.getEffectiveItemRarity = getEffectiveItemRarity;
+
+// For a spell scroll with a chosen spell, appends the actual spell's full
+// description after the generic scroll rules text — otherwise the detail
+// view only ever showed the boilerplate "if the spell is on your list…"
+// text, never what the scroll's specific spell actually does.
+function getEffectiveItemDesc(item) {
+  const base = item?.desc || '';
+  if ((item?.type || '').toLowerCase() === 'scroll' && item?.scrollSpellKey) {
+    const spell = PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey);
+    if (spell) {
+      const lv = item.scrollSpellLevel ?? spell.level;
+      const lvLabel = lv === 0 ? 'Cantrip' : `${lv}${lv===1?'st':lv===2?'nd':lv===3?'rd':'th'}-Level`;
+      const spellText = spell.descFull || spell.desc || '';
+      return `${base}\n\n---\n\n**${spell.name}** (${lvLabel} ${spell.school})\n\n${spellText}`;
+    }
+  }
+  return base;
+}
+window.getEffectiveItemDesc = getEffectiveItemDesc;
 
 // A magic weapon/armor that's linked to a specific selectable base type
 // (e.g. Frost Brand set to "Longsword", Armor of Resistance set to "Chain
@@ -27299,7 +27363,7 @@ function populateMagicItemEditForm(item, resetPending = true) {
   }
 
   const desc = document.getElementById('mi-edit-desc');
-  if (desc) desc.innerHTML = item.desc ? renderItemMarkdown(item.desc) : '<em style="color:var(--text3)">No description available.</em>';
+  if (desc) { const effDesc = getEffectiveItemDesc(item); desc.innerHTML = effDesc ? renderItemMarkdown(effDesc) : '<em style="color:var(--text3)">No description available.</em>'; }
 
   const restypeRow = document.getElementById('mi-edit-restype-row');
   const restypeSel = document.getElementById('mi-edit-restype');
