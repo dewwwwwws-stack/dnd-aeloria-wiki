@@ -2944,6 +2944,28 @@ select:not([multiple]) {
         <div id="spell-slots-container"></div>
       </div>
 
+      <!-- Concentration (mirrors the Main Sheet copy) -->
+      <div class="panel">
+        <div class="panel-title">Concentration</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <div id="sp-conc-spell-name" style="font-family:var(--font-body);font-size:12px;color:var(--text2);flex:1;font-style:italic">None</div>
+          <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="clearConcentration()">✕</button>
+        </div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-bottom:4px">CON SAVE DC (on damage)</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+          <input type="number" id="sp-conc-damage-taken" class="info-input" style="width:60px;font-size:13px;text-align:center" placeholder="Dmg" min="0" oninput="updateConcDC()"/>
+          <span style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">→ DC</span>
+          <span id="sp-conc-dc-result" style="font-family:var(--font-ui);font-size:18px;color:var(--text);font-weight:700;min-width:28px">—</span>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:8px">
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-bottom:4px">CON SAVING THROW</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="sp-conc-save-bonus" style="font-family:var(--font-ui);font-size:18px;color:var(--text);font-weight:700">—</span>
+            <span id="sp-conc-save-adv" style="display:none;font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;padding:2px 7px;border-radius:4px;border:1px solid var(--accent);color:var(--accent)">ADV — War Caster</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Spellcasting Notes -->
       <div class="panel">
         <div class="panel-title">Spellcasting Notes</div>
@@ -6729,6 +6751,8 @@ function setConcentrationSpell(key, name) {
   _concSpellKey = key;
   const el = document.getElementById('conc-spell-name');
   if (el) el.textContent = name || 'Unknown';
+  const spEl = document.getElementById('sp-conc-spell-name');
+  if (spEl) spEl.textContent = name || 'Unknown';
   if (currentChar) currentChar._concentrating = { key, name };
 }
 
@@ -6736,23 +6760,60 @@ function clearConcentration() {
   _concSpellKey = null;
   const el = document.getElementById('conc-spell-name');
   if (el) el.textContent = 'None';
+  const spEl = document.getElementById('sp-conc-spell-name');
+  if (spEl) spEl.textContent = 'None';
   const dmg = document.getElementById('conc-damage-taken');
   if (dmg) dmg.value = '';
+  const spDmg = document.getElementById('sp-conc-damage-taken');
+  if (spDmg) spDmg.value = '';
   const dc = document.getElementById('conc-dc-result');
   if (dc) dc.textContent = '—';
+  const spDc = document.getElementById('sp-conc-dc-result');
+  if (spDc) spDc.textContent = '—';
   if (currentChar) delete currentChar._concentrating;
 }
 
 function updateConcDC() {
-  const dmgEl = document.getElementById('conc-damage-taken');
-  const dcEl  = document.getElementById('conc-dc-result');
-  if (!dmgEl || !dcEl) return;
-  const dmg = parseInt(dmgEl.value) || 0;
+  // Whichever field the player just typed into drives the update — mirror
+  // that value onto the other copy first, so both always show the same
+  // number regardless of which one (Main Sheet or Spells tab) was used.
+  const dmgEl   = document.getElementById('conc-damage-taken');
+  const spDmgEl = document.getElementById('sp-conc-damage-taken');
+  const active  = document.activeElement;
+  let dmgVal;
+  if (active === spDmgEl) { dmgVal = spDmgEl.value; if (dmgEl) dmgEl.value = dmgVal; }
+  else { dmgVal = dmgEl ? dmgEl.value : ''; if (spDmgEl) spDmgEl.value = dmgVal; }
+
+  const dmg = parseInt(dmgVal) || 0;
   const dc  = Math.max(10, Math.floor(dmg / 2));
-  dcEl.textContent = dmg > 0 ? dc : '—';
-  dcEl.style.color = (dmg > 0 && dc > getProf() + abilityMod(getAbilities().con) + 8)
-    ? 'var(--red)' : 'var(--text)';
+  const overDC = dmg > 0 && dc > getProf() + abilityMod(getAbilities().con) + 8;
+
+  const dcEl = document.getElementById('conc-dc-result');
+  if (dcEl) { dcEl.textContent = dmg > 0 ? dc : '—'; dcEl.style.color = overDC ? 'var(--red)' : 'var(--text)'; }
+  const spDcEl = document.getElementById('sp-conc-dc-result');
+  if (spDcEl) { spDcEl.textContent = dmg > 0 ? dc : '—'; spDcEl.style.color = overDC ? 'var(--red)' : 'var(--text)'; }
 }
+
+// CON saving throw guide — shown alongside Concentration since that's the
+// save you're almost always making it for, but the bonus itself is just
+// your normal CON save (same formula as the Saving Throws panel), plus a
+// flag for War Caster's advantage specifically on concentration checks
+// (not a general CON save bonus — Advantage doesn't apply to a CON save
+// for any other reason).
+function renderConcSaveGuide() {
+  const bonusEl = document.getElementById('sp-conc-save-bonus');
+  const advEl   = document.getElementById('sp-conc-save-adv');
+  if (!bonusEl || !currentChar) return;
+  const abs   = getAbilities();
+  const prof  = getProf();
+  const mod   = abilityMod(abs.con);
+  const isProficient = !!currentChar.save_profs?.con;
+  const exPen = exhaustionD20Penalty();
+  const total = mod + (isProficient ? prof : 0) - exPen + getMagicItemSaveBonus();
+  bonusEl.textContent = (total >= 0 ? '+' : '') + total;
+  if (advEl) advEl.style.display = hasFeat('War Caster') ? '' : 'none';
+}
+window.renderConcSaveGuide = renderConcSaveGuide;
 
 function initDCCalc() {
   const sel = document.getElementById('dc-calc-ability');
@@ -6764,6 +6825,8 @@ function initDCCalc() {
   if (currentChar?._concentrating) {
     const el = document.getElementById('conc-spell-name');
     if (el) el.textContent = currentChar._concentrating.name || 'Unknown';
+    const spEl = document.getElementById('sp-conc-spell-name');
+    if (spEl) spEl.textContent = currentChar._concentrating.name || 'Unknown';
     _concSpellKey = currentChar._concentrating.key;
   }
 }
@@ -20522,6 +20585,7 @@ function recalcAll() {
   syncItemResistances();
   if (typeof syncSummonSharedResistance === 'function') syncSummonSharedResistance();
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
+  if (typeof renderConcSaveGuide === 'function') renderConcSaveGuide();
   // Auto-update HP max if using a calculated method
   refreshAutoHPMax();
 }
