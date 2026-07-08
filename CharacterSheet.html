@@ -6785,7 +6785,7 @@ function updateConcDC() {
   else { dmgVal = dmgEl ? dmgEl.value : ''; if (spDmgEl) spDmgEl.value = dmgVal; }
 
   const dmg = parseInt(dmgVal) || 0;
-  const dc  = Math.max(10, Math.floor(dmg / 2));
+  const dc  = Math.min(30, Math.max(10, Math.floor(dmg / 2)));
   const overDC = dmg > 0 && dc > getProf() + abilityMod(getAbilities().con) + 8;
 
   const dcEl = document.getElementById('conc-dc-result');
