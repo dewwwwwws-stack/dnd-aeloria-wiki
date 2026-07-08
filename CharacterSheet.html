@@ -4296,7 +4296,7 @@ const GH = {
   },
 
   async listFiles() {
-    const data = await this.req('GET', `contents/${this.dir}`);
+    const data = await this.req('GET', `contents/${this.dir}?ref=${encodeURIComponent(this.branch)}`);
     return Array.isArray(data) ? data.filter(f => f.name.endsWith('.json')) : [];
   }
 };
