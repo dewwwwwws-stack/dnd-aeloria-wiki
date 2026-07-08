@@ -22422,8 +22422,17 @@ function renderKnownSpells() {
   // Build display list
   const rows = [];
 
+  // Track keys already shown, checked/updated by every source section below —
+  // a spell can legitimately be granted by more than one source at once (e.g.
+  // a Feat AND a Pact of Tome ritual inscription both granting the same
+  // spell), which previously showed up as two separate duplicate rows since
+  // only sections much later in this function were checking for duplicates.
+  const _shownKeys = new Set();
+
   // 0. Racial bonus spells (always prepared, purple pip)
   racialSpells.forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     rows.push({ ...sp, locked:true, label:'Racial' });
   });
 
@@ -22448,8 +22457,10 @@ function renderKnownSpells() {
     if (!isShadowMonk) return;
     const SHADOW_ARTS = ['darkness']; // PHB 2024: Shadow Arts only grants Darkness via Focus Points
     SHADOW_ARTS.forEach(key => {
+      if (_shownKeys.has(key)) return;
       const phb = PHB_SPELL_LIST.find(s => s.key === key);
       if (!phb) return;
+      _shownKeys.add(key);
       rows.push({
         key: phb.key, name: phb.name, level: phb.level,
         source: 'subclass', pipType: 'subclass', locked: true,
@@ -22460,6 +22471,8 @@ function renderKnownSpells() {
 
   // 1. Subclass bonus spells (always prepared when available, greyed when locked by level)
   subclassSpells.forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     if (sp.available) {
       rows.push({ ...sp, pipType:'subclass', locked:true, label:`${sp.subclass}` });
     } else {
@@ -22470,38 +22483,47 @@ function renderKnownSpells() {
 
   // 2. Feat spells (amber pip, locked)
   featSpells.forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Feat' });
   });
 
   // 2a2. Magic item-granted spells (at will or limited-use, locked)
   getMagicItemGrantedSpells().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     rows.push({ ...sp, pipType:'item-spell', locked:true, label:sp.itemName });
   });
 
   // 2b. Pact of Tome cantrips (amber pip, locked, at-will)
   getPactTomeCantrips().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Book of Shadows' });
   });
 
   // 2c. Pact of Tome ritual spells (ritual-only pip)
   getPactTomeRituals().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     rows.push({ ...sp, pipType:'ritual-only', locked:true, ritual:true, label:'Book of Shadows' });
   });
 
   // 2d. Invocation-granted spells (purple pip, at-will, locked)
   getInvocationGrantedSpells().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     rows.push({ ...sp, pipType:'subclass', locked:true, label:sp.invoc });
   });
 
   // 2e. Mystic Arcanum spells (amber pip, 1/LR, locked)
   getMysticArcanumSpells().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
     rows.push({ ...sp, pipType:'feat-spell', locked:true,
       label:`Mystic Arcanum (${sp.spellSlotLevel}th)`,
       grantType:'onceLR' });
   });
-
-  // Track keys already in rows (from racial/subclass/feat) to avoid duplicates
-  const _shownKeys = new Set(rows.map(r => r.key));
 
   // 3. Known cantrips (removable — user added them, skip if already shown by racial/subclass)
   currentChar.spells.known.filter(s => s.level === 0).forEach(sp => {
@@ -22651,7 +22673,7 @@ function renderKnownSpells() {
       const _chaMod = abilityMod(getAbilities().cha);
       const _wlLv = getClassLevelCount('warlock') || 0;
       if (_pi.some(e => e.name === 'Agonizing Blast' && e.cantrip === sp.key))
-        _invocBadges += `<span class="sp-tag" style="color:var(--gold);border-color:rgba(192,57,107,.4);background:rgba(192,57,107,.1)">+${_chaMod>=0?'+':''}${_chaMod} dmg</span>`;
+        _invocBadges += `<span class="sp-tag" style="color:var(--gold);border-color:rgba(192,57,107,.4);background:rgba(192,57,107,.1)">${_chaMod>=0?'+':''}${_chaMod} dmg</span>`;
       if (_pi.some(e => e.name === 'Repelling Blast' && e.cantrip === sp.key))
         _invocBadges += `<span class="sp-tag" style="color:var(--accent);border-color:rgba(45,168,109,.4);background:rgba(45,168,109,.1)">PUSH 10ft</span>`;
       if (_pi.some(e => e.name === 'Eldritch Spear' && e.cantrip === sp.key) && _wlLv)
@@ -30670,7 +30692,7 @@ function renderResourceTracker() {
     allDefs.push({
       id: cr.id, name: cr.name, desc: cr.desc || '',
       recovery: cr.recovery, _max: cr.max,
-      isCustom: true,
+      isCustom: true, recoveryNote: cr.recoveryNote || '',
     });
   });
 
