@@ -6497,10 +6497,14 @@ function openSpellDetailModal(key, name) {
   const levelStr = sp.level === 0 ? 'Cantrip' : `Level ${sp.level}`;
   titleEl.textContent = sp.name || name;
 
+  const mutableFormTouchBoost = sp.range === 'Touch' && (sp.time || '1 action') === '1 action'
+    && typeof isEffectActive === 'function' && isEffectActive('mutable_form');
+  const rangeDisplay = mutableFormTouchBoost ? 'Touch → 10 ft (Mutable Form)' : (sp.range || '—');
+
   const tags = [
     `<span class="meta-pill">${levelStr} · ${sp.school}</span>`,
     `<span class="meta-pill">Cast: ${sp.time || '1 action'}</span>`,
-    `<span class="meta-pill">Range: ${sp.range || '—'}</span>`,
+    `<span class="meta-pill"${mutableFormTouchBoost ? ' style="color:var(--accent)"' : ''}>Range: ${rangeDisplay}</span>`,
     `<span class="meta-pill">Duration: ${sp.duration || '—'}</span>`,
     sp.components ? `<span class="meta-pill">Components: ${sp.components}</span>` : '',
     sp.ritual ? '<span class="meta-pill" style="color:var(--gold)">Ritual</span>' : '',
