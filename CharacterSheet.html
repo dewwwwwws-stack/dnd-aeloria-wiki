@@ -3444,7 +3444,7 @@ select:not([multiple]) {
         </div>
         <div style="flex:1">
           <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Recovers On</label>
-          <select id="add-res-recovery" class="choice-select" style="width:100%">
+          <select id="add-res-recovery" class="choice-select" style="width:100%" onchange="document.getElementById('add-res-days-row').style.display=this.value==='none'?'':'none'">
             <option value="short">Short Rest</option>
             <option value="long" selected>Long Rest</option>
             <option value="dawn">Dawn</option>
@@ -3452,6 +3452,11 @@ select:not([multiple]) {
             <option value="none">Never (manual only)</option>
           </select>
         </div>
+      </div>
+      <div id="add-res-days-row" style="display:none;margin-bottom:12px">
+        <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Recovery note (optional)</label>
+        <input type="text" id="add-res-days" class="choice-select" style="width:100%" placeholder="e.g. 7 days, next full moon, once per week">
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px;line-height:1.4">Just a reminder for yourself — this doesn't reset automatically, you'll still clear it manually when it's actually due.</div>
       </div>
       <button class="btn-primary" onclick="confirmAddResource()">+ Add Resource</button>
     </div>
@@ -3911,7 +3916,7 @@ select:not([multiple]) {
             </div>
             <div style="flex:1">
               <label class="field-label">Recovers On</label>
-              <select id="ci-charges-recovery" class="choice-select">
+              <select id="ci-charges-recovery" class="choice-select" onchange="document.getElementById('ci-charges-days-row').style.display=this.value==='none'?'':'none'">
                 <option value="short">Short Rest</option>
                 <option value="long" selected>Long Rest</option>
                 <option value="dawn">Dawn</option>
@@ -3919,6 +3924,11 @@ select:not([multiple]) {
                 <option value="none">Never (manual only)</option>
               </select>
             </div>
+          </div>
+          <div id="ci-charges-days-row" style="display:none">
+            <label class="field-label">Recovery note (optional)</label>
+            <input type="text" id="ci-charges-days" class="info-input" placeholder="e.g. 7 days, next full moon, once per week">
+            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px;line-height:1.4">Just a reminder for yourself — this doesn't reset automatically, you'll still clear it manually when it's actually due.</div>
           </div>
           <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:6px;line-height:1.4">
             This creates a linked entry in your Resources tracker with the usual pip-counter and rest-recovery — that's where you'll mark charges as used.
@@ -27358,11 +27368,13 @@ function addMagicItemToCharacter(char, key) {
   if (def.charges?.max) {
     if (!char.customResources) char.customResources = [];
     const resId = 'item_' + newItem._uid;
-    char.customResources.push({
+    const newRes = {
       id: resId, name: def.name, desc: def.shortDesc || '',
       max: def.charges.max, recovery: def.charges.recovery || 'dawn',
+      recoveryNote: def.charges.recoveryNote || '',
       _fromMagicItem: newItem._uid,
-    });
+    };
+    char.customResources.push(newRes);
     newItem._resourceId = resId;
   }
 
@@ -27697,6 +27709,8 @@ function openCustomItemModal(idx) {
   const linkedRes = hasCharges ? (currentChar.customResources || []).find(r => r.id === item._resourceId) : null;
   document.getElementById('ci-charges-max').value      = linkedRes?.max || 1;
   document.getElementById('ci-charges-recovery').value = linkedRes?.recovery || 'long';
+  document.getElementById('ci-charges-days').value     = linkedRes?.recoveryNote || '';
+  document.getElementById('ci-charges-days-row').style.display = (linkedRes?.recovery === 'none') ? '' : 'none';
 
   populateSpellNameDatalist();
   _ciGrantedSpellsDraft = (item?.grantedSpells || []).map(gs => ({ ...gs }));
@@ -27837,6 +27851,7 @@ function saveCustomItemModal() {
   const hasCharges     = document.getElementById('ci-has-charges').checked;
   const chargeMax      = Math.max(1, parseInt(document.getElementById('ci-charges-max').value) || 1);
   const chargeRecovery = document.getElementById('ci-charges-recovery').value;
+  const chargeNote     = chargeRecovery === 'none' ? document.getElementById('ci-charges-days').value.trim() : '';
 
   let item;
   if (_ciEditIdx !== null) {
@@ -27887,12 +27902,13 @@ function saveCustomItemModal() {
     let res = item._resourceId ? currentChar.customResources.find(r => r.id === item._resourceId) : null;
     if (!res) {
       const resId = 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6);
-      res = { id: resId, name: '', desc: '', max: chargeMax, recovery: chargeRecovery, _fromMagicItem: item._uid };
+      res = { id: resId, name: '', desc: '', max: chargeMax, recovery: chargeRecovery, recoveryNote: chargeNote, _fromMagicItem: item._uid };
       currentChar.customResources.push(res);
       item._resourceId = resId;
     } else {
       res.max = chargeMax;
       res.recovery = chargeRecovery;
+      res.recoveryNote = chargeNote;
     }
     res.name = item.customName || item.name;
     res.desc = shortDesc || desc.slice(0, 140);
@@ -27996,6 +28012,8 @@ function openDMCatalogItemModal(key) {
   toggleCustomItemChargeFields(hasCharges);
   document.getElementById('ci-charges-max').value      = item?.charges?.max || 1;
   document.getElementById('ci-charges-recovery').value = item?.charges?.recovery || 'long';
+  document.getElementById('ci-charges-days').value     = item?.charges?.recoveryNote || '';
+  document.getElementById('ci-charges-days-row').style.display = (item?.charges?.recovery === 'none') ? '' : 'none';
 
   populateSpellNameDatalist();
   _ciGrantedSpellsDraft = (item?.grantedSpells || []).map(gs => ({ ...gs }));
@@ -28032,6 +28050,7 @@ async function saveDMCatalogItem() {
   const hasCharges     = document.getElementById('ci-has-charges').checked;
   const chargeMax      = Math.max(1, parseInt(document.getElementById('ci-charges-max').value) || 1);
   const chargeRecovery = document.getElementById('ci-charges-recovery').value;
+  const chargeNote     = chargeRecovery === 'none' ? document.getElementById('ci-charges-days').value.trim() : '';
 
   // Catalog-shaped granted spells — no per-character resource linking here,
   // that only happens at add-time on the owned instance (see addMagicItem).
@@ -28055,7 +28074,7 @@ async function saveDMCatalogItem() {
     desc, effects: Object.keys(effects).length ? effects : null,
     source: 'Dorenia DM',
   };
-  if (hasCharges) itemObj.charges = { max: chargeMax, recovery: chargeRecovery };
+  if (hasCharges) itemObj.charges = { max: chargeMax, recovery: chargeRecovery, recoveryNote: chargeNote };
   if (grantedSpells.length) itemObj.grantedSpells = grantedSpells;
 
   const status = document.getElementById('dm-items-status');
@@ -30738,9 +30757,10 @@ function renderResourceEntry(def, level, prof) {
 
   const _ttDesc = (def.desc||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const _ttName = (def.name||def.label||'').replace(/"/g,'&quot;');
-  const _ttMeta = recovery ? `Recovers on ${recovery === 'short' ? 'Short Rest' : recovery === 'long' ? 'Long Rest' : recovery}` : '';
+  const _ttMeta = def.recoveryNote ? `Manual only — ${def.recoveryNote}` : recovery ? `Recovers on ${recovery === 'short' ? 'Short Rest' : recovery === 'long' ? 'Long Rest' : recovery}` : '';
   const _ttJumpName = (def.name||def.label||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-  const recLabel = recovery === 'short' ? 'SR' : recovery === 'long' ? 'LR' : recovery === 'dusk' ? 'DUSK' : recovery === 'dawn' ? 'DAWN' : 'N/A';
+  const recLabel = recovery === 'short' ? 'SR' : recovery === 'long' ? 'LR' : recovery === 'dusk' ? 'DUSK' : recovery === 'dawn' ? 'DAWN'
+                 : def.recoveryNote ? def.recoveryNote.slice(0, 16) : 'MANUAL';
 
   // Evaluate dieFormula if present (e.g. psionic energy dice size)
   let _dieBadge = '';
@@ -31258,6 +31278,8 @@ function openAddResourceModal() {
   document.getElementById('add-res-desc').value = '';
   document.getElementById('add-res-max').value = '1';
   document.getElementById('add-res-recovery').value = 'long';
+  document.getElementById('add-res-days').value = '';
+  document.getElementById('add-res-days-row').style.display = 'none';
   openModal('add-resource-modal');
   setTimeout(() => document.getElementById('add-res-name')?.focus(), 50);
 }
@@ -31277,6 +31299,8 @@ function openEditCustomResource(id) {
   document.getElementById('add-res-desc').value = res.desc || '';
   document.getElementById('add-res-max').value = String(res.max || 1);
   document.getElementById('add-res-recovery').value = res.recovery || 'long';
+  document.getElementById('add-res-days').value = res.recoveryNote || '';
+  document.getElementById('add-res-days-row').style.display = (res.recovery === 'none') ? '' : 'none';
   openModal('add-resource-modal');
 }
 window.openEditCustomResource = openEditCustomResource;
@@ -31287,6 +31311,7 @@ function confirmAddResource() {
   const desc = document.getElementById('add-res-desc').value.trim();
   const max  = Math.max(1, parseInt(document.getElementById('add-res-max').value) || 1);
   const recovery = document.getElementById('add-res-recovery').value;
+  const recoveryNote = recovery === 'none' ? document.getElementById('add-res-days').value.trim() : '';
 
   if (!currentChar.customResources) currentChar.customResources = [];
 
@@ -31294,6 +31319,7 @@ function confirmAddResource() {
     const res = currentChar.customResources.find(r => r.id === _editingResourceId);
     if (res) {
       res.name = name; res.desc = desc; res.max = max; res.recovery = recovery;
+      res.recoveryNote = recoveryNote;
       // If the new max is lower than what's currently marked used, clamp
       // usage down too so the tracker never shows more spent than exists.
       const used = parseInt(currentChar.resources?.[res.id]) || 0;
@@ -31308,7 +31334,7 @@ function confirmAddResource() {
   }
 
   const id = 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6);
-  currentChar.customResources.push({ id, name, desc, max, recovery });
+  currentChar.customResources.push({ id, name, desc, max, recovery, recoveryNote });
 
   closeModal('add-resource-modal');
   renderResourceTracker();
@@ -31581,7 +31607,7 @@ function buildAllResourceDefs() {
 
   // Custom (player-added) resources
   (currentChar.customResources || []).forEach(cr => {
-    add({ id: cr.id, name: cr.name, desc: cr.desc || '', recovery: cr.recovery, _max: cr.max, isCustom: true });
+    add({ id: cr.id, name: cr.name, desc: cr.desc || '', recovery: cr.recovery, _max: cr.max, isCustom: true, recoveryNote: cr.recoveryNote || '' });
   });
 
   return defs;
