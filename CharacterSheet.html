@@ -3126,6 +3126,28 @@ select:not([multiple]) {
         </div>
       </div>
 
+      <div class="panel" id="sp-fullclasslist-panel" style="display:none">
+        <div class="panel-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleFullClassSpellList()">
+          <span id="sp-fullclasslist-title">Class Spell List</span>
+          <span style="display:flex;align-items:center;gap:8px">
+            <span id="sp-fullclasslist-count" style="font-size:10px;color:var(--text3)"></span>
+            <span id="sp-fullclasslist-toggle" style="font-size:10px;color:var(--text3)">▲ Collapse</span>
+          </span>
+        </div>
+        <div id="sp-fullclasslist-body" style="margin-top:8px">
+          <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:8px">
+            Your entire class spell list, up to the highest level you have slots for — prepare directly from here rather than searching one at a time.
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+            <input id="sp-fullclasslist-search" class="spell-search-input" placeholder="Filter this list…" oninput="renderFullClassSpellList()" style="flex:1"/>
+            <select id="sp-fullclasslist-level" class="spell-filter-sel" onchange="renderFullClassSpellList()" style="width:auto">
+              <option value="">All Levels</option>
+            </select>
+          </div>
+          <div id="sp-fullclasslist-list" style="display:flex;flex-direction:column;gap:3px;max-height:600px;overflow-y:auto"></div>
+        </div>
+      </div>
+
     </div><!-- /RIGHT -->
   </div>
 </div>
@@ -23269,7 +23291,141 @@ function renderSpellbookVisibility() {
   if (!panel) return;
   const isWiz = getCharSpellClasses().includes('wizard');
   panel.style.display = isWiz ? '' : 'none';
+  renderFullClassSpellListVisibility();
 }
+
+// Cleric, Druid, Paladin, Ranger, Artificer all prepare from their entire
+// class spell list each day — there's no "learned/known" subset the way
+// a Wizard's spellbook works, so this panel computes the eligible list
+// fresh from PHB_SPELL_LIST every render rather than reading a stored,
+// curated array. Wizard is excluded since their dedicated Spellbook panel
+// above already correctly models their different (learned-subset) mechanic.
+let _fullClassListOpen = true;
+function toggleFullClassSpellList() {
+  _fullClassListOpen = !_fullClassListOpen;
+  const body = document.getElementById('sp-fullclasslist-body');
+  const toggle = document.getElementById('sp-fullclasslist-toggle');
+  if (body) body.style.display = _fullClassListOpen ? '' : 'none';
+  if (toggle) toggle.textContent = _fullClassListOpen ? '▲ Collapse' : '▼ Expand';
+  if (_fullClassListOpen) renderFullClassSpellList();
+}
+window.toggleFullClassSpellList = toggleFullClassSpellList;
+
+function renderFullClassSpellListVisibility() {
+  const panel = document.getElementById('sp-fullclasslist-panel');
+  if (!panel || !currentChar) return;
+  const sc = getPrimarySpellcasting();
+  const show = sc && isSwapOnLR(sc.cls) && sc.cls !== 'wizard';
+  panel.style.display = show ? '' : 'none';
+  if (show) {
+    const titleEl = document.getElementById('sp-fullclasslist-title');
+    if (titleEl) titleEl.textContent = `${sc.cls.charAt(0).toUpperCase()+sc.cls.slice(1)} Spell List`;
+    renderFullClassSpellList();
+  }
+}
+window.renderFullClassSpellListVisibility = renderFullClassSpellListVisibility;
+
+function renderFullClassSpellList() {
+  const list = document.getElementById('sp-fullclasslist-list');
+  const lvlSel = document.getElementById('sp-fullclasslist-level');
+  const countEl = document.getElementById('sp-fullclasslist-count');
+  if (!list || !currentChar) return;
+  ensureSpellData();
+
+  const sc = getPrimarySpellcasting();
+  if (!sc) { list.innerHTML = ''; return; }
+  const cls = sc.cls;
+  const maxLv = _getLuMaxSpellLevel();
+  const q = (document.getElementById('sp-fullclasslist-search')?.value || '').toLowerCase().trim();
+  const lvlF = lvlSel?.value || '';
+
+  if (countEl) {
+    const { max } = getPreparedMax();
+    const current = currentChar.spells.known.filter(s => s.level > 0).length;
+    countEl.textContent = `${current}/${max} prepared`;
+    countEl.style.color = current > max ? 'var(--red)' : 'var(--text3)';
+  }
+
+  // Populate the level filter's options once per max-level change, rather
+  // than rebuilding every render (would reset the player's current filter
+  // selection on every keystroke in the search box).
+  const wantedOpts = ['<option value="">All Levels</option>']
+    .concat(Array.from({length: maxLv}, (_, i) => i+1).map(lv => `<option value="${lv}">${lv===1?'1st':lv===2?'2nd':lv===3?'3rd':lv+'th'} Level</option>`));
+  if (lvlSel && lvlSel.dataset.maxLv !== String(maxLv)) {
+    const prevVal = lvlSel.value;
+    lvlSel.innerHTML = wantedOpts.join('');
+    lvlSel.value = prevVal;
+    lvlSel.dataset.maxLv = String(maxLv);
+  }
+
+  const grantedByKey = new Set([
+    ...getRacialBonusSpells().map(s => s.key),
+    ...getFeatGrantedSpells().map(s => s.key),
+    ...getSubclassBonusSpells().filter(s => s.available).map(s => s.key),
+  ]);
+
+  let filtered = PHB_SPELL_LIST.filter(sp => {
+    if (sp.level === 0) return false; // cantrips are handled by the Cantrips tab, not here
+    if (sp.level > maxLv) return false;
+    if (!sp.classes?.includes(cls)) return false;
+    if (lvlF && String(sp.level) !== lvlF) return false;
+    if (q && !sp.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  filtered.sort((a,b) => a.level-b.level || a.name.localeCompare(b.name));
+
+  if (!filtered.length) {
+    list.innerHTML = `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:6px;letter-spacing:.5px">No spells match</div>`;
+    return;
+  }
+
+  list.innerHTML = '';
+  let lastLv = -1;
+  const LVLNAMES = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'];
+  filtered.forEach(sp => {
+    if (sp.level !== lastLv) {
+      lastLv = sp.level;
+      const hdr = document.createElement('div');
+      hdr.className = 'sp-level-group-hdr';
+      hdr.textContent = `${LVLNAMES[sp.level]} Level`;
+      list.appendChild(hdr);
+    }
+
+    const isGranted = grantedByKey.has(sp.key);
+    const isPrepared = currentChar.spells.known.some(s => s.key === sp.key);
+    const row = document.createElement('div');
+    row.className = 'sp-spellbook-row';
+    row.innerHTML = `
+      <span style="color:var(--text3);font-size:10px;min-width:16px">${sp.level}</span>
+      <span style="flex:1;font-family:var(--font-body);font-size:12px">${sp.name}</span>
+      ${isGranted
+        ? `<span style="font-family:var(--font-ui);font-size:9px;padding:2px 7px;border-radius:10px;border:1px solid var(--accent2);color:var(--accent2)">✓ Granted</span>`
+        : `<button onclick="toggleFullClassListPrep('${sp.key}')"
+            style="font-family:var(--font-ui);font-size:9px;padding:2px 7px;border-radius:10px;border:1px solid;cursor:pointer;background:none;
+                   ${isPrepared ? 'border-color:var(--accent);color:var(--accent)' : 'border-color:var(--border2);color:var(--text3)'}"
+          >${isPrepared ? '✓ PREP' : '+ PREP'}</button>`}
+    `;
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      openSpellDetailModal(sp.key, sp.name);
+    });
+    list.appendChild(row);
+  });
+}
+window.renderFullClassSpellList = renderFullClassSpellList;
+
+// Prepare/unprepare directly from the full class list — reuses the exact
+// same addSpellToKnown/removeSpellFromKnown path Browse Spells already
+// uses, so both stay in sync and nothing about "what counts as prepared"
+// diverges between the two views.
+function toggleFullClassListPrep(spellKey) {
+  const isPrepared = currentChar.spells.known.some(s => s.key === spellKey);
+  if (isPrepared) removeSpellFromKnown(spellKey);
+  else addSpellToKnown(spellKey, 'manual');
+  renderFullClassSpellList();
+}
+window.toggleFullClassListPrep = toggleFullClassListPrep;
 
 // ═══════════════════════════════════════════════════════════
 // ATTACKS PANEL
