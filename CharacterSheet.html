@@ -22177,6 +22177,15 @@ function getCantripsMax() {
 
 function getPreparedMax() {
   // Returns { max, breakdown } — the spell count cap for each class
+  // 2024 PHB tables — Cleric/Druid (full casters) and Paladin/Ranger (half
+  // casters) each moved from "level + ability mod" to a fixed, level-only
+  // table with no ability-score dependency at all. Verified directly
+  // against the official Features tables for each class, not reconstructed
+  // from a formula. Index 0 = level 1.
+  const FULL_PREPARED_TABLE = [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22];
+  const HALF_PREPARED_TABLE = [2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15];
+  const TABLE_2024_CLASSES = ['cleric', 'druid', 'paladin', 'ranger'];
+
   let total = 0;
   const parts = [];
   getAllClasses().forEach(entry => {
@@ -22192,6 +22201,10 @@ function getPreparedMax() {
     if (isSwapOnLU(cls)) {
       // Fixed list casters: cap comes from spellsKnown table
       const table = cd.spellcasting?.spellsKnown || [];
+      classMax = table[Math.min(lv, table.length) - 1] || 0;
+    } else if (TABLE_2024_CLASSES.includes(cls)) {
+      // 2024 fixed prepared-spells tables — no ability modifier involved
+      const table = type === 'full' ? FULL_PREPARED_TABLE : HALF_PREPARED_TABLE;
       classMax = table[Math.min(lv, table.length) - 1] || 0;
     } else if (type === 'full')  {
       classMax = lv + mod;
