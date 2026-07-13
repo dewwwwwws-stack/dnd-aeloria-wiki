@@ -16754,7 +16754,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"potion_of_giant_strength","weight":".5 lb","name":"Potion Of Giant Strength","rarity":"common","type":"wondrous item","desc":"When you drink this potion, your Strength score changes for 1 hour. The type of giant determines the score (see the table below). The potion has no effect on you if your Strength is equal to or greater than that score.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"potion_of_climbing","weight":".5 lb","name":"Potion of Climbing","rarity":"common","type":"potion","desc":"When you drink this potion, you gain a Climb Speed equal to your Speed for 1 hour. During this time, you have Advantage on Strength (Athletics) checks to climb.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"potion_of_comprehension","weight":".5 lb","name":"Potion of Comprehension","rarity":"common","type":"potion","desc":"When you drink this potion, you gain the effect of the Comprehend Languages spell for 1 hour. This potion's liquid is a clear concoction with bits of salt and soot swirling in it.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"potion_of_healing","weight":".5 lb","name":"Potion of Healing","rarity":"common","type":"potion","desc":"You regain Hit Points when you drink this potion. The number of Hit Points depends on the potion’s rarity, as shown in the table below. This potion's red liquid glimmers when agitated.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
+{"key":"potion_of_healing","weight":".5 lb","name":"Potion of Healing","rarity":"common","type":"potion","desc":"This potion is a magic item. As a Bonus Action, you can drink it or administer it to another creature within 5 feet of yourself. The creature that drinks the magical red fluid in this vial regains 2d4 + 2 Hit Points. The potion's red liquid glimmers when agitated.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"tiers":{"1":{"name":"Potion of Healing","rarity":"common","dice":"2d4 + 2"},"2":{"name":"Potion of Greater Healing","rarity":"uncommon","dice":"4d4 + 4"},"3":{"name":"Potion of Superior Healing","rarity":"rare","dice":"8d4 + 8"},"4":{"name":"Potion of Supreme Healing","rarity":"very rare","dice":"10d4 + 20"}}},
 {"key":"prosthetic_limb","name":"Prosthetic Limb","rarity":"common","type":"wondrous item","desc":"This artificial limb replaces a lost limb, like a hand, an arm, a foot, a leg, or a similar body part. While the prosthetic is attached, it functions identically to the part it replaces. As an action, I can detach or reattach it. It can't be removed against my will. It detaches if I die.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"quaal_s_feather_token","name":"Quaal'S Feather Token","rarity":"common","type":"wondrous item","desc":"You can take a Magic action to touch the token to a boat or ship. For the next 24 hours, the vessel can’t be moved by any means. Touching the token to the vessel again ends the effect. When the effect ends, the token disappears.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ring_of_elemental_command","name":"Ring Of Elemental Command","rarity":"common","type":"wondrous item","desc":"Select one of the four types of this ring, with each type being linked to one of the four Elemental Planes. Each Ring has Advantage on attack rolls against Elementals and they have Disadvantage on attack rolls against you, you can take a Magic action to try to compel an Elemental within 60 ft/ DC 18 WIS save; Charmed on fail.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -27843,9 +27843,24 @@ function refreshVariableItemText(item) {
       item._baseDesc = def.desc;
       if (!item.rarityByBonus && def.rarityByBonus) item.rarityByBonus = def.rarityByBonus;
       if (!item.maxBonus && def.maxBonus) item.maxBonus = def.maxBonus;
+      if (!item.tiers && def.tiers) item.tiers = def.tiers;
     } else {
       return; // no catalog match (e.g. a fully custom item) — nothing to derive from
     }
+  }
+  if (item.tiers) {
+    // Named-tier items — each tier is a fully different item (name, rarity,
+    // and effect), not a suffix change, so pull the whole set directly
+    // rather than trying to regex-substitute a "+N" phrase into shared text.
+    const tier = item.tiers[String(item.magicBonus || 1)] || item.tiers['1'];
+    if (tier) {
+      item.name = tier.name;
+      item.rarity = tier.rarity;
+      if (tier.dice) {
+        item.desc = item._baseDesc.replace(/\d+d\d+(?:\s*\+\s*\d+)?\s*Hit Points/i, `${tier.dice} Hit Points`);
+      }
+    }
+    return;
   }
   item.name = getCleanedItemName(item._baseName, item.magicBonus);
   item.desc = getCleanedItemDesc(item._baseDesc, item.magicBonus, item.rarityByBonus);
@@ -27872,7 +27887,7 @@ function addMagicItemToCharacter(char, key) {
 
   const compatKeys = (def.isWeapon && !def.isAmmo) ? getCompatibleWeaponKeys(def.type) : [];
   const compatArmourKeys = (def.isArmour && def.type !== 'shield') ? getCompatibleArmourKeys(def.type) : [];
-  const isVariableItem = !!(def.rarityByBonus || def.maxBonus || def.effects?.weaponBonus === 'variable' || def.effects?.spellAtkBonus === 'variable' || def.effects?.spellDCBonus === 'variable' || def.effects?.otherBonus === 'variable');
+  const isVariableItem = !!(def.rarityByBonus || def.maxBonus || def.tiers || def.effects?.weaponBonus === 'variable' || def.effects?.spellAtkBonus === 'variable' || def.effects?.spellDCBonus === 'variable' || def.effects?.otherBonus === 'variable');
   const newItem = {
     key: def.key, name: def.name, rarity: def.rarity,
     type: def.type, desc: def.desc,
@@ -27881,6 +27896,7 @@ function addMagicItemToCharacter(char, key) {
     effects: def.effects || null,
     rarityByBonus: def.rarityByBonus || null,
     maxBonus: def.maxBonus || null,
+    tiers: def.tiers || null,
     resistanceOptions: def.resistanceOptions || null,
     resistanceIsDragonColor: def.resistanceIsDragonColor || false,
     resistanceVulnBackfire: def.resistanceVulnBackfire || false,
@@ -27893,7 +27909,7 @@ function addMagicItemToCharacter(char, key) {
     _baseName: isVariableItem ? def.name : undefined,
     _baseDesc: isVariableItem ? def.desc : undefined,
     customName: '', notes: '',
-    magicBonus: 0,
+    magicBonus: def.tiers ? 1 : 0,
     quantity: 1,
     weight: def.weight || '',
     weaponKey: compatKeys.length === 1 ? compatKeys[0] : null,
@@ -27987,14 +28003,23 @@ function populateMagicItemEditForm(item, resetPending = true) {
   document.getElementById('mi-edit-notes').value       = item.notes || '';
   const bonusSel = document.getElementById('mi-edit-bonus');
   if (bonusSel) {
-    // Tier range comes from rarityByBonus's keys when present (items whose
-    // rarity scales with the bonus), otherwise an explicit maxBonus field
-    // (items like Enhanced Arcane Focus that only go up to +2 and don't
-    // change rarity) — falls back to 3 as a reasonable default.
-    const maxBonus = item.rarityByBonus ? Math.max(...Object.keys(item.rarityByBonus).map(Number)) : (item.maxBonus || 3);
-    bonusSel.innerHTML = '<option value="0">None</option>' +
-      Array.from({length: maxBonus}, (_, i) => i+1).map(n => `<option value="${n}">+${n}</option>`).join('');
-    bonusSel.value = String(item.magicBonus || 0);
+    if (item.tiers) {
+      // Named-tier items (e.g. Potion of Healing) — show the actual tier
+      // names rather than a "+N" bonus label, since nothing here is a
+      // numeric bonus at all, just a different item entirely per tier.
+      bonusSel.innerHTML = Object.entries(item.tiers)
+        .map(([n, t]) => `<option value="${n}">${t.name}</option>`).join('');
+      bonusSel.value = String(item.magicBonus || 1);
+    } else {
+      // Tier range comes from rarityByBonus's keys when present (items whose
+      // rarity scales with the bonus), otherwise an explicit maxBonus field
+      // (items like Enhanced Arcane Focus that only go up to +2 and don't
+      // change rarity) — falls back to 3 as a reasonable default.
+      const maxBonus = item.rarityByBonus ? Math.max(...Object.keys(item.rarityByBonus).map(Number)) : (item.maxBonus || 3);
+      bonusSel.innerHTML = '<option value="0">None</option>' +
+        Array.from({length: maxBonus}, (_, i) => i+1).map(n => `<option value="${n}">+${n}</option>`).join('');
+      bonusSel.value = String(item.magicBonus || 0);
+    }
   }
 
   // Show the bonus-tier field for any "variable" item — weapon, armor,
@@ -28003,12 +28028,13 @@ function populateMagicItemEditForm(item, resetPending = true) {
   // key directly, rather than the old item.isWeapon shortcut, which
   // silently missed armor- and shield-type variable items entirely.
   const fx = item.effects || {};
-  const hasVariableBonus = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable';
+  const hasVariableBonus = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable' || !!item.tiers;
   const bonusRow = document.getElementById('mi-edit-bonus-row');
   if (bonusRow) bonusRow.style.display = hasVariableBonus ? '' : 'none';
   const bonusLabel = document.querySelector('#mi-edit-bonus-row .field-label');
   if (bonusLabel) {
-    const labelText = fx.weaponBonus === 'variable' ? (item.isArmour ? 'Magic Bonus (armor)' : 'Magic Bonus (weapon)')
+    const labelText = item.tiers ? 'Potion Tier'
+      : fx.weaponBonus === 'variable' ? (item.isArmour ? 'Magic Bonus (armor)' : 'Magic Bonus (weapon)')
       : (fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable') ? 'Magic Bonus (spell)'
       : 'Magic Bonus';
     bonusLabel.textContent = labelText;
@@ -30700,6 +30726,7 @@ function onChoiceChange(id, value) {
   renderClassChoices();
   renderKnownSpells();
   if (typeof syncSubclassResistances === 'function') syncSubclassResistances();
+  if (typeof renderSkillsBlock === 'function') renderSkillsBlock();
   debouncedSave();
 
   // Trigger spell picker for choices that grant spells
