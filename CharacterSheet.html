@@ -3483,6 +3483,19 @@ select:not([multiple]) {
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="starry-form-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div>
+        <div class="modal-title" style="border:none;padding:0;margin:0">Starry Form</div>
+        <div id="starry-form-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:2px"></div>
+      </div>
+      <button class="tbtn" style="margin-left:auto" onclick="closeModal('starry-form-modal')">✕ Close</button>
+    </div>
+    <div id="starry-form-body" style="overflow-y:auto;padding:16px 20px;flex:1"></div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="arcane-recovery-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
   <div class="modal-box" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
@@ -7006,6 +7019,7 @@ function enterApp() {
   _safe('migrate',          () => migrateToMulticlass());
   _safe('syncLegacy',        () => syncLegacyClassFields());
   _safe('mutableFormCheck', () => deactivateMutableFormIfIneligible());
+  _safe('starryFormCheck',  () => deactivateStarryFormIfIneligible());
   _safe('summary',          () => updateCharSummary());
   _safe('syncStatus',       () => setSyncStatus('ok', '✓ Loaded'));
   // Clean up stale _auto feats and empty entries from older saves
@@ -7478,7 +7492,7 @@ const PHB_SUBCLASSES = {
   "druid/land": {"name":"Circle of the Land","source":"PHB","bonusSpells":["blur", "burning_hands", "fire_bolt", "fireball", "blight", "wall_of_stone"],"features":[{"name": "Circle of the Land Spells", "level": 3, "desc": "After each Long Rest, choose one type of land: Arid, Polar, Temperate, or Tropical. Certain spells are always prepared based on your choice.", "usages": null, "recovery": null}, {"name": "Natural Recovery", "level": 6, "desc": "Once per Long Rest, cast a prepared Circle spell (level 1+) without using a spell slot. After a Short Rest, recover spell slots with a combined level equal to half my Druid level (rounded up).", "usages": 1, "recovery": "long rest"}, {"name": "Nature's Ward", "level": 10, "desc": "I am Immune to the Poisoned condition, and have damage resistance associated with my current land choice.", "usages": null, "recovery": null}, {"name": "Nature Sanctuary", "level": 14, "desc": "As a Magic Action, I can use Wild Shape to create a 15-ft cube within 120 ft that lasts 1 minute or until I lose Concentration. Creatures in the cube have Disadvantage on saves and attack rolls vs me and my allies.", "usages": null, "recovery": null}]},
   "druid/moon": {"name":"Circle of the Moon","source":"PHB","bonusSpells":["cure_wounds", "moonbeam", "starry_wisp", "conjure_animals", "fount_of_moonlight", "mass_cure_wounds"],"features":[{"name":"Circle Forms","level":3,"desc":"In Wild Shape: My maximum form's Challenge Rating is my Druid level divided by 3. My AC becomes greatest of 13 plus my Wisdom modifier or the Beast's AC. I also gain Temporary Hit Points equal to three times my Druid level.","usages":null,"recovery":null},{"name":"Improved Circle Forms","level":6,"desc":"In Wild Shape, I can choose to deal Radiant damage with my attacks. I also add my Wisdom modifier to Constitution saving throws.","usages":null,"recovery":null},{"name":"Moonlight Step","level":10,"desc":"As a Bonus Action, I can teleport up to 30 feet and gain Advantage on my next attack roll this turn. I can do this a number of times per long rest equal to my Wisdom modifier or by expending a level 2+ spell slot.","usages":null,"recovery":"long rest"},{"name":"Lunar Form","level":14,"desc":"Once per turn, I can deal an extra 2d10 Radiant damage with a Wild Shape attack. When using Moonlight Step, I can also teleport one willing creature within 10 feet to a space within 10 feet of my destination.","usages":null,"recovery":null}]},
   "druid/sea": {"name": "Circle of the Sea", "source": "PHB", "bonusSpells": ["fog_cloud", "gust_of_wind", "ray_of_frost", "shatter", "thunderwave", "lightning_bolt", "water_breathing", "control_water", "ice_storm", "conjure_elemental", "hold_monster"], "features": [{"name": "Wrath of the Sea", "level": 3, "desc": "As a Bonus Action, use Wild Shape to create a 5-ft ocean spray around me for 10 minutes. Each turn I can force one creature in the spray to make a STR save or take 1d6 + WIS Cold damage and be pushed 15 ft.", "usages": null, "recovery": null}, {"name": "Gift of the Sea", "level": 3, "desc": "I gain Swim Speed equal to my walking Speed and the ability to breathe underwater.", "usages": null, "recovery": null}, {"name": "Aquatic Affinity", "level": 6, "desc": "My ocean spray increases to a 10-ft radius. Allies in my spray gain Swim Speed equal to their walking Speed.", "usages": null, "recovery": null}, {"name": "Stormborn", "level": 10, "desc": "While my ocean spray is active, I gain Fly Speed equal to my walking Speed and Resistance to Cold, Lightning, and Thunder damage.", "usages": null, "recovery": null}, {"name": "Oceanic Gift", "level": 14, "desc": "I can manifest my ocean spray around another willing creature within 60 ft instead of myself. By expending two Wild Shape uses, I can have both myself and another creature benefit simultaneously.", "usages": null, "recovery": null}]},
-  "druid/stars": {"name":"Circle of Stars","source":"PHB","features":[{"name":"Star Map","level":3,"desc":"I've created a star map, a Tiny object which i can use as my spellcasting focus. If I lose it, I can recreate the map during a Short or Long Rest. While holding it, I know the Guidance cantrip and always have Guiding Bolt prepared. I can cast Guiding Bolt without expending a spell slot, up to my Wisdom modifier times per Long Rest.","usages":"wis_mod","recovery":"long rest"},{"name":"Starry Form","level":3,"desc":"As a bonus action, I can expend a use of wild shape to take on a starry form for 10 min. In that form I become luminous and shed bright light in a 10-ft radius and dim light for an extra 10-ft radius. When I do so, I choose one constellation that glimmers on my body, granting me benefits. See the Constellations Table for the three options.","usages":null,"recovery":null},{"name":"Constellations Table","level":3,"desc":"Choose one when I assume my Starry Form (I can switch at the start of each turn from level 10+, per Twinkling Constellations):\n\nArcher: As a bonus action, I can make a ranged spell attack to hurl a luminous arrow 60 ft, dealing 1d8 + Wisdom modifier Radiant damage (2d8 + Wisdom modifier at level 10+).\n\nChalice: When I cast a healing spell with a spell slot, I can heal myself or another creature within 30 ft of me for an extra 1d8 + Wisdom modifier (2d8 + Wisdom modifier at level 10+) Hit Points.\n\nDragon: I can treat a roll below 10 as a 10 for Intelligence, Wisdom, or Constitution checks and saving throws made to maintain Concentration. From level 10+, I also gain a Fly Speed of 20 ft and can hover.","usages":null,"recovery":null,"isTable":true},{"name":"Cosmic Omen","level":6,"desc":"When I finish a long rest, I roll a die to gain an omen based on the result (odd/even). As a reaction when a creature I can see in 30 ft makes a D20 Test, I can: • Weal (even): add 1d6 to the number rolled to the total. • Woe (odd): subtract 1d6 from the number rolled from the total.","usages":null,"recovery":null},{"name":"Twinkling Constellations","level":10,"desc":"While in my starry form, I can change the constellation at the start of each of my turns. The benefit of my constellations improve, see the Constellations Table.","usages":null,"recovery":null},{"name":"Full of Stars","level":14,"desc":"while in starry form, I gain Resistance to Bludgeoning, Piercing, and Slashing damage.","usages":null,"recovery":null}]},
+  "druid/stars": {"name":"Circle of Stars","source":"PHB","features":[{"name":"Star Map","level":3,"desc":"I've created a star map, a Tiny object which i can use as my spellcasting focus. If I lose it, I can recreate the map during a Short or Long Rest. While holding it, I know the Guidance cantrip and always have Guiding Bolt prepared. I can cast Guiding Bolt without expending a spell slot, up to my Wisdom modifier times per Long Rest.","usages":"wis_mod","recovery":"long rest"},{"name":"Starry Form","level":3,"desc":"As a bonus action, I can expend a use of wild shape to take on a starry form for 10 min. In that form I become luminous and shed bright light in a 10-ft radius and dim light for an extra 10-ft radius. When I do so, I choose one constellation that glimmers on my body, granting me benefits — Archer, Chalice, or Dragon (see the Starry Form panel on the Wild Shape tab).","usages":null,"recovery":null},{"name":"Cosmic Omen","level":6,"desc":"When I finish a long rest, I roll a die to gain an omen based on the result (odd/even). As a reaction when a creature I can see in 30 ft makes a D20 Test, I can: • Weal (even): add 1d6 to the number rolled to the total. • Woe (odd): subtract 1d6 from the number rolled from the total.","usages":null,"recovery":null},{"name":"Twinkling Constellations","level":10,"desc":"While in my starry form, I can change the constellation at the start of each of my turns. The benefit of my constellations improve, see the Starry Form panel.","usages":null,"recovery":null},{"name":"Full of Stars","level":14,"desc":"while in starry form, I gain Resistance to Bludgeoning, Piercing, and Slashing damage.","usages":null,"recovery":null}]},
   "fighter/battle master": {"name":"Battle Master","source":"PHB","features":[{"name":"Combat Superiority","level":3,"desc":"    I gain a number of superiority dice that I can use to fuel special Maneuvers    I regain all superiority dice after a short rest","usages":[0],"recovery":"short rest"},{"name":"Know Your Enemy","level":7,"desc":"    If I spend 1 min studying someone, the DM will tell me info about him/her","usages":null,"recovery":null},{"name":"Improved Combat Superiority","level":10,"desc":"    My superiority dice turn into d10s at 10th level and into d12s at 18th level","usages":null,"recovery":null},{"name":"Relentless","level":15,"desc":"    I regain one superiority die if I have no more remaining when I roll initiative","usages":null,"recovery":null}]},
   "fighter/champion": {"name":"Champion","source":"PHB","features":[{"name":"Improved Critical","level":3,"desc":"I score a critical hit with my weapon attacks/Unarmed Strikes on a roll of 19 and 20","usages":null,"recovery":null},{"name":"Remarkable Athlete","level":3,"desc":"I have Advantage on Initiative and Strength(Athletics) checks On a critical hit, I can move half my Speed without provoking Opportunity Attacks","usages":null,"recovery":null},{"name":"Additional Fighting Style","level":7,"desc":"I gain a +2 bonus to attack rolls I make with Ranged weapons.","usages":null,"recovery":null},{"name":"Heroic Warrior","level":10,"desc":"I gain Heroic Inspiration in combat when I start a turn without it","usages":null,"recovery":null},{"name":"Superior Critical","level":15,"desc":"I score a critical hit with my weapon attacks/Unarmed Strikes on a roll of 18, 19, and 20","usages":null,"recovery":null},{"name":"Survivor","level":18,"desc":"I roll with Advantage on Death Saves and 18-19 counts as a critical success At the start of my turn, if I'm not above half or at 0 HP, I regain 5 + Con mod HP","usages":null,"recovery":null}]},
   "fighter/eldritch knight": {"name":"Eldritch Knight","source":"PHB","features":[{"name":"Spellcasting","level":3,"desc":"    I can cast known wizard cantrips/spells, using Intelligence as my spellcasting ability","usages":null,"recovery":null},{"name":"War Magic","level":7,"desc":"    When I use my action to cast a cantrip, I can make a weapon attack as a bonus action","usages":null,"recovery":null},{"name":"Eldritch Strike","level":10,"desc":"    A creature hit by my weapon attack has disadv. on the save vs. the next spell I cast    This lasts until the end of my next turn","usages":null,"recovery":null},{"name":"Arcane Charge","level":15,"desc":"    When I use Action Surge, I can also teleport up to 30 ft to an empty space I can see    I can do so before or after the extra action","usages":null,"recovery":null},{"name":"Improved War Magic","level":18,"desc":"    When I use my action to cast a spell, I can make a weapon attack as a bonus action","usages":null,"recovery":null}]},
@@ -17692,6 +17706,8 @@ function ensureActiveEffects() {
 function isEffectActive(id) {
   ensureActiveEffects();
   if (id === 'mutable_form') return !!currentChar?._mutableForm?.active;
+  if (id === 'starry_form') return !!currentChar?._starryForm?.active;
+  if (id === 'starry_form_dragon') return !!currentChar?._starryForm?.active && currentChar._starryForm.constellation === 'dragon' && getCircleOfStarsLevel() >= 10;
   if (!isEffectEligible(id)) return false; // never report active if no longer eligible (e.g. after a subclass change)
   return !!currentChar._activeEffects[id];
 }
@@ -19018,10 +19034,11 @@ function calcSpeed() {
   // Fly/hover speed: fly override and hover are independent types
   const raceFly   = currentChar?._raceFlySpeed || 0;
   const effectFly = isEffectActive('dragon_wings') ? (ACTIVE_EFFECT_DEFS.dragon_wings.flySpeed || 60) : 0;
-  const autoFly   = Math.max(raceFly, effectFly);
+  const starryFly = isEffectActive('starry_form_dragon') ? 20 : 0;
+  const autoFly   = Math.max(raceFly, effectFly, starryFly);
   const flySpeed   = overrides.fly > 0 ? overrides.fly : autoFly;
   const hoverSpeed = overrides.hover || 0;
-  const flySource  = overrides.fly > 0 ? '' : effectFly > 0 ? ' (Dragon Wings)' : raceFly > 0 ? ' (Racial)' : '';
+  const flySource  = overrides.fly > 0 ? '' : effectFly > 0 ? ' (Dragon Wings)' : starryFly > 0 ? ' (Starry Form)' : raceFly > 0 ? ' (Racial)' : '';
 
   // Build all speed parts
   const parts = [];
@@ -25565,6 +25582,46 @@ function renderAttacksPanel() {
     });
   }
 
+  // ── Starry Form: Archer constellation ──────────────────────
+  // Only a real, clickable attack row while the form is actually active
+  // with Archer chosen — disappears the instant the form ends or the
+  // constellation is switched, so it can't be mistaken for a standing option.
+  if (typeof isEffectActive === 'function' && isEffectActive('starry_form') && currentChar._starryForm?.constellation === 'archer') {
+    if (hasAnyAttack) {
+      const div = document.createElement('div');
+      div.style.cssText = 'font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:10px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px';
+      div.textContent = 'Starry Form';
+      body.appendChild(div);
+    }
+    hasAnyAttack = true;
+
+    const starsLv = getCircleOfStarsLevel();
+    const upgraded = starsLv >= 10;
+    const wisMod = abilityMod(getAbilities().wis);
+    const dmgStr = upgraded ? `2d8${wisMod!==0?(wisMod>=0?' + '+wisMod:' - '+Math.abs(wisMod)):''} Radiant` : `1d8${wisMod!==0?(wisMod>=0?' + '+wisMod:' - '+Math.abs(wisMod)):''} Radiant`;
+    const atkStr = spellAtk!==null ? (spellAtk>=0?'+':'')+spellAtk+(hasSpellAtkAdvantage()?' (Adv)':'') : '—';
+
+    const archerRow = document.createElement('div');
+    archerRow.className = 'attack-row';
+    archerRow.style.cssText = 'background:var(--bg3);border:1px solid var(--accent);border-radius:var(--radius);display:grid;grid-template-columns:minmax(120px,auto) 1fr auto auto auto;gap:0 8px;align-items:center;padding:5px 8px;margin-bottom:3px';
+    archerRow.innerHTML = `
+      <div>
+        <div class="attack-name">Luminous Arrow</div>
+        <div class="attack-sub">Ranged Spell Attack · 60 ft · Bonus Action</div>
+      </div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 12px;line-height:1.4;align-self:center">Archer constellation — hurl a luminous arrow of starlight.</div>
+      <div style="text-align:center">
+        <div class="attack-stat">${atkStr}</div>
+        <div class="attack-stat-label">To Hit</div>
+      </div>
+      <div style="text-align:center">
+        <div class="attack-stat" style="font-size:11px">${dmgStr}</div>
+        <div class="attack-stat-label">Damage</div>
+      </div>
+      <div><span class="attack-type-badge cantrip" style="background:var(--accent);color:#000">STARRY</span></div>`;
+    body.appendChild(archerRow);
+  }
+
   if (!hasAnyAttack) {
     body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No weapons equipped. Add weapons using the button below.</div>';
   }
@@ -28780,6 +28837,7 @@ function onClassChange() {
   }
   buildSubclassDropdown(currentChar.class);
   deactivateMutableFormIfIneligible();
+  deactivateStarryFormIfIneligible();
   deactivateIneligibleActiveEffects();
   updateHDDisplay();
   recalcAll();
@@ -28815,6 +28873,7 @@ function onSubclassChange() {
     if (entry) entry.subclass = newSub;
   }
   deactivateMutableFormIfIneligible();
+  deactivateStarryFormIfIneligible();
   deactivateIneligibleActiveEffects();
   autoSetACMethod();
   recalcAll();
@@ -35224,6 +35283,191 @@ function refreshMutableFormMechanics() {
 window.refreshMutableFormMechanics = refreshMutableFormMechanics;
 
 // ═══════════════════════════════════════════════════════════
+// STARRY FORM MODAL (Circle of Stars Druid)
+// ═══════════════════════════════════════════════════════════
+const STARRY_CONSTELLATIONS = {
+  archer: {
+    label: 'Archer',
+    descBase: 'Bonus action: ranged spell attack, 60 ft, 1d8 + WIS Radiant damage.',
+    descUp:   'Bonus action: ranged spell attack, 60 ft, 2d8 + WIS Radiant damage.',
+  },
+  chalice: {
+    label: 'Chalice',
+    descBase: 'When I cast a healing spell with a spell slot, I can also heal myself or a creature within 30 ft for an extra 1d8 + WIS.',
+    descUp:   'When I cast a healing spell with a spell slot, I can also heal myself or a creature within 30 ft for an extra 2d8 + WIS.',
+  },
+  dragon: {
+    label: 'Dragon',
+    descBase: 'Treat a roll below 10 as a 10 for INT/WIS/CON checks and saves made to maintain Concentration.',
+    descUp:   'Treat a roll below 10 as a 10 for INT/WIS/CON checks and saves made to maintain Concentration. Fly speed 20 ft (can hover).',
+  },
+};
+
+function openStarryFormModal() {
+  renderStarryFormModal();
+  openModal('starry-form-modal');
+}
+window.openStarryFormModal = openStarryFormModal;
+
+function renderStarryFormModal() {
+  const body   = document.getElementById('starry-form-body');
+  const metaEl = document.getElementById('starry-form-meta');
+  if (!body || !currentChar) return;
+
+  const subLv    = getCircleOfStarsLevel();
+  const hasUp    = subLv >= 10;   // Twinkling Constellations — upgraded benefits, switch freely
+  const hasResist = subLv >= 14;  // Full of Stars
+
+  const state    = currentChar._starryForm || {};
+  const isActive = !!state.active;
+  const wisMod   = abilityMod(getAbilities().wis);
+
+  const usesMax  = getWildShapeUsesMax();
+  const usesUsed = parseInt(currentChar._wsUsesUsed) || 0;
+  const usesLeft = Math.max(0, usesMax - usesUsed);
+
+  if (metaEl) {
+    metaEl.textContent = isActive
+      ? `ACTIVE · Duration: 10 minutes${hasUp ? ' · switch constellation freely each turn' : ''}`
+      : `Circle of Stars level ${subLv} · Costs 1 Wild Shape use (${usesLeft}/${usesMax} left) · Bonus Action`;
+    metaEl.style.color = isActive ? 'var(--accent)' : '';
+    metaEl.style.fontSize = '12px';
+  }
+
+  const constOpts = (chosen, onSelect, locked) => Object.entries(STARRY_CONSTELLATIONS).map(([id, c]) => {
+    const sel = chosen === id;
+    const desc = hasUp ? c.descUp : c.descBase;
+    return `<div ${locked ? '' : `onclick="${onSelect}('${id}')"`}
+      style="border:2px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'rgba(45,168,109,.1)':'var(--bg3)'};border-radius:var(--radius);padding:10px 14px;${locked?'':'cursor:pointer'};display:flex;align-items:flex-start;gap:12px;margin-bottom:8px">
+      <div style="width:16px;height:16px;border-radius:50%;border:2px solid ${sel?'var(--accent)':'var(--border2)'};background:${sel?'var(--accent)':'transparent'};flex-shrink:0;margin-top:2px"></div>
+      <div><div style="font-family:var(--font-ui);font-size:13px;font-weight:700;color:${sel?'var(--accent)':'var(--text)'}">${c.label}</div>
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5">${desc}</div></div>
+      </div>`;
+  }).join('');
+
+  let html = '';
+
+  if (!isActive) {
+    html += `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
+      <div style="font-family:var(--font-ui);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Base Benefits</div>
+      <div style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:2">
+        • Luminous — shed bright light 10 ft, dim light +10 ft<br>
+        • Duration: <strong>10 minutes</strong><br>
+        ${hasResist ? '• <strong>Full of Stars:</strong> Resistance to Bludgeoning, Piercing, Slashing<br>' : ''}
+      </div></div>
+      <div style="margin-bottom:6px">
+        <div style="font-family:var(--font-ui);font-size:11px;font-weight:700;color:var(--text);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Choose a Constellation</div>
+        ${constOpts(state.constellation || '', 'setStarryFormConstellation', false)}
+      </div>
+      <button onclick="activateStarryForm()" class="btn-primary" style="margin-top:6px" ${!state.constellation || usesLeft<=0 ? 'disabled' : ''}>
+        ${usesLeft<=0 ? 'No Wild Shape uses left' : '▶ ACTIVATE — Spend 1 Wild Shape Use'}
+      </button>`;
+  } else {
+    const c = STARRY_CONSTELLATIONS[state.constellation];
+    html += `<div style="background:rgba(45,168,109,.1);border:2px solid var(--accent);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+      <div style="font-family:var(--font-title);font-size:16px;font-weight:700;color:var(--accent);margin-bottom:12px;letter-spacing:1px">◉ STARRY FORM ACTIVE</div>
+      <div style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.9">
+        • Luminous — bright light 10 ft, dim +10 ft<br>
+        • <strong>${c?.label||'—'}:</strong> ${c ? (hasResist ? c.descUp : c.descBase) : '—'}<br>
+        ${hasResist ? '• <strong>Full of Stars:</strong> Resistance to Bludgeoning, Piercing, Slashing<br>' : ''}
+        • WIS modifier: <strong>${wisMod>=0?'+':''}${wisMod}</strong>
+      </div></div>`;
+
+    if (hasUp) {
+      html += `<div style="margin-bottom:16px">
+        <div style="font-family:var(--font-ui);font-size:11px;font-weight:700;color:var(--text);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Twinkling Constellations — Switch Freely</div>
+        ${constOpts(state.constellation || '', 'setStarryFormConstellation', false)}
+      </div>`;
+    }
+
+    html += `<button class="tbtn" style="color:var(--red);border-color:var(--red);font-size:11px" onclick="endStarryForm()">✕ End Form</button>`;
+  }
+
+  body.innerHTML = html;
+}
+window.renderStarryFormModal = renderStarryFormModal;
+
+function activateStarryForm() {
+  if (!currentChar) return;
+  if (!currentChar._starryForm) currentChar._starryForm = {};
+  if (!currentChar._starryForm.constellation) { toast('Choose a constellation first.', 'info'); return; }
+
+  const usesMax  = getWildShapeUsesMax();
+  const usesUsed = parseInt(currentChar._wsUsesUsed) || 0;
+  if (usesUsed >= usesMax) { toast('No Wild Shape uses left.', 'info'); return; }
+
+  currentChar._wsUsesUsed = usesUsed + 1;
+  currentChar._starryForm.active = true;
+
+  syncStarryFormMechanics();
+  renderStarryFormModal();
+  if (typeof renderWildShapeList === 'function') renderWildShapeList();
+  debouncedSave();
+}
+window.activateStarryForm = activateStarryForm;
+
+function setStarryFormConstellation(id) {
+  if (!currentChar) return;
+  if (!currentChar._starryForm) currentChar._starryForm = {};
+  currentChar._starryForm.constellation = id;
+  syncStarryFormMechanics();
+  renderStarryFormModal();
+  debouncedSave();
+}
+window.setStarryFormConstellation = setStarryFormConstellation;
+
+function endStarryForm() {
+  if (!currentChar?._starryForm) return;
+  currentChar._starryForm.active = false;
+  syncStarryFormMechanics();
+  renderStarryFormModal();
+  debouncedSave();
+}
+window.endStarryForm = endStarryForm;
+
+// Auto-deactivate if the character is no longer eligible (e.g. subclass
+// changed away from Circle of Stars) — the Wild Shape use already spent
+// is not refunded, matching how Mutable Form handles the same situation.
+function deactivateStarryFormIfIneligible() {
+  if (!currentChar?._starryForm?.active) return;
+  if (getCircleOfStarsLevel() >= 3) return;
+  currentChar._starryForm.active = false;
+  syncStarryFormMechanics();
+  if (typeof toast === 'function') toast('Starry Form deactivated — no longer Circle of Stars', 'info');
+}
+window.deactivateStarryFormIfIneligible = deactivateStarryFormIfIneligible;
+
+// Full of Stars (level 14): Bludgeoning/Piercing/Slashing resistance
+// while Starry Form is active. Conditional on active state, so this is
+// synced separately from syncSubclassResistances() rather than folded
+// into it — that function only handles always-on, level-gated grants.
+function syncStarryFormMechanics() {
+  if (!currentChar) return;
+  if (!currentChar.damageStates) currentChar.damageStates = {};
+  const RESIST_TYPES = ['bludgeoning', 'piercing', 'slashing'];
+  const shouldGrant = isEffectActive('starry_form') && getCircleOfStarsLevel() >= 14;
+  const prevAuto = currentChar._starryFormAutoResistances || [];
+
+  prevAuto.forEach(t => {
+    if (currentChar.damageStates[t] === 'resistant' && !shouldGrant) delete currentChar.damageStates[t];
+  });
+
+  if (shouldGrant) {
+    RESIST_TYPES.forEach(t => { if (!currentChar.damageStates[t]) currentChar.damageStates[t] = 'resistant'; });
+    currentChar._starryFormAutoResistances = RESIST_TYPES;
+  } else {
+    currentChar._starryFormAutoResistances = [];
+  }
+
+  if (typeof calcSpeed === 'function') calcSpeed();
+  if (typeof renderSavesBlock === 'function') renderSavesBlock();
+  if (typeof recalcQuickStats === 'function') recalcQuickStats();
+  if (typeof renderActiveEffects === 'function') renderActiveEffects();
+  if (typeof renderResistances === 'function') renderResistances();
+}
+window.syncStarryFormMechanics = syncStarryFormMechanics;
+
+// ═══════════════════════════════════════════════════════════
 // SUMMON TAB
 // ═══════════════════════════════════════════════════════════
 
@@ -36766,6 +37010,7 @@ function onMulticlassChange(skipRows) {
   try {
   syncLegacyClassFields();
   deactivateMutableFormIfIneligible();
+  deactivateStarryFormIfIneligible();
   deactivateIneligibleActiveEffects();
   // Recalculate HP if using an auto method
   if (currentChar.hp_method && currentChar.hp_method !== 'manual') {
@@ -37181,7 +37426,8 @@ window.quickStartOpenSpellModal = quickStartOpenSpellModal;
 
 function renderQuickStartItemsStep(body) {
   const bgKey = currentChar.background;
-  const bg = bgKey ? (PHB_BACKGROUNDS[bgKey] || Object.values(PHB_BACKGROUNDS).find(b => b.name === bgKey)) : null;
+  const bg = bgKey ? (PHB_BACKGROUNDS[bgKey] || PHB_BACKGROUNDS[bgKey.toLowerCase()] || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === bgKey.toLowerCase())) : null;
+  const bgNormKey = bg ? (Object.keys(PHB_BACKGROUNDS).find(k => PHB_BACKGROUNDS[k] === bg) || bgKey) : bgKey;
   const currentGP = currentChar.currency?.gp || 0;
 
   body.innerHTML = `
@@ -37200,9 +37446,9 @@ function renderQuickStartItemsStep(body) {
       <div style="margin-bottom:16px;padding:10px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)">
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-bottom:6px">${bg.name.toUpperCase()} STARTING EQUIPMENT</div>
         <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px">${bg.equipment.filter(e => e !== 'P24').join(', ')}</div>
-        <button class="tbtn" id="qs-bg-equip-btn" style="width:100%;justify-content:center" ${currentChar._qsBgEquipAdded === bgKey ? 'disabled' : ''}
-          onclick="quickStartAddBackgroundEquipment('${bgKey}')">
-          ${currentChar._qsBgEquipAdded === bgKey ? '✓ Added to Inventory' : '+ Add This Equipment to Inventory'}
+        <button class="tbtn" id="qs-bg-equip-btn" style="width:100%;justify-content:center" ${currentChar._qsBgEquipAdded === bgNormKey ? 'disabled' : ''}
+          onclick="quickStartAddBackgroundEquipment('${bgNormKey}')">
+          ${currentChar._qsBgEquipAdded === bgNormKey ? '✓ Added to Inventory' : '+ Add This Equipment to Inventory'}
         </button>
       </div>` : ''}
 
@@ -37409,14 +37655,22 @@ function renderQuickStartBackgroundDetail(key) {
 // gear rows — most background equipment entries are plain items rather
 // than weapons/armor needing their own dedicated stat-tracking modal.
 function quickStartAddBackgroundEquipment(key) {
-  const bg = PHB_BACKGROUNDS[key];
-  if (!bg || !currentChar || currentChar._qsBgEquipAdded === key) return;
+  const bg = PHB_BACKGROUNDS[key]
+          || PHB_BACKGROUNDS[key?.toLowerCase()]
+          || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === key?.toLowerCase());
+  // Always resolve the actual storage key from the found object, rather
+  // than trusting whatever form was passed in — this is what gets
+  // compared against later to decide whether the button should be
+  // disabled, so it has to be consistent every time regardless of
+  // whether this call arrived with a key or a display name.
+  const normKey = bg ? (Object.keys(PHB_BACKGROUNDS).find(k => PHB_BACKGROUNDS[k] === bg) || key) : key;
+  if (!bg || !currentChar || currentChar._qsBgEquipAdded === normKey) return;
   if (!currentChar.equipment) currentChar.equipment = [];
   const equipList = (bg.equipment || []).filter(e => e !== 'P24' && e !== bg.scoresTxt && !bg.skills?.includes(e));
   equipList.forEach(name => {
     currentChar.equipment.push({ name, qty: 1, weight: '', desc: '' });
   });
-  currentChar._qsBgEquipAdded = key;
+  currentChar._qsBgEquipAdded = normKey;
   if (typeof renderEquipList === 'function') renderEquipList();
   debouncedSave();
   toast(`Added ${equipList.length} item(s) from ${bg.name}.`, 'ok');
@@ -37596,6 +37850,22 @@ function quickStartNext() {
     const undecided = slots.filter(s => !s.locked && !decisions[s.id]?.choice);
     if (undecided.length) {
       toast(`${undecided.length} feat/ASI choice(s) still open — you can always set these later.`, 'info');
+    }
+    // A feat can be chosen but still need its own configuration completed
+    // (Magic Initiate's specific cantrip/spell picks, for instance) — this
+    // is a separate check from "was a choice made at all" above.
+    const needsConfig = slots.filter(s => {
+      const dec = decisions[s.id] || {};
+      const isDual = s.locked && s.locked.includes(' or ');
+      const chosenFeat = s.locked ? (isDual ? dec.feat : s.locked) : (dec.choice === 'feat' ? dec.feat : null);
+      if (!chosenFeat) return false;
+      return featNeedsModal(chosenFeat) && !dec.featDetail;
+    });
+    if (needsConfig.length) {
+      toast(`${needsConfig.map(s => {
+        const dec = decisions[s.id] || {};
+        return s.locked ? (dec.feat || s.locked) : dec.feat;
+      }).join(', ')} still need${needsConfig.length===1?'s':''} its options configured (⚙ Config, above) — you can always finish this later.`, 'info');
     }
   }
 
@@ -38208,6 +38478,18 @@ function isMoonDruid() {
   );
 }
 
+// Returns the Druid class level if the character has Circle of Stars,
+// else 0 — used to gate Starry Form's level-3/10/14 feature scaling.
+function getCircleOfStarsLevel() {
+  if (!currentChar) return 0;
+  const entry = getAllClasses().find(e =>
+    (e.class||'').toLowerCase() === 'druid' &&
+    (e.subclass||'').toLowerCase().includes('star')
+  );
+  return entry ? (entry.levels?.length || 0) : 0;
+}
+window.getCircleOfStarsLevel = getCircleOfStarsLevel;
+
 function isTitanDruid() {
   if (!currentChar) return false;
   const classes = getAllClasses();
@@ -38384,6 +38666,7 @@ function renderWildShapeList() {
         ${!flyAllowed ? '<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);background:var(--bg3);border-radius:3px;padding:2px 5px">No fly (lv 8+)</span>' : ''}
         ${isMoonDruid() ? '<span style="font-family:var(--font-ui);font-size:9px;color:var(--amber);background:var(--bg3);border-radius:3px;padding:2px 5px">Circle of the Moon · CR ' + maxCR + '</span>' : ''}
         ${isTitanDruid() ? '<span style="font-family:var(--font-ui);font-size:9px;color:var(--accent);background:var(--bg3);border-radius:3px;padding:2px 5px">Circle of the Titan</span>' : ''}
+        ${getCircleOfStarsLevel() >= 3 ? `<button onclick="openStarryFormModal()" style="font-family:var(--font-ui);font-size:9px;padding:3px 8px;background:${currentChar._starryForm?.active ? 'var(--accent)' : 'var(--bg3)'};border:1px solid var(--accent);border-radius:var(--radius);color:${currentChar._starryForm?.active ? '#000' : 'var(--accent)'};cursor:pointer;font-weight:600">✦ ${currentChar._starryForm?.active ? 'Starry Form Active' : 'Starry Form'}</button>` : ''}
       </div>
     `;
   }
