@@ -7940,33 +7940,11 @@ const PHB_CLASS_CHOICES = {
         {
           "value": "thaumaturge",
           "label": "Thaumaturge",
-          "desc": "Gain proficiency in one skill from the Cleric list (Arcana, History, Insight, Medicine, Persuasion, or Religion)."
+          "desc": "Learn one extra Cleric cantrip. Add your Wisdom modifier (min +1) to Intelligence (Arcana) and Intelligence (Religion) checks — automatic, no skill choice needed."
         }
       ],
       "wires": [
-        "armor_prof",
-        "skill_prof"
-      ]
-    },
-    {
-      "id": "divine_order_skill",
-      "label": "Thaumaturge Skill",
-      "minLevel": 1,
-      "type": "dropdown",
-      "showIf": {
-        "id": "divine_order",
-        "value": "thaumaturge"
-      },
-      "options": [
-        "Arcana",
-        "History",
-        "Insight",
-        "Medicine",
-        "Persuasion",
-        "Religion"
-      ],
-      "wires": [
-        "skill_prof"
+        "armor_prof"
       ]
     }
   ],
@@ -8567,7 +8545,7 @@ const PHB_CLASS_CHOICES = {
         {
           "value": "Magician",
           "label": "Magician",
-          "desc": "Gain one extra Druid cantrip and proficiency in one of: Arcana, History, Nature, or Religion."
+          "desc": "Gain one extra Druid cantrip. Add your Wisdom modifier (min +1) to Intelligence (Arcana) and Intelligence (Nature) checks — automatic, no skill choice needed."
         },
         {
           "value": "Warden",
@@ -8575,16 +8553,6 @@ const PHB_CLASS_CHOICES = {
           "desc": "Gain proficiency with Martial weapons and training with Medium armor."
         }
       ]
-    },
-    {
-      "id": "primal_order_skill",
-      "label": "Primal Order: Magician — Skill",
-      "minLevel": 1,
-      "type": "dropdown",
-      "showIf": { "id": "primal_order", "value": "Magician" },
-      "options": ["Arcana","History","Nature","Religion"],
-      "desc": "Choose one skill to gain proficiency in.",
-      "wires": ["skill_prof"]
     }
   ]
 };
@@ -18766,6 +18734,29 @@ function toggleSaveProf(key) {
 // RENDER SKILLS
 // ═══════════════════════════════════════════════════════════
 
+// Divine Order (Thaumaturge) / Primal Order (Magician) — both grant a flat
+// bonus equal to Wisdom modifier (minimum +1) to two specific Intelligence
+// skill checks, automatically and simultaneously (not a proficiency grant,
+// and not a choice between the two skills — "Intelligence (Arcana or
+// Religion) checks" is standard notation meaning "an Intelligence check
+// that uses either of these skills", not "pick one permanently").
+function getOrderSkillBonus(skillKey) {
+  if (!currentChar) return 0;
+  const choices = currentChar.class_choices || {};
+  const wisMod = abilityMod(getAbilities().wis);
+  const bonus = Math.max(1, wisMod);
+  if (hasClass('cleric') && choices.divine_order === 'thaumaturge' &&
+      (skillKey === 'arcana' || skillKey === 'religion')) {
+    return bonus;
+  }
+  if (hasClass('druid') && choices.primal_order === 'Magician' &&
+      (skillKey === 'arcana' || skillKey === 'nature')) {
+    return bonus;
+  }
+  return 0;
+}
+window.getOrderSkillBonus = getOrderSkillBonus;
+
 function renderSkillsBlock() {
   const block = document.getElementById('skills-block');
   if (!block) return;
@@ -18781,7 +18772,8 @@ function renderSkillsBlock() {
     const isProf  = !!currentChar.skill_profs[sk.key];
     const isExpert= !!currentChar.skill_expert[sk.key];
     const bonus   = isExpert ? prof * 2 : (isProf ? prof : 0);
-    let total = mod + bonus - exPen;
+    const orderBonus = getOrderSkillBonus(sk.key);
+    let total = mod + bonus + orderBonus - exPen;
     const totalStr = (total >= 0 ? '+' : '') + total;
     const profClass = isExpert ? 'expert' : (isProf ? 'prof' : '');
 
@@ -18790,6 +18782,7 @@ function renderSkillsBlock() {
     skParts.push(`${sk.ability.toUpperCase()} ${mod >= 0 ? '+' : ''}${mod}`);
     if (isExpert)     skParts.push(`Expertise +${prof*2}`);
     else if (isProf)  skParts.push(`Prof +${prof}`);
+    if (orderBonus)   skParts.push(`${hasClass('cleric')?'Thaumaturge':'Magician'} +${orderBonus}`);
     if (exPen > 0)    skParts.push(`Exh \u2212${exPen}`);
     const skFormula = skParts.join(' + ').replace('+ \u2212', '\u2212') + ` = ${totalStr}`;
 
@@ -22186,6 +22179,11 @@ function getPreparedMax() {
   const HALF_PREPARED_TABLE = [2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15];
   const TABLE_2024_CLASSES = ['cleric', 'druid', 'paladin', 'ranger'];
 
+  // Artificer 2024 (Eberron: Forge of the Artificer) — also a fixed,
+  // level-only table, extracted directly from that source's own
+  // spellCalc override. Index 0 unused (no level 0).
+  const ARTIFICER_PREPARED_TABLE = [0,2,3,5,5,7,6,8,7,10,9,11,10,12,11,13,12,15,14,16,15];
+
   let total = 0;
   const parts = [];
   getAllClasses().forEach(entry => {
@@ -22206,6 +22204,8 @@ function getPreparedMax() {
       // 2024 fixed prepared-spells tables — no ability modifier involved
       const table = type === 'full' ? FULL_PREPARED_TABLE : HALF_PREPARED_TABLE;
       classMax = table[Math.min(lv, table.length) - 1] || 0;
+    } else if (cls === 'artificer') {
+      classMax = ARTIFICER_PREPARED_TABLE[Math.min(lv, ARTIFICER_PREPARED_TABLE.length - 1)] || 0;
     } else if (type === 'full')  {
       classMax = lv + mod;
     } else if (type === 'half')  {
@@ -30801,10 +30801,10 @@ function applyChoiceEffects() {
   });
   currentChar._autoSkillProfs = [];
 
-  if (hasClass('cleric') && choices.divine_order === 'thaumaturge' && choices.divine_order_skill) {
-    const sk = SKILLS.find(s => s.name === choices.divine_order_skill);
-    if (sk) { currentChar.skill_profs[sk.key] = true; currentChar._autoSkillProfs.push(sk.key); }
-  }
+  // Divine Order (Thaumaturge) / Primal Order (Magician) — no longer grant
+  // skill proficiency here; the actual 2024 rule is a flat Wisdom bonus to
+  // both relevant skills automatically, handled by getOrderSkillBonus()
+  // in renderSkillsBlock() instead.
 
   // ── Barbarian: Primal Knowledge skill (lv3) ──────────────
   if (hasClass('barbarian') && choices.primal_knowledge_skill) {
@@ -30815,11 +30815,8 @@ function applyChoiceEffects() {
     });
   }
 
-  // ── Druid: Primal Order Magician skill ──────────────────────
-  if (hasClass('druid') && choices.primal_order === 'Magician' && choices.primal_order_skill) {
-    const sk = SKILLS.find(s => s.name === choices.primal_order_skill);
-    if (sk) { currentChar.skill_profs[sk.key] = true; currentChar._autoSkillProfs.push(sk.key); }
-  }
+  // Primal Order (Magician) skill proficiency removed — see
+  // getOrderSkillBonus() note above the Thaumaturge removal.
 
   // ── Ancestral Sorcery: Ancestor's Lore skill ─────────────
   if (hasClass('sorcerer') && choices.ancestral_skill) {
@@ -35467,8 +35464,8 @@ const STARRY_CONSTELLATIONS = {
   },
   dragon: {
     label: 'Dragon',
-    descBase: 'Treat a roll below 10 as a 10 for INT/WIS/CON checks and saves made to maintain Concentration.',
-    descUp:   'Treat a roll below 10 as a 10 for INT/WIS/CON checks and saves made to maintain Concentration. Fly speed 20 ft (can hover).',
+    descBase: 'Treat a roll of 9 or lower as a 10 on Intelligence checks, Wisdom checks, or Constitution saving throws to maintain Concentration.',
+    descUp:   'Treat a roll of 9 or lower as a 10 on Intelligence checks, Wisdom checks, or Constitution saving throws to maintain Concentration. Fly speed 20 ft (can hover).',
   },
 };
 
