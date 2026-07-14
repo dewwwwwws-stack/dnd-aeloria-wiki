@@ -32657,7 +32657,8 @@ renderSkillsBlock = function() {
     const isProf   = !!currentChar.skill_profs[sk.key];
     const isExpert = !!currentChar.skill_expert[sk.key];
     const bonus    = isExpert ? prof * 2 : (isProf ? prof : (joat ? halfProf : 0));
-    let total = mod + bonus - exPen;
+    const orderBonus = getOrderSkillBonus(sk.key);
+    let total = mod + bonus + orderBonus - exPen;
     const totalStr = (total >= 0 ? '+' : '') + total;
     const profClass = isExpert ? 'expert' : (isProf ? 'prof' : '');
 
@@ -32676,6 +32677,7 @@ renderSkillsBlock = function() {
     if (isExpert && isProf) skParts.push(`Prof +${prof} ×2 (Expertise)`);
     else if (isProf)        skParts.push(`Prof +${prof}`);
     else if (joat)          skParts.push(`JoAT +${halfProf}`);
+    if (orderBonus)         skParts.push(`${hasClass('cleric')?'Thaumaturge':'Magician'} +${orderBonus}`);
     if (exPen > 0)          skParts.push(`Exh −${exPen}`);
     const skFormula = skParts.join(' + ').replace('+ −','−') + ` = ${totalStr}`;
 
