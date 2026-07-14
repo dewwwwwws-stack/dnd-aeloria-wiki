@@ -3100,6 +3100,7 @@ select:not([multiple]) {
             <span id="sp-cantrip-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:10px;font-weight:normal"></span>
           </span>
           <div style="display:flex;gap:6px;align-items:center">
+            <button class="tbtn" id="sp-feat-config-btn" style="font-size:9px;padding:2px 8px;color:var(--gold);border-color:var(--gold);display:none" onclick="openFeatConfigFromSpellsTab()"></button>
             <button class="tbtn" id="sp-levelup-btn" style="font-size:9px;padding:2px 8px;color:var(--accent);display:none" onclick="openLevelUpSpellModal()">✦ Manage Spells</button>
           </div>
         </div>
@@ -22562,7 +22563,16 @@ function countKnownCantrips() {
 
 function countPreparedSpells() {
   ensureSpellData();
-  return currentChar.spells.prepared.length;
+  // Wizards have a genuinely separate model — a larger spellbook plus a
+  // daily-prepared subset tracked in spells.prepared (an array of spell
+  // keys) — so that array is the correct source specifically for them.
+  // Every other prepare-freely class uses spells.known directly as their
+  // prepared list, with no separate spellbook concept, matching what the
+  // Manage Spells modal already correctly counts.
+  if (getCharSpellClasses().includes('wizard')) {
+    return (currentChar.spells?.prepared || []).length;
+  }
+  return (currentChar.spells?.known || []).filter(s => s.level > 0).length;
 }
 
 // ── Add / Remove spells ───────────────────────────────────
@@ -22687,6 +22697,7 @@ function renderKnownSpells() {
   const cantripCount = document.getElementById('sp-cantrip-count');
   if (!body || !currentChar) return;
   ensureSpellData();
+  if (typeof renderSpellsFeatConfigButton === 'function') renderSpellsFeatConfigButton();
 
   const sc = getPrimarySpellcasting();
   const isWiz   = getCharSpellClasses().includes('wizard');
@@ -38000,6 +38011,49 @@ function selectQuickStartSubrace(key) {
 }
 window.selectQuickStartSubrace = selectQuickStartSubrace;
 
+// A feat can be chosen but still need its own configuration completed
+// (Magic Initiate's specific cantrip/spell picks, for instance) — shared
+// so both the Quick Start wizard and the Spells tab can surface this.
+function getFeatsNeedingSpellConfig() {
+  const slots = getFeatSlots();
+  const decisions = getFeatSlotDecisions();
+  return slots.filter(s => {
+    const dec = decisions[s.id] || {};
+    const isDual = s.locked && s.locked.includes(' or ');
+    const chosenFeat = s.locked ? (isDual ? dec.feat : s.locked) : (dec.choice === 'feat' ? dec.feat : null);
+    if (!chosenFeat) return false;
+    return featNeedsModal(chosenFeat) && !dec.featDetail;
+  }).map(s => {
+    const dec = decisions[s.id] || {};
+    return { slotId: s.id, featName: s.locked ? (dec.feat || s.locked) : dec.feat };
+  });
+}
+window.getFeatsNeedingSpellConfig = getFeatsNeedingSpellConfig;
+
+// Opens the feat config modal directly from the Spells tab — no more
+// needing to know this lives under the Feats tab at all to find it.
+function openFeatConfigFromSpellsTab() {
+  const needing = getFeatsNeedingSpellConfig();
+  if (!needing.length) return;
+  openFeatDetailModal(needing[0].slotId, needing[0].featName);
+}
+window.openFeatConfigFromSpellsTab = openFeatConfigFromSpellsTab;
+
+function renderSpellsFeatConfigButton() {
+  const btn = document.getElementById('sp-feat-config-btn');
+  if (!btn || !currentChar) return;
+  const needing = getFeatsNeedingSpellConfig();
+  if (needing.length) {
+    btn.style.display = '';
+    btn.textContent = needing.length === 1
+      ? `⚠ Configure ${needing[0].featName}`
+      : `⚠ Configure ${needing.length} Feats`;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+window.renderSpellsFeatConfigButton = renderSpellsFeatConfigButton;
+
 function quickStartNext() {
   const stepId = QS_STEPS[_qsStepIndex];
 
@@ -38046,21 +38100,9 @@ function quickStartNext() {
     if (undecided.length) {
       toast(`${undecided.length} feat/ASI choice(s) still open — you can always set these later.`, 'info');
     }
-    // A feat can be chosen but still need its own configuration completed
-    // (Magic Initiate's specific cantrip/spell picks, for instance) — this
-    // is a separate check from "was a choice made at all" above.
-    const needsConfig = slots.filter(s => {
-      const dec = decisions[s.id] || {};
-      const isDual = s.locked && s.locked.includes(' or ');
-      const chosenFeat = s.locked ? (isDual ? dec.feat : s.locked) : (dec.choice === 'feat' ? dec.feat : null);
-      if (!chosenFeat) return false;
-      return featNeedsModal(chosenFeat) && !dec.featDetail;
-    });
+    const needsConfig = getFeatsNeedingSpellConfig();
     if (needsConfig.length) {
-      toast(`${needsConfig.map(s => {
-        const dec = decisions[s.id] || {};
-        return s.locked ? (dec.feat || s.locked) : dec.feat;
-      }).join(', ')} still need${needsConfig.length===1?'s':''} its options configured (⚙ Config, above) — you can always finish this later.`, 'info');
+      toast(`${needsConfig.map(s => s.featName).join(', ')} still need${needsConfig.length===1?'s':''} its options configured (⚙ Config, above) — you can always finish this later.`, 'info');
     }
   }
 
