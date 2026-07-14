@@ -21076,9 +21076,13 @@ const SLOTS_FULL = [
   [4,3,3,3,3,2,2,1,1],             // Lv 20
 ];
 
-// Half casters (Paladin, Ranger) — start at Lv 2
+// Half casters (Paladin, Ranger, Artificer) — 2024 PHB moved Paladin/Ranger
+// spellcasting to level 1 (it was level 2 in the 2014 rules); Artificer has
+// always started at level 1. Verified directly against the official 2024
+// Paladin/Ranger Features tables, which list 2 first-level slots at
+// character level 1, not level 2.
 const SLOTS_HALF = [
-  [],[],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],
+  [],[2],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],
   [4,3,3],[4,3,3],[4,3,3,1],[4,3,3,1],[4,3,3,2],[4,3,3,2],
   [4,3,3,3,1],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2],
 ];
@@ -21118,14 +21122,28 @@ const CLASS_CASTER_TYPE = {
   monk:'none', // monk has ki, not spell slots
 };
 
-// Prepared spell limit formula by class
+// 2024 PHB fixed prepared-spell tables — single source of truth, shared by
+// CLASS_PREP_FORMULA (below, feeds the Spells tab stat display) and
+// getPreparedMax() (feeds the Manage Spells modal cap). These used to be
+// two separate implementations — one still using the old 2014 "level +
+// ability mod" formula — which silently drifted out of sync. Index 0 =
+// level 1. Verified directly against the official Features tables.
+const FULL_PREPARED_TABLE_2024 = [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22]; // Cleric, Druid
+const WIZARD_PREPARED_TABLE_2024 = [4,5,6,7,9,10,11,12,14,15,16,16,17,18,19,21,22,23,24,26];
+const HALF_PREPARED_TABLE_2024 = [2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15]; // Paladin, Ranger
+// Artificer 2024 (Eberron: Forge of the Artificer) — index 0 unused (no level 0).
+const ARTIFICER_PREPARED_TABLE_2024 = [0,2,3,5,5,7,6,8,7,10,9,11,10,12,11,13,12,15,14,16,15];
+
+// Prepared spell limit formula by class — 2024 fixed tables, no ability
+// modifier involved for any of these classes anymore. `mod` param kept in
+// the signature so call sites don't need to change.
 const CLASS_PREP_FORMULA = {
-  cleric:  (level, mod) => level + mod,
-  druid:   (level, mod) => level + mod,
-  paladin: (level, mod) => Math.floor(level/2) + mod,
-  ranger:  (level, mod) => Math.floor(level/2) + mod,
-  wizard:  (level, mod) => level + mod,
-  artificer:(level,mod) => Math.floor(level/2) + mod,
+  cleric:   (level) => FULL_PREPARED_TABLE_2024[Math.min(level, FULL_PREPARED_TABLE_2024.length) - 1] || 0,
+  druid:    (level) => FULL_PREPARED_TABLE_2024[Math.min(level, FULL_PREPARED_TABLE_2024.length) - 1] || 0,
+  wizard:   (level) => WIZARD_PREPARED_TABLE_2024[Math.min(level, WIZARD_PREPARED_TABLE_2024.length) - 1] || 0,
+  paladin:  (level) => HALF_PREPARED_TABLE_2024[Math.min(level, HALF_PREPARED_TABLE_2024.length) - 1] || 0,
+  ranger:   (level) => HALF_PREPARED_TABLE_2024[Math.min(level, HALF_PREPARED_TABLE_2024.length) - 1] || 0,
+  artificer:(level) => ARTIFICER_PREPARED_TABLE_2024[Math.min(level, ARTIFICER_PREPARED_TABLE_2024.length - 1)] || 0,
   // Always-known casters (prepare = known count, shown as N/A)
   bard:    () => null,
   sorcerer:() => null,
@@ -22170,20 +22188,11 @@ function getCantripsMax() {
 }
 
 function getPreparedMax() {
-  // Returns { max, breakdown } — the spell count cap for each class
-  // 2024 PHB tables — Cleric/Druid (full casters) and Paladin/Ranger (half
-  // casters) each moved from "level + ability mod" to a fixed, level-only
-  // table with no ability-score dependency at all. Verified directly
-  // against the official Features tables for each class, not reconstructed
-  // from a formula. Index 0 = level 1.
-  const FULL_PREPARED_TABLE = [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22];
-  const HALF_PREPARED_TABLE = [2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15];
+  // Returns { max, breakdown } — the spell count cap for each class.
+  // Uses the shared FULL/WIZARD/HALF/ARTIFICER_PREPARED_TABLE_2024 constants
+  // (defined above, near CLASS_PREP_FORMULA) rather than a local copy, so
+  // this and the Spells-tab stat display can never drift out of sync again.
   const TABLE_2024_CLASSES = ['cleric', 'druid', 'paladin', 'ranger'];
-
-  // Artificer 2024 (Eberron: Forge of the Artificer) — also a fixed,
-  // level-only table, extracted directly from that source's own
-  // spellCalc override. Index 0 unused (no level 0).
-  const ARTIFICER_PREPARED_TABLE = [0,2,3,5,5,7,6,8,7,10,9,11,10,12,11,13,12,15,14,16,15];
 
   let total = 0;
   const parts = [];
@@ -22201,12 +22210,14 @@ function getPreparedMax() {
       // Fixed list casters: cap comes from spellsKnown table
       const table = cd.spellcasting?.spellsKnown || [];
       classMax = table[Math.min(lv, table.length) - 1] || 0;
+    } else if (cls === 'wizard') {
+      classMax = WIZARD_PREPARED_TABLE_2024[Math.min(lv, WIZARD_PREPARED_TABLE_2024.length) - 1] || 0;
     } else if (TABLE_2024_CLASSES.includes(cls)) {
       // 2024 fixed prepared-spells tables — no ability modifier involved
-      const table = type === 'full' ? FULL_PREPARED_TABLE : HALF_PREPARED_TABLE;
+      const table = type === 'full' ? FULL_PREPARED_TABLE_2024 : HALF_PREPARED_TABLE_2024;
       classMax = table[Math.min(lv, table.length) - 1] || 0;
     } else if (cls === 'artificer') {
-      classMax = ARTIFICER_PREPARED_TABLE[Math.min(lv, ARTIFICER_PREPARED_TABLE.length - 1)] || 0;
+      classMax = ARTIFICER_PREPARED_TABLE_2024[Math.min(lv, ARTIFICER_PREPARED_TABLE_2024.length - 1)] || 0;
     } else if (type === 'full')  {
       classMax = lv + mod;
     } else if (type === 'half')  {
@@ -24655,13 +24666,14 @@ const CLASS_SCALING_TABLES = {
     ]
   }};
 const SPELL_SLOT_TABLES = {
-  "full": {
-    "title": "Spell Slots by Level",
+  "cleric": {
+    "title": "Cleric Spells",
+    "note": "Prepared Spells \u2014 fixed table (no ability modifier)",
     "rows": [
       [
         1,
         3,
-        2,
+        4,
         2,
         0,
         0,
@@ -24675,37 +24687,9 @@ const SPELL_SLOT_TABLES = {
       [
         2,
         3,
-        3,
-        3,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      [
-        3,
-        3,
-        4,
-        4,
-        2,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      [
-        4,
-        4,
         5,
-        4,
         3,
+        0,
         0,
         0,
         0,
@@ -24715,12 +24699,12 @@ const SPELL_SLOT_TABLES = {
         0
       ],
       [
-        5,
-        4,
+        3,
+        3,
         6,
         4,
-        3,
         2,
+        0,
         0,
         0,
         0,
@@ -24729,27 +24713,13 @@ const SPELL_SLOT_TABLES = {
         0
       ],
       [
-        6,
+        4,
         4,
         7,
         4,
         3,
-        3,
         0,
         0,
-        0,
-        0,
-        0,
-        0
-      ],
-      [
-        7,
-        4,
-        8,
-        4,
-        3,
-        3,
-        1,
         0,
         0,
         0,
@@ -24757,26 +24727,68 @@ const SPELL_SLOT_TABLES = {
         0
       ],
       [
-        8,
+        5,
         4,
         9,
         4,
-        3,
         3,
         2,
         0,
         0,
         0,
         0,
+        0,
         0
       ],
       [
-        9,
+        6,
         4,
         10,
         4,
         3,
         3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        4,
+        11,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        4,
+        12,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        4,
+        14,
+        4,
+        3,
+        3,
         3,
         1,
         0,
@@ -24787,7 +24799,7 @@ const SPELL_SLOT_TABLES = {
       [
         10,
         5,
-        11,
+        15,
         4,
         3,
         3,
@@ -24801,7 +24813,7 @@ const SPELL_SLOT_TABLES = {
       [
         11,
         5,
-        12,
+        16,
         4,
         3,
         3,
@@ -24815,7 +24827,7 @@ const SPELL_SLOT_TABLES = {
       [
         12,
         5,
-        12,
+        16,
         4,
         3,
         3,
@@ -24829,7 +24841,7 @@ const SPELL_SLOT_TABLES = {
       [
         13,
         5,
-        13,
+        17,
         4,
         3,
         3,
@@ -24843,7 +24855,7 @@ const SPELL_SLOT_TABLES = {
       [
         14,
         5,
-        13,
+        17,
         4,
         3,
         3,
@@ -24857,7 +24869,7 @@ const SPELL_SLOT_TABLES = {
       [
         15,
         5,
-        14,
+        18,
         4,
         3,
         3,
@@ -24871,7 +24883,7 @@ const SPELL_SLOT_TABLES = {
       [
         16,
         5,
-        14,
+        18,
         4,
         3,
         3,
@@ -24885,7 +24897,7 @@ const SPELL_SLOT_TABLES = {
       [
         17,
         5,
-        15,
+        19,
         4,
         3,
         3,
@@ -24899,7 +24911,7 @@ const SPELL_SLOT_TABLES = {
       [
         18,
         5,
-        15,
+        20,
         4,
         3,
         3,
@@ -24913,7 +24925,7 @@ const SPELL_SLOT_TABLES = {
       [
         19,
         5,
-        15,
+        21,
         4,
         3,
         3,
@@ -24927,6 +24939,864 @@ const SPELL_SLOT_TABLES = {
       [
         20,
         5,
+        22,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        1,
+        1
+      ]
+    ]
+  },
+  "druid": {
+    "title": "Druid Spells",
+    "note": "Prepared Spells \u2014 fixed table (no ability modifier)",
+    "rows": [
+      [
+        1,
+        2,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        2,
+        5,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        2,
+        6,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        3,
+        7,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        3,
+        9,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        3,
+        10,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        3,
+        11,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        3,
+        12,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        3,
+        14,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        4,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        4,
+        16,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        4,
+        16,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        4,
+        17,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        14,
+        4,
+        17,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        15,
+        4,
+        18,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        16,
+        4,
+        18,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        17,
+        4,
+        19,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        18,
+        4,
+        20,
+        4,
+        3,
+        3,
+        3,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        19,
+        4,
+        21,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1
+      ],
+      [
+        20,
+        4,
+        22,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        1,
+        1
+      ]
+    ]
+  },
+  "wizard": {
+    "title": "Wizard Spells",
+    "note": "Prepared Spells \u2014 fixed table (no ability modifier)",
+    "rows": [
+      [
+        1,
+        3,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        3,
+        5,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        3,
+        6,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        4,
+        7,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        4,
+        9,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        4,
+        10,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        4,
+        11,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        4,
+        12,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        4,
+        14,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        5,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        5,
+        16,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        5,
+        16,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        5,
+        17,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        14,
+        5,
+        18,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        15,
+        5,
+        19,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        16,
+        5,
+        21,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        17,
+        5,
+        22,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        18,
+        5,
+        23,
+        4,
+        3,
+        3,
+        3,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        19,
+        5,
+        24,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1
+      ],
+      [
+        20,
+        5,
+        26,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        1,
+        1
+      ]
+    ]
+  },
+  "sorcerer": {
+    "title": "Sorcerer Spells",
+    "note": "Spells Known \u2014 fixed list, swap on level up",
+    "rows": [
+      [
+        1,
+        4,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        4,
+        4,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        5,
+        5,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        5,
+        6,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        5,
+        7,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        5,
+        8,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        5,
+        9,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        5,
+        10,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        6,
+        11,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        6,
+        12,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        6,
+        12,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        6,
+        13,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        14,
+        6,
+        13,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        15,
+        6,
+        14,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        16,
+        6,
+        14,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        17,
+        6,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        18,
+        6,
+        15,
+        4,
+        3,
+        3,
+        3,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        19,
+        6,
+        15,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1
+      ],
+      [
+        20,
+        6,
         15,
         4,
         3,
@@ -24940,15 +25810,302 @@ const SPELL_SLOT_TABLES = {
       ]
     ]
   },
-  "half": {
-    "title": "Spell Slots by Level",
+  "bard": {
+    "title": "Bard Spells",
+    "note": "Spells Known \u2014 fixed list, swap on level up",
     "rows": [
       [
+        1,
+        2,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        2,
+        5,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        2,
+        6,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        3,
+        7,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        3,
+        8,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        3,
+        9,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        3,
+        10,
+        4,
+        3,
+        3,
         1,
         0,
         0,
         0,
         0,
+        0
+      ],
+      [
+        8,
+        3,
+        11,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        3,
+        12,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        4,
+        14,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        4,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        4,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        4,
+        16,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        14,
+        4,
+        18,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        15,
+        4,
+        19,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        16,
+        4,
+        19,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      [
+        17,
+        4,
+        20,
+        4,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        18,
+        4,
+        22,
+        4,
+        3,
+        3,
+        3,
+        3,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        19,
+        4,
+        22,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        1,
+        1,
+        1
+      ],
+      [
+        20,
+        4,
+        22,
+        4,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        1,
+        1
+      ]
+    ]
+  },
+  "paladin": {
+    "title": "Paladin Spells",
+    "note": "Prepared Spells \u2014 fixed table; spellcasting starts at level 1",
+    "rows": [
+      [
+        1,
+        0,
+        2,
+        2,
+        0,
         0,
         0,
         0,
@@ -24960,7 +26117,7 @@ const SPELL_SLOT_TABLES = {
       [
         2,
         0,
-        2,
+        3,
         2,
         0,
         0,
@@ -24974,7 +26131,7 @@ const SPELL_SLOT_TABLES = {
       [
         3,
         0,
-        3,
+        4,
         3,
         0,
         0,
@@ -24988,7 +26145,7 @@ const SPELL_SLOT_TABLES = {
       [
         4,
         0,
-        3,
+        5,
         3,
         0,
         0,
@@ -25002,7 +26159,7 @@ const SPELL_SLOT_TABLES = {
       [
         5,
         0,
-        4,
+        6,
         4,
         2,
         0,
@@ -25016,7 +26173,7 @@ const SPELL_SLOT_TABLES = {
       [
         6,
         0,
-        4,
+        6,
         4,
         2,
         0,
@@ -25030,7 +26187,7 @@ const SPELL_SLOT_TABLES = {
       [
         7,
         0,
-        5,
+        7,
         4,
         3,
         0,
@@ -25044,7 +26201,7 @@ const SPELL_SLOT_TABLES = {
       [
         8,
         0,
-        5,
+        7,
         4,
         3,
         0,
@@ -25058,7 +26215,7 @@ const SPELL_SLOT_TABLES = {
       [
         9,
         0,
-        6,
+        9,
         4,
         3,
         2,
@@ -25072,7 +26229,7 @@ const SPELL_SLOT_TABLES = {
       [
         10,
         0,
-        6,
+        9,
         4,
         3,
         2,
@@ -25086,7 +26243,7 @@ const SPELL_SLOT_TABLES = {
       [
         11,
         0,
-        7,
+        10,
         4,
         3,
         3,
@@ -25100,7 +26257,7 @@ const SPELL_SLOT_TABLES = {
       [
         12,
         0,
-        7,
+        10,
         4,
         3,
         3,
@@ -25114,7 +26271,7 @@ const SPELL_SLOT_TABLES = {
       [
         13,
         0,
-        8,
+        11,
         4,
         3,
         3,
@@ -25128,7 +26285,7 @@ const SPELL_SLOT_TABLES = {
       [
         14,
         0,
-        8,
+        11,
         4,
         3,
         3,
@@ -25142,7 +26299,7 @@ const SPELL_SLOT_TABLES = {
       [
         15,
         0,
-        9,
+        12,
         4,
         3,
         3,
@@ -25156,7 +26313,7 @@ const SPELL_SLOT_TABLES = {
       [
         16,
         0,
-        9,
+        12,
         4,
         3,
         3,
@@ -25170,7 +26327,7 @@ const SPELL_SLOT_TABLES = {
       [
         17,
         0,
-        10,
+        14,
         4,
         3,
         3,
@@ -25184,7 +26341,7 @@ const SPELL_SLOT_TABLES = {
       [
         18,
         0,
-        10,
+        14,
         4,
         3,
         3,
@@ -25198,7 +26355,7 @@ const SPELL_SLOT_TABLES = {
       [
         19,
         0,
-        10,
+        15,
         4,
         3,
         3,
@@ -25212,7 +26369,579 @@ const SPELL_SLOT_TABLES = {
       [
         20,
         0,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "ranger": {
+    "title": "Ranger Spells",
+    "note": "Prepared Spells \u2014 fixed table; spellcasting starts at level 1",
+    "rows": [
+      [
+        1,
+        0,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        5,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        0,
+        6,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        0,
+        6,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        0,
+        7,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        0,
+        7,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        0,
+        9,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
         10,
+        0,
+        9,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        0,
+        10,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        0,
+        10,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        0,
+        11,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        14,
+        0,
+        11,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        15,
+        0,
+        12,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        16,
+        0,
+        12,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        17,
+        0,
+        14,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        18,
+        0,
+        14,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        19,
+        0,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        0,
+        15,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  },
+  "artificer": {
+    "title": "Artificer Spells",
+    "note": "Prepared Spells \u2014 fixed table (Eberron: Forge of the Artificer)",
+    "rows": [
+      [
+        1,
+        2,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        2,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        2,
+        5,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        2,
+        5,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        5,
+        2,
+        7,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        6,
+        2,
+        6,
+        4,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        7,
+        2,
+        8,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        8,
+        2,
+        7,
+        4,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        2,
+        10,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        10,
+        2,
+        9,
+        4,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        11,
+        2,
+        11,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        12,
+        2,
+        10,
+        4,
+        3,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        13,
+        2,
+        12,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        14,
+        2,
+        11,
+        4,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        15,
+        2,
+        13,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        16,
+        2,
+        12,
+        4,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        17,
+        2,
+        15,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        18,
+        2,
+        14,
+        4,
+        3,
+        3,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        19,
+        2,
+        16,
+        4,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        2,
+        15,
         4,
         3,
         3,
@@ -25229,44 +26958,233 @@ const SPELL_SLOT_TABLES = {
     "title": "Warlock Progression",
     "note": "Pact Magic slots recover on Short or Long Rest. Mystic Arcanum spells are each usable once per Long Rest without expending a slot.",
     "columns": [
-      { "key": "invocations", "label": "Invocations" },
-      { "key": "cantrips",    "label": "Cantrips" },
-      { "key": "prepared",    "label": "Prepared" },
-      { "key": "slots",       "label": "Slots" },
-      { "key": "slotlv",     "label": "Slot Level" },
-      { "key": "arcanum",    "label": "Mystic Arcanum" }
+      {
+        "key": "invocations",
+        "label": "Invocations"
+      },
+      {
+        "key": "cantrips",
+        "label": "Cantrips"
+      },
+      {
+        "key": "prepared",
+        "label": "Prepared"
+      },
+      {
+        "key": "slots",
+        "label": "Slots"
+      },
+      {
+        "key": "slotlv",
+        "label": "Slot Level"
+      },
+      {
+        "key": "arcanum",
+        "label": "Mystic Arcanum"
+      }
     ],
     "rows": [
-      { "level":1,  "invocations":1,  "cantrips":2, "prepared":2,  "slots":1, "slotlv":1, "arcanum":"—" },
-      { "level":2,  "invocations":3,  "cantrips":2, "prepared":3,  "slots":2, "slotlv":1, "arcanum":"—" },
-      { "level":3,  "invocations":3,  "cantrips":2, "prepared":4,  "slots":2, "slotlv":2, "arcanum":"—" },
-      { "level":4,  "invocations":3,  "cantrips":3, "prepared":5,  "slots":2, "slotlv":2, "arcanum":"—" },
-      { "level":5,  "invocations":5,  "cantrips":3, "prepared":6,  "slots":2, "slotlv":3, "arcanum":"—" },
-      { "level":6,  "invocations":5,  "cantrips":3, "prepared":7,  "slots":2, "slotlv":3, "arcanum":"—" },
-      { "level":7,  "invocations":6,  "cantrips":3, "prepared":8,  "slots":2, "slotlv":4, "arcanum":"—" },
-      { "level":8,  "invocations":6,  "cantrips":3, "prepared":9,  "slots":2, "slotlv":4, "arcanum":"—" },
-      { "level":9,  "invocations":7,  "cantrips":3, "prepared":10, "slots":2, "slotlv":5, "arcanum":"—" },
-      { "level":10, "invocations":7,  "cantrips":4, "prepared":10, "slots":2, "slotlv":5, "arcanum":"—" },
-      { "level":11, "invocations":7,  "cantrips":4, "prepared":11, "slots":3, "slotlv":5, "arcanum":"6th" },
-      { "level":12, "invocations":8,  "cantrips":4, "prepared":11, "slots":3, "slotlv":5, "arcanum":"6th" },
-      { "level":13, "invocations":8,  "cantrips":4, "prepared":12, "slots":3, "slotlv":5, "arcanum":"6th, 7th" },
-      { "level":14, "invocations":8,  "cantrips":4, "prepared":12, "slots":3, "slotlv":5, "arcanum":"6th, 7th" },
-      { "level":15, "invocations":9,  "cantrips":4, "prepared":13, "slots":3, "slotlv":5, "arcanum":"6th, 7th, 8th" },
-      { "level":16, "invocations":9,  "cantrips":4, "prepared":13, "slots":3, "slotlv":5, "arcanum":"6th, 7th, 8th" },
-      { "level":17, "invocations":9,  "cantrips":4, "prepared":14, "slots":4, "slotlv":5, "arcanum":"6th, 7th, 8th, 9th" },
-      { "level":18, "invocations":10, "cantrips":4, "prepared":14, "slots":4, "slotlv":5, "arcanum":"6th, 7th, 8th, 9th" },
-      { "level":19, "invocations":10, "cantrips":4, "prepared":14, "slots":4, "slotlv":5, "arcanum":"6th, 7th, 8th, 9th" },
-      { "level":20, "invocations":10, "cantrips":4, "prepared":15, "slots":4, "slotlv":5, "arcanum":"6th, 7th, 8th, 9th" }
+      {
+        "level": 1,
+        "invocations": 1,
+        "cantrips": 2,
+        "prepared": 2,
+        "slots": 1,
+        "slotlv": 1,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 2,
+        "invocations": 3,
+        "cantrips": 2,
+        "prepared": 3,
+        "slots": 2,
+        "slotlv": 1,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 3,
+        "invocations": 3,
+        "cantrips": 2,
+        "prepared": 4,
+        "slots": 2,
+        "slotlv": 2,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 4,
+        "invocations": 3,
+        "cantrips": 3,
+        "prepared": 5,
+        "slots": 2,
+        "slotlv": 2,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 5,
+        "invocations": 5,
+        "cantrips": 3,
+        "prepared": 6,
+        "slots": 2,
+        "slotlv": 3,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 6,
+        "invocations": 5,
+        "cantrips": 3,
+        "prepared": 7,
+        "slots": 2,
+        "slotlv": 3,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 7,
+        "invocations": 6,
+        "cantrips": 3,
+        "prepared": 8,
+        "slots": 2,
+        "slotlv": 4,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 8,
+        "invocations": 6,
+        "cantrips": 3,
+        "prepared": 9,
+        "slots": 2,
+        "slotlv": 4,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 9,
+        "invocations": 7,
+        "cantrips": 3,
+        "prepared": 10,
+        "slots": 2,
+        "slotlv": 5,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 10,
+        "invocations": 7,
+        "cantrips": 4,
+        "prepared": 10,
+        "slots": 2,
+        "slotlv": 5,
+        "arcanum": "\u2014"
+      },
+      {
+        "level": 11,
+        "invocations": 7,
+        "cantrips": 4,
+        "prepared": 11,
+        "slots": 3,
+        "slotlv": 5,
+        "arcanum": "6th"
+      },
+      {
+        "level": 12,
+        "invocations": 8,
+        "cantrips": 4,
+        "prepared": 11,
+        "slots": 3,
+        "slotlv": 5,
+        "arcanum": "6th"
+      },
+      {
+        "level": 13,
+        "invocations": 8,
+        "cantrips": 4,
+        "prepared": 12,
+        "slots": 3,
+        "slotlv": 5,
+        "arcanum": "6th, 7th"
+      },
+      {
+        "level": 14,
+        "invocations": 8,
+        "cantrips": 4,
+        "prepared": 12,
+        "slots": 3,
+        "slotlv": 5,
+        "arcanum": "6th, 7th"
+      },
+      {
+        "level": 15,
+        "invocations": 9,
+        "cantrips": 4,
+        "prepared": 13,
+        "slots": 3,
+        "slotlv": 5,
+        "arcanum": "6th, 7th, 8th"
+      },
+      {
+        "level": 16,
+        "invocations": 9,
+        "cantrips": 4,
+        "prepared": 13,
+        "slots": 3,
+        "slotlv": 5,
+        "arcanum": "6th, 7th, 8th"
+      },
+      {
+        "level": 17,
+        "invocations": 9,
+        "cantrips": 4,
+        "prepared": 14,
+        "slots": 4,
+        "slotlv": 5,
+        "arcanum": "6th, 7th, 8th, 9th"
+      },
+      {
+        "level": 18,
+        "invocations": 10,
+        "cantrips": 4,
+        "prepared": 14,
+        "slots": 4,
+        "slotlv": 5,
+        "arcanum": "6th, 7th, 8th, 9th"
+      },
+      {
+        "level": 19,
+        "invocations": 10,
+        "cantrips": 4,
+        "prepared": 14,
+        "slots": 4,
+        "slotlv": 5,
+        "arcanum": "6th, 7th, 8th, 9th"
+      },
+      {
+        "level": 20,
+        "invocations": 10,
+        "cantrips": 4,
+        "prepared": 15,
+        "slots": 4,
+        "slotlv": 5,
+        "arcanum": "6th, 7th, 8th, 9th"
+      }
     ]
   }
 };
 
 // Maps class -> spell slot table type
+// Each caster class has its own table now: cantrip counts, and prepared/known
+// counts, genuinely differ between classes even when they share the same
+// underlying spell-slot progression (e.g. Cleric and Druid have identical
+// Prepared Spells numbers but different Cantrips Known numbers; Wizard's
+// Prepared Spells table diverges from Cleric/Druid starting at level 14;
+// Sorcerer/Bard are "Known" casters with much lower counts than "Prepared"
+// casters, not the same table under a different label).
 const CLASS_SPELL_TABLE_TYPE = {
-  wizard:'full', sorcerer:'full', bard:'full', druid:'full', cleric:'full',
-  paladin:'half', ranger:'half', artificer:'half',
+  wizard:'wizard', sorcerer:'sorcerer', bard:'bard', druid:'druid', cleric:'cleric',
+  paladin:'paladin', ranger:'ranger', artificer:'artificer',
   warlock:'warlock'
 };
+// Classes that use a fixed "Known" spell list (swap one spell on level up)
+// rather than a "Prepared" list (swap freely on long rest) — affects the
+// column header only; the underlying numbers already differ per-table.
+const KNOWN_CASTER_TABLE_CLASSES = ['sorcerer', 'bard'];
 
 function renderScalingTable(cls, sub, clsLevel) {
   const key = cls?.toLowerCase();
@@ -25329,6 +27247,8 @@ function renderScalingTable(cls, sub, clsLevel) {
   if (spellType && spellType !== 'warlock') {
     const slotData = SPELL_SLOT_TABLES[spellType];
     const isWarlock = spellType === 'warlock';
+    const isKnownCasterTable = KNOWN_CASTER_TABLE_CLASSES.includes(spellType);
+    const countColLabel = isWarlock ? 'Slots' : (isKnownCasterTable ? 'Known' : 'Prepared');
     html += `<div style="margin:8px 0">
       <div style="font-family:var(--font-ui);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${slotData.title}</div>
       ${slotData.note ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-bottom:4px">${slotData.note}</div>` : ''}
@@ -25337,7 +27257,7 @@ function renderScalingTable(cls, sub, clsLevel) {
           <tr>
             <th style="text-align:left;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Lv</th>
             <th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Cantrips</th>
-            ${!isWarlock ? `<th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Prepared</th>` : `<th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Slots</th>`}
+            <th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">${countColLabel}</th>
             ${[1,2,3,4,5,6,7,8,9].map(n=>`<th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">${n}</th>`).join('')}
           </tr>
         </thead>
