@@ -22080,9 +22080,16 @@ function repairSpellData() {
   const knownKeys = new Set(known.map(s => s.key));
   let rescued = 0;
 
-  // Find any temp keys and rescue their spells to known[]
+  // Find any temp keys and rescue their spells to known[].
+  // Only 'feat_<slotId>_cantrips' / 'feat_<slotId>_spells' are genuine
+  // two-pass temp keys — a bare '_cantrips'/'_spells' suffix check also
+  // matches the permanent 'pact_tome_cantrips' key, which would wrongly
+  // reclassify Book of Shadows cantrips as generic rescued known spells
+  // and then delete the key they're supposed to live in.
   Object.entries(fs).forEach(([key, arr]) => {
     if (!Array.isArray(arr)) return;
+    if (!key.startsWith('feat_')) return;
+    if (!(key.endsWith('_cantrips') || key.endsWith('_spells'))) return;
     arr.forEach(spellKey => {
       if (!knownKeys.has(spellKey)) {
         const phb = PHB_SPELL_LIST.find(s => s.key === spellKey);
@@ -22095,9 +22102,9 @@ function repairSpellData() {
     });
   });
 
-  // Clean up temp keys
+  // Clean up temp keys (same scoped pattern as above)
   Object.keys(fs).forEach(k => {
-    if (k.endsWith('_cantrips') || k.endsWith('_spells')) delete fs[k];
+    if (k.startsWith('feat_') && (k.endsWith('_cantrips') || k.endsWith('_spells'))) delete fs[k];
   });
 
   if (rescued > 0) {
@@ -22130,10 +22137,17 @@ function ensureSpellData() {
   if (!currentChar.spells.prepared)   currentChar.spells.prepared = [];
   if (!currentChar.spells.spellbook)  currentChar.spells.spellbook = [];
   if (!currentChar.spells.featSpells) currentChar.spells.featSpells = {};
-  // Clean up any temp two-pass keys that weren't properly merged
+  // Clean up any temp two-pass keys that weren't properly merged.
+  // Two-pass temp keys are always of the form 'feat_<slotId>_cantrips' /
+  // 'feat_<slotId>_spells' (see openFeatSpellPicker) — must check the
+  // 'feat_' prefix too, not just the suffix, or this wrongly sweeps up
+  // permanent keys that happen to end the same way, like
+  // 'pact_tome_cantrips' (Book of Shadows), deleting those selections
+  // almost immediately after they're saved since this function runs on
+  // nearly every spell-related action.
   const fs = currentChar.spells.featSpells;
   Object.keys(fs).forEach(k => {
-    if (k.endsWith('_cantrips') || k.endsWith('_spells')) {
+    if (k.startsWith('feat_') && (k.endsWith('_cantrips') || k.endsWith('_spells'))) {
       delete fs[k];
     }
   });
