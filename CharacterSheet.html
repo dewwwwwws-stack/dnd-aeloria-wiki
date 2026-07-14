@@ -1561,7 +1561,7 @@ select:not([multiple]) {
   font-family: var(--font-label); font-size: 11px; color: var(--text2);
   cursor: pointer; transition: all .15s; font-weight: 500; user-select: none;
 }
-.resist-pill.resistant { border-color: var(--accent3); color: var(--accent3); background: var(--bg3); font-weight: 700; }
+.resist-pill.resistant { border-color: var(--amber); color: var(--amber); background: var(--bg3); font-weight: 700; }
 .resist-pill.immune    { border-color: var(--gold); color: var(--gold); background: var(--gold-faint); font-weight: 700; }
 .resist-pill.vulnerable{ border-color: var(--red); color: var(--red); background: var(--red-bg); font-weight: 700; }
 .resist-dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; flex-shrink: 0; }
@@ -2045,6 +2045,18 @@ select:not([multiple]) {
 .choice-select:focus { border-color: var(--gold); }
 .choice-select option { background: #0e1612; color: var(--text); }
 
+/* Same look as .choice-select, for plain text/number <input> fields that
+   aren't dropdowns — no appearance:none, no arrow background-image, since
+   those only make sense on an actual <select>. */
+.choice-input {
+  width: 100%; padding: 6px 10px;
+  border-radius: var(--radius); border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text);
+  font-family: var(--font-ui); font-size: 11px;
+  outline: none;
+}
+.choice-input:focus { border-color: var(--gold); }
+
 .choice-pills-wrap { display: flex; flex-direction: column; gap: 4px; }
 .choice-pills-count {
   font-family: var(--font-ui); font-size: 10px; color: var(--text3);
@@ -2447,8 +2459,8 @@ select:not([multiple]) {
           <div class="panel" style="margin-top:10px">
             <div class="panel-title">Concentration</div>
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-              <div id="conc-spell-name" style="font-family:var(--font-body);font-size:12px;color:var(--text2);flex:1;font-style:italic">None</div>
-              <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="clearConcentration()">✕</button>
+              <div id="conc-spell-name" style="font-family:var(--font-body);font-size:12px;color:var(--text2);flex:1;font-style:italic">Clear</div>
+              <button class="tbtn" style="font-size:9px;padding:1px 6px;color:var(--red);border-color:var(--red)" title="Clear concentration" onclick="clearConcentration()">✕ Clear</button>
             </div>
             <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-bottom:4px">CON SAVE DC (on damage)</div>
             <div style="display:flex;align-items:center;gap:6px">
@@ -2532,10 +2544,9 @@ select:not([multiple]) {
                   <div>
                     <label class="field-label" style="font-size:9px;margin-bottom:2px">Fly</label>
                     <input class="info-input" type="number" id="ci-speed-fly" placeholder="—" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
-                  </div>
-                  <div>
-                    <label class="field-label" style="font-size:9px;margin-bottom:2px">Hover</label>
-                    <input class="info-input" type="number" id="ci-speed-hover" placeholder="—" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
+                    <label style="display:flex;align-items:center;justify-content:center;gap:3px;margin-top:3px;font-family:var(--font-ui);font-size:8px;color:var(--text3);cursor:pointer">
+                      <input type="checkbox" id="ci-speed-hover" onchange="onSpeedOverrideChange()" style="width:11px;height:11px;margin:0"/> Hover
+                    </label>
                   </div>
                   <div>
                     <label class="field-label" style="font-size:9px;margin-bottom:2px">Burrow</label>
@@ -2553,6 +2564,10 @@ select:not([multiple]) {
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
                 <div><label class="field-label">Max HP</label><input class="info-input" type="number" id="hp-max" data-key="hp_max" value="0" oninput="clampCurrentHP();debouncedSave()"/></div>
                 <div><label class="field-label">Current HP</label><input class="info-input" type="number" id="hp-current" data-key="hp_current" value="0" style="color:var(--text)" oninput="clampCurrentHP();debouncedSave()"/></div>
+              </div>
+              <div style="margin-bottom:8px">
+                <label class="field-label" title="Aid, or any other effect that temporarily raises or lowers your hit point maximum. Positive or negative — current HP shifts by the same amount when this changes, matching how Aid and similar effects work.">Max HP Adjustment (Aid, etc.)</label>
+                <input class="info-input" type="number" id="hp-max-adjust" data-key="hpMaxAdjust" value="0" style="text-align:center" oninput="onHPMaxAdjustChange()"/>
               </div>
               <div style="margin-bottom:8px"><label class="field-label">Temp HP</label>
                 <input class="info-input" type="number" id="hp-temp" data-key="hp_temp" value="0" style="text-align:center;color:var(--accent2)" oninput="debouncedSave()"/></div>
@@ -3013,8 +3028,8 @@ select:not([multiple]) {
       <div class="panel">
         <div class="panel-title">Concentration</div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-          <div id="sp-conc-spell-name" style="font-family:var(--font-body);font-size:12px;color:var(--text2);flex:1;font-style:italic">None</div>
-          <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="clearConcentration()">✕</button>
+          <div id="sp-conc-spell-name" style="font-family:var(--font-body);font-size:12px;color:var(--text2);flex:1;font-style:italic">Clear</div>
+          <button class="tbtn" style="font-size:9px;padding:1px 6px;color:var(--red);border-color:var(--red)" title="Clear concentration" onclick="clearConcentration()">✕ Clear</button>
         </div>
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-bottom:4px">CON SAVE DC (on damage)</div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
@@ -3487,7 +3502,7 @@ select:not([multiple]) {
       <button class="tbtn" style="margin-left:auto" onclick="closeModal('replicate-magic-item-modal')">✕ Close</button>
     </div>
     <div style="padding:12px 20px 0;flex-shrink:0">
-      <input type="text" id="rmi-search" class="choice-select" style="width:100%" placeholder="Search eligible items by name..." oninput="renderReplicateMagicItemModal()">
+      <input type="text" id="rmi-search" class="choice-input" style="width:100%" placeholder="Search eligible items by name..." oninput="renderReplicateMagicItemModal()">
     </div>
     <div id="rmi-modal-body" style="overflow-y:auto;padding:12px 20px 16px;flex:1"></div>
   </div>
@@ -3554,7 +3569,7 @@ select:not([multiple]) {
     <div style="overflow-y:auto;padding:16px 20px;flex:1">
       <div style="margin-bottom:12px">
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Name</label>
-        <input type="text" id="add-res-name" class="choice-select" style="width:100%" placeholder="e.g. Lay on Hands, Channel Divinity...">
+        <input type="text" id="add-res-name" class="choice-input" style="width:100%" placeholder="e.g. Lay on Hands, Channel Divinity...">
       </div>
       <div style="margin-bottom:12px">
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Description (optional)</label>
@@ -3563,7 +3578,7 @@ select:not([multiple]) {
       <div style="display:flex;gap:12px;margin-bottom:12px">
         <div style="flex:1">
           <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Max Uses</label>
-          <input type="number" id="add-res-max" class="choice-select" style="width:100%" min="1" value="1">
+          <input type="number" id="add-res-max" class="choice-input" style="width:100%" min="1" value="1">
         </div>
         <div style="flex:1">
           <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Recovers On</label>
@@ -3578,7 +3593,7 @@ select:not([multiple]) {
       </div>
       <div id="add-res-days-row" style="display:none;margin-bottom:12px">
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Recovery note (optional)</label>
-        <input type="text" id="add-res-days" class="choice-select" style="width:100%" placeholder="e.g. 7 days, next full moon, once per week">
+        <input type="text" id="add-res-days" class="choice-input" style="width:100%" placeholder="e.g. 7 days, next full moon, once per week">
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px;line-height:1.4">Just a reminder for yourself — this doesn't reset automatically, you'll still clear it manually when it's actually due.</div>
       </div>
       <button class="btn-primary" onclick="confirmAddResource()">+ Add Resource</button>
@@ -3596,11 +3611,11 @@ select:not([multiple]) {
       <div style="margin-bottom:12px">
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Name</label>
         <select id="add-ammo-name" class="choice-select" style="width:100%" onchange="onAddAmmoNameChange()"></select>
-        <input type="text" id="add-ammo-custom-name" class="choice-select" style="width:100%;margin-top:8px;display:none" placeholder="Custom ammunition name…">
+        <input type="text" id="add-ammo-custom-name" class="choice-input" style="width:100%;margin-top:8px;display:none" placeholder="Custom ammunition name…">
       </div>
       <div style="margin-bottom:14px">
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">Starting Count</label>
-        <input type="number" id="add-ammo-count" class="choice-select" style="width:100%" min="0" value="20">
+        <input type="number" id="add-ammo-count" class="choice-input" style="width:100%" min="0" value="20">
       </div>
       <button class="btn-primary" onclick="confirmAddAmmo()">+ Add Ammunition</button>
     </div>
@@ -6884,9 +6899,9 @@ function setConcentrationSpell(key, name) {
 function clearConcentration() {
   _concSpellKey = null;
   const el = document.getElementById('conc-spell-name');
-  if (el) el.textContent = 'None';
+  if (el) el.textContent = 'Clear';
   const spEl = document.getElementById('sp-conc-spell-name');
-  if (spEl) spEl.textContent = 'None';
+  if (spEl) spEl.textContent = 'Clear';
   const dmg = document.getElementById('conc-damage-taken');
   if (dmg) dmg.value = '';
   const spDmg = document.getElementById('sp-conc-damage-taken');
@@ -16183,7 +16198,7 @@ const PHB_SPELL_LIST = [
 {"key":"gaseous_form","name":"Gaseous Form","level":3,"school":"Transmutation","time":"1 a","range":"Touch","duration":"Conc, 1 h","components":"V,S,M","conc":true,"ritual":false,"classes":["sorcerer","warlock","wizard"],"desc":"1+1/SL willing crea into mist; fly 10ft, resist. physical dmg, adv. on Str/Dex/Con saves; 1 a/0 hp revert","tags":[],"descFull":"A willing creature you touch shape-shifts, along with everything it's wearing and carrying, into a misty cloud for the duration. The spell ends on the target if it drops to 0 Hit Points or if it takes a Magic action to end the spell on itself."},
 {"key":"glyph_of_warding","name":"Glyph Of Warding","level":3,"school":"Abjuration","time":"1 h","range":"Touch","duration":"Till triggered","components":"V,S,M\\u2020","conc":false,"ritual":false,"classes":["artificer","bard","cleric","wizard"],"desc":"Create glyph that triggers on set condition; Wis(Perception) vs spell DC to notice; see B (200gp cons.)","tags":[],"descFull":"You inscribe a glyph that later unleashes a magical effect. You inscribe it either on a surface (such as a table or a section of floor) or within an object that can be closed (such as a book or chest) to conceal the glyph. The glyph can cover an area no larger than 10 feet in diameter. If the surface or object is moved more than 10 feet from where you cast this spell, the glyph is broken, and the spell ends without being triggered."},
 {"key":"haste","name":"Haste","level":3,"school":"Transmutation","time":"1 a","range":"30 ft","duration":"Conc, 1 min","components":"V,S,M","conc":true,"ritual":false,"classes":["artificer","sorcerer","wizard"],"desc":"1 crea +2 AC, speed ×2, adv. on Dex saves, extra action: Atk (1 only), Dash, Diseng., Hide, or Utilize","tags":[],"descFull":"Choose a willing creature that you can see within range. Until the spell ends, the target's speed is doubled, it gains a +2 bonus to Armor Class, it has advantage on Dexterity saving throws, and it gains an additional action on each of its turns. That action can be used to take only the Attack (one attack only), Dash, Disengage, Hide, or Utilize action."},
-{"key":"hunger_of_hadar","name":"Hunger Of Hadar","level":3,"school":"Conjuration","time":"1 a","range":"150 ft","duration":"Conc, 1 min","components":"V,S,M","conc":true,"ritual":false,"classes":["warlock"],"desc":"20-ft rad all in area: Blinded, start turn 2d6 Cold, end turn save or 2d6 Acid; 1 dmg type +1d6/SL","tags":["aoe"],"descFull":"You open a gateway to the Far Realm, a region infested with unspeakable horrors. A 20-foot-radius Sphere of Darkness appears, centered on a point with range and lasting for the duration. The Sphere is Difficult Terrain, and it is filled with strange whispers and slurping noises, which can be heard up to 30 feet away. No light, magical or otherwise, can illuminate the area, and creatures fully within it have the Blinded condition."},
+{"key":"hunger_of_hadar","name":"Hunger Of Hadar","level":3,"school":"Conjuration","time":"1 a","range":"150 ft","duration":"Conc, 1 min","components":"V,S,M","conc":true,"ritual":false,"classes":["warlock"],"desc":"20-ft rad all in area: Blinded, start turn 2d6 Cold, end turn save or 2d6 Acid; 1 dmg type +1d6/SL","tags":["aoe"],"descFull":"You open a gateway to the Far Realm, a region infested with unspeakable horrors. A 20-foot-radius Sphere of Darkness appears, centered on a point with range and lasting for the duration. The Sphere is Difficult Terrain, and it is filled with strange whispers and slurping noises, which can be heard up to 30 feet away. No light, magical or otherwise, can illuminate the area, and creatures fully within it have the Blinded condition. Any creature that starts its turn in the area takes 2d6 Cold damage. Any creature that ends its turn there must succeed on a Dexterity saving throw or take 2d6 Acid damage from otherworldly tentacles.\n\nUsing a Higher-Level Spell Slot. The Cold or Acid damage (your choice) increases by 1d6 for each spell slot level above 3rd."},
 {"key":"hypnotic_pattern","name":"Hypnotic Pattern","level":3,"school":"Illusion","time":"1 a","range":"120 ft","duration":"Conc, 1 min","components":"S,M","conc":true,"ritual":false,"classes":["bard","sorcerer","warlock","wizard"],"desc":"30-ft cube all sighted crea save or Charmed; for dur. Incapacitated, speed 0; 1 a or dmg to end for crea","tags":["aoe"],"descFull":"You create a twisting pattern of colors in a 30-foot Cube within range. The pattern appears for a moment and vanishes. Each creature in the area who can see the pattern must succeed on a Wisdom saving throw or have the Charmed condition for the duration. While Charmed, the creature has the Incapacitated condition and a Speed of 0."},
 {"key":"leomunds_tiny_hut","name":"Leomund's Tiny Hut","level":3,"school":"Evocation","time":"1 min","range":"S:10-ft rad","duration":"8 h","components":"V,S,M","conc":false,"ritual":true,"classes":["bard","wizard"],"desc":"Immobile barrier; blocks magic & crea/obj not in area when cast; ends if I leave/recast; see B","tags":[],"descFull":"A 10-foot Emanation springs into existence around you and remains stationary for the duration. The spell fails when you cast it if the Emanation isn't big enough to fully encapsulate all creatures in its area."},
 {"key":"lightning_arrow","name":"Lightning Arrow","level":3,"school":"Transmutation","time":"1 bns*","range":"Self","duration":"Instantaneous","components":"V,S","conc":false,"ritual":false,"classes":["ranger"],"desc":"After rngd wea atk: hit 4d8+1d8/SL Lightn., half on miss; all in 10ft save or 2d8+1d8/SL Lightn., save 1/2","tags":[],"descFull":"As your attack hits or misses the target, the weapon or ammunition you're using transforms into a lightning bolt. Instead of taking any damage or other effects from the attack, the target takes 4d8 Lightning damage on a hit or half as much damage on a miss. Each creature within 10 feet of the target then makes a Dexterity saving throw, taking 2d8 Lightning damage on a failed save or half as much damage on a successful one."},
@@ -16842,7 +16857,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"potion_of_growth","weight":".5 lb","name":"Potion of Growth","rarity":"uncommon","type":"potion","desc":"When you drink this potion, you gain the \\“enlarge\\” effect of the Enlarge/Reduce spell for 10 minutes (no Concentration required). The red in the potion's liquid continuously expands from a tiny bead to color the clear liquid around it and then contracts.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"potion_of_poison","weight":".5 lb","name":"Potion of Poison","rarity":"uncommon","type":"potion","desc":"If you drink this potion, you take 4d6 Poison damage and must succeed on a DC 13 Constitution saving throw or have the Poisoned condition for 1 hour.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"potion_of_pugilism","weight":".5 lb","name":"Potion of Pugilism","rarity":"uncommon","type":"potion","desc":"After you drink this potion, each Unarmed Strike you make deals an extra 1d6 Force damage on a hit. This effect lasts 10 minutes.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
-{"key":"potion_of_resistance","weight":".5 lb","name":"Potion of Resistance","rarity":"uncommon","type":"potion","desc":"When you drink this potion, you have Resistance to one type of damage for 1 hour. The DM chooses the type or determines it randomly by rolling on the following table.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
+{"key":"potion_of_resistance","weight":".5 lb","resistanceOptions":["Acid", "Bludgeoning", "Cold", "Fire", "Force", "Lightning", "Necrotic", "Piercing", "Poison", "Psychic", "Radiant", "Slashing", "Thunder"],"name":"Potion of Resistance","rarity":"uncommon","type":"potion","desc":"When you drink this potion, you have Resistance to one type of damage for 1 hour. The DM chooses the type or determines it randomly by rolling on the following table.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"potion_of_water_breathing","weight":".5 lb","name":"Potion of Water Breathing","rarity":"uncommon","type":"potion","desc":"You can breathe underwater for 24 hours after drinking this potion. This potion’s cloudy green fluid smells of the sea and has a jellyfish-like bubble floating in it.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"quiver_of_ehlonna","weight":"2 lb","name":"Quiver of Ehlonna","rarity":"uncommon","type":"wondrous item","desc":"This quiver has three compartments and weighs 2 lb, regardless of its contents. Its shortest compartment can hold 60 arrows, bolts, or similar objects. Its midsize compartment holds up to 18 javelins or similar objects. Its longest compartment holds up to 6 long objects, such as bows, quarterstaffs, or spears.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
 {"key":"ring_of_jumping","name":"Ring of Jumping","rarity":"uncommon","type":"ring","desc":"While I am wearing this ring, I can cast Jump on myself from it.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null},
@@ -18084,7 +18099,7 @@ function getAllClasses() {
   // Fallback to legacy fields (also handles empty/corrupt classes array)
   const cls = currentChar.class || '';
   if (!cls) return [];
-  return [{ class: cls, subclass: currentChar.subrace || currentChar.subclass || '', levels: Array.from({length: getLevel()}, (_,i) => i+1) }];
+  return [{ class: cls, subclass: currentChar.subclass || '', levels: Array.from({length: getLevel()}, (_,i) => i+1) }];
 }
 function getClassLevelCount(cls) {
   const entry = getAllClasses().find(c => c.class?.toLowerCase() === cls?.toLowerCase());
@@ -18187,6 +18202,7 @@ function calcMulticlassHPMax(method) {
   const classes = getAllClasses();
   const total = getLevel();
   const toughBonus = currentChar._toughBonus || 0;
+  const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
 
   if (m === 'maximum') {
     let hp = 0;
@@ -18195,10 +18211,11 @@ function calcMulticlassHPMax(method) {
       const die = getHitDieForClass(cls);
       hp += die + conMod;
     }
-    return Math.max(1, hp + toughBonus);
+    return Math.max(1, hp + toughBonus + hpMaxAdjust);
   }
 
   // average or roll
+  if (m === 'roll' && !currentChar.hpRolls) currentChar.hpRolls = {};
   let hp = 0;
   for (let lv = 1; lv <= total; lv++) {
     const cls = plan[lv] || classes[0]?.class || '';
@@ -18206,12 +18223,17 @@ function calcMulticlassHPMax(method) {
     if (lv === 1) {
       hp += die + conMod; // Level 1: max die
     } else if (m === 'roll') {
-      hp += Math.floor(Math.random() * die) + 1 + conMod;
+      // Not simulated — this is whatever the player physically rolled at
+      // the table and entered per level. Unfilled levels default to 1
+      // (the minimum possible roll), same convention as the single-class
+      // path, rather than guessing a value on their behalf.
+      const rolled = parseInt(currentChar.hpRolls[lv]);
+      hp += (Number.isFinite(rolled) && rolled >= 1 ? Math.min(die, rolled) : 1) + conMod;
     } else {
       hp += Math.floor(die / 2) + 1 + conMod; // average
     }
   }
-  return Math.max(1, hp + toughBonus);
+  return Math.max(1, hp + toughBonus + hpMaxAdjust);
 }
 
 // Exhaustion penalty to D20 tests (5.5e: -2 per level)
@@ -18996,7 +19018,7 @@ function recalcQuickStats() {
 function onSpeedOverrideChange() {
   if (!currentChar) return;
   if (!currentChar.speedOverrides) currentChar.speedOverrides = {};
-  const fields = ['walk','climb','swim','fly','hover','burrow'];
+  const fields = ['walk','climb','swim','fly','burrow'];
   fields.forEach(type => {
     const el = document.getElementById(`ci-speed-${type}`);
     if (!el) return;
@@ -19004,6 +19026,12 @@ function onSpeedOverrideChange() {
     if (!isNaN(v) && v > 0) currentChar.speedOverrides[type] = v;
     else delete currentChar.speedOverrides[type];
   });
+  // Hover is a boolean trait on the Fly speed, not its own speed value
+  const hoverEl = document.getElementById('ci-speed-hover');
+  if (hoverEl) {
+    if (hoverEl.checked) currentChar.speedOverrides.hover = true;
+    else delete currentChar.speedOverrides.hover;
+  }
   // Keep legacy base_speed in sync with walk override
   currentChar.speed = currentChar.speedOverrides.walk || currentChar._racialSpeed || 30;
   calcSpeed();
@@ -19014,12 +19042,14 @@ window.onSpeedOverrideChange = onSpeedOverrideChange;
 function populateSpeedOverrides() {
   if (!currentChar) return;
   const overrides = currentChar.speedOverrides || {};
-  const fields = ['walk','climb','swim','fly','hover','burrow'];
+  const fields = ['walk','climb','swim','fly','burrow'];
   fields.forEach(type => {
     const el = document.getElementById(`ci-speed-${type}`);
     if (!el) return;
     el.value = overrides[type] > 0 ? overrides[type] : '';
   });
+  const hoverEl = document.getElementById('ci-speed-hover');
+  if (hoverEl) hoverEl.checked = !!overrides.hover;
 }
 window.populateSpeedOverrides = populateSpeedOverrides;
 
@@ -19047,13 +19077,14 @@ function calcSpeed() {
   // Bladesong speed bonus: +10 ft
   if (isEffectActive('bladesong')) final = Math.max(0, final + 10);
 
-  // Fly/hover speed: fly override and hover are independent types
+  // Fly speed, with an independent Hover flag (Hover isn't its own speed —
+  // it's a boolean trait on a creature's Fly speed)
   const raceFly   = currentChar?._raceFlySpeed || 0;
   const effectFly = isEffectActive('dragon_wings') ? (ACTIVE_EFFECT_DEFS.dragon_wings.flySpeed || 60) : 0;
   const starryFly = isEffectActive('starry_form_dragon') ? 20 : 0;
   const autoFly   = Math.max(raceFly, effectFly, starryFly);
   const flySpeed   = overrides.fly > 0 ? overrides.fly : autoFly;
-  const hoverSpeed = overrides.hover || 0;
+  const canHover   = !!overrides.hover;
   const flySource  = overrides.fly > 0 ? '' : effectFly > 0 ? ' (Dragon Wings)' : starryFly > 0 ? ' (Starry Form)' : raceFly > 0 ? ' (Racial)' : '';
 
   // Build all speed parts
@@ -19061,16 +19092,14 @@ function calcSpeed() {
   if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: exLevel > 0 ? ` (−${penalty} exh)` : '' });
   if (overrides.climb || superiorStride) parts.push({ label: 'Climb',  val: superiorStride ? final : overrides.climb,  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : '' });
   if (overrides.swim  || superiorStride) parts.push({ label: 'Swim',   val: superiorStride ? final : overrides.swim,   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : '' });
-  if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource });
-  if (hoverSpeed > 0)  parts.push({ label: 'Hover',  val: hoverSpeed,       note: '' });
+  if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource + (canHover ? ' (hover)' : '') });
   if (overrides.burrow)parts.push({ label: 'Burrow', val: overrides.burrow, note: '' });
 
-  // Badge: walk + fly/hover abbreviation
+  // Badge: walk + fly abbreviation
   const el = document.getElementById('disp-speed');
   if (el) {
-    const hasAir = flySpeed > 0 || hoverSpeed > 0;
-    const airLabel = flySpeed > 0 && hoverSpeed > 0 ? `Fly ${flySpeed}/Hov ${hoverSpeed}`
-                   : flySpeed > 0 ? `Fly ${flySpeed}` : `Hov ${hoverSpeed}`;
+    const hasAir = flySpeed > 0;
+    const airLabel = flySpeed > 0 ? `Fly ${flySpeed}${canHover ? ' (hover)' : ''}` : '';
     el.textContent = hasAir ? `${final} (${airLabel})` : final;
     el.style.color = hasAir ? 'var(--amber)' : exLevel > 0 ? 'var(--exh-colour)' : 'var(--text)';
     const unnaturalFlexTip = (isEffectActive('mutable_form') && mutableFormImfChoice() === 'unnatural_flexibility') ? ' · Can move through 1-inch spaces (Unnatural Flexibility)' : '';
@@ -19633,14 +19662,15 @@ function calcHPMax(method) {
   const conMod = abilityMod(getAbilities().con);
   const m      = method || currentChar.hp_method || 'average';
   const toughBonus = currentChar._toughBonus || 0;
+  const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
 
   switch (m) {
     case 'average': {
       const avgPerLevel = Math.floor(hd / 2) + 1;
-      return Math.max(1, (hd + conMod) + (level - 1) * (avgPerLevel + conMod) + toughBonus);
+      return Math.max(1, (hd + conMod) + (level - 1) * (avgPerLevel + conMod) + toughBonus + hpMaxAdjust);
     }
     case 'maximum': {
-      return Math.max(1, level * (hd + conMod) + toughBonus);
+      return Math.max(1, level * (hd + conMod) + toughBonus + hpMaxAdjust);
     }
     case 'roll': {
       // Dice are rolled physically at the table, not simulated here —
@@ -19654,10 +19684,10 @@ function calcHPMax(method) {
         const rolled = parseInt(currentChar.hpRolls[lv]);
         total += (Number.isFinite(rolled) && rolled >= 1 ? rolled : 1) + conMod;
       }
-      return Math.max(1, total + toughBonus);
+      return Math.max(1, total + toughBonus + hpMaxAdjust);
     }
     default:
-      return Math.max(1, (hd + conMod) + (level - 1) * (Math.floor(hd/2)+1+conMod) + toughBonus);
+      return Math.max(1, (hd + conMod) + (level - 1) * (Math.floor(hd/2)+1+conMod) + toughBonus + hpMaxAdjust);
   }
 }
 
@@ -19667,7 +19697,8 @@ function hpMethodFormula(method) {
   const conMod = abilityMod(getAbilities().con);
   const conStr = conMod >= 0 ? `+${conMod}` : `${conMod}`;
   const toughBonus = currentChar._toughBonus || 0;
-  const toughStr = toughBonus ? ` + Tough(${toughBonus})` : '';
+  const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
+  const toughStr = (toughBonus ? ` + Tough(${toughBonus})` : '') + (hpMaxAdjust ? ` + Adj(${hpMaxAdjust>0?'+':''}${hpMaxAdjust})` : '');
 
   if (isMulticlass()) {
     const classes = getAllClasses();
@@ -19713,7 +19744,7 @@ function hpMethodFormula(method) {
     case 'roll': {
       const filled = Object.keys(currentChar.hpRolls || {}).map(Number).filter(lv => lv >= 2 && lv <= level).length;
       const remaining = Math.max(0, level - 1 - filled);
-      return `d${hd}${conStr} at level 1, then your own rolls${conStr!=='+0'?` (${conStr} each)`:''}${toughStr} = ${calcHPMax('roll')} HP` +
+      return `${hd}${conStr} at level 1 (always max, not rolled), then your own rolls${conStr!=='+0'?` (${conStr} each)`:''}${toughStr} = ${calcHPMax('roll')} HP` +
         (remaining ? ` — ${remaining} level${remaining===1?'':'s'} not entered yet` : '');
     }
     default: return '';
@@ -19755,13 +19786,16 @@ function renderHPMethods() {
 // entered here rather than generated by the sheet.
 function renderHPRollInputs() {
   const level = getLevel();
-  const hd = getHitDie();
+  const plan = currentChar.levelPlan || {};
+  const classes = getAllClasses();
   if (!currentChar.hpRolls) currentChar.hpRolls = {};
   if (level < 2) {
     return `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px">Nothing to enter yet — level 1 always uses the hit die maximum.</div>`;
   }
   let rows = '';
   for (let lv = 2; lv <= level; lv++) {
+    const cls = plan[lv] || classes[0]?.class || '';
+    const hd = getHitDieForClass(cls);
     const val = currentChar.hpRolls[lv] ?? '';
     rows += `<div style="display:flex;align-items:center;gap:6px">
       <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);width:44px">Lv ${lv}</span>
@@ -19779,7 +19813,10 @@ function renderHPRollInputs() {
 function setHPRoll(level, value) {
   if (!currentChar) return;
   if (!currentChar.hpRolls) currentChar.hpRolls = {};
-  const hd = getHitDie();
+  const plan = currentChar.levelPlan || {};
+  const classes = getAllClasses();
+  const cls = plan[level] || classes[0]?.class || '';
+  const hd = getHitDieForClass(cls);
   const n = parseInt(value);
   if (!Number.isFinite(n) || n < 1) {
     delete currentChar.hpRolls[level];
@@ -19827,6 +19864,41 @@ function onHPMaxChange() {
   currentChar.hp_max = parseInt(document.getElementById('hp-max')?.value) || 0;
   clampCurrentHP();
 }
+
+// Aid, or any other effect that temporarily raises or lowers hit point
+// maximum. Per RAW, a change to max HP shifts current HP by the same
+// amount (Aid's "current hit points increase by the same amount"; the
+// general rule that a hit point maximum reduction also reduces current
+// HP) — this isn't a Temp HP buffer, it's a change to the baseline.
+// Stored separately from hp_max itself (in currentChar.hpMaxAdjust) so it
+// survives the HP Method modal's recalculation instead of being silently
+// overwritten by it, the same way the Tough feat bonus does.
+function onHPMaxAdjustChange() {
+  if (!currentChar) return;
+  const adjEl = document.getElementById('hp-max-adjust');
+  if (!adjEl) return;
+  const newAdjust = parseInt(adjEl.value) || 0;
+  const oldAdjust = currentChar.hpMaxAdjust || 0;
+  const delta = newAdjust - oldAdjust;
+  currentChar.hpMaxAdjust = newAdjust;
+  if (delta === 0) return;
+
+  const maxEl = document.getElementById('hp-max');
+  const curEl = document.getElementById('hp-current');
+  if (maxEl) {
+    const newMax = Math.max(1, (parseInt(maxEl.value) || 0) + delta);
+    maxEl.value = newMax;
+    currentChar.hp_max = newMax;
+  }
+  if (curEl) {
+    const newCur = Math.max(0, (parseInt(curEl.value) || 0) + delta);
+    curEl.value = newCur;
+    currentChar.hp_current = newCur;
+  }
+  clampCurrentHP();
+  debouncedSave();
+}
+window.onHPMaxAdjustChange = onHPMaxAdjustChange;
 
 function clampCurrentHP() {
   if (!currentChar) return;
@@ -20582,7 +20654,7 @@ function renderResistSummary() {
   if (!el) return;
   const states = currentChar?.damageStates || {};
   const condImm = currentChar?.conditionImmunities || [];
-  const STATE_COLOR = { resistant: 'var(--accent3)', immune: 'var(--gold)', vulnerable: 'var(--red)' };
+  const STATE_COLOR = { resistant: 'var(--amber)', immune: 'var(--gold)', vulnerable: 'var(--red)' };
   const STATE_LABEL = { resistant: 'Res', immune: 'Imm', vulnerable: 'Vuln' };
 
   const pills = [];
@@ -29705,7 +29777,7 @@ function renderMagicItemBrowser() {
     list.appendChild(hdr);
 
     grouped[rarity].forEach(item => {
-      const owned = ownedKeys.has(item.key);
+      const owned = ownedKeys.has(item.key) && !isStackableMagicItemType(item);
       const row = document.createElement('div');
       row.className = 'sp-browser-row' + (owned ? ' already-known' : '');
 
@@ -29812,20 +29884,29 @@ function refreshVariableItemText(item) {
 }
 window.refreshVariableItemText = refreshVariableItemText;
 
+// Some item categories are inherently ownable in multiples — variable-
+// bonus weapons/armor (a character could have more than one enchanted
+// blade), and consumables like potions and scrolls, where having two
+// Potions of Healing or two Scrolls of Fireball is completely normal.
+// Everything else (a specific named magic item like a Rod of the Pact
+// Keeper) stays capped at one, since RAW you can't own a second of a
+// unique artifact-style item through this flow.
+// Shared by addMagicItemToCharacter (enforces the cap) and
+// renderMagicItemBrowser (shows/hides the Owned state) so the two can't
+// silently disagree about which items are stackable.
+function isStackableMagicItemType(def) {
+  const itemType = (def?.type || '').toLowerCase();
+  return def?.effects?.weaponBonus === 'variable' || itemType === 'potion' || itemType === 'scroll';
+}
+window.isStackableMagicItemType = isStackableMagicItemType;
+
 function addMagicItemToCharacter(char, key) {
   if (!char.magicItems) char.magicItems = [];
   const def = getEffectiveMagicItemsCatalog().find(i => i.key === key);
   if (!def) return { added: false, reason: 'Item not found in catalog' };
 
-  // Some item categories are inherently ownable in multiples — variable-
-  // bonus weapons/armor (a character could have more than one enchanted
-  // blade), and consumables like potions and scrolls, where having two
-  // Potions of Healing or two Scrolls of Fireball is completely normal.
-  // Everything else (a specific named magic item like a Rod of the Pact
-  // Keeper) stays capped at one, since RAW you can't own a second of a
-  // unique artifact-style item through this flow.
   const itemType = (def.type || '').toLowerCase();
-  const isGeneric = def.effects?.weaponBonus === 'variable' || itemType === 'potion' || itemType === 'scroll';
+  const isGeneric = isStackableMagicItemType(def);
   if (!isGeneric && char.magicItems.some(i => i.key === key)) {
     return { added: false, reason: 'Already owned' };
   }
