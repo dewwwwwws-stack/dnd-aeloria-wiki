@@ -1542,11 +1542,16 @@ select:not([multiple]) {
   border-color: var(--red); color: var(--red);
   background: var(--red-bg); font-weight: 700;
 }
+.condition-pill.resistant {
+  border-color: var(--amber); color: var(--amber);
+  background: var(--bg3); font-weight: 700;
+}
 .condition-dot {
   width: 7px; height: 7px; border-radius: 50%;
   border: 1.5px solid currentColor; flex-shrink: 0;
 }
 .condition-pill.active .condition-dot { background: var(--red); }
+.condition-pill.resistant .condition-dot { background: var(--amber); }
 
 /* ── RESISTANCES / IMMUNITIES / VULNERABILITIES ────────────── */
 #resist-grid {
@@ -2594,7 +2599,8 @@ select:not([multiple]) {
               <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin:8px 0">Click a damage type to cycle: none → Resistant → Immune → Vulnerable</div>
               <div id="resist-grid"></div>
               <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
-                <label class="field-label" style="margin-bottom:4px;display:block">Condition Immunities</label>
+                <label class="field-label" style="margin-bottom:4px;display:block">Condition Resistances &amp; Immunities</label>
+                <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:6px">Click a condition to cycle: none → Resistant (Advantage on saves) → Immune</div>
                 <div id="cond-immunity-grid"></div>
               </div>
             </div>
@@ -5268,54 +5274,6 @@ async function fetchAllCharacters() {
   return results.filter(Boolean);
 }
 
-async function loadDMCharList() {
-  const listEl = document.getElementById('dm-char-list');
-  listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading…</div>';
-
-  try {
-    const files = await GH.listFiles();
-    const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
-    listEl.innerHTML = '';
-
-    for (const f of chars) {
-      try {
-        const id   = f.name.replace('.json','');
-        const data = await GH.getFile(f.name);
-        const c    = data.content;
-        const row  = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:var(--radius);';
-        row.innerHTML = `
-          <div>
-            <div style="font-family:var(--font-ui);font-size:11px;color:var(--text);letter-spacing:.5px">${c.charName||id}</div>
-            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px">
-              ${c.playerName||''} · Lv ${c.level||1} ${c.class||'—'}
-            </div>
-          </div>
-          <div style="display:flex;gap:5px">
-            <button class="tbtn" style="font-size:10px;padding:4px 10px" onclick="dmLoadChar('${id}')">Edit</button>
-            <button class="tbtn" style="font-size:10px;padding:4px 10px;border-color:var(--red);color:var(--red)" onclick="dmResetPIN('${id}','${c.charName||id}')">Reset PIN</button>
-          </div>
-        `;
-        listEl.appendChild(row);
-      } catch {}
-    }
-
-    if (!chars.length) {
-      listEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No characters found.</div>';
-    }
-
-    // "+ New Character" button at bottom of list
-    const newBtn = document.createElement('button');
-    newBtn.className = 'btn-primary';
-    newBtn.style.cssText = 'margin-top:10px;width:100%;font-size:11px;padding:6px';
-    newBtn.textContent = '+ New Character';
-    newBtn.onclick = () => { closeDMModal(); openModal('create-char-modal'); };
-    listEl.appendChild(newBtn);
-  } catch(e) {
-    listEl.innerHTML = `<div style="color:var(--red);font-family:var(--font-ui);font-size:11px">${e.message}</div>`;
-  }
-}
-
 async function dmLoadChar(id) {
   try {
     const { content, sha } = await GH.getFile(`${id}.json`);
@@ -6245,17 +6203,27 @@ async function dmAddPartyToCombat() {
   try {
     const files = await GH.listFiles();
     const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
-    for (const f of chars) {
+    const results = await Promise.all(chars.map(async f => {
       try {
-        const { content: c } = await GH.getFile(f.name);
+        let c;
+        if (f.download_url) {
+          const resp = await fetch(f.download_url);
+          c = await resp.json();
+        } else {
+          const data = await GH.getFile(f.name);
+          c = data.content;
+        }
         const dexMod = Math.floor(((parseInt(c.abilities?.dex)||10) - 10) / 2);
         const roll   = Math.ceil(Math.random() * 20) + dexMod;
-        _dmCombatants.push({
+        return {
           name: c.charName || f.name.replace('.json',''),
           init: roll, hp: parseInt(c.hp_current)||0, maxHP: parseInt(c.hp_max)||0, isPC: true
-        });
-      } catch {}
-    }
+        };
+      } catch {
+        return null;
+      }
+    }));
+    results.filter(Boolean).forEach(entry => _dmCombatants.push(entry));
     dmRenderInitList();
     toast('Party added to initiative', 'ok');
   } catch(e) { toast('Failed: ' + e.message, 'error'); }
@@ -7082,10 +7050,8 @@ function enterApp() {
   _safe('classDropdowns',   () => initClassDropdowns());
   _safe('raceDropdowns',    () => initRaceDropdowns());
   _safe('bgDropdown',       () => initBackgroundDropdown());
-  _safe('classChoices',     () => renderClassChoices());
   _safe('resources',        () => renderResourceTracker());
   _safe('features',         () => populateFeaturesTab());
-  _safe('magicItems',       () => renderMagicItemsPanel());
   _safe('knownSpells',      () => renderKnownSpells());
   _safe('dcCalc',          () => initDCCalc());
   wireHPDeltaBtn();
@@ -8569,6 +8535,15 @@ const PHB_CLASS_CHOICES = {
           "desc": "Gain proficiency with Martial weapons and training with Medium armor."
         }
       ]
+    },
+    {
+      "id": "starry_form_config",
+      "label": "Starry Form",
+      "desc": "Bonus Action: expend 1 Wild Shape use to take on a Starry Form for 10 minutes. Choose your constellation below.",
+      "type": "starry-form-button",
+      "buttonFn": "openStarryFormModal()",
+      "minLevel": 3,
+      "showIfSubclass": "stars"
     }
   ]
 };
@@ -8648,35 +8623,12 @@ const PHB_CLASS_RESOURCES     = {
     }
   ],
   "druid": [
-    {
-      "id": "wild_shape",
-      "name": "Wild Shape",
-      "recovery": "short",
-      "maxByLevel": [
-        0,
-        0,
-        2,
-        2,
-        2,
-        2,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        3,
-        4,
-        4,
-        4
-      ],
-      "desc": "Transform into a beast. CR limit = Druid Level \u00f7 3."
-    },
+    // Wild Shape is tracked exclusively on the Wild Shape tab
+    // (currentChar._wsUsesUsed) — not duplicated here. That tab has its own
+    // richer UI (beast selection, CR limits, Starry Form) that this generic
+    // pip tracker can't represent, and a second counter here previously
+    // went out of sync with it (using Starry Form, or the Wild Shape tab's
+    // own Use/Short Rest buttons, never updated this one and vice versa).
     {
       "id": "wild_resurgence",
       "name": "Wild Resurgence",
@@ -17547,7 +17499,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"amulet_of_primal_wisdom","name":"Amulet of Primal Wisdom","rarity":"rare","type":"wondrous item","desc":"Crafted from the dried leaves of magical plants and imbued with their dust, this amulet is decorated with a singular dried flower and then encased in sap. The pendant glows softly with the light of springtime and smells of floral fields in bloom.\n\nYour Wisdom score is 19 while you wear this magic amulet. It has no effect on you if your Wisdom is 19 or higher without it.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"scoresOverride":[0,0,0,0,19,0]},"source":"Homebrew"},
 {"key":"fists_of_the_guiding_star","name":"Fists of the Guiding Star","rarity":"uncommon","type":"wondrous item","desc":"Stars and celestial bodies glimmer through these hand wrappings. While wearing these wraps over your hands, you can use a bonus action to spend 1 focus point to cause small motes of starlight to guide a creature you can see within 30 feet of you, giving it advantage on the next attack roll it makes before the end of your next turn. If that creature's next attack hits, the attack deals extra radiant damage equal to your Martial Arts die + your Wisdom modifier (minimum of 1).\n\nIn addition, you can use an action to cast the *light* cantrip while wearing these wraps.\n\n*When the stars align, we all prevail.*","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","grantedSpells":[{"spellName":"Light","grantType":"atWill"}]},
 {"key":"devotees_sacrificial_blade","name":"Devotee's Sacrificial Blade","rarity":"rare","type":"weapon (dagger)","desc":"When you hit a creature with an attack using this dagger, it takes damage from the attack as if it were hit from the beam of an *eldritch blast* spell you cast, using the spell's damage die and other effects associated with the spell. If you're not holding the dagger at the start of your turn, you can choose to have it magically appear in an open hand (no action required); the dagger must be on the same plane of existence as you.\n\n*Blood for the Old Ones.* While holding the dagger, you can use an action to plunge it into your chest. When you do, you take 10 psychic damage, which can't be reduced in any way, and you can choose up to four creatures that you can see within 30 feet of you. Each chosen creature must then make an Intelligence saving throw, using your warlock spell save DC. On a failed save, a creature takes 2d10 psychic damage and is incapacitated until the end of its next turn. Psychic damage from this property ignores temporary hit points (including yours). Once a creature has taken damage from this effect, it has advantage on the saving throw against it for 24 hours. If your hit points are reduced to 0 as a result of using this property, each affected creature makes the saving throw with disadvantage; you automatically suffer 1 failed death saving throw for each time you drop to 0 hit points in this way after the first, resetting daily at dawn.\n\n*\"Your contribution to the tithe is greatly appreciated.\"*","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
-{"key":"aboleth_brain","name":"Aboleth Brain","rarity":"rare","type":"wondrous item","desc":"*The Brain of a young Aboleth, tainted by an otherwordly power.* The brain can be consumed, granting the following bonuses:\n\nOtherwordly Memories\nYour mind becomes flooded with cosmic memories that aren't your own. Once per day, you may attempt to call upon these memories to try and glean some information about a particular item, place, creature or course of action by making a Wisdom saving throw.\nOn a 20+, you may ask the DM one question, and receive a vague but truthful answer, provided the answer is within these memories. If it is not, the daily use of this feature is not consumed.\nOn a 15-19, you may ask the DM one question, and receive a vision associated with the question asked, provided the answer is within these memories.\nOn a 14 or lower, you take 3d8 psychic damage and have the stunned condition for 1 minute, as your mind is flooded with incomprehensible thoughts.\n\nImproved Mutations\nYou gain a +1 bonus to attack and damage rolls with your organic weapons.\n\nDevouring Urge\nOnce per turn when you hit a creature with your organic weapon, you can deal an extra 1d6 Necrotic or Psychic damage (your choice) to the creature, and you can expend one of your Hit Point Dice to roll it and regain a number of Hit Points equal to the roll plus your Constitution modifier (minimum of 1 Hit Point). In addition, the flesh consumed by the creature temporarily alters your form. The DM will either:\nGrant you a temporary mutation of the DM's choice, which last for 1 minute. Using this feature again on a different creature will replace an existing mutation with the newest one.\nRoll a d100. You gain a random mutation from the Mutations Table, which lasts for 1 minute. Using this feature again on a different creature will replace any existing mutation/s with the newest one/s.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"aboleth_brain","name":"Aboleth Brain","rarity":"rare","type":"wondrous item","desc":"*The Brain of a young Aboleth, tainted by an otherwordly power.* The brain can be consumed, granting the following bonuses:\n\nOtherwordly Memories\nYour mind becomes flooded with cosmic memories that aren't your own. Once per day, you may attempt to call upon these memories to try and glean some information about a particular item, place, creature or course of action by making a Wisdom saving throw.\nOn a 20+, you may ask the DM one question, and receive a vague but truthful answer, provided the answer is within these memories. If it is not, the daily use of this feature is not consumed.\nOn a 15-19, you may ask the DM one question, and receive a vision associated with the question asked, provided the answer is within these memories.\nOn a 14 or lower, you take 3d8 psychic damage and have the stunned condition for 1 minute, as your mind is flooded with incomprehensible thoughts.\n\nImproved Mutations\nYou gain a +1 bonus to attack and damage rolls with your organic weapons.\n\nDevouring Urge\nOnce per turn when you hit a creature with your organic weapon, you can deal an extra 1d6 Necrotic or Psychic damage (your choice) to the creature, and you can expend one of your Hit Point Dice to roll it and regain a number of Hit Points equal to the roll plus your Constitution modifier (minimum of 1 Hit Point). In addition, the flesh consumed by the creature temporarily alters your form. The DM will either:\nGrant you a temporary mutation of the DM's choice, which last for 1 minute. Using this feature again on a different creature will replace an existing mutation with the newest one.\nRoll a d100. You gain a random mutation from the Mutations Table, which lasts for 1 minute. Using this feature again on a different creature will replace any existing mutation/s with the newest one/s.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"organicWeaponBonus":1},"source":"Homebrew"},
 {"key":"diviners_dice","name":"Diviner's Dice","rarity":"rare","type":"wondrous item","desc":"This set of three six-sided crystal dice is weakly connected to the tides of fate. You can roll these dice as an action and record the numbers rolled. Once rolled, you can't record any other numbers in this way until the next dawn. While you have the dice on your person, you can use a reaction when you or a creature you can see within 60 feet of you makes an attack roll or ability check to add or subtract one of the recorded numbers from the attack roll or ability check's total. You can wait to use this reaction until after the creature rolls the d20, but must decide before the GM says whether the roll succeeds or fails. Each recorded number can only be used once. You lose any unused recorded numbers daily at dawn.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
 {"key":"feywood_ivy","name":"Feywood Ivy","rarity":"uncommon","type":"wondrous item","desc":"This tiny seed has a glowing rune on its shell. While holding the seed against a weapon or similar held object, you can speak its first command word as an action to cause the seed to sprout and cover the object with green and purple vines. The vines form a comfortable grip with which to hold the object and also create a protective cover for it, such as a sheath or carrying case, that automatically stows the object while it isn't being held, unless you decide for it not to. You can use an action to speak the first command word again to cause the vines to retreat from the object and return to the seed.\n\nWhile an object is covered by the vines, you can't be disarmed of that object unless you are incapacitated. In addition, the object can be used as a spellcasting focus for you.\n\nWhile the vine-covered object is on your person, you can use a bonus action to speak the vines' second command word to cause them to lash out at a Medium or smaller target that you can see within 5 feet of you. The target must succeed on a DC 13 Dexterity saving throw or be grappled for 1 minute. While grappled, the target is restrained and can use an action on each of its turns to make a DC 13 Strength or Dexterity check (its choice), freeing itself and ending the effect on a success. The effect ends early and frees the target if you move more than 5 feet away from it. Once this property has been used, it can't be used again until the next dawn.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","charges":{"max":1,"recovery":"dawn"}},
 {"key":"focus_breaker","name":"Focus Breaker","rarity":"rare","type":"weapon (maul)","desc":"Forged during the Upheaval, these brutish weapons were given to members of the guard to quell any arcanist uprising. You gain a +1 bonus to attack and damage rolls made with this magic weapon. When you hit a creature concentrating on a spell with this weapon, runes start to glow on the weapon's head, and that creature makes the resulting Constitution saving throw to maintain its concentration with disadvantage.\n\nAs an action, you can speak the weapon's command word and hold it aloft, causing the metal book adorning the head of the maul to wildly turn its pages and shatter. When it does, any spell or magical effect within 60 feet of you is dispelled, as if affected by the *dispel magic* spell (5th-level version). A spell or magical effect cast using a 6th-level spell slot or higher is unaffected in this way. Once this property has been used, it can't be used again and the book disappears from the head of the weapon.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":1},"source":"Homebrew","charges":{"max":1,"recovery":"none"}},
@@ -20625,6 +20577,15 @@ function toggleCondition(cond) {
 // more reliable than trying to auto-detect from free text.
 const DAMAGE_TYPES = ['Acid','Bludgeoning','Cold','Fire','Force','Lightning','Necrotic','Piercing','Poison','Psychic','Radiant','Slashing','Thunder'];
 const RESIST_STATE_CYCLE = [null, 'resistant', 'immune', 'vulnerable'];
+const RESIST_STATE_LABEL = { resistant: 'Res', immune: 'Imm', vulnerable: 'Vuln' };
+
+// Condition resistance/immunity — "resistant" here means Advantage on
+// saving throws against gaining the condition (the common wording for
+// features like "Advantage on saves against being Frightened"), distinct
+// from full Immunity to it. Two-state cycle, no "vulnerable" equivalent —
+// unlike damage types, nothing in 5e makes a condition easier to inflict.
+const CONDITION_STATE_CYCLE = [null, 'resistant', 'immune'];
+const CONDITION_STATE_LABEL = { resistant: 'Adv', immune: 'Imm' };
 
 function renderResistances() {
   const grid = document.getElementById('resist-grid');
@@ -20636,7 +20597,8 @@ function renderResistances() {
       const state = currentChar.damageStates[key] || null;
       const pill = document.createElement('div');
       pill.className = 'resist-pill' + (state ? ' ' + state : '');
-      pill.innerHTML = `<div class="resist-dot"></div>${type}`;
+      const label = state ? RESIST_STATE_LABEL[state] : '';
+      pill.innerHTML = `<div class="resist-dot"></div>${type}${label ? ` <span style="opacity:.75;font-size:9px">(${label}.)</span>` : ''}`;
       pill.title = state ? `${type}: ${state.charAt(0).toUpperCase()+state.slice(1)} — click to change` : `${type} — click to set`;
       pill.onclick = () => cycleResistance(key);
       grid.appendChild(pill);
@@ -20653,22 +20615,37 @@ function renderResistSummary() {
   const el = document.getElementById('resist-active-summary');
   if (!el) return;
   const states = currentChar?.damageStates || {};
-  const condImm = currentChar?.conditionImmunities || [];
+  const condStates = getConditionStates();
   const STATE_COLOR = { resistant: 'var(--amber)', immune: 'var(--gold)', vulnerable: 'var(--red)' };
-  const STATE_LABEL = { resistant: 'Res', immune: 'Imm', vulnerable: 'Vuln' };
+  const CONDITION_COLOR = { resistant: 'var(--amber)', immune: 'var(--red)' };
 
   const pills = [];
   Object.entries(states).forEach(([type, state]) => {
     const color = STATE_COLOR[state] || 'var(--text3)';
-    pills.push(`<span class="resist-pill ${state}" style="cursor:default">${type.charAt(0).toUpperCase()+type.slice(1)} <span style="opacity:.7">(${STATE_LABEL[state]||state})</span></span>`);
+    pills.push(`<span class="resist-pill ${state}" style="cursor:default">${type.charAt(0).toUpperCase()+type.slice(1)} <span style="opacity:.7">(${RESIST_STATE_LABEL[state]||state})</span></span>`);
   });
-  condImm.forEach(cond => {
-    pills.push(`<span class="condition-pill active" style="cursor:default">${cond} <span style="opacity:.7">(Immune)</span></span>`);
+  Object.entries(condStates).forEach(([cond, state]) => {
+    pills.push(`<span class="condition-pill ${state==='immune'?'active':'resistant'}" style="cursor:default">${cond} <span style="opacity:.7">(${state==='immune'?'Immune':'Adv.'})</span></span>`);
   });
 
   el.innerHTML = pills.length
     ? pills.join('')
     : `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">None set — click Edit to add</span>`;
+}
+
+// Returns { conditionName: 'resistant'|'immune' }, migrating the old
+// conditionImmunities array (a plain list of immune conditions, no
+// resistant/Advantage concept) into the new format on first read so
+// existing characters don't lose immunities they'd already set.
+function getConditionStates() {
+  if (!currentChar) return {};
+  if (!currentChar.conditionStates) {
+    currentChar.conditionStates = {};
+    (currentChar.conditionImmunities || []).forEach(cond => {
+      currentChar.conditionStates[cond] = 'immune';
+    });
+  }
+  return currentChar.conditionStates;
 }
 
 function openResistEditModal() {
@@ -20694,29 +20671,37 @@ window.cycleResistance = cycleResistance;
 function renderConditionImmunities() {
   const grid = document.getElementById('cond-immunity-grid');
   if (grid) {
-    if (!currentChar.conditionImmunities) currentChar.conditionImmunities = [];
+    const states = getConditionStates();
     grid.innerHTML = '';
     for (const cond of CONDITIONS_5E) {
-      const isActive = currentChar.conditionImmunities.includes(cond);
+      const state = states[cond] || null;
       const pill = document.createElement('div');
-      pill.className = 'condition-pill' + (isActive ? ' active' : '');
-      pill.innerHTML = `<div class="condition-dot"></div>${cond}`;
-      pill.onclick = () => toggleConditionImmunity(cond);
+      pill.className = 'condition-pill' + (state === 'immune' ? ' active' : state === 'resistant' ? ' resistant' : '');
+      const label = state ? CONDITION_STATE_LABEL[state] : '';
+      pill.innerHTML = `<div class="condition-dot"></div>${cond}${label ? ` <span style="opacity:.75;font-size:9px">(${label}.)</span>` : ''}`;
+      pill.title = state ? `${cond}: ${state === 'immune' ? 'Immune' : 'Advantage on saves'} — click to change` : `${cond} — click to set`;
+      pill.onclick = () => cycleConditionState(cond);
       grid.appendChild(pill);
     }
   }
   renderResistSummary();
 }
 
-function toggleConditionImmunity(cond) {
+function cycleConditionState(cond) {
   if (!currentChar) return;
-  if (!currentChar.conditionImmunities) currentChar.conditionImmunities = [];
-  const idx = currentChar.conditionImmunities.indexOf(cond);
-  if (idx >= 0) currentChar.conditionImmunities.splice(idx, 1);
-  else currentChar.conditionImmunities.push(cond);
+  const states = getConditionStates();
+  const current = states[cond] || null;
+  const idx = CONDITION_STATE_CYCLE.indexOf(current);
+  const next = CONDITION_STATE_CYCLE[(idx + 1) % CONDITION_STATE_CYCLE.length];
+  if (next === null) delete states[cond];
+  else states[cond] = next;
+  // Keep the legacy array in sync for any other code still reading it —
+  // membership means "immune" only, since that's all the old field meant.
+  currentChar.conditionImmunities = Object.keys(states).filter(c => states[c] === 'immune');
   renderConditionImmunities();
   debouncedSave();
 }
+window.cycleConditionState = cycleConditionState;
 
 // ═══════════════════════════════════════════════════════════
 // EXHAUSTION (5.5e rules)
@@ -21079,7 +21064,6 @@ function populateAllTabs() {
   ensureWeaponData();
   ensureMagicItems();
   renderFeatItemsWeapons();
-  renderMagicItemsPanel();
   renderClassChoices();
   const c = currentChar;
 
@@ -31807,6 +31791,17 @@ function renderChoiceDef(def, _choiceCls) {
       ${def.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
     </select>`;
 
+  } else if (def.type === 'starry-form-button') {
+    const _sfState = currentChar._starryForm || {};
+    const _sfActive = !!_sfState.active;
+    const _constLabel = {archer:'Archer', chalice:'Chalice', dragon:'Dragon'};
+    inner += '<div style="display:flex;flex-direction:column;gap:6px">'
+           + '<div style="display:flex;align-items:center;gap:8px">'
+           + '<button style="font-family:var(--font-ui);font-size:10px;padding:5px 12px;background:' + (_sfActive ? 'var(--accent)' : 'var(--bg3)') + ';border:1px solid var(--accent);border-radius:var(--radius);color:' + (_sfActive ? '#000' : 'var(--accent)') + ';cursor:pointer;font-weight:600" onclick="' + (def.buttonFn||'') + '">✦ ' + (_sfActive ? 'Starry Form Active' : 'Starry Form') + '</button>'
+           + '</div>'
+           + (_sfActive && _sfState.constellation ? '<div style="font-family:var(--font-body);font-size:11px;color:var(--accent)">' + (_constLabel[_sfState.constellation]||_sfState.constellation) + ' constellation</div>' : '')
+           + '</div>';
+
   } else if (def.type === 'modal-button') {
     // Generic modal-button: show a button + summary of current state
     const _mfState = currentChar._mutableForm || {};
@@ -32795,14 +32790,26 @@ function applyChoiceEffects() {
   if (_isMetamorph) {
     ensureWeaponData();
     const organicKeys = ['bone_blade','flesh_maul','viscera_launcher'];
+    // Aboleth Brain (Improved Mutations): +1 to attack and damage rolls
+    // with organic weapons. The item itself has no isWeapon/weaponKey tie
+    // to any single weapon (it's a wondrous item boosting a whole weapon
+    // category), so it can't go through the normal per-weapon magic-item
+    // bonus lookup — it's synced directly onto each organic weapon entry
+    // here instead, the same way the Armorer's Arcane Armor weapon bonus is.
+    const hasAbolethBrain = (currentChar.magicItems || []).some(i => i.key === 'aboleth_brain');
+    const organicBonus = hasAbolethBrain ? 1 : 0;
     organicKeys.forEach(wk => {
-      if (!currentChar.weapons.find(w => w.weaponKey === wk)) {
+      const existing = currentChar.weapons.find(w => w.weaponKey === wk);
+      if (!existing) {
         const phb = PHB_WEAPONS.find(w => w.key === wk);
         if (phb) currentChar.weapons.push({
-          weaponKey: wk, name: phb.name, attackBonus: 0, damageBonus: 0,
+          weaponKey: wk, name: phb.name, attackBonus: organicBonus, damageBonus: organicBonus,
           equipped: true, proficient: true, pactWeapon: false,
           versatile: false, customDamage: '', abilityOverride: 'int', organicWeapon: true
         });
+      } else if (existing.attackBonus !== organicBonus || existing.damageBonus !== organicBonus) {
+        existing.attackBonus = organicBonus;
+        existing.damageBonus = organicBonus;
       }
     });
   } else {
@@ -37623,6 +37630,8 @@ function activateStarryForm() {
   syncStarryFormMechanics();
   renderStarryFormModal();
   if (typeof renderWildShapeList === 'function') renderWildShapeList();
+  if (typeof renderClassChoices === 'function') renderClassChoices();
+  if (typeof renderAttacksPanel === 'function') renderAttacksPanel();
   debouncedSave();
 }
 window.activateStarryForm = activateStarryForm;
@@ -37633,6 +37642,8 @@ function setStarryFormConstellation(id) {
   currentChar._starryForm.constellation = id;
   syncStarryFormMechanics();
   renderStarryFormModal();
+  if (typeof renderClassChoices === 'function') renderClassChoices();
+  if (typeof renderAttacksPanel === 'function') renderAttacksPanel();
   debouncedSave();
 }
 window.setStarryFormConstellation = setStarryFormConstellation;
@@ -37642,6 +37653,8 @@ function endStarryForm() {
   currentChar._starryForm.active = false;
   syncStarryFormMechanics();
   renderStarryFormModal();
+  if (typeof renderClassChoices === 'function') renderClassChoices();
+  if (typeof renderAttacksPanel === 'function') renderAttacksPanel();
   debouncedSave();
 }
 window.endStarryForm = endStarryForm;
