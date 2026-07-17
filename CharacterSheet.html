@@ -2307,9 +2307,7 @@ select:not([multiple]) {
 /* ── DM PANEL ─────────────────────────────────────────── */
 .dm-tab { transition: color .15s; flex-shrink: 0; }
 .dm-tab:hover { color: var(--text) !important; }
-#dm-notes-text { width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);padding:10px;color:var(--text);font-family:var(--font-body);resize:vertical; }
-#dm-notes-text:focus { border-color:var(--accent);outline:none; }
-@media (max-width:600px){#dm-modal .modal-box{padding:14px 12px;}.dm-tab{padding:7px 10px!important;font-size:10px!important;}}
+@media (max-width:600px){#page-dm > div{padding:12px 10px;}.dm-tab{padding:7px 10px!important;font-size:10px!important;}}
 
 /* ── HOVER TOOLTIP ──────────────────────────────────────── */
 #cs-tooltip {
@@ -2370,7 +2368,7 @@ select:not([multiple]) {
         <button class="login-link" onclick="openModal('create-char-modal')" type="button">
           New character? <span>Create one</span>
         </button>
-        <button class="login-link" onclick="openModal('dm-modal')" type="button">
+        <button class="login-link" onclick="openDMPanelFromLogin()" type="button">
           DM? <span>Admin panel</span>
         </button>
       </div>
@@ -2397,9 +2395,15 @@ select:not([multiple]) {
       <span id="sync-status" class="syncing"></span>
       <div style="position:relative">
         <button class="tbtn" onclick="toggleThemePicker()" title="Choose color theme">🎨</button>
-        <div id="theme-picker-panel" class="hidden" style="position:absolute;top:calc(100% + 6px);right:0;z-index:600;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:10px;width:220px">
+        <div id="theme-picker-panel" class="hidden" style="position:absolute;top:calc(100% + 6px);right:0;z-index:600;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:10px;width:240px">
           <div id="theme-picker-active-label" style="font-family:var(--font-ui);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;padding:0 2px"></div>
           <div id="theme-picker-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+          <div style="border-top:1px solid var(--border);margin:10px 0 8px;padding-top:8px">
+            <button class="theme-swatch-btn" id="custom-theme-toggle-btn" onclick="toggleCustomThemeEditor()" style="width:100%;justify-content:center">
+              <span>🎨 Custom\u2026</span>
+            </button>
+            <div id="custom-theme-editor" class="hidden" style="margin-top:8px"></div>
+          </div>
         </div>
       </div>
       <button class="tbtn" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
@@ -2413,6 +2417,7 @@ select:not([multiple]) {
   <div id="page-tabs">
     <div class="page-tab active" data-page="main" data-short="Main">Main Sheet</div>
     <div class="page-tab" data-page="features" data-short="Features">Features</div>
+    <div class="page-tab" id="tab-tables" data-page="tables" data-short="Tables" style="display:none">Tables</div>
     <div class="page-tab" data-page="background" data-short="BG">Background</div>
     <div class="page-tab" data-page="feats" data-short="Feats">Feats</div>
     <div class="page-tab" data-page="inventory" data-short="Inv">Inventory</div>
@@ -2669,6 +2674,12 @@ select:not([multiple]) {
             <div id="resource-tracker-body"></div>
           </div>
 
+          <!-- Stored Rolls Panel (Portent, Cosmic Omen) -->
+          <div class="panel" id="stored-rolls-panel" style="display:none">
+            <div class="panel-title">Stored Rolls</div>
+            <div id="stored-rolls-body"></div>
+          </div>
+
           <!-- Spellcasting summary (mirrors the Spells tab) — only shown
                for characters with any spellcasting ability at all, so a
                Fighter or Barbarian with no spellcasting doesn't see an
@@ -2728,6 +2739,18 @@ select:not([multiple]) {
           <div class="panel-title">Features &amp; Traits</div>
           <div id="feat-unified-list">
             <div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Select a class and race on the Main Sheet to see features.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-tables">
+      <div style="padding:16px;max-width:760px;margin:0 auto">
+        <div class="panel">
+          <div class="panel-title">Roll Tables</div>
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px">Class, subclass, race, and feat tables — Wild Magic Surge and the like. Tap Roll to roll on a table directly.</div>
+          <div id="tables-tab-list">
+            <div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Select a class and race on the Main Sheet to see tables.</div>
           </div>
         </div>
       </div>
@@ -3275,6 +3298,119 @@ select:not([multiple]) {
       <div id="ws-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,280px));gap:10px"></div>
     </div>
   </div>
+
+<div class="page" id="page-dm">
+  <div style="padding:16px;max-width:1400px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--gold)">⚔ DM Panel — Aeloria</span>
+      <button class="tbtn" onclick="switchPage('main')" style="margin-left:auto;font-size:10px">← Back to Sheet</button>
+    </div>
+
+    <!-- PIN Gate -->
+    <div id="dm-pin-gate">
+      <div class="info-field">
+        <label class="field-label">DM PIN</label>
+        <input class="info-input" id="dm-pin-input" type="password" placeholder="Enter DM PIN…" maxlength="12"
+          onkeydown="if(event.key==='Enter') verifyDMPin()"/>
+      </div>
+      <button class="btn-primary" onclick="verifyDMPin()">Unlock</button>
+      <div class="modal-error" id="dm-pin-error"></div>
+    </div>
+
+    <!-- DM Content (shown after PIN) -->
+    <div id="dm-content" style="display:none">
+
+      <!-- Tab strip -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;scrollbar-width:none">
+        <button class="dm-tab active" onclick="switchDMTab('party')" id="dm-tab-party" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid var(--accent);background:none;color:var(--accent);cursor:pointer;white-space:nowrap">Party</button>
+        <button class="dm-tab" onclick="switchDMTab('campaigns')" id="dm-tab-campaigns" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Campaigns</button>
+        <button class="dm-tab" onclick="switchDMTab('items')" id="dm-tab-items" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Items</button>
+        <button class="dm-tab" onclick="switchDMTab('admin')" id="dm-tab-admin" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Admin</button>
+      </div>
+
+      <!-- Party Tab -->
+      <div id="dm-pane-party">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+          <div>
+            <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Player Characters</div>
+            <div id="dm-party-summary" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px"></div>
+          </div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="loadDMCharList()">↺ Refresh</button>
+            <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="dmBulkRest('short')">☽ Short Rest All</button>
+            <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="dmBulkRest('long')">★ Long Rest All</button>
+          </div>
+        </div>
+        <div id="dm-hp-glance" style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px"></div>
+        <div id="dm-char-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        <div id="dm-party-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px;text-align:center"></div>
+      </div>
+
+      <!-- Initiative Tab -->
+
+
+      <!-- Campaigns Tab -->
+      <div id="dm-pane-campaigns" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Campaigns</div>
+          <button class="tbtn" onclick="dmAddCampaign()" style="font-size:9px;padding:3px 10px">+ New Campaign</button>
+        </div>
+        <div id="dm-campaign-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+        <div id="dm-campaign-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);min-height:14px"></div>
+      </div>
+
+      <!-- Admin Tab -->
+      <!-- Items Tab — DM catalog management -->
+      <div id="dm-pane-items" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+          <div>
+            <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Magic Item Catalog</div>
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px">Add new items or override any existing one — changes are visible to every player.</div>
+          </div>
+          <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="openDMCatalogItemModal()">+ New Item</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
+          <input class="spell-search-input" id="dm-items-search" placeholder="Search catalog…"
+            oninput="dmRenderItemsList()" style="flex:1;min-width:120px"/>
+          <select class="spell-filter-sel" id="dm-items-rarity" onchange="dmRenderItemsList()">
+            <option value="">All Rarities</option>
+            <option value="common">Common</option>
+            <option value="uncommon">Uncommon</option>
+            <option value="rare">Rare</option>
+            <option value="very rare">Very Rare</option>
+            <option value="legendary">Legendary</option>
+            <option value="artifact">Artifact</option>
+            <option value="primeval vestige">Primeval Vestige</option>
+          </select>
+          <select class="spell-filter-sel" id="dm-items-source" onchange="dmRenderItemsList()">
+            <option value="">All Sources</option>
+            <option value="dm">DM Added / Overridden</option>
+            <option value="official">Official Catalog</option>
+          </select>
+        </div>
+        <div id="dm-items-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
+        <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 320px);overflow-y:auto"></div>
+      </div>
+
+      <div id="dm-pane-admin" style="display:none">
+        <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px">DM PIN</div>
+        <div class="info-field">
+          <label class="field-label">New DM PIN</label>
+          <input class="info-input" id="dm-new-pin" type="password" placeholder="New PIN…" maxlength="12"/>
+        </div>
+        <button class="btn-primary" onclick="setDMPin()" style="margin-bottom:8px">Update DM PIN</button>
+        <div id="dm-admin-status" style="font-family:var(--font-ui);font-size:11px;margin-top:4px;min-height:16px;"></div>
+
+        <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:14px">
+          <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Character Management</div>
+          <div id="dm-admin-char-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+      </div>
+
+    </div><!-- /dm-content -->
+  </div>
+</div>
+
 </div>
 
 
@@ -4909,6 +5045,7 @@ function switchPage(page) {
   if (page === 'companion') renderCompanionTab();
   if (page === 'summon') renderSummonPage();
   if (page === 'wildshape') renderWildShapeList();
+  if (page === 'tables') populateFeaturesTab();
   if (page === 'feats') { renderFeatSlotsPanel(); renderFeatsList(); }
   if (page === 'inventory') {
     renderFeatItemsWeapons(); // chains to armor + unified inventory automatically
@@ -4993,7 +5130,7 @@ function closeModal(id) {
 }
 
 function closeDMModal() {
-  closeModal('dm-modal');
+  switchPage('main');
   // Reset gate for next open
   setTimeout(() => {
     document.getElementById('dm-pin-gate').style.display  = 'block';
@@ -5319,7 +5456,7 @@ let _dmData = null;   // cached _dm.json content
 let _dmSHA  = null;   // sha for saves
 
 function switchDMTab(tab) {
-  ['party','initiative','notes','campaigns','items','admin'].forEach(t => {
+  ['party','campaigns','items','admin'].forEach(t => {
     const pane = document.getElementById(`dm-pane-${t}`);
     const btn  = document.getElementById(`dm-tab-${t}`);
     if (!pane || !btn) return;
@@ -5328,7 +5465,6 @@ function switchDMTab(tab) {
     btn.style.color = active ? 'var(--accent)' : 'var(--text3)';
     btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
   });
-  if (tab === 'notes')     dmLoadNotes();
   if (tab === 'admin')     dmLoadAdminCharList();
   if (tab === 'campaigns') dmLoadCampaigns();
   if (tab === 'items')     dmRenderItemsList();
@@ -5648,8 +5784,8 @@ async function loadDMCharList() {
         const dmInv = buildDMInventoryHTML(c, id);
         glanceRows.push(`
           <div id="dm-glance-${id}" onclick="document.getElementById('dm-char-card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'})"
-            style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,.02)"
-            onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'"
+            style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:var(--bg3)"
+            onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg3)'"
             title="Click to jump to ${(c.charName||id).replace(/"/g,'&quot;')}'s card">
             <div style="font-family:var(--font-ui);font-size:10px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
               ${downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
@@ -5671,7 +5807,7 @@ async function loadDMCharList() {
         const charCamp   = campList2.find(cp => cp.id === c._campaign);
         const campColor  = charCamp ? charCamp.color : null;
         const campName   = charCamp ? charCamp.name  : '';
-        row.style.cssText = `background:rgba(255,255,255,.03);border:1px solid var(--border);${campColor ? 'border-left:3px solid ' + campColor + ';' : ''}border-radius:var(--radius);padding:10px 12px`;
+        row.style.cssText = `background:var(--bg3);border:1px solid var(--border);${campColor ? 'border-left:3px solid ' + campColor + ';' : ''}border-radius:var(--radius);padding:10px 12px`;
         row.innerHTML = `
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
             <div>
@@ -5688,7 +5824,7 @@ async function loadDMCharList() {
               </div>
               <button onclick="dmDeleteCharacter('${id}','${(c.charName||id).replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" title="Delete character"
                 style="font-size:13px;line-height:1;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
-                onmouseover="this.style.color='var(--red)';this.style.background='rgba(220,50,50,.1)'"
+                onmouseover="this.style.color='var(--red)';this.style.background='color-mix(in srgb, var(--red) 10%, transparent)'"
                 onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button>
             </div>
           </div>
@@ -5696,7 +5832,7 @@ async function loadDMCharList() {
             <div style="height:100%;width:${hpPct}%;background:${hpCol};border-radius:2px;transition:width .3s"></div>
           </div>
           ${showDeathSaves ? `
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:5px 8px;background:rgba(220,50,50,.06);border:1px solid rgba(220,50,50,.2);border-radius:4px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:5px 8px;background:color-mix(in srgb, var(--red) 6%, transparent);border:1px solid color-mix(in srgb, var(--red) 20%, transparent);border-radius:4px">
             <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Death Saves</span>
             <div style="display:flex;gap:2px" title="Successes — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','success',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'transparent'};border:1.5px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
             <div style="display:flex;gap:2px" title="Failures — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','failure',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.failures?'var(--red)':'transparent'};border:1.5px solid ${i<ds.failures?'var(--red)':'var(--border)'}"></span>`).join('')}</div>
@@ -5704,17 +5840,17 @@ async function loadDMCharList() {
           </div>
           ` : ''}
           <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-            ${c.conditions?.length ? c.conditions.map(cd => `<span style="cursor:pointer;font-family:var(--font-ui);font-size:8px;color:var(--amber);background:rgba(255,180,0,.12);border:1px solid rgba(255,180,0,.3);border-radius:3px;padding:1px 5px" onclick="dmRemoveCondition('${id}','${cd}')" title="Click to remove">× ${cd}</span>`).join('') : ''}
-            ${c.exhaustion > 0 ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--red);background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.3);border-radius:3px;padding:1px 5px">Exhaustion ${c.exhaustion}</span>` : ''}
+            ${c.conditions?.length ? c.conditions.map(cd => `<span style="cursor:pointer;font-family:var(--font-ui);font-size:8px;color:var(--amber);background:color-mix(in srgb, var(--amber) 12%, transparent);border:1px solid color-mix(in srgb, var(--amber) 30%, transparent);border-radius:3px;padding:1px 5px" onclick="dmRemoveCondition('${id}','${cd}')" title="Click to remove">× ${cd}</span>`).join('') : ''}
+            ${c.exhaustion > 0 ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--red);background:color-mix(in srgb, var(--red) 12%, transparent);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);border-radius:3px;padding:1px 5px">Exhaustion ${c.exhaustion}</span>` : ''}
           </div>
           ${isCaster ? `
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px">
             <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Slots</span>
             ${slotInfo.levels.map(l => `<span style="font-family:var(--font-ui);font-size:9px;color:${l.max-l.used===0?'var(--red)':'var(--text2)'}" title="${ORDINALS[l.level]}-level slots">${ORDINALS[l.level]} <b style="color:${l.max-l.used===0?'var(--red)':'var(--text)'}">${l.max-l.used}</b>/${l.max}</span>`).join('')}
             ${slotInfo.warlock ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--accent3)" title="Pact Magic (${ORDINALS[slotInfo.warlock.slotLevel]}-level, short rest)">Pact <b style="color:${slotInfo.warlock.max-slotInfo.warlock.used===0?'var(--red)':'var(--accent3)'}">${slotInfo.warlock.max-slotInfo.warlock.used}</b>/${slotInfo.warlock.max}</span>` : ''}
           </div>
           ` : ''}
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px">
             <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Coin</span>
             <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2)">${pp}<span style="color:var(--text3)">pp</span> ${gpAmt}<span style="color:var(--text3)">gp</span> ${sp}<span style="color:var(--text3)">sp</span> ${cp}<span style="color:var(--text3)">cp</span></span>
             <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);margin-left:auto">(${gpTotal.toFixed(2).replace(/\\.?0+$/,'')} gp total)</span>
@@ -5727,7 +5863,7 @@ async function loadDMCharList() {
               </div>
               <button class="tbtn" style="font-size:9px;padding:1px 7px" data-charid="${id}" data-charname="${(c.charName||id).replace(/"/g,'&quot;')}" onclick="dmOpenAddItemTypeModal(this.dataset.charid,this.dataset.charname)">+ Add</button>
             </div>
-            <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:180px;overflow-y:auto">
+            <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;max-height:180px;overflow-y:auto">
               ${dmInv.bodyHTML}
             </div>
           </div>
@@ -5773,14 +5909,30 @@ async function loadDMCharList() {
       if (glanceEl) glanceEl.innerHTML = glanceRows.join('');
       if (statusEl) statusEl.textContent = '';
       const summaryEl = document.getElementById('dm-party-summary');
-      if (summaryEl) {
-        const pct = maxHP > 0 ? Math.round(totalHP / maxHP * 100) : 100;
-        summaryEl.textContent = charCount + ' characters · Party HP: ' + totalHP + '/' + maxHP + ' (' + pct + '%)';
-      }
+      if (summaryEl) summaryEl.innerHTML = buildPartySummaryHTML(groups, charCount, totalHP, maxHP);
     }
   } catch(e) {
     listEl.innerHTML = `<div style="color:var(--red);font-family:var(--font-ui);font-size:11px">${e.message}</div>`;
   }
+}
+
+// One combined "Party HP" number is meaningless once a DM is running more
+// than one unrelated party at once — a healthy party and a party mid-TPK
+// would just average out into a misleading blended percentage. Shows one
+// line per campaign group when there's more than one; falls back to the
+// simple single-line combined format when everyone's in the same party
+// (the common case), so this doesn't add clutter for a single-party DM.
+function buildPartySummaryHTML(groups, charCount, totalHP, maxHP) {
+  if (!groups || groups.length <= 1) {
+    const pct = maxHP > 0 ? Math.round(totalHP / maxHP * 100) : 100;
+    return `${charCount} characters · Party HP: ${totalHP}/${maxHP} (${pct}%)`;
+  }
+  return groups.map(group => {
+    const hp  = group.chars.reduce((s, {char}) => s + (parseInt(char.hp_current)||0), 0);
+    const max = group.chars.reduce((s, {char}) => s + (parseInt(char.hp_max)||0), 0);
+    const pct = max > 0 ? Math.round(hp / max * 100) : 100;
+    return `<div>${group.color ? `<span style="color:${group.color}">●</span> ` : ''}${group.name}: ${group.chars.length} · HP ${hp}/${max} (${pct}%)</div>`;
+  }).join('');
 }
 
 // Recomputes the "N characters · Party HP: X/Y (Z%)" summary line from the
@@ -5791,10 +5943,6 @@ function updatePartySummaryText() {
   const chars = Object.values(_partyCharCache || {});
   let totalHP = 0, maxHP = 0;
   chars.forEach(c => { totalHP += parseInt(c.hp_current) || 0; maxHP += parseInt(c.hp_max) || 0; });
-  if (summaryEl) {
-    const pct = maxHP > 0 ? Math.round(totalHP / maxHP * 100) : 100;
-    summaryEl.textContent = chars.length + ' characters · Party HP: ' + totalHP + '/' + maxHP + ' (' + pct + '%)';
-  }
 
   // Per-campaign HP totals — grouped the same way the character list itself
   // is grouped (valid campaign id, or 'unassigned' for anyone without one
@@ -5803,14 +5951,23 @@ function updatePartySummaryText() {
   const byGroup = {};
   chars.forEach(c => {
     const key = (c._campaign && validCampaignIds.has(c._campaign)) ? c._campaign : 'unassigned';
-    if (!byGroup[key]) byGroup[key] = { hp: 0, max: 0 };
+    if (!byGroup[key]) byGroup[key] = { hp: 0, max: 0, chars: [] };
     byGroup[key].hp  += parseInt(c.hp_current) || 0;
     byGroup[key].max += parseInt(c.hp_max) || 0;
+    byGroup[key].chars.push({ char: c });
   });
   Object.entries(byGroup).forEach(([key, totals]) => {
     const el = document.getElementById('dm-camp-hp-' + key);
     if (el) el.textContent = `HP ${totals.hp}/${totals.max}`;
   });
+
+  if (summaryEl) {
+    const groups = Object.entries(byGroup).map(([key, totals]) => {
+      const camp = _dmCampaigns.find(c => c.id === key);
+      return { id: key === 'unassigned' ? null : key, name: camp?.name || 'Unassigned', color: camp?.color || null, chars: totals.chars };
+    });
+    summaryEl.innerHTML = buildPartySummaryHTML(groups, chars.length, totalHP, maxHP);
+  }
 }
 
 // Patches a single character's existing glance row and detailed card in
@@ -5906,7 +6063,7 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
           </div>
           <button onclick="dmDeleteCharacter('${id}','${(c.charName||id).replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" title="Delete character"
             style="font-size:13px;line-height:1;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
-            onmouseover="this.style.color='var(--red)';this.style.background='rgba(220,50,50,.1)'"
+            onmouseover="this.style.color='var(--red)';this.style.background='color-mix(in srgb, var(--red) 10%, transparent)'"
             onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button>
         </div>
       </div>
@@ -5914,7 +6071,7 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
         <div style="height:100%;width:${hpPct}%;background:${hpCol};border-radius:2px;transition:width .3s"></div>
       </div>
       ${showDeathSaves ? `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:5px 8px;background:rgba(220,50,50,.06);border:1px solid rgba(220,50,50,.2);border-radius:4px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:5px 8px;background:color-mix(in srgb, var(--red) 6%, transparent);border:1px solid color-mix(in srgb, var(--red) 20%, transparent);border-radius:4px">
         <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Death Saves</span>
         <div style="display:flex;gap:2px" title="Successes — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','success',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'transparent'};border:1.5px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
         <div style="display:flex;gap:2px" title="Failures — click to set">${Array.from({length:dsRules.max},(_,i)=>`<span onclick="dmSetDeathSave('${id}','failure',${i})" style="cursor:pointer;width:9px;height:9px;border-radius:50%;display:inline-block;background:${i<ds.failures?'var(--red)':'transparent'};border:1.5px solid ${i<ds.failures?'var(--red)':'var(--border)'}"></span>`).join('')}</div>
@@ -5922,17 +6079,17 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
       </div>
       ` : ''}
       <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-        ${c.conditions?.length ? c.conditions.map(cd => `<span style="cursor:pointer;font-family:var(--font-ui);font-size:8px;color:var(--amber);background:rgba(255,180,0,.12);border:1px solid rgba(255,180,0,.3);border-radius:3px;padding:1px 5px" onclick="dmRemoveCondition('${id}','${cd}')" title="Click to remove">× ${cd}</span>`).join('') : ''}
-        ${c.exhaustion > 0 ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--red);background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.3);border-radius:3px;padding:1px 5px">Exhaustion ${c.exhaustion}</span>` : ''}
+        ${c.conditions?.length ? c.conditions.map(cd => `<span style="cursor:pointer;font-family:var(--font-ui);font-size:8px;color:var(--amber);background:color-mix(in srgb, var(--amber) 12%, transparent);border:1px solid color-mix(in srgb, var(--amber) 30%, transparent);border-radius:3px;padding:1px 5px" onclick="dmRemoveCondition('${id}','${cd}')" title="Click to remove">× ${cd}</span>`).join('') : ''}
+        ${c.exhaustion > 0 ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--red);background:color-mix(in srgb, var(--red) 12%, transparent);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);border-radius:3px;padding:1px 5px">Exhaustion ${c.exhaustion}</span>` : ''}
       </div>
       ${isCaster ? `
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px">
         <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Slots</span>
         ${slotInfo.levels.map(l => `<span style="font-family:var(--font-ui);font-size:9px;color:${l.max-l.used===0?'var(--red)':'var(--text2)'}" title="${ORDINALS[l.level]}-level slots">${ORDINALS[l.level]} <b style="color:${l.max-l.used===0?'var(--red)':'var(--text)'}">${l.max-l.used}</b>/${l.max}</span>`).join('')}
         ${slotInfo.warlock ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--accent3)" title="Pact Magic (${ORDINALS[slotInfo.warlock.slotLevel]}-level, short rest)">Pact <b style="color:${slotInfo.warlock.max-slotInfo.warlock.used===0?'var(--red)':'var(--accent3)'}">${slotInfo.warlock.max-slotInfo.warlock.used}</b>/${slotInfo.warlock.max}</span>` : ''}
       </div>
       ` : ''}
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px">
         <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0">Coin</span>
         <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2)">${pp}<span style="color:var(--text3)">pp</span> ${gpAmt}<span style="color:var(--text3)">gp</span> ${sp}<span style="color:var(--text3)">sp</span> ${cp}<span style="color:var(--text3)">cp</span></span>
         <span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);margin-left:auto">(${gpTotal.toFixed(2).replace(/\.?0+$/,'')} gp total)</span>
@@ -5945,7 +6102,7 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
           </div>
           <button class="tbtn" style="font-size:9px;padding:1px 7px" data-charid="${id}" data-charname="${(c.charName||id).replace(/"/g,'&quot;')}" onclick="dmOpenAddItemTypeModal(this.dataset.charid,this.dataset.charname)">+ Add</button>
         </div>
-        <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:4px;max-height:180px;overflow-y:auto">
+        <div id="dm-inv-${id}" style="display:none;margin-top:4px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;max-height:180px;overflow-y:auto">
           ${dmInv.bodyHTML}
         </div>
       </div>
@@ -5984,8 +6141,8 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
     if (glanceRowEl) {
       glanceRowEl.outerHTML = `
         <div id="dm-glance-${id}" onclick="document.getElementById('dm-char-card-${id}')?.scrollIntoView({behavior:'smooth',block:'center'})"
-          style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:rgba(255,255,255,.02)"
-          onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'"
+          style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:var(--bg3)"
+          onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg3)'"
           title="Click to jump to ${(c.charName||id).replace(/"/g,'&quot;')}'s card">
           <div style="font-family:var(--font-ui);font-size:10px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
             ${downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
@@ -6139,188 +6296,6 @@ async function dmBulkRest(type) {
 }
 window.dmBulkRest = dmBulkRest;
 
-// ── Initiative Tracker ─────────────────────────────────
-
-let _dmCombatants = [];
-let _dmRound = 1;
-let _dmCurrentTurn = 0;
-
-function dmRenderInitList() {
-  const el = document.getElementById('dm-init-list');
-  const rc = document.getElementById('dm-round-counter');
-  if (!el) return;
-  if (!_dmCombatants.length) {
-    el.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);text-align:center;padding:12px">No combatants. Add creatures or import the party.</div>';
-    return;
-  }
-  // Sort by initiative descending
-  const sorted = [..._dmCombatants].sort((a,b) => b.init - a.init);
-  el.innerHTML = sorted.map((c, i) => {
-    const isActive = _dmCombatants.indexOf(c) === _dmCurrentTurn % _dmCombatants.length;
-    const hpPct = c.maxHP > 0 ? Math.max(0, (c.hp/c.maxHP)*100) : 100;
-    const hpCol = hpPct > 60 ? 'var(--accent)' : hpPct > 30 ? 'var(--amber)' : 'var(--red)';
-    return `
-      <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:${isActive?'rgba(46,168,110,.12)':'rgba(255,255,255,.02)'};border:1px solid ${isActive?'var(--accent)':'var(--border)'};border-radius:var(--radius);transition:all .2s">
-        <div style="font-family:var(--font-label);font-size:16px;font-weight:700;color:var(--accent);min-width:30px;text-align:center">${c.init}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--font-ui);font-size:12px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
-          ${c.maxHP > 0 ? `<div style="height:3px;background:var(--bg3);border-radius:2px;margin-top:4px"><div style="height:100%;width:${hpPct}%;background:${hpCol};border-radius:2px"></div></div>` : ''}
-        </div>
-        <div style="display:flex;align-items:center;gap:4px">
-          ${c.maxHP > 0 ? `<input type="number" value="${c.hp}" style="width:50px;text-align:center;font-size:11px;padding:2px 4px;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;color:var(--text)"
-            onchange="dmUpdateHP(${_dmCombatants.indexOf(c)},this.value)"/>
-            <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">/${c.maxHP}</span>` : ''}
-          <button onclick="dmRemoveCombatant(${_dmCombatants.indexOf(c)})" style="width:22px;height:22px;border-radius:3px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);font-size:10px;cursor:pointer">✕</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-  if (rc) rc.textContent = `Round ${_dmRound}`;
-}
-
-function dmQuickAdd(name, initMod, hp) {
-  const roll = Math.ceil(Math.random() * 20) + initMod;
-  _dmCombatants.push({ name, init: roll, hp, maxHP: hp, isPC: false });
-  dmRenderInitList();
-  toast(name + ' added (Init ' + roll + ', HP ' + hp + ')', 'ok');
-}
-window.dmQuickAdd = dmQuickAdd;
-
-function dmAddCombatant() {
-  const name = document.getElementById('dm-init-name').value.trim();
-  const init = parseInt(document.getElementById('dm-init-roll').value) || 0;
-  const hp   = parseInt(document.getElementById('dm-init-hp').value)   || 0;
-  if (!name) { toast('Enter a name', 'warn'); return; }
-  _dmCombatants.push({ name, init, hp, maxHP: hp, isPC: false });
-  document.getElementById('dm-init-name').value = '';
-  document.getElementById('dm-init-roll').value = '';
-  document.getElementById('dm-init-hp').value   = '';
-  document.getElementById('dm-init-name').focus();
-  dmRenderInitList();
-}
-
-async function dmAddPartyToCombat() {
-  try {
-    const files = await GH.listFiles();
-    const chars = files.filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
-    const results = await Promise.all(chars.map(async f => {
-      try {
-        let c;
-        if (f.download_url) {
-          const resp = await fetch(f.download_url);
-          c = await resp.json();
-        } else {
-          const data = await GH.getFile(f.name);
-          c = data.content;
-        }
-        const dexMod = Math.floor(((parseInt(c.abilities?.dex)||10) - 10) / 2);
-        const roll   = Math.ceil(Math.random() * 20) + dexMod;
-        return {
-          name: c.charName || f.name.replace('.json',''),
-          init: roll, hp: parseInt(c.hp_current)||0, maxHP: parseInt(c.hp_max)||0, isPC: true
-        };
-      } catch {
-        return null;
-      }
-    }));
-    results.filter(Boolean).forEach(entry => _dmCombatants.push(entry));
-    dmRenderInitList();
-    toast('Party added to initiative', 'ok');
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
-}
-
-function dmNextTurn() {
-  if (!_dmCombatants.length) return;
-  _dmCurrentTurn++;
-  if (_dmCurrentTurn >= _dmCombatants.length) { _dmCurrentTurn = 0; _dmRound++; }
-  dmRenderInitList();
-}
-
-function dmClearCombat() {
-  _dmCombatants = []; _dmRound = 1; _dmCurrentTurn = 0;
-  dmRenderInitList();
-}
-
-function dmUpdateHP(idx, val) {
-  if (_dmCombatants[idx]) { _dmCombatants[idx].hp = parseInt(val)||0; }
-}
-
-function dmRemoveCombatant(idx) {
-  _dmCombatants.splice(idx, 1);
-  if (_dmCurrentTurn >= _dmCombatants.length) _dmCurrentTurn = 0;
-  dmRenderInitList();
-}
-
-window.dmAddCombatant    = dmAddCombatant;
-window.dmAddPartyToCombat= dmAddPartyToCombat;
-window.dmNextTurn        = dmNextTurn;
-window.dmClearCombat     = dmClearCombat;
-window.dmUpdateHP        = dmUpdateHP;
-window.dmRemoveCombatant = dmRemoveCombatant;
-
-// ── Campaign Notes ──────────────────────────────────────
-
-let _dmNotesSHA = null;
-
-async function dmLoadNotes() {
-  const ta = document.getElementById('dm-notes-text');
-  const logEl = document.getElementById('dm-session-log');
-  if (!ta) return;
-  try {
-    const { content, sha } = await GH.getFile('_dm_notes.json');
-    _dmNotesSHA = sha;
-    ta.value = content.notes || '';
-    // Render session log
-    if (logEl && content.log?.length) {
-      logEl.innerHTML = [...content.log].reverse().map(entry => `
-        <div style="padding:5px 8px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:var(--radius)">
-          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:2px">${entry.date}</div>
-          <div style="font-family:var(--font-body);font-size:12px;color:var(--text2)">${entry.text}</div>
-        </div>`).join('');
-    } else if (logEl) {
-      logEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No log entries yet.</div>';
-    }
-  } catch {
-    ta.value = '';
-    if (logEl) logEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No notes yet.</div>';
-  }
-}
-
-async function dmSaveNotes() {
-  const ta     = document.getElementById('dm-notes-text');
-  const status = document.getElementById('dm-notes-status');
-  if (!ta) return;
-  status.textContent = 'Saving…'; status.style.color = 'var(--text3)';
-  try {
-    let existing = { notes: '', log: [] };
-    try { const f = await GH.getFile('_dm_notes.json'); _dmNotesSHA = f.sha; existing = f.content; } catch {}
-    existing.notes = ta.value;
-    await GH.putFile('_dm_notes.json', existing, _dmNotesSHA);
-    status.textContent = 'Saved ✓'; status.style.color = 'var(--accent)';
-    setTimeout(() => { if (status) status.textContent = ''; }, 2000);
-  } catch(e) { status.textContent = 'Failed: ' + e.message; status.style.color = 'var(--red)'; }
-}
-
-async function dmAddLogEntry() {
-  const input = document.getElementById('dm-log-entry');
-  const text  = input?.value?.trim();
-  if (!text) return;
-  try {
-    let existing = { notes: '', log: [] };
-    try { const f = await GH.getFile('_dm_notes.json'); _dmNotesSHA = f.sha; existing = f.content; } catch {}
-    if (!existing.log) existing.log = [];
-    existing.log.push({ date: new Date().toLocaleDateString(), text });
-    await GH.putFile('_dm_notes.json', existing, _dmNotesSHA);
-    if (input) input.value = '';
-    toast('Session logged', 'ok');
-    dmLoadNotes();
-  } catch(e) { toast('Failed: ' + e.message, 'error'); }
-}
-
-window.dmSaveNotes   = dmSaveNotes;
-window.dmAddLogEntry = dmAddLogEntry;
-window.dmLoadNotes   = dmLoadNotes;
-
 // ── Admin Tab ────────────────────────────────────────────
 
 async function dmLoadAdminCharList() {
@@ -6361,7 +6336,7 @@ async function dmLoadAdminCharList() {
       group.chars.forEach(({ id, char: c }) => {
         try {
           const row  = document.createElement('div');
-          row.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:rgba(255,255,255,.02);border:1px solid var(--border);${group.color ? 'border-left:3px solid ' + group.color + ';' : ''}border-radius:var(--radius);margin-top:4px`;
+          row.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);${group.color ? 'border-left:3px solid ' + group.color + ';' : ''}border-radius:var(--radius);margin-top:4px`;
           row.innerHTML = `
             <div>
               <div style="font-family:var(--font-ui);font-size:11px;color:var(--text);font-weight:600">${c.charName||id}</div>
@@ -6441,7 +6416,7 @@ function dmRenderCampaigns() {
     charList.style.cssText = 'padding:6px 8px;display:flex;flex-direction:column;gap:4px';
     unassignedChars.forEach(({ id, char }) => {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;background:rgba(255,255,255,.02)';
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;background:var(--bg3)';
       row.innerHTML = `
         <div style="width:8px;height:8px;border-radius:50%;background:var(--border);flex-shrink:0"></div>
         <div style="flex:1;min-width:0">
@@ -6493,7 +6468,7 @@ function dmRenderCampaigns() {
     } else {
       campChars.forEach(({ id, char }) => {
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;background:rgba(255,255,255,.02)';
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;background:var(--bg3)';
         row.innerHTML = `
           <div style="width:8px;height:8px;border-radius:50%;background:${camp.color};flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
@@ -6944,12 +6919,19 @@ function enterApp() {
   const dmBtn = document.getElementById('dm-topbar-btn');
   if (dmBtn) dmBtn.style.display = isDM ? '' : 'none';
 
+  // A character is loaded now — restore the sheet tab bar in case it was
+  // hidden by openDMPanelFromLogin's no-character DM entry path.
+  const tabs = document.getElementById('page-tabs');
+  if (tabs) tabs.style.display = '';
+
   // Apply this character's own saved theme — if they don't have one,
   // reset to the plain default first (visually only, without writing it
   // as their "preference") so they can never inherit whatever a
   // previously-viewed character's theme happened to be, if switching
   // characters without logging out in between.
-  if (currentChar?.themePreference) {
+  if (currentChar?.themePreference === 'custom' && currentChar.customThemeSeeds) {
+    applyCustomTheme(currentChar.customThemeSeeds);
+  } else if (currentChar?.themePreference) {
     applyThemeFull(currentChar.themePreference);
   } else {
     document.documentElement.setAttribute('data-theme', 'default-dark');
@@ -14122,7 +14104,7 @@ const PHB_RACES = {
   "draconblood_dragonborn": {"name": "Draconblood Dragonborn (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 CHA, +1 INT", "traits": "Speed 30 ft", "features": [{"name": "Darkvision", "level": 1, "desc": "You can see in dim light within 60 ft as bright, darkness as dim light. You discern colors as shades of gray."}, {"name": "Breath Weapon", "level": 1, "desc": "As an Action, exhale destructive energy (choose type matching your draconic ancestry). Recharge on Short or Long Rest."}, {"name": "Forceful Presence", "level": 1, "desc": "When you make an Intimidation or Persuasion check, you can draw on draconic power to gain Advantage on the roll. Once per Long Rest."}], "subraces": {}, "darkvision": 0, "flySpeed": 0},
   "ravenite_dragonborn": {"name": "Ravenite Dragonborn (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 STR, +1 CON", "traits": "Speed 30 ft", "features": [{"name": "Breath Weapon", "level": 1, "desc": "As an Action, exhale destructive energy (choose type matching your draconic ancestry). Recharge on Short or Long Rest."}, {"name": "Vengeful Assault", "level": 1, "desc": "When you take damage from a creature within 5 ft, you can use your Reaction to make one melee weapon attack against that creature. Once per Short or Long Rest."}], "subraces": {}, "darkvision": 0, "flySpeed": 0},
   "custom_lineage": {"name": "Custom lineage (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 to one ability score of your choice", "traits": "Speed 30 ft \u00b7 Size Small or Medium", "features": [{"name": "Variable Trait", "level": 1, "desc": "You gain Darkvision 60 ft OR proficiency in one skill of your choice."}, {"name": "Feat", "level": 1, "desc": "You gain one Origin feat of your choice."}], "subraces": {}, "darkvision": 0, "flySpeed": 0},
-  "multiverse_aarakocra": {"name": "Aarakocra (MPMM)", "source": "MotM", "size": "Small or Medium", "speed": 30, "flySpeed": 50, "darkvision": 0, "scorestxt": "+2 and +1 to two different abilities, or +1 to three different abilities", "traits": "Speed 30 ft \u00b7 Fly 50 ft \u00b7 Size Small or Medium", "features": [{"name": "Flight", "level": 1, "desc": "You have a Fly Speed equal to your Speed (50 ft). To use this speed, you can't be wearing medium or heavy armor."}, {"name": "Talons", "level": 1, "desc": "Your talons are natural weapons, which you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + STR modifier Slashing damage, instead of the Bludgeoning damage normal for an unarmed strike."}, {"name": "Wind Caller", "level": 3, "desc": "Starting at 3rd level, you can cast Gust of Wind with this trait, without requiring a material component. Once you cast it with this trait, you can't do so again until you finish a Long Rest. You can also cast it using any spell slots you have of 2nd level or higher. Intelligence, Wisdom, or Charisma is your spellcasting ability for it (choose when you select this race).", "usages": 1, "recovery": "long rest"}], "subraces": {}},
+  "multiverse_aarakocra": {"name": "Aarakocra (MPMM)", "source": "MotM", "size": "Small or Medium", "speed": 30, "flySpeed": 30, "darkvision": 0, "scorestxt": "+2 and +1 to two different abilities, or +1 to three different abilities", "traits": "Speed 30 ft \u00b7 Fly 30 ft \u00b7 Size Small or Medium", "features": [{"name": "Flight", "level": 1, "desc": "You have a Fly Speed equal to your Speed (30 ft). To use this speed, you can't be wearing medium or heavy armor."}, {"name": "Talons", "level": 1, "desc": "Your talons are natural weapons, which you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + STR modifier Slashing damage, instead of the Bludgeoning damage normal for an unarmed strike."}, {"name": "Wind Caller", "level": 3, "desc": "Starting at 3rd level, you can cast Gust of Wind with this trait, without requiring a material component. Once you cast it with this trait, you can't do so again until you finish a Long Rest. You can also cast it using any spell slots you have of 2nd level or higher. Intelligence, Wisdom, or Charisma is your spellcasting ability for it (choose when you select this race).", "usages": 1, "recovery": "long rest"}], "subraces": {}},
   "multiverse_aasimar": {
     "dmgres": ["Necrotic", "Radiant"],"name": "Aasimar (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 and +1 to two different abilities, or +1 to three different abilities", "traits": "Speed 30 ft \u00b7 Darkvision 60 ft \u00b7 Size Small or Medium", "features": [{"name": "Celestial Resistance", "level": 1, "desc": "You have Resistance to Necrotic and Radiant damage."}, {"name": "Healing Hands", "level": 1, "desc": "As a Magic action, you touch a creature and roll a number of d4s equal to your Proficiency Bonus. The creature regains a number of Hit Points equal to the total rolled. Once you use this trait, you can't use it again until you finish a Long Rest."}, {"name": "Light Bearer", "level": 1, "desc": "You know the Light cantrip. Charisma is your spellcasting ability for it."}, {"name": "Celestial Revelation", "level": 1, "desc": "When you reach 3rd level, choose one of the following options: Heavenly Wings (Bonus Action, fly speed = walk speed for 1 min, 1/Long Rest), Inner Radiance (shed light; end of turn, Radiant dmg = PB to one creature within 10 ft), or Necrotic Shroud (frighten creatures within 10 ft, CON save DC 8+CHA+PB, 1/Long Rest)."}], "subraces": {}, "darkvision": 60, "flySpeed": 0},
   "multiverse_bugbear": {"name": "Bugbear (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 STR, +1 DEX", "traits": "Speed 30 ft \u00b7 Darkvision 60 ft", "features": [{"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Fey Ancestry", "level": 1, "desc": "Advantage on saves vs. Charmed, can't be magically put to sleep."}, {"name": "Long-Limbed", "level": 1, "desc": "When you make a melee attack on your turn, your reach is 5 ft greater than normal."}, {"name": "Powerful Build", "level": 1, "desc": "Count as one size larger for carrying capacity and push/pull/lift."}, {"name": "Sneaky", "level": 1, "desc": "Proficiency in Stealth."}, {"name": "Surprise Attack", "level": 1, "desc": "If you hit a creature with an attack roll and haven't moved on this turn, the attack deals an extra 2d6 damage. Can use once per turn."}], "subraces": {}, "darkvision": 60, "flySpeed": 0},
@@ -16066,8 +16048,8 @@ const PHB_WEAPONS = [
 {"key":"hand_crossbow","weight":"3 lb","name":"Hand Crossbow","type":"Martial","list":"ranged","ability":"dex","damage":{"count":1,"die":6,"type":"piercing"},"versatile_die":null,"range":"30/120 ft","thrown_range":null,"properties":["light","loading"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"bolts","monk":false},
 {"key":"heavy_crossbow","weight":"18 lb","name":"Heavy Crossbow","type":"Martial","list":"ranged","ability":"dex","damage":{"count":1,"die":10,"type":"piercing"},"versatile_die":null,"range":"100/400 ft","thrown_range":null,"properties":["two_handed","heavy","loading"],"mastery":"push","mastery_desc":"Hit: push target 10 ft away","ammo":"bolts","monk":false},
 {"key":"longbow","weight":"2 lb","name":"Longbow","type":"Martial","list":"ranged","ability":"dex","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":null,"range":"150/600 ft","thrown_range":null,"properties":["two_handed","heavy"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"arrows","monk":false},
-{"key":"musket","weight":"10 lb","name":"Musket","type":"Martial","list":"melee","ability":"dex","damage":{"count":1,"die":12,"type":"piercing"},"versatile_die":null,"range":"40/120 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"bullets","monk":false},
-{"key":"pistol","weight":"3 lb","name":"Pistol","type":"Martial","list":"melee","ability":"dex","damage":{"count":1,"die":10,"type":"piercing"},"versatile_die":null,"range":"30/90 ft","thrown_range":null,"properties":["loading"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"bullets","monk":false}
+{"key":"musket","weight":"10 lb","name":"Musket","type":"Martial","list":"firearm","ability":"dex","damage":{"count":1,"die":12,"type":"piercing"},"versatile_die":null,"range":"40/120 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"bullets","monk":false},
+{"key":"pistol","weight":"3 lb","name":"Pistol","type":"Martial","list":"firearm","ability":"dex","damage":{"count":1,"die":10,"type":"piercing"},"versatile_die":null,"range":"30/90 ft","thrown_range":null,"properties":["loading"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"bullets","monk":false}
 ,
 {"key":"rifle_automatic","name":"Automatic Rifle","type":"Martial","list":"firearm","ability":"dex","damage":{"count":2,"die":8,"type":"piercing"},"versatile_die":null,"range":"80/240 ft","thrown_range":null,"properties":["two_handed","loading","burst_fire"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"firearm_rounds","monk":false,"source":"DMG24","desc":"Modern firearm. Two-handed, Loading, Burst Fire (expend 10 rounds to attack with Advantage; on a hit, deal an extra 1d8 damage of the weapon's type)."},
 {"key":"rifle_hunting","name":"Hunting Rifle","type":"Martial","list":"firearm","ability":"dex","damage":{"count":2,"die":10,"type":"piercing"},"versatile_die":null,"range":"80/240 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"firearm_rounds","monk":false,"source":"DMG24","desc":"Modern firearm. Two-handed, Loading."},
@@ -17035,7 +17017,8 @@ const DMG_MAGIC_ITEMS = [
 // Lets the DM add brand-new magic items to the shared catalog, or override
 // fields on an existing one (official or homebrew), without editing this
 // file directly. Stored as a single shared GH file so every player's client
-// picks up the changes — same mechanism as campaign notes (_dm_notes.json).
+// picks up the changes — a shared GH-backed JSON file, same pattern used
+// elsewhere in the DM panel.
 let _dmItemOverrides = {}; // { catalogKey: fullItemObject }
 let _dmItemsSHA = null;
 
@@ -18538,14 +18521,36 @@ function calcSpeed() {
   const isInfiltratorArmorer = (artiEntry?.subclass||'').toLowerCase() === 'armorer'
     && (currentChar.class_choices?.armor_model || '').toLowerCase() === 'infiltrator' && (artiEntry?.levels?.length||0) >= 3;
   const infiltratorSpeedBonus = isInfiltratorArmorer ? 5 : 0;
-  let final = Math.max(0, base + featBonus + mutableFormSpeedBonus + infiltratorSpeedBonus - penalty);
+  // Monk Unarmored Movement (2024): +10/15/20/25/30 ft at levels 2/6/10/14/18,
+  // while not wearing armor or wielding a Shield. This was previously only
+  // documented in the feature text and the class progression table — never
+  // actually added to speed anywhere.
+  const monkLv = getClassLevelCount('monk');
+  const _umArmorData = PHB_ARMOUR.find(a => a.key === currentChar.ac_armor_key);
+  const _umWearingArmor = !!(_umArmorData && ['light','medium','heavy'].includes((_umArmorData.type||'').toLowerCase()));
+  const _umWieldingShield = !!currentChar.shield;
+  let unarmoredMovementBonus = 0;
+  if (monkLv >= 2 && !_umWearingArmor && !_umWieldingShield) {
+    if (monkLv >= 18)      unarmoredMovementBonus = 30;
+    else if (monkLv >= 14) unarmoredMovementBonus = 25;
+    else if (monkLv >= 10) unarmoredMovementBonus = 20;
+    else if (monkLv >= 6)  unarmoredMovementBonus = 15;
+    else                   unarmoredMovementBonus = 10;
+  }
+  let final = Math.max(0, base + featBonus + mutableFormSpeedBonus + infiltratorSpeedBonus + unarmoredMovementBonus - penalty);
 
   // Bladesong speed bonus: +10 ft
   if (isEffectActive('bladesong')) final = Math.max(0, final + 10);
 
   // Fly speed, with an independent Hover flag (Hover isn't its own speed —
   // it's a boolean trait on a creature's Fly speed)
-  const raceFly   = currentChar?._raceFlySpeed || 0;
+  // Aarakocra's fly speed must always equal its current walk speed exactly
+  // (a house rule for this table) — computed live from `final` rather than
+  // the static _raceFlySpeed snapshot taken once at race selection, so it
+  // stays in sync with anything that changes walk speed later (exhaustion,
+  // feats, Unarmored Movement, etc.).
+  const isAarakocra = (currentChar.race || '').toLowerCase() === 'multiverse_aarakocra';
+  const raceFly   = isAarakocra ? final : (currentChar?._raceFlySpeed || 0);
   const effectFly = isEffectActive('dragon_wings') ? (ACTIVE_EFFECT_DEFS.dragon_wings.flySpeed || 60) : 0;
   const starryFly = isEffectActive('starry_form_dragon') ? 20 : 0;
   const autoFly   = Math.max(raceFly, effectFly, starryFly);
@@ -18555,7 +18560,7 @@ function calcSpeed() {
 
   // Build all speed parts
   const parts = [];
-  if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: exLevel > 0 ? ` (−${penalty} exh)` : '' });
+  if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: [exLevel > 0 ? `−${penalty} exh` : '', unarmoredMovementBonus > 0 ? `+${unarmoredMovementBonus} Unarmored Movement` : ''].filter(Boolean).map(s=>` (${s})`).join('') });
   if (overrides.climb || superiorStride) parts.push({ label: 'Climb',  val: superiorStride ? final : overrides.climb,  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : '' });
   if (overrides.swim  || superiorStride) parts.push({ label: 'Swim',   val: superiorStride ? final : overrides.swim,   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : '' });
   if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource + (canHover ? ' (hover)' : '') });
@@ -18861,12 +18866,14 @@ function calcAC() {
   const sorcSub = (getClassEntry('sorcerer')?.subclass || '').toLowerCase();
   const palSub  = (getClassEntry('paladin')?.subclass || '').toLowerCase();
 
-  if (hasClass('barbarian'))
-    candidates.push(10 + dex + abilityMod(abs.con));            // Unarmored Defense (CON)
-  if (hasClass('monk') || monkSub.includes('mercy') || monkSub.includes('open hand') || monkSub.includes('shadow') || monkSub.includes('four elements') || monkSub.includes('kensei') || monkSub.includes('drunken') || monkSub.includes('long death') || monkSub.includes('sun soul') || monkSub.includes('astral self'))
-    candidates.push(10 + dex + abilityMod(abs.wis));            // Unarmored Defense (WIS)
-  if (sorcSub.includes('draconic') || palSub.includes('noble genies'))
-    candidates.push(10 + dex + abilityMod(abs.cha));            // Unarmored Defense (CHA)
+  if (!isWearingArmor) {
+    if (hasClass('barbarian'))
+      candidates.push(10 + dex + abilityMod(abs.con));            // Unarmored Defense (CON)
+    if (hasClass('monk') || monkSub.includes('mercy') || monkSub.includes('open hand') || monkSub.includes('shadow') || monkSub.includes('four elements') || monkSub.includes('kensei') || monkSub.includes('drunken') || monkSub.includes('long death') || monkSub.includes('sun soul') || monkSub.includes('astral self'))
+      candidates.push(10 + dex + abilityMod(abs.wis));            // Unarmored Defense (WIS)
+    if (sorcSub.includes('draconic') || palSub.includes('noble genies'))
+      candidates.push(10 + dex + abilityMod(abs.cha));            // Unarmored Defense (CHA)
+  }
 
   // Natural armor — always a candidate regardless of worn armor
   if (naturalAC) candidates.push(naturalAC);
@@ -18944,12 +18951,14 @@ function calcACBreakdown() {
     : `10 + DEX ${s(dex)}`;
   candidates.push({ val: 10 + dex + bsBonus, label: baseLabel });
 
-  if (hasClass('barbarian'))
-    candidates.push({ val: 10 + dex + con, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CON ${s(con)}` });
-  if (hasClass('monk') || monkSub2.includes('mercy') || monkSub2.includes('open hand') || monkSub2.includes('shadow') || monkSub2.includes('four elements') || monkSub2.includes('kensei') || monkSub2.includes('drunken') || monkSub2.includes('long death') || monkSub2.includes('sun soul') || monkSub2.includes('astral self'))
-    candidates.push({ val: 10 + dex + wis, label: `Unarmored Defense: 10 + DEX ${s(dex)} + WIS ${s(wis)}` });
-  if (sorcSub2.includes('draconic') || palSub2.includes('noble genies'))
-    candidates.push({ val: 10 + dex + cha, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CHA ${s(cha)}` });
+  if (!isWearingArmor) {
+    if (hasClass('barbarian'))
+      candidates.push({ val: 10 + dex + con, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CON ${s(con)}` });
+    if (hasClass('monk') || monkSub2.includes('mercy') || monkSub2.includes('open hand') || monkSub2.includes('shadow') || monkSub2.includes('four elements') || monkSub2.includes('kensei') || monkSub2.includes('drunken') || monkSub2.includes('long death') || monkSub2.includes('sun soul') || monkSub2.includes('astral self'))
+      candidates.push({ val: 10 + dex + wis, label: `Unarmored Defense: 10 + DEX ${s(dex)} + WIS ${s(wis)}` });
+    if (sorcSub2.includes('draconic') || palSub2.includes('noble genies'))
+      candidates.push({ val: 10 + dex + cha, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CHA ${s(cha)}` });
+  }
 
   if (naturalAC)
     candidates.push({ val: naturalAC, label: naturalType === 'flat' ? `Natural Armor ${naturalAC}` : `Natural Armor ${naturalBase} + DEX ${s(dex)}` });
@@ -19382,6 +19391,11 @@ function clampCurrentHP() {
   }
   currentChar.hp_current = cur;
   currentChar.hp_max     = max;
+  // Death save rules (pip count, success threshold) can depend on HP being
+  // at/above 0 — e.g. Hat of the Sanguine Coven only applies while at 0 HP.
+  // Every HP-change path routes through here, so re-render here rather than
+  // at each call site.
+  if (typeof renderDeathSaves === 'function') renderDeathSaves();
 }
 
 // HP heal/damage delta
@@ -19502,14 +19516,15 @@ if (document.readyState === 'loading') {
 // Returns the effective death save rules for a character, accounting for
 // items that modify them. Currently: Hat of the Sanguine Coven doubles the
 // pip count to 6 (successes AND failures) and raises the roll needed for a
-// success from a natural 10+ to 15+ — but only while the wearer is actually
-// at 0 HP and has the hat attuned, per the item's own text ("Whenever you
-// have 0 hit points while wearing this hat..."). Takes any character object
-// (not just currentChar) so the DM's party views can compute this per-member
-// without duplicating the check.
+// success from a natural 10+ to 15+, whenever it's attuned. (The item's own
+// text scopes the mechanical benefit to "whenever you have 0 hit points,"
+// but the display is kept at the expanded 6-pip layout regardless of
+// current HP so the panel doesn't change shape as HP changes — the extra
+// pips just won't come into play until the wearer is actually dying.)
+// Takes any character object (not just currentChar) so the DM's party
+// views can compute this per-member without duplicating the check.
 function getDeathSaveRules(char) {
-  const hpZero = (parseInt(char?.hp_current) || 0) <= 0;
-  const hasHat = hpZero && (char?.magicItems || []).some(i =>
+  const hasHat = (char?.magicItems || []).some(i =>
     i.key === 'hat_of_the_sanguine_coven' && i.attuned
   );
   if (hasHat) {
@@ -20755,15 +20770,16 @@ function calcSpellStats() {
   const mod     = abilityMod(abs[ability]);
   const dcBonus  = getSpellDCBonus();
   const atkBonus = getSpellAtkBonus();
+  const exPen   = exhaustionD20Penalty();
   const dc      = 8 + prof + mod + dcBonus;
-  const atk     = prof + mod + atkBonus;
+  const atk     = prof + mod + atkBonus - exPen;
   const spellAtkAdv = hasSpellAtkAdvantage();
 
   const prepFn  = CLASS_PREP_FORMULA[cls];
   const prepLimit = prepFn ? prepFn(level, mod) : null;
 
   const dcFmla  = `8 + Prof(+${prof}) + ${ability.toUpperCase()}(${mod>=0?'+':''}${mod})${dcBonus?` + Active(+${dcBonus})`:''}`;
-  const atkFmla = `Prof(+${prof}) + ${ability.toUpperCase()}(${mod>=0?'+':''}${mod})${atkBonus?` + Active(+${atkBonus})`:''}`;
+  const atkFmla = `Prof(+${prof}) + ${ability.toUpperCase()}(${mod>=0?'+':''}${mod})${atkBonus?` + Active(+${atkBonus})`:''}${exPen?` \u2212 Exh(${exPen})`:''}`;
 
   return { ability, mod, dc, atk, prepLimit, spellAtkAdv, dcBonus, atkBonus,
     dcFormula:  `${dcFmla} = ${dc}`,
@@ -23197,7 +23213,7 @@ function calcWeaponAttack(entry) {
   const level = getLevel();
 
   const phbWeapon = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
-  const isRanged  = phbWeapon?.list === 'ranged';
+  const isRanged  = phbWeapon?.list === 'ranged' || phbWeapon?.list === 'firearm';
   const isFinesse = phbWeapon?.properties?.includes('finesse');
   const isLight   = phbWeapon?.properties?.includes('light');
   const isHeavy   = phbWeapon?.properties?.includes('heavy');
@@ -23251,6 +23267,8 @@ function calcWeaponAttack(entry) {
   // unlike 3.5e/Pathfinder where only the higher of the two applies)
   const ammoBonus = (phbWeapon?.ammo && currentChar.ammoBonus?.[phbWeapon.ammo]) || 0;
   atkBonus += ammoBonus;
+  // Exhaustion: -2 per level to D20 Tests (2024 rules), which includes attack rolls
+  atkBonus -= exhaustionD20Penalty();
 
   // ── Damage ───────────────────────────────────────────────
   let dmgDie, dmgCount, dmgType;
@@ -26892,7 +26910,7 @@ function renderAttacksPanel() {
   const sc    = getPrimarySpellcasting();
   const ability = sc?.ability || null;
   const abilMod_spell = ability ? abilityMod(getAbilities()[ability]) : 0;
-  const spellAtk = ability ? (abilMod_spell + prof + getSpellAtkBonus()) : null;
+  const spellAtk = ability ? (abilMod_spell + prof + getSpellAtkBonus() - exhaustionD20Penalty()) : null;
   const spellDC  = ability ? (8 + abilMod_spell + prof + getSpellDCBonus()) : null;
   const scaleIdx = getCantripScaleIdx(level);
 
@@ -32829,7 +32847,198 @@ function renderResourceTracker() {
     body.appendChild(renderResourceEntry(def, level, prof));
   }
   renderAddResourceButton(body);
+  if (typeof renderStoredRolls === 'function') renderStoredRolls();
 }
+
+// ═══════════════════════════════════════════════════════════
+// STORED ROLLS — Portent (Divination Wizard), Cosmic Omen (Circle of
+// the Stars Druid), and any future subclass with a similar "roll dice
+// now, spend them later" mechanic. Rendered as its own card on the Main
+// Sheet, right under Resources, since it shares the same rest-based
+// reset cadence. Hidden entirely for characters with neither feature.
+// ═══════════════════════════════════════════════════════════
+
+function ensureStoredRolls() {
+  if (!currentChar._storedRolls) currentChar._storedRolls = {};
+  if (!Array.isArray(currentChar._storedRolls.portent)) {
+    currentChar._storedRolls.portent = [];
+  }
+  if (!Array.isArray(currentChar._storedRolls.divinersDice)) {
+    currentChar._storedRolls.divinersDice = [];
+  }
+  if (currentChar._storedRolls.omen === undefined) currentChar._storedRolls.omen = null;
+}
+
+// Greater Portent (Diviner 14): 3 dice instead of the base 2
+function getPortentDieCount() {
+  let count = 0;
+  getAllClasses().forEach(entry => {
+    const eCls = entry.class?.toLowerCase().trim();
+    const eSub = (entry.subclass || '').toLowerCase();
+    if (eCls === 'wizard' && eSub.includes('divin')) {
+      const lv = entry.levels?.length || 0;
+      count = lv >= 14 ? 3 : 2;
+    }
+  });
+  return count;
+}
+
+function hasStarsDruid() {
+  return getAllClasses().some(entry =>
+    entry.class?.toLowerCase().trim() === 'druid' &&
+    (entry.subclass || '').toLowerCase().includes('star')
+  );
+}
+
+function hasDivinersDice() {
+  return (currentChar?.magicItems || []).some(i => i.key === 'diviners_dice' && i.attuned);
+}
+
+// Shared markup for a row of manual-entry-first dice slots (Portent uses
+// d20/replace-the-roll semantics, Diviner's Dice uses d6/add-or-subtract
+// semantics) — same card layout either way: type in what you physically
+// rolled, or tap the die icon if you'd rather roll digitally. Nothing
+// rolls on its own.
+function _renderDiceSlotRow(dice, max, onSet, onRoll, onToggle) {
+  return dice.map((die, i) => {
+    const filled = die.value !== null && die.value !== undefined;
+    return `
+      <div style="flex:1;min-width:70px;text-align:center;padding:8px;border-radius:var(--radius);border:1px solid var(--border);background:${die.used ? 'var(--bg3)' : 'var(--bg2)'};opacity:${die.used ? 0.5 : 1}">
+        <input type="number" min="1" max="${max}" value="${filled ? die.value : ''}" placeholder="—"
+          style="width:44px;text-align:center;font-family:var(--font-ui);font-size:16px;font-weight:700;background:transparent;border:none;color:var(--text)"
+          onchange="${onSet}(${i}, this.value)" ${die.used ? 'disabled' : ''}/>
+        <div style="display:flex;gap:4px;margin-top:4px;justify-content:center">
+          <button class="btn-sm" style="font-size:9px;padding:2px 6px" onclick="${onRoll}(${i})" ${die.used ? 'disabled' : ''} title="Roll digitally instead">🎲</button>
+          <button class="btn-sm" style="font-size:9px;padding:2px 6px" onclick="${onToggle}(${i})" ${filled ? '' : 'disabled'}>${die.used ? 'Reset' : 'Use'}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderStoredRolls() {
+  const panel = document.getElementById('stored-rolls-panel');
+  const body  = document.getElementById('stored-rolls-body');
+  if (!panel || !body || !currentChar) return;
+
+  const portentCount = getPortentDieCount();
+  const showOmen = hasStarsDruid();
+  const showDivinersDice = hasDivinersDice();
+
+  if (!portentCount && !showOmen && !showDivinersDice) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+  ensureStoredRolls();
+
+  let html = '';
+
+  if (portentCount) {
+    const p = currentChar._storedRolls.portent;
+    while (p.length < portentCount) p.push({ value: null, used: false });
+    html += `<div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:6px">Portent</div>`;
+    html += `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">`;
+    html += _renderDiceSlotRow(p.slice(0, portentCount), 20, 'setPortentValue', 'rollPortentDie', 'togglePortentUsed');
+    html += `</div>`;
+  }
+
+  if (showDivinersDice) {
+    const d = currentChar._storedRolls.divinersDice;
+    while (d.length < 3) d.push({ value: null, used: false });
+    html += `<div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:6px">Diviner's Dice <span style="text-transform:none;color:var(--text3)">(±roll, resets at dawn)</span></div>`;
+    html += `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">`;
+    html += _renderDiceSlotRow(d.slice(0, 3), 6, 'setDivinersDiceValue', 'rollDivinersDie', 'toggleDivinersDiceUsed');
+    html += `</div>`;
+  }
+
+  if (showOmen) {
+    const omen = currentChar._storedRolls.omen; // null | 'weal' | 'woe'
+    html += `<div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:6px">Cosmic Omen</div>`;
+    html += `
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button class="btn-sm" style="font-size:10px;padding:4px 10px;${omen==='weal' ? 'background:var(--accent);color:#000' : ''}" onclick="setOmenManual('weal')">Weal (+1d6)</button>
+        <button class="btn-sm" style="font-size:10px;padding:4px 10px;${omen==='woe' ? 'background:var(--red);color:#000' : ''}" onclick="setOmenManual('woe')">Woe (\u22121d6)</button>
+        <button class="btn-sm" style="font-size:10px;padding:4px 8px" onclick="rollCosmicOmen()" title="Roll digitally instead">🎲</button>
+      </div>
+    `;
+  }
+
+  body.innerHTML = html;
+}
+
+function setPortentValue(i, val) {
+  ensureStoredRolls();
+  const v = parseInt(val);
+  currentChar._storedRolls.portent[i] = { value: (v >= 1 && v <= 20) ? v : null, used: false };
+  renderStoredRolls();
+  debouncedSave();
+}
+
+function rollPortentDie(i) {
+  ensureStoredRolls();
+  const roll = Math.ceil(Math.random() * 20);
+  currentChar._storedRolls.portent[i] = { value: roll, used: false };
+  renderStoredRolls();
+  debouncedSave();
+}
+
+function togglePortentUsed(i) {
+  ensureStoredRolls();
+  const die = currentChar._storedRolls.portent[i];
+  if (!die || die.value === null) return;
+  die.used = !die.used;
+  renderStoredRolls();
+  debouncedSave();
+}
+
+function setDivinersDiceValue(i, val) {
+  ensureStoredRolls();
+  const v = parseInt(val);
+  currentChar._storedRolls.divinersDice[i] = { value: (v >= 1 && v <= 6) ? v : null, used: false };
+  renderStoredRolls();
+  debouncedSave();
+}
+
+function rollDivinersDie(i) {
+  ensureStoredRolls();
+  const roll = Math.ceil(Math.random() * 6);
+  currentChar._storedRolls.divinersDice[i] = { value: roll, used: false };
+  renderStoredRolls();
+  debouncedSave();
+}
+
+function toggleDivinersDiceUsed(i) {
+  ensureStoredRolls();
+  const die = currentChar._storedRolls.divinersDice[i];
+  if (!die || die.value === null) return;
+  die.used = !die.used;
+  renderStoredRolls();
+  debouncedSave();
+}
+
+function setOmenManual(val) {
+  ensureStoredRolls();
+  currentChar._storedRolls.omen = val;
+  renderStoredRolls();
+  debouncedSave();
+}
+
+function rollCosmicOmen() {
+  ensureStoredRolls();
+  const roll = Math.ceil(Math.random() * 6);
+  currentChar._storedRolls.omen = (roll % 2 === 0) ? 'weal' : 'woe';
+  renderStoredRolls();
+  debouncedSave();
+}
+window.setPortentValue        = setPortentValue;
+window.rollPortentDie         = rollPortentDie;
+window.togglePortentUsed      = togglePortentUsed;
+window.setDivinersDiceValue   = setDivinersDiceValue;
+window.rollDivinersDie        = rollDivinersDie;
+window.toggleDivinersDiceUsed = toggleDivinersDiceUsed;
+window.setOmenManual          = setOmenManual;
+window.rollCosmicOmen         = rollCosmicOmen;
 
 function renderAddResourceButton(body) {
   const btnWrap = document.createElement('div');
@@ -33492,6 +33701,10 @@ function doDawnReset() {
   }
   renderResourceTracker();
   toast(restored.length ? `Dawn: restored ${restored.join(', ')}` : 'No dawn-recovery resources to restore', 'ok');
+  if (currentChar._storedRolls && Array.isArray(currentChar._storedRolls.divinersDice)) {
+    currentChar._storedRolls.divinersDice = currentChar._storedRolls.divinersDice.map(() => ({ value: null, used: false }));
+    if (typeof renderStoredRolls === 'function') renderStoredRolls();
+  }
   debouncedSave();
 }
 window.doDawnReset = doDawnReset;
@@ -33858,6 +34071,16 @@ function doLongRest() {
   if (typeof renderWildShapeList === 'function') renderWildShapeList();
   renderSpellSlots();
   renderSpellStats();
+
+  // Portent dice and Cosmic Omen are re-rolled at the start of a new day —
+  // clear stored values (not auto-roll) so the player rolls fresh ones.
+  if (currentChar._storedRolls) {
+    if (Array.isArray(currentChar._storedRolls.portent)) {
+      currentChar._storedRolls.portent = currentChar._storedRolls.portent.map(() => ({ value: null, used: false }));
+    }
+    currentChar._storedRolls.omen = null;
+  }
+  if (typeof renderStoredRolls === 'function') renderStoredRolls();
 
   // Mage Armor expires after a long rest (8h duration = 8h rest)
   if (isEffectActive('mage_armor')) {
@@ -35645,9 +35868,17 @@ function applyFeatSlotEffects() {
     .map(d => d.feat.toLowerCase());
   const freeFeats = (currentChar.feats || []).map(f => (f.name||'').toLowerCase());
   // Background's origin feat is locked/pre-filled and never gets written into
-  // featSlots or feats — it only lives in _bgOriginFeat. Include it here or
-  // feats like Alert granted this way silently never take effect.
-  const bgFeat = currentChar._bgOriginFeat ? [currentChar._bgOriginFeat.toLowerCase()] : [];
+  // featSlots or feats — it only lives in _bgOriginFeat, which itself is only
+  // set by a couple of UI-trigger functions and can be unset entirely for
+  // characters loaded/built through other paths. Compute it live from the
+  // background data instead of trusting that cached field.
+  const _bgKeyFSE = currentChar.background;
+  const _bgFSE = _bgKeyFSE
+    ? (PHB_BACKGROUNDS[_bgKeyFSE] || PHB_BACKGROUNDS[_bgKeyFSE.toLowerCase()] ||
+       Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === _bgKeyFSE.toLowerCase()))
+    : null;
+  const bgFeatName = (_bgFSE?.originFeat || _bgFSE?.feat || currentChar._bgOriginFeat || null);
+  const bgFeat = bgFeatName ? [bgFeatName.toLowerCase()] : [];
   const allFeats = [...new Set([...slotFeats, ...freeFeats, ...bgFeat])];
 
   const has = name => allFeats.includes(name.toLowerCase());
@@ -35681,7 +35912,7 @@ function applyFeatSlotEffects() {
 
   // ── Initiative bonus (Alert) ──────────────────────────────
   currentChar._alertBonus = (has('Alert') || has('Alert [Origin]'))
-    ? (getProfBonus() || 0) : 0;
+    ? (getProf() || 0) : 0;
 
   // Note: recalcAll() is called by the caller after applyFeatSlotEffects()
   // DO NOT call recalcAll() here — it calls applyFeatSlotEffects() first, creating infinite recursion
@@ -37912,6 +38143,7 @@ function initTheme() {
 // characters viewed on the same device.
 function applyThemeFull(themeKey) {
   const key = _migrateThemeKey(themeKey);
+  clearCustomThemeInlineOverrides();
   document.documentElement.setAttribute('data-theme', key);
   const isDark = key.endsWith('-dark');
   const btn = document.getElementById('theme-toggle-btn');
@@ -37936,6 +38168,11 @@ function applyTheme(theme) {
 
 // Flips dark/light for whichever family is currently active.
 function toggleTheme() {
+  if (document.documentElement.dataset.customTheme === '1') {
+    const seeds = _defaultCustomThemeSeeds();
+    setCustomThemeMode(!seeds.isDark);
+    return;
+  }
   const current = _migrateThemeKey(document.documentElement.getAttribute('data-theme'));
   const family = current.replace(/-(dark|light)$/, '');
   const isDark = current.endsWith('-dark');
@@ -37963,16 +38200,212 @@ window.toggleThemePicker = toggleThemePicker;
 function renderThemePicker() {
   const grid = document.getElementById('theme-picker-grid');
   if (!grid) return;
+  const isCustom = document.documentElement.dataset.customTheme === '1';
   const current = _migrateThemeKey(document.documentElement.getAttribute('data-theme'));
-  const currentFamily = current.replace(/-(dark|light)$/, '');
+  const currentFamily = isCustom ? null : current.replace(/-(dark|light)$/, '');
   grid.innerHTML = THEME_FAMILIES.map(f => `
     <button class="theme-swatch-btn ${f.key === currentFamily ? 'is-active' : ''}" onclick="setThemeFamily('${f.key}')" title="${f.label}">
       <span class="theme-swatch-dot" style="background:${f.swatch}"></span>
       <span>${f.label}</span>
     </button>
   `).join('');
+  const customBtn = document.getElementById('custom-theme-toggle-btn');
+  if (customBtn) customBtn.classList.toggle('is-active', isCustom);
 }
 window.renderThemePicker = renderThemePicker;
+
+// ═══════════════════════════════════════════════════════════
+// CUSTOM THEME EDITOR
+// Lets the player pick 7 seed colors (bg, panel, accent, text, red,
+// green, amber) plus a dark/light base; everything else a theme normally
+// needs (border shades, dimmed/bright variants, tinted backgrounds, the
+// RGB-triplet strings used for rgba() elsewhere) is derived from those
+// seeds. Applied as inline overrides directly on the root element —
+// inline style has the highest CSS specificity there is, so this doesn't
+// need its own [data-theme="custom"] stylesheet block. A real preset's
+// block is still applied underneath first as a safety net, so anything
+// not explicitly derived here (radius, fonts, shadow, the fixed
+// --action-* colors) still resolves to something sensible.
+// ═══════════════════════════════════════════════════════════
+
+function _hexToRgb(hex) {
+  hex = (hex || '#888888').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  const n = parseInt(hex, 16) || 0x888888;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function _rgbToHex(r, g, b) {
+  const c = v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+// Mix two hex colors; ratio 0 = all a, 1 = all b
+function _mixHex(a, b, ratio) {
+  const A = _hexToRgb(a), B = _hexToRgb(b);
+  return _rgbToHex(A.r + (B.r - A.r) * ratio, A.g + (B.g - A.g) * ratio, A.b + (B.b - A.b) * ratio);
+}
+// Shade a hex color toward white (amt > 0) or black (amt < 0)
+function _shadeHex(hex, amt) {
+  return amt >= 0 ? _mixHex(hex, '#ffffff', amt) : _mixHex(hex, '#000000', -amt);
+}
+
+const CUSTOM_THEME_VARS = ['--bg','--bg2','--bg3','--panel','--border','--border2','--accent','--accent-dim',
+  '--accent-bg','--accent2','--accent3','--purple','--accent-rgb','--red','--red-dim','--red-bg',
+  '--green','--amber','--exh-colour','--text','--text2','--text3','--text-hi','--gold','--gold-dim',
+  '--gold-faint','--gold-glow'];
+
+function deriveCustomTheme(seeds) {
+  const { bg, panel, accent, text, red, green, amber, isDark } = seeds;
+  // Surfaces get progressively lighter as you go "up" in dark mode
+  // (bg -> panel -> bg3 -> border -> border2), progressively darker in
+  // light mode — same direction real theme blocks already use.
+  const dir = isDark ? 1 : -1;
+  const bg3      = _shadeHex(panel, dir * 0.10);
+  const border   = _shadeHex(panel, dir * 0.22);
+  const border2  = _shadeHex(panel, dir * 0.34);
+  const accentRgb  = _hexToRgb(accent);
+  const accentDim  = _shadeHex(accent, -0.15);
+  const accentBg   = _mixHex(panel, accent, 0.12);
+  const redDim = _mixHex(red, '#000000', 0.55);
+  const redBg  = _mixHex(panel, red, 0.14);
+  const text2  = _shadeHex(text, -dir * 0.22);
+  const text3  = _shadeHex(text, -dir * 0.40);
+  const textHi = _shadeHex(text, dir * 0.25);
+
+  return {
+    '--bg': bg, '--bg2': panel, '--bg3': bg3, '--panel': panel,
+    '--border': border, '--border2': border2,
+    '--accent': accent, '--accent-dim': accentDim, '--accent-bg': accentBg,
+    '--accent2': accent, '--accent3': accent, '--purple': accent,
+    '--accent-rgb': `${accentRgb.r},${accentRgb.g},${accentRgb.b}`,
+    '--red': red, '--red-dim': redDim, '--red-bg': redBg,
+    '--green': green, '--amber': amber, '--exh-colour': amber,
+    '--text': text, '--text2': text2, '--text3': text3, '--text-hi': textHi,
+    '--gold': accent, '--gold-dim': accentDim, '--gold-faint': accentBg,
+    '--gold-glow': `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.15)`,
+  };
+}
+
+function clearCustomThemeInlineOverrides() {
+  CUSTOM_THEME_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+  delete document.documentElement.dataset.customTheme;
+}
+
+function applyCustomTheme(seeds) {
+  // Base a real theme underneath first so anything this editor doesn't
+  // derive (radius, fonts, shadow) still has a sensible value.
+  document.documentElement.setAttribute('data-theme', seeds.isDark ? 'default-dark' : 'default-light');
+  const vars = deriveCustomTheme(seeds);
+  for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
+  document.documentElement.dataset.customTheme = '1';
+
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = seeds.isDark ? '☀' : '🌙';
+  if (typeof currentChar !== 'undefined' && currentChar) {
+    currentChar.themePreference = 'custom';
+    currentChar.customThemeSeeds = seeds;
+    if (typeof debouncedSave === 'function') debouncedSave();
+  }
+  const activeLabel = document.getElementById('theme-picker-active-label');
+  if (activeLabel) activeLabel.textContent = `Custom \u2014 ${seeds.isDark ? 'Dark' : 'Light'}`;
+  renderThemePicker();
+}
+window.applyCustomTheme = applyCustomTheme;
+
+function toggleCustomThemeEditor() {
+  const el = document.getElementById('custom-theme-editor');
+  if (!el) return;
+  const opening = el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  if (opening) {
+    // Reactivate the stored custom colors immediately — previously this
+    // only rendered the form with the old values pre-filled, but left
+    // whichever preset was last clicked as the actual active theme until
+    // the player nudged an individual color picker.
+    if (currentChar?.customThemeSeeds) applyCustomTheme(currentChar.customThemeSeeds);
+    renderCustomThemeEditor();
+  }
+}
+window.toggleCustomThemeEditor = toggleCustomThemeEditor;
+
+const CUSTOM_THEME_SEED_FIELDS = [
+  { key: 'bg',     label: 'Background' },
+  { key: 'panel',  label: 'Panel' },
+  { key: 'accent', label: 'Accent' },
+  { key: 'text',   label: 'Text' },
+  { key: 'red',    label: 'Red (danger)' },
+  { key: 'green',  label: 'Green (ok)' },
+  { key: 'amber',  label: 'Amber (warn)' },
+];
+
+function _defaultCustomThemeSeeds() {
+  const isDark = (document.documentElement.getAttribute('data-theme') || 'default-dark').endsWith('-dark');
+  return currentChar?.customThemeSeeds || {
+    bg: isDark ? '#0c0a14' : '#f6f3fb', panel: isDark ? '#15111f' : '#ffffff',
+    accent: isDark ? '#a875e8' : '#7c4dc4', text: isDark ? '#c8c8ca' : '#28282c',
+    red: isDark ? '#b4567a' : '#9c4566', green: isDark ? '#6b8a5a' : '#4f6b42',
+    amber: isDark ? '#a8843a' : '#8a6a2a', isDark,
+  };
+}
+
+function renderCustomThemeEditor() {
+  const el = document.getElementById('custom-theme-editor');
+  if (!el) return;
+  const seeds = _defaultCustomThemeSeeds();
+
+  el.innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="theme-swatch-btn ${seeds.isDark ? 'is-active' : ''}" style="flex:1;justify-content:center" onclick="setCustomThemeMode(true)">Dark</button>
+      <button class="theme-swatch-btn ${!seeds.isDark ? 'is-active' : ''}" style="flex:1;justify-content:center" onclick="setCustomThemeMode(false)">Light</button>
+    </div>
+    ${CUSTOM_THEME_SEED_FIELDS.map(f => `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2)">${f.label}</span>
+        <input type="color" value="${seeds[f.key]}" style="width:36px;height:22px;padding:0;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer"
+          onchange="updateCustomThemeSeed('${f.key}', this.value)"/>
+      </div>
+    `).join('')}
+    <button class="theme-swatch-btn" style="width:100%;justify-content:center;margin-top:4px;color:var(--text3)" onclick="resetCustomTheme()">Reset to defaults</button>
+  `;
+}
+window.renderCustomThemeEditor = renderCustomThemeEditor;
+
+// bg/panel/text are fundamentally mode-specific (a near-black bg makes no
+// sense once you've switched to "Light") so the Dark/Light buttons swap
+// those to fresh mode-appropriate defaults. Accent/red/green/amber are
+// left as-is — those read fine against either background, and this way
+// switching modes doesn't throw away a color the player deliberately
+// picked.
+const _CUSTOM_THEME_MODE_DEFAULTS = {
+  dark:  { bg: '#0c0a14', panel: '#15111f', text: '#c8c8ca', accent: '#a875e8', red: '#b4567a', green: '#6b8a5a', amber: '#a8843a' },
+  light: { bg: '#f6f3fb', panel: '#ffffff', text: '#28282c', accent: '#7c4dc4', red: '#9c4566', green: '#4f6b42', amber: '#8a6a2a' },
+};
+function setCustomThemeMode(isDark) {
+  const seeds = { ..._defaultCustomThemeSeeds() };
+  const modeDefaults = isDark ? _CUSTOM_THEME_MODE_DEFAULTS.dark : _CUSTOM_THEME_MODE_DEFAULTS.light;
+  Object.assign(seeds, { bg: modeDefaults.bg, panel: modeDefaults.panel, text: modeDefaults.text, isDark });
+  applyCustomTheme(seeds);
+  renderCustomThemeEditor();
+}
+window.setCustomThemeMode = setCustomThemeMode;
+
+// Discards all customization (unlike the Dark/Light buttons, which only
+// touch bg/panel/text) and returns every seed to its fresh default for
+// whichever mode is currently active.
+function resetCustomTheme() {
+  const isDark = _defaultCustomThemeSeeds().isDark;
+  const modeDefaults = isDark ? _CUSTOM_THEME_MODE_DEFAULTS.dark : _CUSTOM_THEME_MODE_DEFAULTS.light;
+  applyCustomTheme({ ...modeDefaults, isDark });
+  renderCustomThemeEditor();
+}
+window.resetCustomTheme = resetCustomTheme;
+
+function updateCustomThemeSeed(key, val) {
+  const seeds = { ..._defaultCustomThemeSeeds() };
+  seeds[key] = val;
+  applyCustomTheme(seeds);
+  renderCustomThemeEditor();
+}
+window.updateCustomThemeSeed = updateCustomThemeSeed;
 
 // ═══════════════════════════════════════════════════════════
 // FEATURES TAB
@@ -38363,6 +38796,33 @@ function populateFeaturesTab() {
     return (a.name || '').localeCompare(b.name || '');
   });
 
+  // ── Tables (Wild Magic Surge, etc.) ─────────────────────────
+  // Pulled out of the normal level-grouped flow: the full interactive
+  // table renders only in the dedicated Tables tab; the Features tab gets
+  // a compact link card at the very top instead. Both are built from this
+  // same `entries` pass so the underlying data never has to be collected
+  // twice.
+  const tableEntries    = entries.filter(e => e.isTable);
+  const nonTableEntries = entries.filter(e => !e.isTable);
+
+  const tablesEl = document.getElementById('tables-tab-list');
+  if (tablesEl) {
+    if (tableEntries.length) {
+      tablesEl.innerHTML = tableEntries
+        .map(e => makeTableFeatureCard(e.id, e.name, e.level, e.desc, e.source))
+        .join('');
+    } else {
+      tablesEl.innerHTML = '<div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">No roll tables from your current race, class, subclass, or feats.</div>';
+    }
+  }
+  const tablesTab = document.getElementById('tab-tables');
+  if (tablesTab) {
+    tablesTab.style.display = tableEntries.length ? '' : 'none';
+    if (!tableEntries.length && document.getElementById('page-tables')?.classList.contains('active')) {
+      switchPage('main');
+    }
+  }
+
   if (!entries.length) {
     el.innerHTML = '<div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Select a class and race on the Main Sheet to see features.</div>';
     return;
@@ -38372,7 +38832,20 @@ function populateFeaturesTab() {
   let html2 = '';
   let lastLevelLabel = null;
 
-  entries.forEach(e => {
+  if (tableEntries.length) {
+    html2 += `<div class="feat-unified-header"><span class="feat-unified-level">Tables</span></div>`;
+    html2 += tableEntries.map(e => `
+      <div class="feat-card" style="cursor:pointer" onclick="switchPage('tables')">
+        <div class="feat-card-header">
+          <span class="feat-card-name">🎲 ${e.name}</span>
+          <span class="feat-card-usage">View in Tables tab →</span>
+        </div>
+        <div style="margin-top:-4px;margin-bottom:4px"><span class="feat-card-source">${e.source}</span></div>
+      </div>
+    `).join('');
+  }
+
+  nonTableEntries.forEach(e => {
     // Group header is now level-only ("Level 1") rather than level+source
     // ("Level 1 — Human (Race)" then separately "Level 1 — Warlock
     // (Class)") — every feature gained at the same level sits under one
@@ -38409,31 +38882,27 @@ function populateFeaturesTab() {
         })()
       : (e.recovery ? `<span class="feat-card-usage">${e.recovery}</span>` : '');
 
-    if (e.isTable) {
-      html2 += makeTableFeatureCard(e.id, e.name, e.level, e.desc, e.source);
-    } else {
-      // Build spell modal links for racial spell entries
-      const spellLinks = (e._spellKeys || []).map(k => {
-        const sp = PHB_SPELL_LIST.find(s => s.key === k);
-        if (!sp) return '';
-        return `<span style="color:var(--accent);cursor:pointer;font-family:var(--font-ui);font-size:10px;font-weight:600;text-decoration:underline;margin-right:8px"
-          onclick="event.stopPropagation();openSpellDetailModal('${k}','${sp.name.replace(/'/g,"\\'")}')">📖 ${sp.name}</span>`;
-      }).join('');
+    // Build spell modal links for racial spell entries
+    const spellLinks = (e._spellKeys || []).map(k => {
+      const sp = PHB_SPELL_LIST.find(s => s.key === k);
+      if (!sp) return '';
+      return `<span style="color:var(--accent);cursor:pointer;font-family:var(--font-ui);font-size:10px;font-weight:600;text-decoration:underline;margin-right:8px"
+        onclick="event.stopPropagation();openSpellDetailModal('${k}','${sp.name.replace(/'/g,"\\'")}')">📖 ${sp.name}</span>`;
+    }).join('');
 
-      html2 += `
-      <div class="feat-card" id="feat-card-${e.id}" data-feat-id="${e.id}"
-        ${e._spellKeys?.length === 1 ? `style="cursor:pointer" onclick="openSpellDetailModal('${e._spellKeys[0]}','${(PHB_SPELL_LIST.find(s=>s.key===e._spellKeys[0])?.name||'').replace(/'/g,"\\'")}')"`:''}
-      >
-        <div class="feat-card-header">
-          <span class="feat-card-name">${e.name}</span>
-          ${usageStr}
-        </div>
-        <div style="margin-top:-4px;margin-bottom:4px">${sourceBadge}</div>
-        ${e.desc ? `<div class="feat-card-desc">${e.isHtml ? e.desc : e.desc.replace(/\|/g,'<br>').replace(/\n/g,'<br>')}</div>` : ''}
-        ${spellLinks ? `<div style="margin-top:6px">${spellLinks}</div>` : ''}
+    html2 += `
+    <div class="feat-card" id="feat-card-${e.id}" data-feat-id="${e.id}"
+      ${e._spellKeys?.length === 1 ? `style="cursor:pointer" onclick="openSpellDetailModal('${e._spellKeys[0]}','${(PHB_SPELL_LIST.find(s=>s.key===e._spellKeys[0])?.name||'').replace(/'/g,"\\'")}')"`:''}
+    >
+      <div class="feat-card-header">
+        <span class="feat-card-name">${e.name}</span>
+        ${usageStr}
       </div>
-    `;
-    }
+      <div style="margin-top:-4px;margin-bottom:4px">${sourceBadge}</div>
+      ${e.desc ? `<div class="feat-card-desc">${e.isHtml ? e.desc : e.desc.replace(/\|/g,'<br>').replace(/\n/g,'<br>')}</div>` : ''}
+      ${spellLinks ? `<div style="margin-top:6px">${spellLinks}</div>` : ''}
+    </div>
+  `;
   });
 
   // ── Psionic Disciplines (Psion only) ─────────────────────
@@ -39696,13 +40165,7 @@ window.quickStartBack = quickStartBack;
 window.verifyDMPin            = verifyDMPin;
 
 function openDMPanelDirect() {
-  // Always go through openModal() so the modal gets correctly re-teleported
-  // to document.body and given a proper z-index — closeDMModal() moves it
-  // back to its original DOM position as cleanup when closed, so a later
-  // reopen that skips this step (as this function previously did when
-  // isDM was already true) leaves it sitting wherever it landed, often
-  // invisible or behind other content even though .hidden was removed.
-  openModal('dm-modal');
+  switchPage('dm');
   // If already authenticated as DM, skip PIN gate
   if (isDM) {
     const gate  = document.getElementById('dm-pin-gate');
@@ -39715,18 +40178,24 @@ function openDMPanelDirect() {
 }
 window.openDMPanelDirect = openDMPanelDirect;
 
-// ── DM Quick Dice ─────────────────────────────────────────
-function dmRollDice(sides, adv=false, dis=false) {
-  const r1 = Math.ceil(Math.random() * sides);
-  const r2 = (adv || dis) ? Math.ceil(Math.random() * sides) : null;
-  let result, label;
-  if (adv)      { result = Math.max(r1, r2); label = `d${sides} ADV: ${r1} / ${r2} → `; }
-  else if (dis) { result = Math.min(r1, r2); label = `d${sides} DIS: ${r1} / ${r2} → `; }
-  else          { result = r1; label = `d${sides}: `; }
-  const el = document.getElementById('dm-dice-result');
-  if (el) el.innerHTML = `<span style="color:var(--text3);font-size:13px;font-weight:400">${label}</span><span style="color:${result === sides ? 'var(--gold)' : result === 1 ? 'var(--red)' : 'var(--accent)'}">${result}</span>`;
+// The DM page lives inside #app now rather than floating as an
+// independent modal, so reaching it pre-login (from the login screen's
+// "DM? Admin panel" link) needs #app revealed first — same visibility
+// toggle enterApp() does, without loading any character.
+function openDMPanelFromLogin() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  // No character is loaded in this flow — hide the normal sheet tab bar
+  // (Main Sheet, Features, etc.) so the DM can't click into tabs that
+  // assume a currentChar exists. dmLoadChar() restores it if the DM opens
+  // an actual character to edit.
+  const tabs = document.getElementById('page-tabs');
+  if (tabs) tabs.style.display = 'none';
+  openDMPanelDirect();
 }
-window.dmRollDice = dmRollDice;
+window.openDMPanelFromLogin = openDMPanelFromLogin;
+
+// ── DM Quick Dice ─────────────────────────────────────────
 
 // ── DM Apply Condition to character ──────────────────────
 async function dmApplyCondition(charId, condition) {
@@ -40843,184 +41312,6 @@ function updateWildCompanionUI() {
   </div>
 </div>
 
-<div class="modal-overlay hidden" id="dm-modal">
-  <div class="modal-box" style="max-width:1400px;max-height:96vh;overflow-y:auto;width:calc(100vw - 24px)">
-    <div class="modal-title">
-      ⚔ DM Panel — Aeloria
-      <span class="modal-close" onclick="closeDMModal()">✕</span>
-    </div>
-
-    <!-- PIN Gate -->
-    <div id="dm-pin-gate">
-      <div class="info-field">
-        <label class="field-label">DM PIN</label>
-        <input class="info-input" id="dm-pin-input" type="password" placeholder="Enter DM PIN…" maxlength="12"
-          onkeydown="if(event.key==='Enter') verifyDMPin()"/>
-      </div>
-      <button class="btn-primary" onclick="verifyDMPin()">Unlock</button>
-      <div class="modal-error" id="dm-pin-error"></div>
-    </div>
-
-    <!-- DM Content (shown after PIN) -->
-    <div id="dm-content" style="display:none">
-
-      <!-- Tab strip -->
-      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;scrollbar-width:none">
-        <button class="dm-tab active" onclick="switchDMTab('party')" id="dm-tab-party" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid var(--accent);background:none;color:var(--accent);cursor:pointer;white-space:nowrap">Party</button>
-        <button class="dm-tab" onclick="switchDMTab('initiative')" id="dm-tab-initiative" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Initiative</button>
-        <button class="dm-tab" onclick="switchDMTab('notes')" id="dm-tab-notes" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Campaign Notes</button>
-        <button class="dm-tab" onclick="switchDMTab('campaigns')" id="dm-tab-campaigns" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Campaigns</button>
-        <button class="dm-tab" onclick="switchDMTab('items')" id="dm-tab-items" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Items</button>
-        <button class="dm-tab" onclick="switchDMTab('admin')" id="dm-tab-admin" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Admin</button>
-      </div>
-
-      <!-- Party Tab -->
-      <div id="dm-pane-party">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-          <div>
-            <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Player Characters</div>
-            <div id="dm-party-summary" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px"></div>
-          </div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap">
-            <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="loadDMCharList()">↺ Refresh</button>
-            <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="dmBulkRest('short')">☽ Short Rest All</button>
-            <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="dmBulkRest('long')">★ Long Rest All</button>
-          </div>
-        </div>
-        <div id="dm-hp-glance" style="display:flex;flex-direction:column;gap:3px;margin-bottom:10px"></div>
-        <div id="dm-char-list" style="display:flex;flex-direction:column;gap:6px;max-height:calc(96vh - 300px);overflow-y:auto"></div>
-        <div id="dm-party-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px;text-align:center"></div>
-      </div>
-
-      <!-- Initiative Tab -->
-      <div id="dm-pane-initiative" style="display:none">
-        <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Encounter Tracker</div>
-        <div style="display:flex;gap:6px;margin-bottom:8px">
-          <input class="info-input" id="dm-init-name" placeholder="Creature / NPC name…" style="flex:1;font-size:12px"/>
-          <input class="info-input" id="dm-init-roll" placeholder="Init" type="number" style="width:56px;text-align:center;font-size:12px"/>
-          <input class="info-input" id="dm-init-hp" placeholder="HP" type="number" style="width:56px;text-align:center;font-size:12px"/>
-          <button class="tbtn" onclick="dmAddCombatant()" style="font-size:10px;padding:4px 10px">+ Add</button>
-        </div>
-        <div style="display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap">
-          <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;align-self:center">Quick:</span>
-          <button class="tbtn" onclick="dmQuickAdd('Goblin',1,7)"        style="font-size:9px;padding:2px 8px">Goblin</button>
-          <button class="tbtn" onclick="dmQuickAdd('Orc',2,15)"          style="font-size:9px;padding:2px 8px">Orc</button>
-          <button class="tbtn" onclick="dmQuickAdd('Skeleton',2,13)"     style="font-size:9px;padding:2px 8px">Skeleton</button>
-          <button class="tbtn" onclick="dmQuickAdd('Wolf',2,11)"         style="font-size:9px;padding:2px 8px">Wolf</button>
-          <button class="tbtn" onclick="dmQuickAdd('Bandit',2,11)"       style="font-size:9px;padding:2px 8px">Bandit</button>
-          <button class="tbtn" onclick="dmQuickAdd('Zombie',0,22)"       style="font-size:9px;padding:2px 8px">Zombie</button>
-          <button class="tbtn" onclick="dmQuickAdd('Guard',2,11)"        style="font-size:9px;padding:2px 8px">Guard</button>
-          <button class="tbtn" onclick="dmQuickAdd('Cultist',0,9)"       style="font-size:9px;padding:2px 8px">Cultist</button>
-          <button class="tbtn" onclick="dmQuickAdd('Dire Wolf',2,37)"    style="font-size:9px;padding:2px 8px">Dire Wolf</button>
-          <button class="tbtn" onclick="dmQuickAdd('Vampire Spawn',6,82)"style="font-size:9px;padding:2px 8px">Vamp Spawn</button>
-        </div>
-        <div style="display:flex;gap:6px;margin-bottom:12px">
-          <button class="tbtn" onclick="dmAddPartyToCombat()" style="font-size:10px;padding:4px 10px">+ Add Party</button>
-          <button class="tbtn" onclick="dmNextTurn()" style="font-size:10px;padding:4px 10px;border-color:var(--accent);color:var(--accent)">▶ Next Turn</button>
-          <button class="tbtn" onclick="dmClearCombat()" style="font-size:10px;padding:4px 10px;border-color:var(--red);color:var(--red)" title="Clear all">✕ Clear</button>
-        </div>
-        <div id="dm-init-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 280px);overflow-y:auto"></div>
-        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px" id="dm-round-counter">Round 1</div>
-
-        <div style="padding-top:12px;border-top:1px solid var(--border);margin-top:12px">
-          <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Quick Dice</div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap">
-            <button class="tbtn" onclick="dmRollDice(4)"   style="font-size:10px;padding:4px 9px">d4</button>
-            <button class="tbtn" onclick="dmRollDice(6)"   style="font-size:10px;padding:4px 9px">d6</button>
-            <button class="tbtn" onclick="dmRollDice(8)"   style="font-size:10px;padding:4px 9px">d8</button>
-            <button class="tbtn" onclick="dmRollDice(10)"  style="font-size:10px;padding:4px 9px">d10</button>
-            <button class="tbtn" onclick="dmRollDice(12)"  style="font-size:10px;padding:4px 9px">d12</button>
-            <button class="tbtn" onclick="dmRollDice(20)"  style="font-size:10px;padding:4px 9px">d20</button>
-            <button class="tbtn" onclick="dmRollDice(100)" style="font-size:10px;padding:4px 9px">d100</button>
-            <button class="tbtn" onclick="dmRollDice(20,true)" style="font-size:10px;padding:4px 9px;border-color:var(--accent);color:var(--accent)">ADV</button>
-            <button class="tbtn" onclick="dmRollDice(20,false,true)" style="font-size:10px;padding:4px 9px;border-color:var(--red);color:var(--red)">DIS</button>
-          </div>
-          <div id="dm-dice-result" style="font-family:var(--font-label);font-size:22px;font-weight:700;color:var(--accent);margin-top:8px;min-height:30px;text-align:center;letter-spacing:1px"></div>
-        </div>
-      </div>
-
-      <!-- Campaign Notes Tab -->
-      <div id="dm-pane-notes" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Campaign Notes</div>
-          <button class="tbtn" onclick="dmSaveNotes()" style="font-size:9px;padding:3px 10px">💾 Save</button>
-        </div>
-        <textarea id="dm-notes-text" class="sheet-textarea"
-          placeholder="Session notes, NPC names, plot hooks, secrets…"
-          style="min-height:240px;font-size:12px;line-height:1.6;resize:vertical"></textarea>
-        <div style="margin-top:10px">
-          <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Session Log</div>
-          <div style="display:flex;gap:6px;margin-bottom:8px">
-            <input class="info-input" id="dm-log-entry" placeholder="Log this session's summary…" style="flex:1;font-size:12px"
-              onkeydown="if(event.key==='Enter') dmAddLogEntry()"/>
-            <button class="tbtn" onclick="dmAddLogEntry()" style="font-size:10px;padding:4px 10px">+ Log</button>
-          </div>
-          <div id="dm-session-log" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto"></div>
-        </div>
-        <div id="dm-notes-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;min-height:14px"></div>
-      </div>
-
-      <!-- Campaigns Tab -->
-      <div id="dm-pane-campaigns" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Campaigns</div>
-          <button class="tbtn" onclick="dmAddCampaign()" style="font-size:9px;padding:3px 10px">+ New Campaign</button>
-        </div>
-        <div id="dm-campaign-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
-        <div id="dm-campaign-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);min-height:14px"></div>
-      </div>
-
-      <!-- Admin Tab -->
-      <!-- Items Tab — DM catalog management -->
-      <div id="dm-pane-items" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-          <div>
-            <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Magic Item Catalog</div>
-            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px">Add new items or override any existing one — changes are visible to every player.</div>
-          </div>
-          <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="openDMCatalogItemModal()">+ New Item</button>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
-          <input class="spell-search-input" id="dm-items-search" placeholder="Search catalog…"
-            oninput="dmRenderItemsList()" style="flex:1;min-width:120px"/>
-          <select class="spell-filter-sel" id="dm-items-rarity" onchange="dmRenderItemsList()">
-            <option value="">All Rarities</option>
-            <option value="common">Common</option>
-            <option value="uncommon">Uncommon</option>
-            <option value="rare">Rare</option>
-            <option value="very rare">Very Rare</option>
-            <option value="legendary">Legendary</option>
-            <option value="artifact">Artifact</option>
-            <option value="primeval vestige">Primeval Vestige</option>
-          </select>
-          <select class="spell-filter-sel" id="dm-items-source" onchange="dmRenderItemsList()">
-            <option value="">All Sources</option>
-            <option value="dm">DM Added / Overridden</option>
-            <option value="official">Official Catalog</option>
-          </select>
-        </div>
-        <div id="dm-items-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
-        <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 320px);overflow-y:auto"></div>
-      </div>
-
-      <div id="dm-pane-admin" style="display:none">
-        <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px">DM PIN</div>
-        <div class="info-field">
-          <label class="field-label">New DM PIN</label>
-          <input class="info-input" id="dm-new-pin" type="password" placeholder="New PIN…" maxlength="12"/>
-        </div>
-        <button class="btn-primary" onclick="setDMPin()" style="margin-bottom:8px">Update DM PIN</button>
-        <div id="dm-admin-status" style="font-family:var(--font-ui);font-size:11px;margin-top:4px;min-height:16px;"></div>
-
-        <div style="padding-top:14px;border-top:1px solid var(--border);margin-top:14px">
-          <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Character Management</div>
-          <div id="dm-admin-char-list" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto"></div>
-        </div>
-      </div>
-
-    </div><!-- /dm-content -->
-  </div>
-</div>
 
 
 <!-- ── Spell Slot Override Modal ── -->
