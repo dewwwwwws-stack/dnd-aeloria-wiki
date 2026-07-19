@@ -741,6 +741,33 @@ select:not([multiple]) {
 .page { display: none; }
 .page.active { display: block; }
 
+/* Read-only character preview (from Party Overview) — disables every
+   interactive control inside the actual sheet content, while leaving
+   page-tab navigation and the preview banner's own back button (both
+   outside .page) fully clickable, so a viewer can still browse tabs.
+   Deliberately targets every element, not just input/select/textarea/
+   button — a lot of this sheet's UI (death-save pips, resource counters,
+   condition toggles) is built as plain divs/spans with onclick handlers
+   rather than real form elements, and a tag-specific selector let those
+   slip through as still-clickable even though nothing else was. */
+body.preview-readonly .page * {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+body.preview-readonly #content {
+  opacity: .92;
+}
+/* Modals (item/spell detail, etc.) live outside .page entirely, so the
+   rule above doesn't reach them — and since currentChar is swapped to the
+   previewed character during preview, a modal like the magic item detail
+   view would otherwise think you own what you're looking at and expose
+   its real edit controls. Exempts .modal-close so the modal can still be
+   dismissed. */
+body.preview-readonly .modal-overlay *:not(.modal-close) {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
 /* ── PANELS ──────────────────────────────────────────────── */
 .panel {
   background: var(--bg2);
@@ -2371,6 +2398,9 @@ select:not([multiple]) {
         <button class="login-link" onclick="openDMPanelFromLogin()" type="button">
           DM? <span>Admin panel</span>
         </button>
+        <button class="login-link" onclick="openPartyOverviewFromLogin()" type="button">
+          👁 <span>View Parties</span>
+        </button>
       </div>
     </div>
   </div>
@@ -2411,6 +2441,7 @@ select:not([multiple]) {
       <button class="tbtn" onclick="openPINChange()" title="Change PIN"><span class="btn-label-full">&#128274; PIN</span><span class="btn-label-short" style="display:none">&#128274;</span></button>
       <button class="tbtn danger" onclick="doLogout()" title="Logout"><span class="btn-label-full">Logout</span><span class="btn-label-short" style="display:none">⏏</span></button>
       <button class="tbtn" id="dm-topbar-btn" onclick="openDMPanelDirect()" title="DM Panel" style="display:none;border-color:var(--gold);color:var(--gold)">⚔ DM</button>
+      <button class="tbtn" onclick="openPartyOverview()" title="Party Overview">👁 Parties</button>
     </div>
   </div>
 
@@ -2425,6 +2456,11 @@ select:not([multiple]) {
     <div class="page-tab" id="tab-companion" data-page="companion" data-short="Companion" style="display:none">Companion</div>
     <div class="page-tab" id="tab-summon" data-page="summon" data-short="Summon" style="display:none">Summon</div>
     <div class="page-tab" id="tab-wildshape" data-page="wildshape" data-short="Shape" style="display:none">Wild Shape</div>
+  </div>
+
+  <div id="preview-banner" style="display:none;align-items:center;gap:10px;padding:8px 20px;background:var(--gold);color:#000;font-family:var(--font-ui);font-size:12px;font-weight:600">
+    <span>👁 Read-only preview — <span id="preview-banner-name"></span>'s sheet. Nothing here can be edited or saved.</span>
+    <button class="tbtn" onclick="exitPreviewMode()" style="margin-left:auto;background:#000;color:var(--gold);border-color:#000">← Back to Party Overview</button>
   </div>
 
   <div id="content">
@@ -2486,6 +2522,19 @@ select:not([multiple]) {
           <!-- Character Info -->
           <div class="panel">
             <div class="panel-title">Character</div>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+              <div id="char-token-preview" style="width:52px;height:52px;border-radius:50%;border:2px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
+                <span style="font-size:20px;color:var(--text3)">⚔</span>
+              </div>
+              <div style="flex:1">
+                <label class="field-label">Token Image</label>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input type="file" id="ci-token-file" accept="image/*" style="display:none" onchange="handleTokenFileUpload(this.files[0])"/>
+                  <button class="tbtn" style="font-size:10px;padding:6px 12px" onclick="document.getElementById('ci-token-file').click()">📤 Upload Token</button>
+                  <span id="ci-token-status" style="font-family:var(--font-ui);font-size:9px;color:var(--text3)"></span>
+                </div>
+              </div>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 120px;gap:10px;margin-bottom:10px">
               <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="name" placeholder="Character name" oninput="onCharNameChange(this.value)"/></div>
               <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off"/></div>
@@ -2752,6 +2801,19 @@ select:not([multiple]) {
           <div id="tables-tab-list">
             <div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Select a class and race on the Main Sheet to see tables.</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-party-overview">
+      <div style="padding:16px;max-width:1200px;margin:0 auto">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--gold)">👁 Party Overview</span>
+          <button class="tbtn" onclick="exitPartyOverview()" style="margin-left:auto;font-size:10px">← Back</button>
+        </div>
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:14px">Read-only snapshot of every party — no login required. To edit anything, log in as a character or DM.</div>
+        <div id="party-overview-body">
+          <div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Loading…</div>
         </div>
       </div>
     </div>
@@ -3424,6 +3486,23 @@ select:not([multiple]) {
 
 
 <!-- ── ASI MODAL ─────────────────────────────────────────── -->
+<!-- ── Give Item Modal ───────────────────────────────────── -->
+<div class="modal-overlay hidden" id="give-item-modal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      🎁 Give Item
+      <span class="modal-close" onclick="closeModal('give-item-modal')">✕</span>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:10px">
+      Giving <strong id="give-item-name" style="color:var(--text)"></strong> to:
+    </div>
+    <div id="give-item-recipients" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto">
+      <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading party…</div>
+    </div>
+    <div id="give-item-status" style="font-family:var(--font-ui);font-size:11px;margin-top:8px;min-height:16px"></div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="asi-modal">
   <div class="modal-box" style="max-width:560px;max-height:90vh;overflow-y:auto">
     <div class="modal-title">
@@ -4556,6 +4635,23 @@ const GH = {
   async listFiles() {
     const data = await this.req('GET', `contents/${this.dir}?ref=${encodeURIComponent(this.branch)}`);
     return Array.isArray(data) ? data.filter(f => f.name.endsWith('.json')) : [];
+  },
+
+  // ── Raw binary uploads (token images) ──────────────────────
+  // Unlike getFile/putFile above, these take a full repo-relative path
+  // rather than a filename under this.dir — token images live in their
+  // own tokens/ folder, not chars/.
+  async putBinaryFile(path, base64Content, sha) {
+    const body = { message: sha ? `Update ${path}` : `Create ${path}`, content: base64Content, branch: this.branch };
+    if (sha) body.sha = sha;
+    return this.req('PUT', `contents/${path}`, body);
+  },
+
+  async getFileShaAtPath(path) {
+    try {
+      const data = await this.req('GET', `contents/${path}?ref=${encodeURIComponent(this.branch)}`);
+      return data.sha;
+    } catch(e) { return null; } // 404 — file doesn't exist yet, nothing to overwrite
   }
 };
 
@@ -5187,28 +5283,29 @@ async function populateLoginDropdown() {
     const results = await Promise.all(chars.map(async f => {
       const id = f.name.replace('.json','');
       try {
-        // Use the raw download_url from listFiles if available to avoid extra API overhead
-        let charName = id, playerName = '';
-        if (f.download_url) {
-          const resp = await fetch(f.download_url);
-          const data = await resp.json();
-          charName   = data.charName || id;
-          playerName = data.playerName || '';
-        } else {
-          const data = await GH.getFile(f.name);
-          charName   = data.content.charName || id;
-          playerName = data.content.playerName || '';
-        }
-        return { id, label: charName + (playerName ? `  (${playerName})` : '') };
+        // Always go through the Contents API (GH.getFile), never the raw
+        // download_url — raw.githubusercontent.com is served through a CDN
+        // that can cache content for several minutes, which meant toggling
+        // "Hide from Login" in the DM panel wouldn't actually be reflected
+        // here for a while, making the checkbox look like it did nothing.
+        const data = await GH.getFile(f.name);
+        const charName   = data.content.charName || id;
+        const playerName = data.content.playerName || '';
+        const hideFromSelector = !!data.content.hideFromSelector;
+        return { id, label: charName + (playerName ? `  (${playerName})` : ''), hideFromSelector };
       } catch {
-        return { id, label: id };
+        return { id, label: id, hideFromSelector: false };
       }
     }));
 
-    // Sort alphabetically by label
-    results.sort((a,b) => a.label.localeCompare(b.label));
+    // Sort alphabetically by label, dropping anything the DM has hidden
+    // from this list specifically (a character can still be logged into
+    // directly if you know its details — this only controls whether it
+    // shows up in the dropdown).
+    const visibleResults = results.filter(r => !r.hideFromSelector);
+    visibleResults.sort((a,b) => a.label.localeCompare(b.label));
 
-    results.forEach(({ id, label }) => {
+    visibleResults.forEach(({ id, label }) => {
       const opt = document.createElement('option');
       opt.value = id;
       opt.textContent = label;
@@ -5216,7 +5313,7 @@ async function populateLoginDropdown() {
     });
 
     status.className = 'ok';
-    status.textContent = `${chars.length} character${chars.length>1?'s':''} found`;
+    status.textContent = `${visibleResults.length} character${visibleResults.length!==1?'s':''} found`;
   } catch(e) {
     status.className = 'error';
     status.textContent = 'Could not reach GitHub: ' + e.message;
@@ -5684,6 +5781,33 @@ async function dmApplyAddGear() {
 }
 window.dmApplyAddGear = dmApplyAddGear;
 
+// Class names are stored lowercase (used as lookup keys throughout the
+// class-data system), so anywhere they're shown to a player needs this —
+// subclass names are already stored display-ready and don't need it.
+function capFirst(s) {
+  const v = String(s||'');
+  return v ? v.charAt(0).toUpperCase() + v.slice(1) : v;
+}
+
+// Groups characters by campaign — Unassigned first, then each campaign in
+// definition order. A character whose _campaign points at a deleted
+// campaign is treated as unassigned rather than silently disappearing.
+// Shared between the DM Party tab and the public (no-login) Party Overview
+// page so the two never compute this differently.
+function groupCharsByCampaign(allChars, campaigns) {
+  const validCampaignIds = new Set(campaigns.map(c => c.id));
+  const groups = [];
+  const unassignedChars = allChars.filter(({ char }) => !char._campaign || !validCampaignIds.has(char._campaign))
+    .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id));
+  if (unassignedChars.length) groups.push({ id: null, name: 'Unassigned', color: null, chars: unassignedChars });
+  campaigns.forEach(camp => {
+    const campChars = allChars.filter(({ char }) => char._campaign === camp.id)
+      .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id));
+    if (campChars.length) groups.push({ id: camp.id, name: camp.name, color: camp.color, chars: campChars });
+  });
+  return groups;
+}
+
 async function loadDMCharList() {
   const listEl   = document.getElementById('dm-char-list');
   const glanceEl = document.getElementById('dm-hp-glance');
@@ -5717,16 +5841,7 @@ async function loadDMCharList() {
     // _campaign points to a campaign that no longer exists (e.g. it was
     // deleted) is treated as unassigned for display, rather than silently
     // disappearing from every group.
-    const validCampaignIds = new Set(_dmCampaigns.map(c => c.id));
-    const groups = [];
-    const unassignedChars = allChars.filter(({ char }) => !char._campaign || !validCampaignIds.has(char._campaign))
-      .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id));
-    if (unassignedChars.length) groups.push({ id: null, name: 'Unassigned', color: null, chars: unassignedChars });
-    _dmCampaigns.forEach(camp => {
-      const campChars = allChars.filter(({ char }) => char._campaign === camp.id)
-        .sort((a,b) => (a.char.charName||a.id).localeCompare(b.char.charName||b.id));
-      if (campChars.length) groups.push({ id: camp.id, name: camp.name, color: camp.color, chars: campChars });
-    });
+    const groups = groupCharsByCampaign(allChars, _dmCampaigns);
 
     for (const group of groups) {
       // Group header — shown in both the glance strip and the detailed list
@@ -5752,7 +5867,7 @@ async function loadDMCharList() {
         _partyCharCache[id] = c;
         const hpPct  = hpMax > 0 ? Math.max(0, Math.min(100, (hpCur/hpMax)*100)) : 0;
         const hpCol  = hpPct > 60 ? 'var(--accent)' : hpPct > 30 ? 'var(--amber)' : 'var(--red)';
-        const cls    = c.class || '—';
+        const cls    = capFirst(c.class) || '—';
         const level  = c.level || 1;
         const sub    = c.subclass ? ` · ${c.subclass}` : '';
 
@@ -5810,12 +5925,19 @@ async function loadDMCharList() {
         row.style.cssText = `background:var(--bg3);border:1px solid var(--border);${campColor ? 'border-left:3px solid ' + campColor + ';' : ''}border-radius:var(--radius);padding:10px 12px`;
         row.innerHTML = `
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-            <div>
-              <div style="display:flex;align-items:center;gap:5px">
-                <div style="font-family:var(--font-ui);font-size:12px;color:var(--text);font-weight:600;letter-spacing:.3px">${c.charName||id}</div>
-                ${campColor ? `<span style="font-family:var(--font-ui);font-size:8px;color:${campColor};background:${campColor}22;border:1px solid ${campColor}55;border-radius:3px;padding:1px 5px">${campName}</span>` : ''}
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <div style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--panel);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center;cursor:pointer;${c.tokenUrl ? `background-image:url('${c.tokenUrl.replace(/'/g,'%27')}')` : ''}"
+                title="Click to upload a token" onclick="document.getElementById('dm-token-file-${id}').click()">
+                ${c.tokenUrl ? '' : '<span style="font-size:13px;color:var(--text3)">⚔</span>'}
               </div>
-              <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${c.playerName||''} · Lv ${level} ${cls}${sub}</div>
+              <input type="file" id="dm-token-file-${id}" accept="image/*" style="display:none" onchange="dmHandleTokenFileUpload('${id}',this.files[0])"/>
+              <div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <div style="font-family:var(--font-ui);font-size:12px;color:var(--text);font-weight:600;letter-spacing:.3px">${c.charName||id}</div>
+                  ${campColor ? `<span style="font-family:var(--font-ui);font-size:8px;color:${campColor};background:${campColor}22;border:1px solid ${campColor}55;border-radius:3px;padding:1px 5px">${campName}</span>` : ''}
+                </div>
+                <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${c.playerName||''} · Lv ${level} ${cls}${sub}</div>
+              </div>
             </div>
             <div style="text-align:right;display:flex;align-items:flex-start;gap:8px">
               <div>
@@ -5895,6 +6017,14 @@ async function loadDMCharList() {
               value="${(c._dmNote||'').replace(/"/g,'&quot;')}"
               style="flex:1;min-width:80px;font-size:11px;padding:3px 8px"
               onchange="dmSaveCharNote('${id}',this.value)"/>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:6px">
+            <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer">
+              <input type="checkbox" ${c.hideFromSelector?'checked':''} onchange="dmToggleCharVisibility('${id}','hideFromSelector',this.checked)"/> Hide from Login
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer">
+              <input type="checkbox" ${c.hideFromPartyView?'checked':''} onchange="dmToggleCharVisibility('${id}','hideFromPartyView',this.checked)"/> Hide from Party View
+            </label>
           </div>
         `;
         listEl.appendChild(row);
@@ -6002,7 +6132,7 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
     const hpMax = parseInt(c.hp_max) || 0;
     const hpPct  = hpMax > 0 ? Math.max(0, Math.min(100, (hpCur/hpMax)*100)) : 0;
     const hpCol  = hpPct > 60 ? 'var(--accent)' : hpPct > 30 ? 'var(--amber)' : 'var(--red)';
-    const cls    = c.class || '—';
+    const cls    = capFirst(c.class) || '—';
     const level  = c.level || 1;
     const sub    = c.subclass ? ` · ${c.subclass}` : '';
     const ORDINALS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'];
@@ -6049,12 +6179,19 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
 
     cardEl.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-        <div>
-          <div style="display:flex;align-items:center;gap:5px">
-            <div style="font-family:var(--font-ui);font-size:12px;color:var(--text);font-weight:600;letter-spacing:.3px">${c.charName||id}</div>
-            ${campColor ? `<span style="font-family:var(--font-ui);font-size:8px;color:${campColor};background:${campColor}22;border:1px solid ${campColor}55;border-radius:3px;padding:1px 5px">${campName}</span>` : ''}
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <div style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--panel);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center;cursor:pointer;${c.tokenUrl ? `background-image:url('${c.tokenUrl.replace(/'/g,'%27')}')` : ''}"
+            title="Click to upload a token" onclick="document.getElementById('dm-token-file-${id}').click()">
+            ${c.tokenUrl ? '' : '<span style="font-size:13px;color:var(--text3)">⚔</span>'}
           </div>
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${c.playerName||''} · Lv ${level} ${cls}${sub}</div>
+          <input type="file" id="dm-token-file-${id}" accept="image/*" style="display:none" onchange="dmHandleTokenFileUpload('${id}',this.files[0])"/>
+          <div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <div style="font-family:var(--font-ui);font-size:12px;color:var(--text);font-weight:600;letter-spacing:.3px">${c.charName||id}</div>
+              ${campColor ? `<span style="font-family:var(--font-ui);font-size:8px;color:${campColor};background:${campColor}22;border:1px solid ${campColor}55;border-radius:3px;padding:1px 5px">${campName}</span>` : ''}
+            </div>
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${c.playerName||''} · Lv ${level} ${cls}${sub}</div>
+          </div>
         </div>
         <div style="text-align:right;display:flex;align-items:flex-start;gap:8px">
           <div>
@@ -6135,6 +6272,14 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
           style="flex:1;min-width:80px;font-size:11px;padding:3px 8px"
           onchange="dmSaveCharNote('${id}',this.value)"/>
       </div>
+      <div style="display:flex;gap:14px;margin-top:6px">
+        <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer">
+          <input type="checkbox" ${c.hideFromSelector?'checked':''} onchange="dmToggleCharVisibility('${id}','hideFromSelector',this.checked)"/> Hide from Login
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer">
+          <input type="checkbox" ${c.hideFromPartyView?'checked':''} onchange="dmToggleCharVisibility('${id}','hideFromPartyView',this.checked)"/> Hide from Party View
+        </label>
+      </div>
     `;
 
     const glanceRowEl = document.getElementById('dm-glance-' + charId);
@@ -6193,6 +6338,61 @@ async function dmSaveCharNote(id, note) {
   } catch(e) { toast('Save failed: ' + e.message, 'error'); }
 }
 window.dmSaveCharNote = dmSaveCharNote;
+
+// Controls whether a character shows up in the login screen's character
+// dropdown, and/or the public Party Overview page — independent toggles,
+// since a DM might want an NPC-run PC visible to the party but not
+// selectable at login, or a retired/test character hidden from both.
+// Doesn't block direct access to the sheet itself if you already know its
+// details — this only controls whether it appears in these two lists.
+async function dmToggleCharVisibility(id, field, checked) {
+  try {
+    const { content: c, sha } = await GH.getFile(`${id}.json`);
+    c[field] = checked;
+    await GH.putFile(`${id}.json`, c, sha);
+    broadcastCharUpdate(id, field);
+    const cached = _partyCharCache[id];
+    if (cached) cached[field] = checked;
+    refreshSingleCharacterCard(id, c);
+    toast(`${checked ? 'Hid' : 'Unhid'} ${c.charName||id} ${field === 'hideFromSelector' ? 'from Login' : 'from Party View'}`, 'ok');
+  } catch(e) { toast('Save failed: ' + e.message, 'error'); }
+}
+window.dmToggleCharVisibility = dmToggleCharVisibility;
+
+// Lets the DM set a character's token directly, for players who haven't
+// set their own. Reuses the exact same resize step and tokens/{id}.jpg
+// path as the player-side upload (updateCharToken's sibling), so a token
+// set from either side is completely interchangeable — same file, same
+// URL scheme, whichever side uploads just overwrites the same slot.
+async function dmHandleTokenFileUpload(id, file) {
+  if (!file) return;
+  const fileInput = document.getElementById('dm-token-file-' + id);
+  if (!file.type.startsWith('image/')) { toast('Not an image file.', 'error'); if (fileInput) fileInput.value = ''; return; }
+
+  toast('Uploading token…', 'ok');
+  try {
+    const base64 = await resizeImageToBase64(file);
+    const path = `tokens/${id}.jpg`;
+    const existingSha = await GH.getFileShaAtPath(path);
+    const result = await GH.putBinaryFile(path, base64, existingSha);
+    const url = result?.content?.download_url;
+    if (!url) throw new Error('Upload succeeded but no URL was returned.');
+
+    const { content: c, sha } = await GH.getFile(`${id}.json`);
+    c.tokenUrl = url;
+    await GH.putFile(`${id}.json`, c, sha);
+    broadcastCharUpdate(id, 'tokenUrl');
+    const cached = _partyCharCache[id];
+    if (cached) cached.tokenUrl = url;
+    refreshSingleCharacterCard(id, c);
+    toast(`Token set for ${c.charName||id}`, 'ok');
+  } catch(e) {
+    toast('Upload failed: ' + e.message, 'error');
+  } finally {
+    if (fileInput) fileInput.value = '';
+  }
+}
+window.dmHandleTokenFileUpload = dmHandleTokenFileUpload;
 
 async function dmDeleteCharacter(id, name) {
   if (!confirm(`Permanently delete "${name}"?\n\nThis removes the character's file from the repo entirely and cannot be undone. There is no recovery short of GitHub's commit history.`)) return;
@@ -7068,6 +7268,12 @@ let _savePendingAfter = false;
 
 async function saveChar() {
   if (!currentChar) return;
+  // Read-only preview (from Party Overview) must never be able to write —
+  // this is the one function every save path funnels through (direct
+  // calls and debouncedSave alike), so guarding here is the single choke
+  // point that makes "cannot edit" an actual guarantee, not just a UI
+  // suggestion that something else might bypass.
+  if (window._previewMode) return;
   if (window._featSpellApplyOverride) return;
   const openModal = document.querySelector('.modal-overlay:not(.hidden)');
   if (openModal && !document.getElementById('save-btn')?.classList.contains('manual')) {
@@ -20358,6 +20564,86 @@ function recalcAll() {
 // POPULATE SHEET FROM currentChar
 // ═══════════════════════════════════════════════════════════
 
+function refreshCharTokenPreview() {
+  const el = document.getElementById('char-token-preview');
+  if (!el) return;
+  const url = (currentChar?.tokenUrl || '').trim();
+  if (url) {
+    el.style.backgroundImage = `url("${url.replace(/"/g,'%22')}")`;
+    el.innerHTML = '';
+  } else {
+    el.style.backgroundImage = 'none';
+    el.innerHTML = '<span style="font-size:20px;color:var(--text3)">⚔</span>';
+  }
+}
+window.refreshCharTokenPreview = refreshCharTokenPreview;
+
+function updateCharToken(url) {
+  if (currentChar) currentChar.tokenUrl = url;
+  refreshCharTokenPreview();
+  if (typeof debouncedSave === 'function') debouncedSave();
+}
+window.updateCharToken = updateCharToken;
+
+// Resizes an image file down to a small square-ish thumbnail and returns
+// it as base64 (no "data:...;base64," prefix) — required because GitHub's
+// Contents API only reliably accepts uploads up to ~1MB, and a raw phone
+// photo can easily be 5-10MB. A token only ever needs to be a small
+// thumbnail anyway, so this is a strict improvement, not just a workaround.
+function resizeImageToBase64(file, maxDim = 300, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        } else {
+          if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
+      };
+      img.onerror = () => reject(new Error('Could not read image — try a different file'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleTokenFileUpload(file) {
+  if (!file || !currentChar) return;
+  const statusEl = document.getElementById('ci-token-status');
+  const setStatus = (msg, color) => { if (statusEl) { statusEl.textContent = msg; statusEl.style.color = color; } };
+
+  if (!file.type.startsWith('image/')) { setStatus('Not an image file.', 'var(--red)'); return; }
+  if (!currentChar.id) { setStatus('Save the character once before uploading a token.', 'var(--red)'); return; }
+
+  setStatus('Uploading…', 'var(--text3)');
+  try {
+    const base64 = await resizeImageToBase64(file);
+    const path = `tokens/${currentChar.id}.jpg`;
+    const existingSha = await GH.getFileShaAtPath(path);
+    const result = await GH.putBinaryFile(path, base64, existingSha);
+    const url = result?.content?.download_url;
+    if (!url) throw new Error('Upload succeeded but no URL was returned.');
+    currentChar.tokenUrl = url;
+    refreshCharTokenPreview();
+    debouncedSave();
+    setStatus('Uploaded ✓', 'var(--accent)');
+  } catch(e) {
+    setStatus('Upload failed: ' + e.message, 'var(--red)');
+  } finally {
+    const fileInput = document.getElementById('ci-token-file');
+    if (fileInput) fileInput.value = '';
+  }
+}
+window.handleTokenFileUpload = handleTokenFileUpload;
+
 function populateMainSheet() {
   if (!currentChar) return;
   const c = currentChar;
@@ -20370,6 +20656,7 @@ function populateMainSheet() {
     if (el.type === 'checkbox') el.checked = !!val;
     else el.value = val;
   });
+  refreshCharTokenPreview();
 
   // Restore manually-resized textarea heights — the browser's native
   // resize:vertical drag handle doesn't persist across reloads on its
@@ -28160,6 +28447,7 @@ function renderUnifiedInventory() {
         oninput="currentChar.equipment[${r.idx}].name=this.value;debouncedSave()"/>
       <input type="text" value="${(r.item.weight||'').replace(/"/g,'&quot;')}" placeholder="wt" style="width:44px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:11px;flex-shrink:0"
         oninput="currentChar.equipment[${r.idx}].weight=this.value;debouncedSave()" onchange="renderUnifiedInventory()"/>
+      <button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="openGiveItemModal('equipment',${r.idx})" title="Give to a party member">🎁</button>
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="removeEquipItem(${r.idx})">✕</button>
     </div>` : `
     <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer"
@@ -28563,8 +28851,9 @@ function ensureMagicItems() {
   });
 }
 
-// Shows "Spell Scroll of Fireball (3rd Level)" once a spell is chosen,
-// otherwise falls back to the item's own custom/default name.
+// Shows "Spell Scroll of Fireball (3rd Level)" once a spell is chosen, or
+// "Ring of Resistance (Fire)" once a damage type is chosen — otherwise
+// falls back to the item's own custom/default name.
 function getItemDisplayName(item) {
   if ((item.type || '').toLowerCase() === 'scroll' && item.scrollSpellKey) {
     const spell = PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey);
@@ -28573,6 +28862,9 @@ function getItemDisplayName(item) {
       const lvLabel = lv === 0 ? 'Cantrip' : `${lv}${lv===1?'st':lv===2?'nd':lv===3?'rd':'th'} Level`;
       return `${item.customName || item.name} of ${spell.name} (${lvLabel})`;
     }
+  }
+  if (item.resistanceChoice) {
+    return `${item.customName || item.name} (${item.resistanceChoice})`;
   }
   return item.customName || item.name;
 }
@@ -29066,6 +29358,7 @@ function renderMagicItemsPanel() {
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
             <div style="display:flex;gap:3px">
               <button class="tbtn magic-item-edit-btn" style="font-size:9px;padding:1px 5px" onclick="openMagicItemDetailModal(currentChar.magicItems[${idx}])" title="View item">👁</button>
+              <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openGiveItemModal('magicItems',${idx})" title="Give to a party member">🎁</button>
               <button class="sp-del-btn" style="opacity:1" onclick="removeMagicItem(${idx})" title="Remove">✕</button>
             </div>
             <div style="display:flex;align-items:center;gap:4px">
@@ -29198,6 +29491,87 @@ function setMagicAmmoType(idx, type) {
   recalcAll();
   debouncedSave();
 }
+
+// Lets a logged-in player hand an item they own off to another member of
+// their own party — a genuine transfer (removed from the giver, added to
+// the receiver), not a DM-style creation out of nothing. Works for both
+// magicItems and equipment (general gear); source distinguishes which
+// array the item is coming from.
+let _giveItemSource = null; // { source: 'magicItems'|'equipment', idx }
+
+async function openGiveItemModal(source, idx) {
+  if (!currentChar || window._previewMode) return;
+  const item = currentChar[source]?.[idx];
+  if (!item) return;
+
+  _giveItemSource = { source, idx };
+  document.getElementById('give-item-name').textContent =
+    source === 'magicItems' ? getItemDisplayName(item) : (item.name || 'this item');
+  const recipEl = document.getElementById('give-item-recipients');
+  recipEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading party…</div>';
+  document.getElementById('give-item-status').textContent = '';
+  openModal('give-item-modal');
+
+  if (!currentChar._campaign) {
+    recipEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">You\'re not assigned to a party yet — ask your DM to set one from the DM Panel.</div>';
+    return;
+  }
+
+  try {
+    const allChars = await fetchAllCharacters();
+    const partyMates = allChars.filter(({ id, char }) =>
+      id !== currentChar.id && char._campaign === currentChar._campaign
+    );
+    if (!partyMates.length) {
+      recipEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No one else is in your party yet.</div>';
+      return;
+    }
+    recipEl.innerHTML = partyMates.map(({ id, char }) => `
+      <button class="tbtn" style="justify-content:flex-start;font-size:12px;padding:8px 10px" onclick="confirmGiveItem('${id}')">
+        ${char.charName || id}
+        <span style="margin-left:auto;color:var(--text3);font-size:10px">${capFirst(char.class)||''}${char.level?` · Lvl ${char.level}`:''}</span>
+      </button>
+    `).join('');
+  } catch(e) {
+    recipEl.innerHTML = `<div style="color:var(--red);font-family:var(--font-ui);font-size:11px">${e.message}</div>`;
+  }
+}
+window.openGiveItemModal = openGiveItemModal;
+
+async function confirmGiveItem(targetId) {
+  if (!_giveItemSource || !currentChar) return;
+  const { source, idx } = _giveItemSource;
+  const item = currentChar[source]?.[idx];
+  const statusEl = document.getElementById('give-item-status');
+  if (!item) { closeModal('give-item-modal'); return; }
+
+  statusEl.textContent = 'Giving…';
+  statusEl.style.color = 'var(--text3)';
+  try {
+    // Fetch the recipient fresh — never trust the copy from the party list
+    // fetch above, which could already be stale by the time this confirms.
+    const { content: recipient, sha } = await GH.getFile(`${targetId}.json`);
+    if (!recipient[source]) recipient[source] = [];
+    recipient[source].push(item);
+    await GH.putFile(`${targetId}.json`, recipient, sha);
+    broadcastCharUpdate(targetId, source);
+
+    // Only remove it from the giver's side once the recipient's write has
+    // actually succeeded — if that failed, better to leave the item with
+    // its current owner than have it vanish into neither inventory.
+    currentChar[source].splice(idx, 1);
+    if (source === 'magicItems' && typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel();
+    if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
+    debouncedSave();
+
+    toast(`Gave "${recipient[source][recipient[source].length-1].customName || recipient[source][recipient[source].length-1].name}" to ${recipient.charName || targetId}`, 'ok');
+    closeModal('give-item-modal');
+  } catch(e) {
+    statusEl.textContent = 'Failed: ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+window.confirmGiveItem = confirmGiveItem;
 
 function removeMagicItem(idx) {
   ensureMagicItems();
@@ -29412,7 +29786,19 @@ window.refreshVariableItemText = refreshVariableItemText;
 // silently disagree about which items are stackable.
 function isStackableMagicItemType(def) {
   const itemType = (def?.type || '').toLowerCase();
-  return def?.effects?.weaponBonus === 'variable' || itemType === 'potion' || itemType === 'scroll';
+  const fx = def?.effects || {};
+  // Any item with a range of possible power levels (a +1/+2/+3 item, or a
+  // named-tier item like Potion of Healing -> Greater -> Superior) is the
+  // same situation as a variable-bonus weapon: it's a mass-producible
+  // category, not a unique artifact, so owning two different ones (or two
+  // of the same tier) is completely normal. Previously only weaponBonus
+  // was checked here, which meant wands, rods, shields, and wondrous items
+  // using the other variable-effect fields were incorrectly capped at one.
+  const hasVariableBonus = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable'
+    || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable'
+    || !!def?.maxBonus || !!def?.rarityByBonus || !!def?.tiers
+    || !!(def?.resistanceOptions && def.resistanceOptions.length);
+  return hasVariableBonus || itemType === 'potion' || itemType === 'scroll';
 }
 window.isStackableMagicItemType = isStackableMagicItemType;
 
@@ -40194,6 +40580,237 @@ function openDMPanelFromLogin() {
   openDMPanelDirect();
 }
 window.openDMPanelFromLogin = openDMPanelFromLogin;
+
+// Read-only preview of a character's full sheet, reached by clicking a
+// card on Party Overview. Reuses enterApp() (theme, migrations, live
+// subscriptions, everything) rather than re-implementing sheet population
+// separately — the one thing layered on top is that saveChar() hard-exits
+// while _previewMode is set, which is the actual guarantee that nothing
+// here can be edited; the disabled/dimmed inputs are a visual cue on top
+// of that, not the enforcement mechanism itself.
+// Captured once at script load, before any character's theme preference
+// could ever have been applied — the reset target for exitPreviewMode's
+// no-prior-session case (an anonymous Party Overview visitor previewing a
+// sheet), since there's no "their own theme" to restore for someone who
+// was never logged into anything.
+const _pageDefaultTheme = document.documentElement.getAttribute('data-theme');
+
+let _previewPriorState = null;
+
+async function previewCharacterSheet(charId) {
+  if (!charId) return;
+  try {
+    const { content } = await GH.getFile(`${charId}.json`);
+    // Snapshot whatever session exists so it can be restored on exit —
+    // there may be nothing to restore if this is an anonymous visitor
+    // arriving straight from the public, no-login Party Overview page.
+    _previewPriorState = { currentChar, currentCharSHA, hadSession: !!currentChar };
+
+    currentChar = content;
+    currentChar.id = charId; // guarantee this matches the actual filename
+    currentCharSHA = null;   // never let a preview carry a real SHA into any save path
+    window._previewMode = true;
+
+    enterApp();
+    switchPage('main');
+
+    document.body.classList.add('preview-readonly');
+    const banner = document.getElementById('preview-banner');
+    if (banner) banner.style.display = 'flex';
+    const nameEl = document.getElementById('preview-banner-name');
+    if (nameEl) nameEl.textContent = currentChar.charName || charId;
+    ['save-btn', 'dm-topbar-btn'].forEach(bid => {
+      const el = document.getElementById(bid);
+      if (el) el.style.display = 'none';
+    });
+  } catch(e) {
+    toast('Could not load character: ' + e.message, 'error');
+  }
+}
+window.previewCharacterSheet = previewCharacterSheet;
+
+function exitPreviewMode() {
+  window._previewMode = false;
+  document.body.classList.remove('preview-readonly');
+  const banner = document.getElementById('preview-banner');
+  if (banner) banner.style.display = 'none';
+
+  const prior = _previewPriorState;
+  _previewPriorState = null;
+
+  if (prior?.hadSession) {
+    // Restore whoever was actually logged in before the preview.
+    currentChar = prior.currentChar;
+    currentCharSHA = prior.currentCharSHA;
+    const saveBtn = document.getElementById('save-btn');
+    if (saveBtn) saveBtn.style.display = '';
+    enterApp();
+    switchPage('main');
+  } else {
+    // No prior session — go back to the overview rather than restoring nothing.
+    currentChar = null;
+    // previewCharacterSheet's enterApp() call applies the previewed
+    // character's own theme preference — an anonymous visitor has no
+    // "their own theme" to fall back to, so reset to the page's actual
+    // default rather than leaving the previewed character's colors applied.
+    clearCustomThemeInlineOverrides();
+    document.documentElement.setAttribute('data-theme', _pageDefaultTheme);
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    if (themeBtn) themeBtn.textContent = _pageDefaultTheme.endsWith('light') ? '🌙' : '☀';
+    const tabs = document.getElementById('page-tabs');
+    if (tabs) tabs.style.display = 'none';
+    switchPage('party-overview');
+    renderPartyOverview();
+  }
+}
+window.exitPreviewMode = exitPreviewMode;
+
+// Party Overview is reachable both from within an active session (the
+// topbar 👁 button) and with zero login at all (the login screen's link) —
+// so "back" means different things depending on how you got here. Unlike
+// switchPage('main') alone, this checks for an actual session first,
+// rather than assuming one exists and showing an empty, unpopulated sheet.
+function exitPartyOverview() {
+  if (currentChar) {
+    switchPage('main');
+  } else {
+    document.getElementById('app').classList.remove('visible');
+    document.getElementById('login-screen').style.display = '';
+    const tabs = document.getElementById('page-tabs');
+    if (tabs) tabs.style.display = 'none';
+  }
+}
+window.exitPartyOverview = exitPartyOverview;
+
+function openPartyOverview() {
+  switchPage('party-overview');
+  renderPartyOverview();
+}
+window.openPartyOverview = openPartyOverview;
+
+function openPartyOverviewFromLogin() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  // Same reasoning as openDMPanelFromLogin — no character is loaded here,
+  // so the normal sheet tabs (which assume one exists) stay hidden.
+  const tabs = document.getElementById('page-tabs');
+  if (tabs) tabs.style.display = 'none';
+  openPartyOverview();
+}
+window.openPartyOverviewFromLogin = openPartyOverviewFromLogin;
+
+// Public, read-only snapshot of every party — no PIN, no character login.
+// Reuses the exact same grouping logic as the DM Party tab (groupCharsByCampaign)
+// so the two never disagree about who's in which party. Deliberately has zero
+// edit controls: no condition dropdown, no note field, no item granting —
+// this is a glance view, not a management view.
+let _partyOverviewItems = [];
+async function renderPartyOverview() {
+  const body = document.getElementById('party-overview-body');
+  if (!body) return;
+  body.innerHTML = '<div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">Loading…</div>';
+
+  try {
+    const [allChars, dmFileResult] = await Promise.all([
+      fetchAllCharacters(),
+      GH.getFile('_dm.json').catch(() => ({ content: {} })),
+    ]);
+    const campaigns = dmFileResult.content.campaigns || DEFAULT_CAMPAIGNS;
+    const visibleChars = allChars.filter(({ char }) => !char.hideFromPartyView);
+
+    if (!visibleChars.length) {
+      body.innerHTML = '<div style="font-family:var(--font-label);font-size:12px;color:var(--text3);text-align:center;padding:16px">No characters found.</div>';
+      return;
+    }
+
+    const groups = groupCharsByCampaign(visibleChars, campaigns);
+    // Reuses the same RARITY_COLOURS map the detail modal itself reads
+    // from, rather than a second hand-picked scheme — that's exactly what
+    // caused the two to disagree in the first place.
+    // Flat lookup so item cards can reference the actual owned-item object
+    // at click time (via array index in the onclick) rather than a catalog
+    // key — custom/DM-granted items may have no catalog entry to look up.
+    _partyOverviewItems = [];
+
+    body.innerHTML = groups.map(group => {
+      const groupHPCur = group.chars.reduce((s, {char}) => s + (parseInt(char.hp_current)||0), 0);
+      const groupHPMax = group.chars.reduce((s, {char}) => s + (parseInt(char.hp_max)||0), 0);
+      const groupPct = groupHPMax > 0 ? Math.round(groupHPCur / groupHPMax * 100) : 100;
+      const coinTotals = { pp:0, gp:0, sp:0, cp:0 };
+      group.chars.forEach(({char}) => {
+        const cur = char.currency || {};
+        Object.keys(coinTotals).forEach(k => { coinTotals[k] += Number(cur[k]) || 0; });
+      });
+      const coinPip = (label, val, color) => `
+        <div style="display:flex;flex-direction:column;align-items:center;min-width:52px;padding:6px 10px;background:var(--bg3);border-radius:var(--radius)">
+          <span style="font-family:var(--font-ui);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:${color}">${label}</span>
+          <span style="font-family:var(--font-title);font-size:14px;color:var(--text);font-weight:700;margin-top:1px">${val.toLocaleString('en-US')}</span>
+        </div>`;
+      const coinsHTML = coinPip('PP', coinTotals.pp, '#c0d0e0') + coinPip('GP', coinTotals.gp, 'var(--gold)')
+        + coinPip('SP', coinTotals.sp, '#b8b8b8') + coinPip('CP', coinTotals.cp, '#b08d57');
+
+      const cardsHTML = group.chars.map(({ id, char: c }) => {
+        const hpCur = parseInt(c.hp_current) || 0;
+        const hpMax = parseInt(c.hp_max) || 0;
+        const hpPct = hpMax > 0 ? Math.max(0, Math.min(100, (hpCur/hpMax)*100)) : 0;
+        const hpCol = hpPct > 60 ? 'var(--accent)' : hpPct > 30 ? 'var(--amber)' : 'var(--red)';
+        const downed = hpCur <= 0;
+        const cls   = capFirst(c.class) || '—';
+        const level = c.level || 1;
+        const sub   = c.subclass ? ` · ${c.subclass}` : '';
+        const conditions = (c.conditions || []).map(cond =>
+          `<span style="font-size:9px;font-family:var(--font-ui);padding:2px 7px;border-radius:8px;background:var(--bg3);color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${cond}</span>`
+        ).join('');
+
+        const itemsHTML = (c.magicItems || []).map(item => {
+          const idx = _partyOverviewItems.push(item) - 1;
+          return `
+            <div style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" onclick="event.stopPropagation();openMagicItemDetailModal(_partyOverviewItems[${idx}])">
+              <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:${RARITY_COLOURS[(item.rarity||'').toLowerCase()] || 'var(--text)'};text-decoration:underline;text-decoration-color:transparent" onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'">${getItemDisplayName(item)}${item.rarity ? ` <span style="font-size:9px;font-weight:400;color:var(--text3);text-transform:capitalize">(${item.rarity})</span>` : ''}</div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;${downed ? 'opacity:.6' : ''};display:flex;gap:16px;cursor:pointer" onclick="previewCharacterSheet('${id}')" title="Click to view ${(c.charName||'this character').replace(/"/g,'&quot;')}'s full sheet (read-only)">
+            <div style="width:88px;height:88px;border-radius:50%;border:3px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center;${c.tokenUrl ? `background-image:url('${c.tokenUrl.replace(/'/g,'%27')}')` : ''}">
+              ${c.tokenUrl ? '' : '<span style="font-size:34px;color:var(--text3)">⚔</span>'}
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+                <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${c.charName || 'Unnamed'}${downed ? ' <span style="color:var(--red);font-size:12px">— Downed</span>' : ''}</span>
+                <span style="font-family:var(--font-ui);font-size:13px;color:${hpCol};font-weight:700">${hpCur}<span style="color:var(--text3);font-weight:400">/${hpMax}</span></span>
+              </div>
+              <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:2px">${cls}${level ? ` · Lvl ${level}` : ''}${sub}</div>
+              <div style="height:6px;border-radius:3px;background:var(--bg3);margin-top:8px;overflow:hidden">
+                <div style="height:100%;width:${hpPct}%;background:${hpCol}"></div>
+              </div>
+              ${conditions ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${conditions}</div>` : ''}
+              ${itemsHTML ? `<div style="margin-top:8px">${itemsHTML}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div style="margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+            ${group.color ? `<div style="width:9px;height:9px;border-radius:50%;background:${group.color};flex-shrink:0"></div>` : ''}
+            <span style="font-family:var(--font-ui);font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:${group.color || 'var(--text3)'}">${group.name}</span>
+            <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${group.chars.length} · HP ${groupHPCur}/${groupHPMax} (${groupPct}%)</span>
+            <div style="display:flex;gap:6px;margin-left:auto">${coinsHTML}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px">
+            ${cardsHTML}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<div style="color:var(--red);font-family:var(--font-ui);font-size:11px">${e.message}</div>`;
+  }
+}
+window.renderPartyOverview = renderPartyOverview;
 
 // ── DM Quick Dice ─────────────────────────────────────────
 
