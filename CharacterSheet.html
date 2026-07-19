@@ -767,6 +767,48 @@ body.preview-readonly .modal-overlay *:not(.modal-close) {
   pointer-events: none !important;
   cursor: default !important;
 }
+/* Exception: spells and magic items should still be viewable in full detail
+   during preview — "read-only" means you can't change anything, not that
+   you can't look. Checked both modals' actual markup first: spell-detail-
+   modal is purely a title/meta/description display with no controls at
+   all, and magic-item-detail-modal is the same except for one genuine
+   edit action (#mi-detail-edit-row's "Edit Notes" button), which stays
+   blocked below. (feat-detail-modal is deliberately NOT included here —
+   despite the name, it's actually a feat-choice/configuration modal with
+   its own Apply button, not a pure description view.) */
+body.preview-readonly .page [onclick*="openSpellDetailModal"],
+body.preview-readonly .page [onclick*="openSpellDetailModal"] *,
+body.preview-readonly .page [onclick*="openMagicItemDetailModal"],
+body.preview-readonly .page [onclick*="openMagicItemDetailModal"] * {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+body.preview-readonly #spell-detail-modal *,
+body.preview-readonly #magic-item-detail-modal * {
+  pointer-events: auto !important;
+  cursor: default !important;
+}
+body.preview-readonly #mi-detail-edit-row,
+body.preview-readonly #mi-detail-edit-row * {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* Party Overview — designed around a typical ~4-person party: 4 equal
+   columns on desktop rather than an auto-fill grid, which left a 4th (or
+   a whole second, smaller) party wrapping into mostly-empty rows instead
+   of actually using the available width. */
+.party-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .party-overview-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .party-overview-grid { grid-template-columns: 1fr; }
+}
 
 /* ── PANELS ──────────────────────────────────────────────── */
 .panel {
@@ -2806,7 +2848,7 @@ body.preview-readonly .modal-overlay *:not(.modal-close) {
     </div>
 
     <div class="page" id="page-party-overview">
-      <div style="padding:16px;max-width:1200px;margin:0 auto">
+      <div style="padding:16px;max-width:1600px;margin:0 auto">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
           <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--gold)">👁 Party Overview</span>
           <button class="tbtn" onclick="exitPartyOverview()" style="margin-left:auto;font-size:10px">← Back</button>
@@ -40796,11 +40838,11 @@ async function renderPartyOverview() {
         <div style="margin-bottom:24px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
             ${group.color ? `<div style="width:9px;height:9px;border-radius:50%;background:${group.color};flex-shrink:0"></div>` : ''}
-            <span style="font-family:var(--font-ui);font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:${group.color || 'var(--text3)'}">${group.name}</span>
+            <span style="font-family:var(--font-ui);font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:${group.color || 'var(--text3)'};max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${group.name.replace(/"/g,'&quot;')}">${group.name}</span>
             <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${group.chars.length} · HP ${groupHPCur}/${groupHPMax} (${groupPct}%)</span>
             <div style="display:flex;gap:6px;margin-left:auto">${coinsHTML}</div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px">
+          <div class="party-overview-grid">
             ${cardsHTML}
           </div>
         </div>
