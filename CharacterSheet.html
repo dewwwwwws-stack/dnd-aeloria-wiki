@@ -3529,6 +3529,44 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <!-- ── ASI MODAL ─────────────────────────────────────────── -->
 <!-- ── Give Item Modal ───────────────────────────────────── -->
+<!-- ── DM Gear Edit Modal (mundane weapons/armor/gear) ─────── -->
+<div class="modal-overlay hidden" id="dm-gear-edit-modal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      ✎ Edit Item
+      <span class="modal-close" onclick="closeModal('dm-gear-edit-modal')">✕</span>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:10px">
+      Editing for <strong id="dm-gear-edit-charname" style="color:var(--text)"></strong>
+    </div>
+    <div class="info-field">
+      <label class="field-label">Name</label>
+      <input class="info-input" id="dm-gear-edit-name" maxlength="120"/>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="info-field" id="dm-gear-edit-qty-field" style="flex:1">
+        <label class="field-label">Quantity</label>
+        <input class="info-input" id="dm-gear-edit-qty" type="number" min="1" value="1"/>
+      </div>
+      <div class="info-field" style="flex:2">
+        <label class="field-label">Weight (lb, per item)</label>
+        <input class="info-input" id="dm-gear-edit-weight" type="number" min="0" step="0.1" placeholder="0"/>
+      </div>
+    </div>
+    <div class="info-field" id="dm-gear-edit-equipped-field" style="display:none">
+      <label style="display:flex;align-items:center;gap:6px;font-family:var(--font-ui);font-size:11px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="dm-gear-edit-equipped"/> <span id="dm-gear-edit-equipped-label">Equipped</span>
+      </label>
+    </div>
+    <div class="info-field" id="dm-gear-edit-desc-field" style="display:none">
+      <label class="field-label">Description</label>
+      <textarea class="info-input" id="dm-gear-edit-desc" rows="3" style="resize:vertical"></textarea>
+    </div>
+    <button class="btn-primary" onclick="dmSaveGearEdit()">Save</button>
+    <div id="dm-gear-edit-status" style="font-family:var(--font-ui);font-size:11px;margin-top:6px;min-height:16px"></div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="give-item-modal">
   <div class="modal-box" style="max-width:380px">
     <div class="modal-title">
@@ -5632,6 +5670,7 @@ function buildDMInventoryHTML(c, charId) {
   const armorOwned = c.armorOwned || [];
   const magicItems = c.magicItems || [];
   const equipment  = c.equipment || [];
+  const charName = (c.charName || charId).replace(/'/g, "\\'");
 
   const weaponRows = [];
   const armorRows  = [];
@@ -5648,6 +5687,7 @@ function buildDMInventoryHTML(c, charId) {
       name: `${qty>1?qty+'× ':''}${entry.name||'Weapon'}`,
       sub: entry.equipped ? 'Equipped' : '',
       weight: entry.weight || '',
+      onEdit: `dmOpenGearEdit('${charId}','${charName}','weapon',${idx})`,
       onRemove: `dmRemoveInventoryItem('${charId}','weapon',${idx})`,
     });
   });
@@ -5659,11 +5699,11 @@ function buildDMInventoryHTML(c, charId) {
       name: entry.name || 'Armor',
       sub: entry.worn ? 'Worn' : '',
       weight: entry.weight || '',
+      onEdit: `dmOpenGearEdit('${charId}','${charName}','armor',${idx})`,
       onRemove: `dmRemoveInventoryItem('${charId}','armor',${idx})`,
     });
   });
 
-  const charName = (c.charName || charId).replace(/'/g, "\\'");
   magicItems.forEach((item, idx) => {
     const effRarity = getEffectiveItemRarity(item);
     const rarityColor = RARITY_COLOURS[effRarity] || 'var(--gold)';
@@ -5705,6 +5745,7 @@ function buildDMInventoryHTML(c, charId) {
       badge: 'GEAR', color: 'var(--text3)',
       name: `${qty>1?qty+'× ':''}${item.name}`,
       sub: '', weight: item.weight || '',
+      onEdit: `dmOpenGearEdit('${charId}','${charName}','gear',${idx})`,
       onRemove: `dmRemoveInventoryItem('${charId}','gear',${idx})`,
     });
   });
@@ -5717,7 +5758,11 @@ function buildDMInventoryHTML(c, charId) {
   ].filter(g => g.rows.length);
 
   const totalCount = weaponRows.length + armorRows.length + magicRows.length + gearRows.length;
-  const wtStr = totalWeight > 0 ? ` · ${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb` : '';
+  const carryCap = getCarryCapacityFor(c);
+  const overCapacity = totalWeight > carryCap;
+  const wtStr = totalWeight > 0
+    ? ` · <span style="${overCapacity ? 'color:var(--red);font-weight:600' : ''}" title="Carry capacity: ${carryCap} lb (STR × 15)">${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb${overCapacity ? ' ⚠ Encumbered' : ''}</span>`
+    : '';
 
   const bodyHTML = totalCount ? groups.map(group => `
     <div style="font-family:var(--font-ui);font-size:8px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);margin-top:4px">${group.label}</div>
@@ -5740,6 +5785,87 @@ function buildDMInventoryHTML(c, charId) {
 // 'gear'); `idx` is that array's index at render time. Re-fetches fresh
 // data first (rather than trusting the DM's local cache) so a concurrent
 // player-side change can't be clobbered by an index that's since shifted.
+let _dmGearEditTarget = null; // { charId, type, idx }
+
+// Edit form for mundane weapons/armor/gear — the DM inventory panel
+// already had a full edit form for magic items (custom name, notes,
+// bonus tier, etc.) but nothing at all for non-magic items beyond
+// deleting them outright. Same fields as what the fields actually store,
+// shown/hidden per type: qty for weapons/gear, equipped/worn for
+// weapons/armor, description for gear only.
+async function dmOpenGearEdit(charId, charName, type, idx) {
+  try {
+    const { content: c } = await GH.getFile(`${charId}.json`);
+    const arr = type === 'weapon' ? c.weapons : type === 'armor' ? c.armorOwned : c.equipment;
+    const item = arr?.[idx];
+    if (!item) { toast('Item no longer exists — refreshing', 'warn'); refreshSingleCharacterCard(charId, c); return; }
+
+    _dmGearEditTarget = { charId, type, idx };
+    document.getElementById('dm-gear-edit-charname').textContent = charName;
+    document.getElementById('dm-gear-edit-name').value = item.name || '';
+    document.getElementById('dm-gear-edit-weight').value = parseWeightLb(item.weight) || '';
+    document.getElementById('dm-gear-edit-status').textContent = '';
+
+    const qtyField = document.getElementById('dm-gear-edit-qty-field');
+    const qtyInput = document.getElementById('dm-gear-edit-qty');
+    qtyField.style.display = type === 'armor' ? 'none' : '';
+    qtyInput.value = item.qty || 1;
+
+    const equippedField = document.getElementById('dm-gear-edit-equipped-field');
+    const equippedInput = document.getElementById('dm-gear-edit-equipped');
+    const equippedLabel = document.getElementById('dm-gear-edit-equipped-label');
+    equippedField.style.display = (type === 'weapon' || type === 'armor') ? '' : 'none';
+    equippedLabel.textContent = type === 'armor' ? 'Worn' : 'Equipped';
+    equippedInput.checked = type === 'armor' ? !!item.worn : !!item.equipped;
+
+    const descField = document.getElementById('dm-gear-edit-desc-field');
+    document.getElementById('dm-gear-edit-desc').value = item.desc || '';
+    descField.style.display = type === 'gear' ? '' : 'none';
+
+    openModal('dm-gear-edit-modal');
+  } catch(e) {
+    toast('Failed to load item: ' + e.message, 'error');
+  }
+}
+window.dmOpenGearEdit = dmOpenGearEdit;
+
+async function dmSaveGearEdit() {
+  if (!_dmGearEditTarget) return;
+  const { charId, type, idx } = _dmGearEditTarget;
+  const statusEl = document.getElementById('dm-gear-edit-status');
+  const name = document.getElementById('dm-gear-edit-name').value.trim();
+  if (!name) { statusEl.textContent = 'Name is required.'; statusEl.style.color = 'var(--red)'; return; }
+
+  statusEl.textContent = 'Saving…';
+  statusEl.style.color = 'var(--text3)';
+  try {
+    const { content: c, sha } = await GH.getFile(`${charId}.json`);
+    const arr = type === 'weapon' ? c.weapons : type === 'armor' ? c.armorOwned : c.equipment;
+    const item = arr?.[idx];
+    if (!item) throw new Error('Item no longer exists');
+
+    item.name   = name;
+    const wtNum = parseFloat(document.getElementById('dm-gear-edit-weight').value) || 0;
+    item.weight = wtNum ? `${wtNum} lb` : '';
+    if (type !== 'armor') item.qty = parseInt(document.getElementById('dm-gear-edit-qty').value) || 1;
+    if (type === 'weapon') item.equipped = document.getElementById('dm-gear-edit-equipped').checked;
+    if (type === 'armor')  item.worn     = document.getElementById('dm-gear-edit-equipped').checked;
+    if (type === 'gear')   item.desc     = document.getElementById('dm-gear-edit-desc').value.trim();
+
+    await GH.putFile(`${charId}.json`, c, sha);
+    broadcastCharUpdate(charId, type === 'weapon' ? 'weapons' : type === 'armor' ? 'armorOwned' : 'equipment');
+    const cached = _partyCharCache[charId];
+    if (cached) Object.assign(cached, c);
+    refreshSingleCharacterCard(charId, c);
+    toast(`Saved "${name}" for ${c.charName||charId}`, 'ok');
+    closeModal('dm-gear-edit-modal');
+  } catch(e) {
+    statusEl.textContent = 'Save failed: ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+window.dmSaveGearEdit = dmSaveGearEdit;
+
 async function dmRemoveInventoryItem(charId, type, idx) {
   try {
     const { content: c, sha } = await GH.getFile(`${charId}.json`);
@@ -20836,8 +20962,8 @@ function renderEquipList() {
           oninput="currentChar.equipment[${i}].qty=parseInt(this.value)||1;debouncedSave()" placeholder="1"/>
         <input type="text" id="equip-name-${i}" value="${item.name || ''}" placeholder="Item name…" style="flex:1"
           oninput="currentChar.equipment[${i}].name=this.value;debouncedSave()"/>
-        <input type="text" value="${item.weight || ''}" placeholder="wt" style="width:40px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:3px 4px;color:var(--text);font-size:11px;outline:none"
-          oninput="currentChar.equipment[${i}].weight=this.value;debouncedSave()"/>
+        <input type="number" min="0" step="0.1" value="${parseWeightLb(item.weight) || ''}" placeholder="wt" style="width:48px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:3px 4px;color:var(--text);font-size:11px;outline:none"
+          oninput="currentChar.equipment[${i}].weight=(parseFloat(this.value)||0)?parseFloat(this.value)+' lb':'';debouncedSave()"/>
         <button class="row-del-btn" onclick="removeEquipItem(${i})">✕</button>
       </div>
       <input type="text" value="${(item.desc||'').replace(/"/g,'&quot;')}" placeholder="Description / notes (optional)…"
@@ -28467,8 +28593,12 @@ function renderUnifiedInventory() {
 
   const totalCount = weaponRows.length + armorRows.length + magicRows.length + gearRows.length;
   if (countEl) {
-    const wtStr = totalWeight > 0 ? ` · ${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb` : '';
+    const carryCap = getCarryCapacityFor(currentChar);
+    const overCapacity = totalWeight > carryCap;
+    const wtStr = totalWeight > 0 ? ` · ${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb${overCapacity ? ' ⚠ Encumbered' : ''}` : '';
     countEl.textContent = totalCount ? `${totalCount} item${totalCount!==1?'s':''}${wtStr}` : '';
+    countEl.style.color = overCapacity ? 'var(--red)' : '';
+    countEl.title = totalWeight > 0 ? `Carry capacity: ${carryCap} lb (STR × 15)` : '';
   }
 
   if (!totalCount) {
@@ -28489,8 +28619,8 @@ function renderUnifiedInventory() {
         oninput="currentChar.equipment[${r.idx}].qty=parseInt(this.value)||1;debouncedSave()" onchange="renderUnifiedInventory()"/>
       <input type="text" value="${(r.item.name||'').replace(/"/g,'&quot;')}" placeholder="Item name…" class="inv-gear-name-input" style="flex:1;min-width:0;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px"
         oninput="currentChar.equipment[${r.idx}].name=this.value;debouncedSave()"/>
-      <input type="text" value="${(r.item.weight||'').replace(/"/g,'&quot;')}" placeholder="wt" style="width:44px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:11px;flex-shrink:0"
-        oninput="currentChar.equipment[${r.idx}].weight=this.value;debouncedSave()" onchange="renderUnifiedInventory()"/>
+      <input type="number" min="0" step="0.1" value="${parseWeightLb(r.item.weight) || ''}" placeholder="wt" style="width:44px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:11px;flex-shrink:0"
+        oninput="currentChar.equipment[${r.idx}].weight=(parseFloat(this.value)||0)?parseFloat(this.value)+' lb':'';debouncedSave()" onchange="renderUnifiedInventory()"/>
       <button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="openGiveItemModal('equipment',${r.idx})" title="Give to a party member">🎁</button>
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="removeEquipItem(${r.idx})">✕</button>
     </div>` : `
@@ -28540,6 +28670,14 @@ function parseWeightLb(weightStr) {
   if (!weightStr) return 0;
   const m = String(weightStr).match(/[\d.]+/);
   return m ? parseFloat(m[0]) || 0 : 0;
+}
+
+// STR × 15 — same formula recalcQuickStats uses for the player's own Quick
+// Stats panel, but callable for any character object (the DM panel needs
+// this for characters other than currentChar, where getAbilities() can't
+// help since it's hardcoded to currentChar).
+function getCarryCapacityFor(char) {
+  return (parseInt(char?.abilities?.str) || 10) * 15;
 }
 
 function renderFeatItemsWeapons() {
