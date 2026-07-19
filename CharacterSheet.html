@@ -5395,6 +5395,7 @@ async function doLogin() {
     currentCharSHA = sha;
     isDM           = false;
     enterApp();
+    switchPage('main');
   } catch(e) {
     status.className = 'error';
     status.textContent = 'Login failed: ' + e.message;
@@ -5466,6 +5467,7 @@ async function createCharacter() {
     });
     toast('Character created!', 'ok');
     enterApp();
+    switchPage('main');
     if (typeof startQuickStart === 'function') startQuickStart();
   } catch(e) {
     errEl.style.color = 'var(--red)';
