@@ -35405,7 +35405,7 @@ function onFeatNameChange(i, value) {
 function applyFeatEffects() {
   if (!currentChar?.feats) return;
   // Apply Tough feat: +2 HP per level
-  const hasTough = currentChar.feats.some(f => f.name?.toLowerCase() === 'tough');
+  const hasTough = currentChar.feats.some(f => ['tough','tough [origin]'].includes(f.name?.toLowerCase()));
   currentChar._toughBonus = hasTough ? getLevel() * 2 : 0;
 
   // Apply Durable: min roll of CON score on hit dice
@@ -36314,7 +36314,7 @@ function applyFeatSlotEffects() {
   const has = name => allFeats.includes(name.toLowerCase());
 
   // ── HP modifiers ──────────────────────────────────────────
-  currentChar._toughBonus   = has('Tough') ? getLevel() * 2 : 0;
+  currentChar._toughBonus   = (has('Tough') || has('Tough [Origin]')) ? getLevel() * 2 : 0;
   currentChar._hasDurable   = has('Durable');
 
   // ── Speed modifiers ───────────────────────────────────────
