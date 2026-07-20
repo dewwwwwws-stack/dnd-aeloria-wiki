@@ -5413,6 +5413,7 @@ async function populateLoginDropdown() {
 // ═══════════════════════════════════════════════════════════
 
 async function doLogin() {
+  _teardownPreviewState();
   const id     = document.getElementById('login-char-select').value;
   const pin    = document.getElementById('login-pin').value;
   const btn    = document.getElementById('login-btn');
@@ -7425,6 +7426,7 @@ openModal = function(id) {
 };
 
 function doLogout() {
+  _teardownPreviewState();
   currentChar = null; currentCharSHA = null; isDM = false;
   applyThemeFull('default-dark');
   document.getElementById('login-screen').style.display = '';
@@ -40741,6 +40743,8 @@ window.quickStartBack = quickStartBack;
 window.verifyDMPin            = verifyDMPin;
 
 function openDMPanelDirect() {
+  const hadSession = _teardownPreviewState();
+  if (hadSession && typeof updateCharSummary === 'function') updateCharSummary();
   switchPage('dm');
   // If already authenticated as DM, skip PIN gate
   if (isDM) {
@@ -40819,7 +40823,19 @@ async function previewCharacterSheet(charId) {
 }
 window.previewCharacterSheet = previewCharacterSheet;
 
-function exitPreviewMode() {
+// Tears down active preview state (if any) and restores whatever session
+// existed before the preview started — currentChar, the preview banner,
+// and the read-only CSS class. Returns true if a real session was
+// restored, false if there was none (an anonymous visitor previewing from
+// the public Party Overview page) or no preview was active at all.
+// Shared by exitPreviewMode (explicit "back" click) and openDMPanelDirect
+// (navigating to the DM panel while a preview happens to still be active)
+// so a previewed character's data — and, worse, the read-only CSS that
+// would otherwise silently disable the DM panel's own controls too — can
+// never leak into somewhere it doesn't belong just because the DM didn't
+// exit the preview through its own button.
+function _teardownPreviewState() {
+  if (!window._previewMode) return false;
   window._previewMode = false;
   document.body.classList.remove('preview-readonly');
   const banner = document.getElementById('preview-banner');
@@ -40829,24 +40845,28 @@ function exitPreviewMode() {
   _previewPriorState = null;
 
   if (prior?.hadSession) {
-    // Restore whoever was actually logged in before the preview.
     currentChar = prior.currentChar;
     currentCharSHA = prior.currentCharSHA;
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) saveBtn.style.display = '';
+    return true;
+  }
+  currentChar = null;
+  clearCustomThemeInlineOverrides();
+  document.documentElement.setAttribute('data-theme', _pageDefaultTheme);
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) themeBtn.textContent = _pageDefaultTheme.endsWith('light') ? '🌙' : '☀';
+  const summaryEl = document.getElementById('char-summary');
+  if (summaryEl) summaryEl.innerHTML = ''; // updateCharSummary() no-ops on a null currentChar, so this has to be cleared explicitly
+  return false;
+}
+
+function exitPreviewMode() {
+  const hadSession = _teardownPreviewState();
+  if (hadSession) {
     enterApp();
     switchPage('main');
   } else {
-    // No prior session — go back to the overview rather than restoring nothing.
-    currentChar = null;
-    // previewCharacterSheet's enterApp() call applies the previewed
-    // character's own theme preference — an anonymous visitor has no
-    // "their own theme" to fall back to, so reset to the page's actual
-    // default rather than leaving the previewed character's colors applied.
-    clearCustomThemeInlineOverrides();
-    document.documentElement.setAttribute('data-theme', _pageDefaultTheme);
-    const themeBtn = document.getElementById('theme-toggle-btn');
-    if (themeBtn) themeBtn.textContent = _pageDefaultTheme.endsWith('light') ? '🌙' : '☀';
     const tabs = document.getElementById('page-tabs');
     if (tabs) tabs.style.display = 'none';
     switchPage('party-overview');
@@ -40873,6 +40893,8 @@ function exitPartyOverview() {
 window.exitPartyOverview = exitPartyOverview;
 
 function openPartyOverview() {
+  const hadSession = _teardownPreviewState();
+  if (hadSession && typeof updateCharSummary === 'function') updateCharSummary();
   switchPage('party-overview');
   renderPartyOverview();
 }
