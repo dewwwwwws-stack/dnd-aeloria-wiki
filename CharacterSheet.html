@@ -5254,6 +5254,14 @@ document.querySelectorAll('.page-tab').forEach(tab => {
 function openModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
+  // Guarantee only one modal is ever visible at a time — if something else
+  // was left open (a prior modal that didn't get properly closed, an
+  // unrelated trigger firing alongside this one, etc.), this closes it
+  // first rather than letting two modal-overlays stack on top of each
+  // other at the same z-index.
+  document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(other => {
+    if (other !== el) other.classList.add('hidden');
+  });
   // Always move modal to body to escape any stacking context (overflow:hidden, z-index, etc.)
   if (el.parentElement !== document.body) {
     el._originalParent = el.parentElement;
@@ -29540,7 +29548,7 @@ function renderMagicItemsPanel() {
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
             <div style="display:flex;gap:3px">
               <button class="tbtn magic-item-edit-btn" style="font-size:9px;padding:1px 5px" onclick="openMagicItemDetailModal(currentChar.magicItems[${idx}])" title="View item">👁</button>
-              <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="openGiveItemModal('magicItems',${idx})" title="Give to a party member">🎁</button>
+              <button class="tbtn" style="font-size:9px;padding:1px 5px" onclick="event.stopPropagation();openGiveItemModal('magicItems',${idx})" title="Give to a party member">🎁</button>
               <button class="sp-del-btn" style="opacity:1" onclick="removeMagicItem(${idx})" title="Remove">✕</button>
             </div>
             <div style="display:flex;align-items:center;gap:4px">
