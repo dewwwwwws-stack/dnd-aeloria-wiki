@@ -8036,7 +8036,7 @@ const PHB_INVOCATIONS = [
   { "name":"Eldritch Mind",                          "clean":"Eldritch Mind",                     "minLevel":1, "pact":null, "cantripReq":null, "desc":"I have Advantage on CON saving throws to maintain Concentration.", "effects":[] },
   { "name":"Eldritch Smite (PoB, 5+)",               "clean":"Eldritch Smite",                    "minLevel":5, "pact":"blade","cantripReq":null, "desc":"Once per turn when I hit with my pact weapon, I can expend a spell slot to deal extra force damage and knock target Prone.", "effects":[] },
   { "name":"Eldritch Spear", "clean":"Eldritch Spear", "minLevel":2, "pact":null, "cantripReq":null, "repeatable":true, "cantripPick":"damage_ranged", "desc":"Choose one of your Warlock cantrips that deals damage and has a range of 10+ ft. Its range increases by 30 × your Warlock level. Can be taken multiple times for different cantrips.", "effects":[] },
-  { "name":"Fiendish Vigor (2+)",                    "clean":"Fiendish Vigor",                    "minLevel":2, "pact":null, "cantripReq":null, "desc":"I can cast False Life on myself without expending a spell slot, gaining 2d4+4 Temp HP.", "effects":[] },
+  { "name":"Fiendish Vigor (2+)",                    "clean":"Fiendish Vigor",                    "minLevel":2, "pact":null, "cantripReq":null, "grantedSpell":"false_life", "grantType":"atWill", "desc":"I can cast False Life on myself without expending a spell slot, gaining 2d4+4 Temp HP.", "effects":[] },
   { "name":"Gaze of Two Minds (5+)",                 "clean":"Gaze of Two Minds",                 "minLevel":5, "pact":null, "cantripReq":null, "desc":"I can use a Bonus Action to touch a willing humanoid and perceive through their senses until the end of my next turn.", "effects":[] },
   { "name":"Gift of the Depths (5+)",                "clean":"Gift of the Depths",                "minLevel":5, "pact":null, "cantripReq":null, "grantedSpell":"water_breathing", "grantType":"atWill", "desc":"I can breathe underwater and have a swim speed equal to my walk speed. I can cast Water Breathing without a spell slot once per Long Rest.", "effects":[] },
   { "name":"Gift of the Protectors (PoT, 9+)",       "clean":"Gift of the Protectors",            "minLevel":9, "pact":"tome","cantripReq":null, "desc":"A new page in my Book of Shadows. Creatures whose names are written there drop to 1 HP instead of 0 (once per LR).", "effects":[] },
@@ -8049,7 +8049,7 @@ const PHB_INVOCATIONS = [
   { "name":"One with Shadows (5+)",                  "clean":"One with Shadows",                  "minLevel":5, "pact":null, "cantripReq":null, "desc":"While in Dim Light or Darkness, I can use a Bonus Action to become Invisible until I move or take an action.", "effects":[] },
   { "name":"Otherworldly Leap (2+)",                 "clean":"Otherworldly Leap",                 "minLevel":2, "pact":null, "cantripReq":null, "grantedSpell":"jump",         "grantType":"atWill", "desc":"I can cast Jump on myself at will, without expending a spell slot.", "effects":[] },
   { "name":"Pact of the Blade",                      "clean":"Pact of the Blade",                 "minLevel":3, "pact":null, "cantripReq":null, "desc":"I can conjure a pact weapon in my hand as a Bonus Action. I am proficient with it and can use it as a spellcasting focus.", "effects":[] },
-  { "name":"Pact of the Chain",                      "clean":"Pact of the Chain",                 "minLevel":3, "pact":null, "cantripReq":null, "desc":"I learn Find Familiar and can cast it as a ritual. My familiar can take one of special forms (Imp, Pseudodragon, Quasit, Sprite, or Skeleton).", "effects":[] },
+  { "name":"Pact of the Chain",                      "clean":"Pact of the Chain",                 "minLevel":3, "pact":null, "cantripReq":null, "grantedSpell":"find_familiar", "grantType":"atWill", "desc":"I learn Find Familiar and can cast it as a ritual. My familiar can take one of special forms (Imp, Pseudodragon, Quasit, Sprite, or Skeleton).", "effects":[] },
   { "name":"Pact of the Tome",                       "clean":"Pact of the Tome",                  "minLevel":3, "pact":null, "cantripReq":null, "desc":"I gain a Book of Shadows with 3 cantrips from any class and 2 level 1 ritual spells from any class.", "effects":[] },
   { "name":"Repelling Blast", "clean":"Repelling Blast", "minLevel":2, "pact":null, "cantripReq":null, "repeatable":true, "cantripPick":"attack_roll", "desc":"Choose one of your Warlock cantrips that requires an attack roll. When you hit a Large or smaller creature, push it up to 10 ft straight away. Can be taken multiple times for different cantrips.", "effects":[] },
   { "name":"Thirsting Blade (PoB, 5+)",              "clean":"Thirsting Blade",                   "minLevel":5, "pact":"blade","cantripReq":null, "desc":"I can attack with my pact weapon twice instead of once when I take the Attack action.", "effects":["extra_attack"] },
@@ -21314,8 +21314,10 @@ function renderSpellStats() {
       prepEl.title = prepBreakdown;
     } else if (sc && isSwapOnLU(sc.cls)) {
       if (lbl) lbl.textContent = 'SPELLS';
-      // Count spells in the known list (auto-prepared for these casters)
-      const knownCount = (currentChar.spells.known||[]).filter(s=>s.level>0).length;
+      // Count spells in the known list (auto-prepared for these casters) —
+      // excludes granted spells (items, Book of Shadows, feats, etc.), same
+      // as countPreparedSpells does for prepare-freely casters.
+      const knownCount = buildKnownSpellRows().filter(r=>r.level>0 && !r.locked).length;
       const cd = getClassData(sc.cls);
       const clsLv = getAllClasses().find(e=>e.class?.toLowerCase()===sc.cls)?.levels?.length || sc.level || 1;
       const knownMax = cd?.spellcasting?.spellsKnown?.[clsLv - 1] ?? prepMax;
@@ -21559,7 +21561,12 @@ function _getLuSpellCap() {
 
 function _getLuCurrentSpells() {
   ensureSpellData();
-  return (currentChar.spells?.known || []).filter(s => _luMode === 'cantrip' ? s.level === 0 : s.level > 0);
+  // Uses the same canonical row-builder every other spell count in the
+  // app now goes through — this was the one remaining place still reading
+  // spells.known raw, which is exactly what let granted spells (Book of
+  // Ancient Secrets, Genie patron, etc.) double-count here too, on top of
+  // showing separately in the "Already Granted" section just above.
+  return buildKnownSpellRows().filter(r => !r.locked && (_luMode === 'cantrip' ? r.level === 0 : r.level > 0));
 }
 
 function _buildLuLevelFilter() {
@@ -22660,6 +22667,143 @@ function countKnownCantrips() {
   return currentChar.spells.known.filter(s => s.level === 0 && !_featKeys.has(s.key)).length;
 }
 
+// Builds the exact same merged, deduplicated spell list renderKnownSpells
+// displays — racial/subclass/feat/item/invocation/arcanum grants first
+// (each locked:true), then the character's own known spells last, with
+// _shownKeys ensuring a spell already claimed by any granted source is
+// never double-counted even if it also happens to sit in spells.known.
+// Extracted so counting functions can filter this same list instead of
+// re-deriving "is this spell granted" a second, separate way — which is
+// exactly what let a granted spell (Genie patron, Book of Shadows, etc.)
+// quietly inflate the known-spell count above what's actually shown:
+// this list already gets it right, a second computation didn't need to
+// exist in the first place.
+function buildKnownSpellRows() {
+  ensureSpellData();
+  const isWiz = getCharSpellClasses().includes('wizard');
+  const _sc = getPrimarySpellcasting();
+  const subclassSpells = getSubclassBonusSpells();
+  const racialSpells   = getRacialBonusSpells();
+  const featSpells     = getFeatGrantedSpells();
+
+  const rows = [];
+  const _shownKeys = new Set();
+
+  racialSpells.forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, locked:true, label:'Racial' });
+  });
+
+  (() => {
+    const isShadowMonk = (() => {
+      const fromClasses = getAllClasses().some(e => {
+        const c = e.class?.toLowerCase();
+        const s = (e.subclass||'').toLowerCase();
+        const lv = e.levels?.length || 0;
+        return c === 'monk' && s.includes('shadow') && lv >= 3;
+      });
+      if (fromClasses) return true;
+      const legacyCls = (currentChar?.class||'').toLowerCase();
+      const legacySub = (currentChar?.subclass||'').toLowerCase();
+      const legacyLv  = getLevel();
+      return legacyCls === 'monk' && legacySub.includes('shadow') && legacyLv >= 3;
+    })();
+    if (!isShadowMonk) return;
+    const SHADOW_ARTS = ['darkness'];
+    SHADOW_ARTS.forEach(key => {
+      if (_shownKeys.has(key)) return;
+      const phb = PHB_SPELL_LIST.find(s => s.key === key);
+      if (!phb) return;
+      _shownKeys.add(key);
+      rows.push({
+        key: phb.key, name: phb.name, level: phb.level,
+        source: 'subclass', pipType: 'subclass', locked: true,
+        label: 'Shadow Arts', available: true,
+      });
+    });
+  })();
+
+  subclassSpells.forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    if (sp.available) {
+      rows.push({ ...sp, pipType:'subclass', locked:true, label:`${sp.subclass}` });
+    } else {
+      rows.push({ ...sp, pipType:'subclass-locked', locked:true,
+                  label:`${sp.subclass} (Lv ${sp.minClassLevel})` });
+    }
+  });
+
+  featSpells.forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Feat' });
+  });
+
+  getMagicItemGrantedSpells().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'item-spell', locked:true, label:sp.itemName });
+  });
+
+  getPactTomeCantrips().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Book of Shadows' });
+  });
+
+  getPactTomeRituals().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'ritual-only', locked:true, ritual:true, label:'Book of Shadows' });
+  });
+
+  getInvocationGrantedSpells().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'subclass', locked:true, label:sp.invoc });
+  });
+
+  getMysticArcanumSpells().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'feat-spell', locked:true,
+      label:`Mystic Arcanum (${sp.spellSlotLevel}th)`,
+      grantType:'onceLR' });
+  });
+
+  currentChar.spells.known.filter(s => s.level === 0).forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    rows.push({ ...sp, pipType:'cantrip', locked:false });
+    _shownKeys.add(sp.key);
+  });
+
+  if (isWiz) {
+    const allBook = currentChar.spells.spellbook.filter(s => s.level > 0);
+    allBook.forEach(sp => {
+      const isPrepared = currentChar.spells.prepared.includes(sp.key);
+      const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
+      const isRitual = phb?.ritual;
+      if (isPrepared) {
+        rows.push({ ...sp, pipType:'prepared', locked:false });
+      } else if (isRitual) {
+        rows.push({ ...sp, pipType:'ritual-only', locked:false, ritual:true });
+      }
+    });
+  } else {
+    currentChar.spells.known.filter(s => s.level > 0).forEach(sp => {
+      if (_shownKeys.has(sp.key)) return;
+      const isPrepared = currentChar.spells.prepared.includes(sp.key) || isKnownCaster(_sc?.cls);
+      const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
+      rows.push({ ...sp, pipType: isPrepared ? 'prepared' : '', locked: false, ritual: phb?.ritual });
+      _shownKeys.add(sp.key);
+    });
+  }
+
+  return rows;
+}
+
 function countPreparedSpells() {
   ensureSpellData();
   // Wizards have a genuinely separate model — a larger spellbook plus a
@@ -22671,7 +22815,7 @@ function countPreparedSpells() {
   if (getCharSpellClasses().includes('wizard')) {
     return (currentChar.spells?.prepared || []).length;
   }
-  return (currentChar.spells?.known || []).filter(s => s.level > 0).length;
+  return buildKnownSpellRows().filter(r => r.level > 0 && !r.locked).length;
 }
 
 // ── Add / Remove spells ───────────────────────────────────
@@ -22875,151 +23019,7 @@ function renderKnownSpells() {
     if (panelTitle) panelTitle.after(msWrap);
   }
 
-  const subclassSpells = getSubclassBonusSpells();
-  const racialSpells   = getRacialBonusSpells();
-  const featSpells     = getFeatGrantedSpells();
-
-  // Build display list
-  const rows = [];
-
-  // Track keys already shown, checked/updated by every source section below —
-  // a spell can legitimately be granted by more than one source at once (e.g.
-  // a Feat AND a Pact of Tome ritual inscription both granting the same
-  // spell), which previously showed up as two separate duplicate rows since
-  // only sections much later in this function were checking for duplicates.
-  const _shownKeys = new Set();
-
-  // 0. Racial bonus spells (always prepared, purple pip)
-  racialSpells.forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, locked:true, label:'Racial' });
-  });
-
-  // 0b. Focus-point spells: Way of Shadow Shadow Arts
-  // These aren't prepared spells but are castable via Focus Points — mark as always available
-  (() => {
-    const isShadowMonk = (() => {
-      // Check classes array (primary source)
-      const fromClasses = getAllClasses().some(e => {
-        const c = e.class?.toLowerCase();
-        const s = (e.subclass||'').toLowerCase();
-        const lv = e.levels?.length || 0;
-        return c === 'monk' && s.includes('shadow') && lv >= 3;
-      });
-      if (fromClasses) return true;
-      // Fallback: legacy flat fields (subclass may not be saved in classes[])
-      const legacyCls = (currentChar?.class||'').toLowerCase();
-      const legacySub = (currentChar?.subclass||'').toLowerCase();
-      const legacyLv  = getLevel();
-      return legacyCls === 'monk' && legacySub.includes('shadow') && legacyLv >= 3;
-    })();
-    if (!isShadowMonk) return;
-    const SHADOW_ARTS = ['darkness']; // PHB 2024: Shadow Arts only grants Darkness via Focus Points
-    SHADOW_ARTS.forEach(key => {
-      if (_shownKeys.has(key)) return;
-      const phb = PHB_SPELL_LIST.find(s => s.key === key);
-      if (!phb) return;
-      _shownKeys.add(key);
-      rows.push({
-        key: phb.key, name: phb.name, level: phb.level,
-        source: 'subclass', pipType: 'subclass', locked: true,
-        label: 'Shadow Arts', available: true,
-      });
-    });
-  })();
-
-  // 1. Subclass bonus spells (always prepared when available, greyed when locked by level)
-  subclassSpells.forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    if (sp.available) {
-      rows.push({ ...sp, pipType:'subclass', locked:true, label:`${sp.subclass}` });
-    } else {
-      rows.push({ ...sp, pipType:'subclass-locked', locked:true,
-                  label:`${sp.subclass} (Lv ${sp.minClassLevel})` });
-    }
-  });
-
-  // 2. Feat spells (amber pip, locked)
-  featSpells.forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Feat' });
-  });
-
-  // 2a2. Magic item-granted spells (at will or limited-use, locked)
-  getMagicItemGrantedSpells().forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'item-spell', locked:true, label:sp.itemName });
-  });
-
-  // 2b. Pact of Tome cantrips (amber pip, locked, at-will)
-  getPactTomeCantrips().forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'feat-spell', locked:true, label:'Book of Shadows' });
-  });
-
-  // 2c. Pact of Tome ritual spells (ritual-only pip)
-  getPactTomeRituals().forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'ritual-only', locked:true, ritual:true, label:'Book of Shadows' });
-  });
-
-  // 2d. Invocation-granted spells (purple pip, at-will, locked)
-  getInvocationGrantedSpells().forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'subclass', locked:true, label:sp.invoc });
-  });
-
-  // 2e. Mystic Arcanum spells (amber pip, 1/LR, locked)
-  getMysticArcanumSpells().forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'feat-spell', locked:true,
-      label:`Mystic Arcanum (${sp.spellSlotLevel}th)`,
-      grantType:'onceLR' });
-  });
-
-  // 3. Known cantrips (removable — user added them, skip if already shown by racial/subclass)
-  currentChar.spells.known.filter(s => s.level === 0).forEach(sp => {
-    if (_shownKeys.has(sp.key)) return; // already shown as racial/subclass cantrip
-    rows.push({ ...sp, pipType:'cantrip', locked:false });
-    _shownKeys.add(sp.key);
-  });
-
-  // 4a. Wizard: only show prepared spells + unprepared rituals (Ritual Adept).
-  // Unprepared non-ritual spells are managed in the Spellbook panel below.
-  if (isWiz) {
-    const allBook = currentChar.spells.spellbook.filter(s => s.level > 0);
-    allBook.forEach(sp => {
-      const isPrepared = currentChar.spells.prepared.includes(sp.key);
-      const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
-      const isRitual = phb?.ritual;
-      if (isPrepared) {
-        rows.push({ ...sp, pipType:'prepared', locked:false });
-      } else if (isRitual) {
-        // Ritual Adept: unprepared rituals shown with ritual-only pip (castable without prep)
-        rows.push({ ...sp, pipType:'ritual-only', locked:false, ritual:true });
-      }
-      // Unprepared non-ritual spells: managed in Spellbook panel, not shown here
-    });
-  } else {
-    // 4b. Other casters: known spells (skip if already shown by racial/subclass/feat)
-    currentChar.spells.known.filter(s => s.level > 0).forEach(sp => {
-      if (_shownKeys.has(sp.key)) return;
-      const isPrepared = currentChar.spells.prepared.includes(sp.key) || isKnown;
-      const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
-      rows.push({ ...sp, pipType: isPrepared ? 'prepared' : '', locked: false, ritual: phb?.ritual });
-      _shownKeys.add(sp.key);
-    });
-  }
-
-  // Sort: by level then alphabetical
+  const rows = buildKnownSpellRows();
   rows.sort((a,b) => {
     if (a.level !== b.level) return a.level - b.level;
     return (a.name||'').localeCompare(b.name||'');
@@ -23464,7 +23464,7 @@ function renderFullClassSpellList() {
 
   if (countEl) {
     const { max } = getPreparedMax();
-    const current = currentChar.spells.known.filter(s => s.level > 0).length;
+    const current = buildKnownSpellRows().filter(r => r.level > 0 && !r.locked).length;
     countEl.textContent = `${current}/${max} prepared`;
     countEl.style.color = current > max ? 'var(--red)' : 'var(--text3)';
   }
@@ -36821,7 +36821,7 @@ function renderFeatDetailBody() {
           <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:10px">
             Use the Skill Proficiency Setup to choose your skills — this shows your full list so you won't duplicate existing proficiencies.
           </div>
-          <button class="btn-primary" onclick="closeModal('feat-detail-modal');openSkillSetupForFeat('${slotId}')">
+          <button class="btn-primary" onclick="closeModal('feat-detail-modal');openSkillSetupForFeat('${_featDetailSlotId}')">
             Open Skill Proficiency Setup
           </button>
         </div>
@@ -36833,7 +36833,7 @@ function renderFeatDetailBody() {
           <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:10px">
             Use the Skill Proficiency Setup to choose your proficiency and expertise — it shows your full existing skills to avoid duplicates.
           </div>
-          <button class="btn-primary" onclick="closeModal('feat-detail-modal');openSkillSetupForFeat('${slotId}')">
+          <button class="btn-primary" onclick="closeModal('feat-detail-modal');openSkillSetupForFeat('${_featDetailSlotId}')">
             Open Skill Proficiency Setup
           </button>
         </div>
@@ -36845,7 +36845,7 @@ function renderFeatDetailBody() {
           <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:10px">
             Pool: ${extra.pool.join(', ')}. Opens Skill Proficiency Setup to show your existing skills.
           </div>
-          <button class="btn-primary" onclick="closeModal('feat-detail-modal');openSkillSetupForFeat('${slotId}')">
+          <button class="btn-primary" onclick="closeModal('feat-detail-modal');openSkillSetupForFeat('${_featDetailSlotId}')">
             Open Skill Proficiency Setup
           </button>
         </div>
