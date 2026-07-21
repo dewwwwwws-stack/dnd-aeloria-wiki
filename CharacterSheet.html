@@ -775,13 +775,34 @@ body.preview-readonly .modal-overlay *:not(.modal-close) {
    edit action (#mi-detail-edit-row's "Edit Notes" button), which stays
    blocked below. (feat-detail-modal is deliberately NOT included here —
    despite the name, it's actually a feat-choice/configuration modal with
-   its own Apply button, not a pure description view.) */
-body.preview-readonly .page [onclick*="openSpellDetailModal"],
-body.preview-readonly .page [onclick*="openSpellDetailModal"] *,
-body.preview-readonly .page [onclick*="openMagicItemDetailModal"],
-body.preview-readonly .page [onclick*="openMagicItemDetailModal"] * {
+   its own Apply button, not a pure description view.)
+   These rows open their detail modal via a row-level addEventListener in
+   JS, not an inline onclick attribute — an attribute selector (the first
+   version of this rule) can't see those at all, which is exactly why this
+   worked in the Unified Inventory view (which does use inline onclick)
+   but nowhere else. Re-enabling the row's own class instead lets its real
+   click handler fire; the nested-selector rules right after this one
+   re-block any button/input/select inside that same row (delete, prepare,
+   attune, give-item, etc.) at higher specificity, so the row opens detail
+   on click without exposing any of its actual edit controls. */
+body.preview-readonly .page .sp-known-row,
+body.preview-readonly .page .sp-spellbook-row,
+body.preview-readonly .page .magic-item-row {
   pointer-events: auto !important;
   cursor: pointer !important;
+}
+body.preview-readonly .page .sp-known-row button,
+body.preview-readonly .page .sp-known-row input,
+body.preview-readonly .page .sp-known-row select,
+body.preview-readonly .page .sp-known-row .sp-pip,
+body.preview-readonly .page .sp-spellbook-row button,
+body.preview-readonly .page .sp-spellbook-row input,
+body.preview-readonly .page .magic-item-row button,
+body.preview-readonly .page .magic-item-row input,
+body.preview-readonly .page .magic-item-row select,
+body.preview-readonly .page .magic-item-row label {
+  pointer-events: none !important;
+  cursor: default !important;
 }
 body.preview-readonly #spell-detail-modal *,
 body.preview-readonly #magic-item-detail-modal * {
