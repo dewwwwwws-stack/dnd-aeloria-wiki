@@ -3232,7 +3232,10 @@ body.preview-readonly #mi-detail-edit-row * {
       <div class="panel">
         <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
           <span>Browse Spells</span>
-          <button class="tbtn" style="font-size:9px;padding:2px 8px" onclick="openCustomSpellModal()">+ Custom</button>
+          <div style="display:flex;gap:4px">
+            <button class="tbtn" style="font-size:9px;padding:2px 8px" onclick="openGrantFreeSpellModal()">✦ Grant Free</button>
+            <button class="tbtn" style="font-size:9px;padding:2px 8px" onclick="openCustomSpellModal()">+ Custom</button>
+          </div>
         </div>
         <div id="sp-browser-body">
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;margin-bottom:4px;flex-wrap:wrap">
@@ -4185,6 +4188,30 @@ body.preview-readonly #mi-detail-edit-row * {
       <p><strong style="color:var(--gold)">Reversing the Transformation.</strong> A Wish spell or similar magic can restore a single transformed creature to its previous form, removing all Contamination and restoring the original creature's personality and memories. This is considered a stressful use of the Wish spell, and thus there is a 33 percent chance that the caster will be unable to cast Wish ever again if they use the spell in this manner.</p>
       <p style="color:var(--text3)">Note that the means of reversing a monstrous transformation are completely unknown at the outset of the campaign. A Monstrous Transformation is widely regarded as permanent.</p>
     </div>
+  </div>
+</div>
+
+<!-- ── Grant Free Spell Modal ────────────────────────────── -->
+<div class="modal-overlay hidden" id="grant-free-spell-modal">
+  <div class="modal-box" style="max-width:420px;max-height:85vh;overflow-y:auto">
+    <div class="modal-title">
+      ✦ Grant Free Spell
+      <span class="modal-close" onclick="closeModal('grant-free-spell-modal')">✕</span>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:10px">
+      Adds a spell to your known list without it counting against your known/prepared limit — for DM rewards, story items, or anything not covered by an automatic source (invocations, feats, subclass features, etc).
+    </div>
+    <div class="info-field">
+      <label class="field-label">Spell</label>
+      <input class="info-input" id="gfs-search" placeholder="Search any spell…" oninput="renderGrantFreeSpellResults()"/>
+    </div>
+    <div id="gfs-results" style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;margin-bottom:10px"></div>
+    <div class="info-field">
+      <label class="field-label">Note <span style="color:var(--text3);font-weight:400">(shown as the reason it's free — optional)</span></label>
+      <input class="info-input" id="gfs-note" placeholder="e.g. DM reward, Boon of the Genie…"/>
+    </div>
+    <button class="btn-primary" id="gfs-confirm-btn" onclick="confirmGrantFreeSpell()" disabled>Grant Spell</button>
+    <div id="gfs-status" style="font-family:var(--font-ui);font-size:11px;margin-top:6px;min-height:16px"></div>
   </div>
 </div>
 
@@ -7499,6 +7526,121 @@ function injectCustomSpellsIntoCatalog() {
     if (!PHB_SPELL_LIST.some(s => s.key === sp.key)) PHB_SPELL_LIST.push(sp);
   });
 }
+
+function openCustomSpellModal() {
+  ['cs-name','cs-range','cs-components','cs-desc-short','cs-desc-full'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('cs-time').value = '1 action';
+  document.getElementById('cs-duration').value = 'Instantaneous';
+  document.getElementById('cs-level').value = '1';
+  document.getElementById('cs-school').selectedIndex = 0;
+  document.getElementById('cs-ritual').checked = false;
+  document.getElementById('cs-conc').checked = false;
+  document.getElementById('cs-status').textContent = '';
+  openModal('custom-spell-modal');
+}
+window.openCustomSpellModal = openCustomSpellModal;
+
+function saveCustomSpell() {
+  const statusEl = document.getElementById('cs-status');
+  const name = document.getElementById('cs-name').value.trim();
+  const descShort = document.getElementById('cs-desc-short').value.trim();
+  if (!name) { statusEl.textContent = 'Name is required.'; statusEl.style.color = 'var(--red)'; return; }
+  if (!descShort) { statusEl.textContent = 'Short description is required.'; statusEl.style.color = 'var(--red)'; return; }
+
+  let key = 'custom_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!currentChar.customSpells) currentChar.customSpells = [];
+  if (currentChar.customSpells.some(s => s.key === key) || PHB_SPELL_LIST.some(s => s.key === key)) {
+    key += '_' + Date.now().toString(36).slice(-4);
+  }
+
+  const charClasses = getCharSpellClasses();
+  const spell = {
+    key, name,
+    level: parseInt(document.getElementById('cs-level').value) || 0,
+    school: document.getElementById('cs-school').value,
+    time: document.getElementById('cs-time').value.trim() || '1 action',
+    range: document.getElementById('cs-range').value.trim() || 'Self',
+    duration: document.getElementById('cs-duration').value.trim() || 'Instantaneous',
+    components: document.getElementById('cs-components').value.trim() || 'V,S',
+    conc: document.getElementById('cs-conc').checked,
+    ritual: document.getElementById('cs-ritual').checked,
+    classes: charClasses.length ? charClasses : ['wizard'],
+    desc: descShort,
+    tags: ['custom'],
+    descFull: document.getElementById('cs-desc-full').value.trim() || descShort,
+  };
+
+  currentChar.customSpells.push(spell);
+  injectCustomSpellsIntoCatalog();
+  debouncedSave();
+  closeModal('custom-spell-modal');
+  toast(`Added "${name}" — find it in Browse Spells to add it to your known list.`, 'ok');
+  if (typeof renderSpellBrowser === 'function') renderSpellBrowser();
+}
+window.saveCustomSpell = saveCustomSpell;
+
+// Grants a spell "for free" — added to the known-spell display via
+// buildKnownSpellRows' locked:true treatment (same mechanism every other
+// granted source uses: invocations, feats, subclass features), but backed
+// by a simple persisted list rather than tied to any specific class
+// feature — for DM rewards, story items, or anything with no automatic
+// source to hook into.
+let _gfsSelectedKey = null;
+
+function openGrantFreeSpellModal() {
+  _gfsSelectedKey = null;
+  document.getElementById('gfs-search').value = '';
+  document.getElementById('gfs-note').value = '';
+  document.getElementById('gfs-results').innerHTML = '';
+  document.getElementById('gfs-confirm-btn').disabled = true;
+  document.getElementById('gfs-status').textContent = '';
+  openModal('grant-free-spell-modal');
+}
+window.openGrantFreeSpellModal = openGrantFreeSpellModal;
+
+function renderGrantFreeSpellResults() {
+  const q = document.getElementById('gfs-search').value.trim().toLowerCase();
+  const results = document.getElementById('gfs-results');
+  if (q.length < 2) { results.innerHTML = ''; return; }
+  const already = new Set((currentChar.grantedSpells || []).map(g => g.key));
+  const matches = PHB_SPELL_LIST.filter(s => s.name.toLowerCase().includes(q) && !already.has(s.key)).slice(0, 30);
+  results.innerHTML = matches.map(s => `
+    <div onclick="selectGrantFreeSpell('${s.key.replace(/'/g,"\\'")}','${s.name.replace(/'/g,"\\'")}')"
+      style="padding:6px 8px;border-radius:var(--radius);cursor:pointer;font-family:var(--font-ui);font-size:11px;background:${_gfsSelectedKey===s.key?'var(--accent-bg)':'var(--bg3)'};border:1px solid ${_gfsSelectedKey===s.key?'var(--accent)':'var(--border)'}">
+      ${s.name} <span style="color:var(--text3)">— Lv ${s.level||'Cantrip'} ${s.school||''}</span>
+    </div>
+  `).join('') || '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No matches.</div>';
+}
+window.renderGrantFreeSpellResults = renderGrantFreeSpellResults;
+
+function selectGrantFreeSpell(key, name) {
+  _gfsSelectedKey = key;
+  document.getElementById('gfs-search').value = name;
+  document.getElementById('gfs-confirm-btn').disabled = false;
+  document.getElementById('gfs-results').innerHTML = '';
+}
+window.selectGrantFreeSpell = selectGrantFreeSpell;
+
+function confirmGrantFreeSpell() {
+  const statusEl = document.getElementById('gfs-status');
+  if (!_gfsSelectedKey) { statusEl.textContent = 'Pick a spell first.'; statusEl.style.color = 'var(--red)'; return; }
+  const note = document.getElementById('gfs-note').value.trim();
+  if (!currentChar.grantedSpells) currentChar.grantedSpells = [];
+  if (currentChar.grantedSpells.some(g => g.key === _gfsSelectedKey)) {
+    statusEl.textContent = 'Already granted.'; statusEl.style.color = 'var(--amber)'; return;
+  }
+  currentChar.grantedSpells.push({ key: _gfsSelectedKey, note });
+  debouncedSave();
+  if (typeof renderKnownSpells === 'function') renderKnownSpells();
+  if (typeof renderSpellStats === 'function') renderSpellStats();
+  closeModal('grant-free-spell-modal');
+  const sp = PHB_SPELL_LIST.find(s => s.key === _gfsSelectedKey);
+  toast(`Granted "${sp?.name || _gfsSelectedKey}" for free — it won't count against your known-spell limit.`, 'ok');
+}
+window.confirmGrantFreeSpell = confirmGrantFreeSpell;
 
 function enterApp() {
   // Show DM button in topbar if DM
@@ -23151,6 +23293,17 @@ function buildKnownSpellRows() {
     rows.push({ ...sp, pipType:'feat-spell', locked:true,
       label:`Mystic Arcanum (${sp.spellSlotLevel}th)`,
       grantType:'onceLR' });
+  });
+
+  // Manually granted spells — a DM/story reward, a magic item not yet
+  // modeled elsewhere, anything that doesn't fit one of the automatic
+  // sources above but still shouldn't eat into known-spell limits.
+  (currentChar.grantedSpells || []).forEach(g => {
+    if (_shownKeys.has(g.key)) return;
+    const phb = PHB_SPELL_LIST.find(s => s.key === g.key);
+    if (!phb) return;
+    _shownKeys.add(g.key);
+    rows.push({ ...phb, pipType:'feat-spell', locked:true, label: g.note || 'Granted' });
   });
 
   currentChar.spells.known.filter(s => s.level === 0).forEach(sp => {
