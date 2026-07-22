@@ -21137,7 +21137,22 @@ function renderContamination() {
 
   if (badge) badge.textContent = 'Level ' + level;
   if (note) {
-    note.textContent = level > 0 ? CONTAMINATION_EFFECTS[level] : 'No contamination';
+    if (level <= 0) {
+      note.textContent = 'No contamination';
+    } else {
+      // Contamination symptoms are cumulative (unlike 2024 Exhaustion) —
+      // every level gained keeps its predecessors' symptoms active, so the
+      // note lists all of them up through the current level, not just the
+      // line for the current level alone.
+      const symptoms = [];
+      for (let i = 1; i <= level; i++) {
+        const text = CONTAMINATION_EFFECTS[i];
+        if (text && text !== 'No symptoms yet') symptoms.push(text);
+      }
+      note.innerHTML = symptoms.length
+        ? symptoms.map(s => `• ${s}`).join('<br>')
+        : CONTAMINATION_EFFECTS[1];
+    }
     note.style.color = level >= 5 ? 'var(--red)' : level >= 4 ? 'var(--accent)' : 'var(--text3)';
   }
 }
