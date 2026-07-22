@@ -3456,7 +3456,7 @@ body.preview-readonly #mi-detail-edit-row * {
   <div style="padding:16px;max-width:1400px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--gold)">⚔ DM Panel — Aeloria</span>
-      <button class="tbtn" onclick="switchPage('main')" style="margin-left:auto;font-size:10px">← Back to Sheet</button>
+      <button class="tbtn" onclick="exitDMPanel()" style="margin-left:auto;font-size:10px">← Back to Sheet</button>
     </div>
 
     <!-- PIN Gate -->
@@ -41521,6 +41521,25 @@ window.exitPreviewMode = exitPreviewMode;
 // so "back" means different things depending on how you got here. Unlike
 // switchPage('main') alone, this checks for an actual session first,
 // rather than assuming one exists and showing an empty, unpopulated sheet.
+// DM Panel is reachable both from within an active session (the topbar
+// ⚔ button) and with zero login at all (the login screen's "DM? Admin
+// panel" link, via openDMPanelFromLogin) — so, same as Party Overview,
+// "back to sheet" means different things depending on how you got here.
+// The button used to call switchPage('main') unconditionally, which is
+// fine when a character is loaded but otherwise reveals #page-main
+// never populated by enterApp() — an empty sheet instead of a way back.
+function exitDMPanel() {
+  if (currentChar) {
+    switchPage('main');
+  } else {
+    document.getElementById('app').classList.remove('visible');
+    document.getElementById('login-screen').style.display = '';
+    const tabs = document.getElementById('page-tabs');
+    if (tabs) tabs.style.display = 'none';
+  }
+}
+window.exitDMPanel = exitDMPanel;
+
 function exitPartyOverview() {
   if (currentChar) {
     switchPage('main');
