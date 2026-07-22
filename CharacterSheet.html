@@ -5451,6 +5451,7 @@ function switchPage(page) {
     }
   }
   if (pg)  pg.classList.add('active');
+  if (pg) setTimeout(() => autoGrowAllTextareas(pg), 0);
   if (contentEl) contentEl.scrollTop = _pageScrollPos['page-' + page] || 0;
   if (page === 'companion') renderCompanionTab();
   if (page === 'summon') renderSummonPage();
@@ -5485,6 +5486,44 @@ document.querySelectorAll('.page-tab').forEach(tab => {
 // MODAL HELPERS
 // ═══════════════════════════════════════════════════════════
 
+// Grows a single textarea's height to fit its current content, so nothing
+// inside it ever requires scrolling to read. Only grows — never shrinks
+// below whatever height is already set (including a user's manual resize
+// via the native drag handle, or a size restored from _textareaSizes) —
+// by taking the larger of the current height and the content's natural
+// scrollHeight. Momentarily resetting to 'auto' first is necessary because
+// scrollHeight otherwise reports the *current* (possibly already-grown)
+// height back at itself, which would never let the box shrink back down
+// after text is deleted.
+function autoGrowTextarea(el) {
+  if (!el || el.tagName !== 'TEXTAREA') return;
+  const prev = el.style.height;
+  el.style.height = 'auto';
+  const fit = el.scrollHeight;
+  el.style.height = prev || '';
+  const prevPx = parseFloat(prev) || 0;
+  el.style.height = Math.max(fit, prevPx) + 'px';
+}
+window.autoGrowTextarea = autoGrowTextarea;
+
+// Auto-grows every textarea under a given root (defaults to the whole
+// document) — used whenever a page or modal becomes visible, since a
+// textarea hidden by display:none reports scrollHeight 0 and can't be
+// grown correctly until it's actually on screen. Deferred by a caller's
+// setTimeout(…, 0) wherever visibility just changed, so layout has
+// settled first.
+function autoGrowAllTextareas(root) {
+  (root || document).querySelectorAll('textarea').forEach(autoGrowTextarea);
+}
+window.autoGrowAllTextareas = autoGrowAllTextareas;
+
+// Delegated listener catches every textarea in the app, including ones in
+// dynamically-rendered rows/modals added long after page load — no need
+// to wire an oninput handler onto each of the ~20 textareas individually.
+document.addEventListener('input', e => {
+  if (e.target && e.target.tagName === 'TEXTAREA') autoGrowTextarea(e.target);
+});
+
 function openModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -5505,6 +5544,10 @@ function openModal(id) {
   }
   el.style.zIndex = '9999';
   el.classList.remove('hidden');
+  // Deferred so the 'hidden' class removal has actually reflowed before
+  // measuring scrollHeight — doing this synchronously would still see the
+  // pre-reveal (collapsed) layout.
+  setTimeout(() => autoGrowAllTextareas(el), 0);
 }
 
 function closeModal(id) {
@@ -21476,6 +21519,12 @@ function populateMainSheet() {
     }
   });
 
+  // Auto-grow to fit content on top of whatever size was just restored
+  // above — deferred so layout has settled, and scoped to visible
+  // textareas only (switchPage's own autoGrowAllTextareas call handles
+  // the rest as other tabs are actually visited).
+  setTimeout(() => autoGrowAllTextareas(document), 0);
+
   // Ability scores — populate from base layer if available
   ensureLayers();
   computeAbilities();
@@ -29836,6 +29885,37 @@ function getEffectiveItemWeight(item) {
 }
 window.getEffectiveItemWeight = getEffectiveItemWeight;
 
+// Aboleth Brain: "Otherworldly Memories" is a 1/day feature available to
+// anyone who owns the item — recovers on Dawn, not Long Rest, matching
+// the item's actual wording. Self-heals every call, adding the resource
+// while the item is owned and removing it (plus any tracked usage) the
+// moment it isn't. Called from ensureMagicItems (so it takes effect as
+// soon as the item shows up anywhere in the Inventory tab) and from
+// applyChoiceEffects (which also needs the hasIt flag for the separate
+// organic-weapon attack/damage bonus, Metamorph-only and unrelated to
+// this resource). Returns whether the character currently has the item,
+// so callers needing that don't have to re-scan magicItems themselves.
+function syncAbolethBrainResource() {
+  if (!currentChar) return false;
+  const RES_ID = 'aboleth_brain_memories';
+  const hasIt = (currentChar.magicItems || []).some(i => i.key === 'aboleth_brain');
+  if (!currentChar.customResources) currentChar.customResources = [];
+  const idx = currentChar.customResources.findIndex(r => r.id === RES_ID);
+  if (hasIt && idx === -1) {
+    currentChar.customResources.push({
+      id: RES_ID,
+      name: 'Otherworldly Memories (Aboleth Brain)',
+      desc: 'Wisdom save to glean info from cosmic memories about an item, place, creature, or course of action. 20+: truthful answer. 15-19: a vision. 14 or lower: 3d8 Psychic damage and Stunned 1 min.',
+      max: 1, recovery: 'dawn', recoveryNote: '',
+    });
+  } else if (!hasIt && idx !== -1) {
+    currentChar.customResources.splice(idx, 1);
+    if (currentChar.resources) delete currentChar.resources[RES_ID];
+  }
+  return hasIt;
+}
+window.syncAbolethBrainResource = syncAbolethBrainResource;
+
 function ensureMagicItems() {
   if (!currentChar) return;
   if (!currentChar.magicItems) currentChar.magicItems = [];
@@ -29844,6 +29924,7 @@ function ensureMagicItems() {
     if (item.quantity === undefined || item.quantity === null) item.quantity = 1;
     if (item.weight === undefined || item.weight === null) item.weight = '';
   });
+  syncAbolethBrainResource();
 }
 
 // Shows "Spell Scroll of Fireball (3rd Level)" once a spell is chosen, or
@@ -33698,6 +33779,14 @@ function applyChoiceEffects() {
   // on every recalc, not just when the player manually toggles one.
   if (typeof pruneInvalidInvocations === 'function') pruneInvalidInvocations();
 
+  // Aboleth Brain: "Otherworldly Memories" is a 1/day (Dawn recovery, not
+  // Long Rest) feature available to anyone who has the item, independent
+  // of class or subclass — unlike Improved Mutations (organic-weapon
+  // attack/damage bonus, below) and Devouring Urge (an unlimited
+  // once-per-turn combat option, so it needs no tracked resource at all),
+  // which only matter for Metamorph psions with organic weapons.
+  const hasAbolethBrain = syncAbolethBrainResource();
+
   // Metamorph: auto-add organic weapons when Metamorph subclass selected
   const _isMetamorph = (getClassEntry('psion')?.subclass || '').toLowerCase() === 'metamorph';
   if (_isMetamorph) {
@@ -33709,7 +33798,6 @@ function applyChoiceEffects() {
     // category), so it can't go through the normal per-weapon magic-item
     // bonus lookup — it's synced directly onto each organic weapon entry
     // here instead, the same way the Armorer's Arcane Armor weapon bonus is.
-    const hasAbolethBrain = (currentChar.magicItems || []).some(i => i.key === 'aboleth_brain');
     const organicBonus = hasAbolethBrain ? 1 : 0;
     organicKeys.forEach(wk => {
       const existing = currentChar.weapons.find(w => w.weaponKey === wk);
@@ -33963,6 +34051,7 @@ function applyChoiceEffects() {
   renderSkillsBlock();
   recalcQuickStats();
   updateChoiceEffectSummary();
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
 }
 
 function updateChoiceEffectSummary() {
