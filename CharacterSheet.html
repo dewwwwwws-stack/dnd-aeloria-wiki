@@ -7164,6 +7164,49 @@ verifyDMPin = async function() {
 
 
 // ── Spell Detail Modal ───────────────────────────────────
+// Expands the compact components string ("V,S,M", "V,S,M\u0192", "V,S,M\u2020")
+// into something a player can actually act on. \u0192 marks a costly material
+// component that ISN'T consumed (a focus item works instead); \u2020 marks one
+// that IS consumed on casting — that's the case this exists to surface, since
+// "just an M" hides the fact the spell burns a component every cast. Cost is
+// pulled from the parenthetical gp note already present in most descriptions
+// (e.g. "(100gp cons.)") rather than duplicated as separate spell data.
+function formatSpellComponents(sp) {
+  const raw = sp?.components;
+  if (!raw) return '';
+  // Custom spells (Custom Spell modal) store whatever free text the DM typed
+  // into the components field — that's already human-readable, so only the
+  // compact catalog code (letters + the two component-cost markers) gets
+  // re-parsed here. Anything else is shown as-is, just flagged red if it
+  // mentions consumption so it still gets the same visual emphasis.
+  if (!/^[VSM,\u0192\u2020\s]*$/.test(raw)) {
+    return { text: raw, consumed: /consum/i.test(raw) };
+  }
+  const parts = [];
+  if (raw.includes('V')) parts.push('V');
+  if (raw.includes('S')) parts.push('S');
+  const hasM = raw.includes('M');
+  if (hasM) {
+    const consumed = raw.includes('\u2020');
+    const costly = consumed || raw.includes('\u0192');
+    let mLabel = 'M';
+    if (costly) {
+      const src = sp.descFull || sp.desc || '';
+      const m = src.match(/\(([\d,]+)\s*gp([^)]*)\)/i);
+      const costStr = m ? `${m[1]} gp` : '';
+      if (consumed) {
+        mLabel += ` (${costStr ? costStr + ', ' : ''}consumed)`;
+      } else if (costStr) {
+        mLabel += ` (${costStr})`;
+      } else {
+        mLabel += ' (costly)';
+      }
+    }
+    parts.push(mLabel);
+  }
+  return { text: parts.join(', '), consumed: hasM && raw.includes('\u2020') };
+}
+
 function openSpellDetailModal(key, name) {
   const sp = PHB_SPELL_LIST.find(s => s.key === key);
   if (!sp) return;
@@ -7180,12 +7223,13 @@ function openSpellDetailModal(key, name) {
     && typeof isEffectActive === 'function' && isEffectActive('mutable_form');
   const rangeDisplay = mutableFormTouchBoost ? 'Touch → 10 ft (Mutable Form)' : (sp.range || '—');
 
+  const compInfo = formatSpellComponents(sp);
   const tags = [
     `<span class="meta-pill">${levelStr} · ${sp.school}</span>`,
     `<span class="meta-pill">Cast: ${sp.time || '1 action'}</span>`,
     `<span class="meta-pill"${mutableFormTouchBoost ? ' style="color:var(--accent)"' : ''}>Range: ${rangeDisplay}</span>`,
     `<span class="meta-pill">Duration: ${sp.duration || '—'}</span>`,
-    sp.components ? `<span class="meta-pill">Components: ${sp.components}</span>` : '',
+    compInfo ? `<span class="meta-pill"${compInfo.consumed ? ' style="color:var(--red);border-color:rgba(200,60,60,.4)"' : ''}>Components: ${compInfo.text}</span>` : '',
     sp.ritual ? '<span class="meta-pill" style="color:var(--gold)">Ritual</span>' : '',
     sp.conc   ? '<span class="meta-pill" style="color:var(--accent2)">Concentration</span>' : '',
     sp.classes?.length ? `<span class="meta-pill">Classes: ${sp.classes.map(c=>c[0].toUpperCase()+c.slice(1)).join(', ')}</span>` : '',
@@ -23303,7 +23347,7 @@ function buildKnownSpellRows() {
     const phb = PHB_SPELL_LIST.find(s => s.key === g.key);
     if (!phb) return;
     _shownKeys.add(g.key);
-    rows.push({ ...phb, pipType:'feat-spell', locked:true, label: g.note || 'Granted' });
+    rows.push({ ...phb, pipType:'feat-spell', locked:true, label: g.note || 'Granted', removableGrant:true });
   });
 
   currentChar.spells.known.filter(s => s.level === 0).forEach(sp => {
@@ -23428,6 +23472,20 @@ function removeSpellFromSpellbook(spellKey) {
   renderSpellStats();
   renderActiveEffects();
 }
+
+// Removes a spell added via the Grant Free Spell modal (currentChar.grantedSpells).
+// This is the only removal path for that list — Custom spells created via the
+// Custom Spell modal aren't touched here; those live in currentChar.customSpells
+// and stay in the catalog even after this removes a granted-free instance of one.
+function removeGrantedSpell(spellKey) {
+  if (!currentChar.grantedSpells) return;
+  currentChar.grantedSpells = currentChar.grantedSpells.filter(g => g.key !== spellKey);
+  debouncedSave();
+  renderKnownSpells();
+  renderSpellStats();
+  renderActiveEffects();
+}
+window.removeGrantedSpell = removeGrantedSpell;
 
 function toggleSpellPrepared(spellKey) {
   ensureSpellData();
@@ -23689,7 +23747,9 @@ function renderKnownSpells() {
         if (sp.pipType === 'feat-spell' || src === 'feat') return '<span class="sp-tag" style="background:rgba(255,180,50,.1);color:var(--gold);border-color:rgba(255,180,50,.2);font-size:8px">FEAT</span>';
         return '';
       })()}
-      ${sp.locked ? '<div></div>' : `<button class="sp-del-btn" data-key="${sp.key}" title="Remove">✕</button>`}
+      ${sp.removableGrant ? `<button class="sp-del-btn" data-key="${sp.key}" data-granted="1" title="Remove granted spell">✕</button>`
+        : sp.locked ? '<div></div>'
+        : `<button class="sp-del-btn" data-key="${sp.key}" title="Remove">✕</button>`}
     `;
 
     // Click row to show spell detail modal
@@ -23705,7 +23765,8 @@ function renderKnownSpells() {
       delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const k = delBtn.dataset.key;
-        if (isWiz && sp.level > 0) removeSpellFromSpellbook(k);
+        if (delBtn.dataset.granted) removeGrantedSpell(k);
+        else if (isWiz && sp.level > 0) removeSpellFromSpellbook(k);
         else removeSpellFromKnown(k);
       });
     }
