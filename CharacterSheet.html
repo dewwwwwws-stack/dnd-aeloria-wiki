@@ -3049,6 +3049,7 @@ body.preview-readonly #mi-detail-edit-row * {
               <span id="inv-summary-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0"></span>
             </div>
             <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px">Everything you carry, magical and mundane, in one place. Adding a weapon, armor, or magic item here also updates its own section below.</div>
+            <div id="encumbrance-tracker" style="margin-bottom:10px"></div>
             <button class="add-row-btn" onclick="openModal('add-item-type-modal')" style="margin-bottom:10px">+ Add Item</button>
 
             <!-- Browse Magic Items — relocated here so picking "Magic Item"
@@ -5991,7 +5992,7 @@ function buildDMInventoryHTML(c, charId) {
   const carryCap = getCarryCapacityFor(c);
   const overCapacity = totalWeight > carryCap;
   const wtStr = totalWeight > 0
-    ? ` · <span style="${overCapacity ? 'color:var(--red);font-weight:600' : ''}" title="Carry capacity: ${carryCap} lb (STR × 15)">${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb${overCapacity ? ' ⚠ Encumbered' : ''}</span>`
+    ? ` · <span style="${overCapacity ? 'color:var(--red);font-weight:600' : ''}" title="Carry capacity: ${carryCap} lb">${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb${overCapacity ? ' ⚠ Encumbered' : ''}</span>`
     : '';
 
   const bodyHTML = totalCount ? groups.map(group => `
@@ -29234,14 +29235,15 @@ function renderUnifiedInventory() {
   ].filter(g => g.rows.length);
 
   const totalCount = weaponRows.length + armorRows.length + magicRows.length + gearRows.length;
+  const carryCap = getCarryCapacityFor(currentChar);
+  const overCapacity = totalWeight > carryCap;
   if (countEl) {
-    const carryCap = getCarryCapacityFor(currentChar);
-    const overCapacity = totalWeight > carryCap;
     const wtStr = totalWeight > 0 ? ` · ${totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1)} lb${overCapacity ? ' ⚠ Encumbered' : ''}` : '';
     countEl.textContent = totalCount ? `${totalCount} item${totalCount!==1?'s':''}${wtStr}` : '';
     countEl.style.color = overCapacity ? 'var(--red)' : '';
-    countEl.title = totalWeight > 0 ? `Carry capacity: ${carryCap} lb (STR × 15)` : '';
+    countEl.title = totalWeight > 0 ? `Carry capacity: ${carryCap} lb` : '';
   }
+  renderEncumbranceTracker(totalWeight, carryCap);
 
   if (!totalCount) {
     list.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No items yet — use + Add Item above</div>';
@@ -29314,13 +29316,82 @@ function parseWeightLb(weightStr) {
   return m ? parseFloat(m[0]) || 0 : 0;
 }
 
-// STR × 15 — same formula recalcQuickStats uses for the player's own Quick
-// Stats panel, but callable for any character object (the DM panel needs
-// this for characters other than currentChar, where getAbilities() can't
-// help since it's hardcoded to currentChar).
-function getCarryCapacityFor(char) {
-  return (parseInt(char?.abilities?.str) || 10) * 15;
+// 2024 PHB Carrying Capacity table — multiplier applied to Strength score,
+// keyed by creature size. Small and Medium share the same multiplier, which
+// covers every standard player race; Tiny/Large/Huge/Gargantuan exist for
+// homebrew races, polymorphed/wildshaped forms, or reduce/enlarge effects.
+const CARRY_CAPACITY_TABLE = {
+  'Tiny':       { carry: 7.5, dragLiftPush: 15  },
+  'Small':      { carry: 15,  dragLiftPush: 30  },
+  'Medium':     { carry: 15,  dragLiftPush: 30  },
+  'Large':      { carry: 30,  dragLiftPush: 60  },
+  'Huge':       { carry: 60,  dragLiftPush: 120 },
+  'Gargantuan': { carry: 120, dragLiftPush: 240 },
+};
+
+// Resolves a character's size from their race data. A race listed as e.g.
+// "Small or Medium" (the player's own choice at character creation, which
+// isn't separately tracked) defaults to Medium — Small and Medium use the
+// same multiplier anyway, so this only actually matters for Tiny/Large/
+// Huge/Gargantuan races, which don't have that ambiguity in this data.
+function getCreatureSizeFor(char) {
+  const raceData = typeof getRaceData === 'function' ? getRaceData(char?.race) : null;
+  let size = raceData?.size || 'Medium';
+  if (/small/i.test(size) && /medium/i.test(size)) size = 'Medium';
+  return CARRY_CAPACITY_TABLE[size] ? size : 'Medium';
 }
+
+function getCarryMultiplierFor(char) {
+  return CARRY_CAPACITY_TABLE[getCreatureSizeFor(char)];
+}
+
+// STR × size-based multiplier — same formula recalcQuickStats uses for the
+// player's own Quick Stats panel, but callable for any character object
+// (the DM panel needs this for characters other than currentChar, where
+// getAbilities() can't help since it's hardcoded to currentChar).
+function getCarryCapacityFor(char) {
+  const str = parseInt(char?.abilities?.str) || 10;
+  return str * getCarryMultiplierFor(char).carry;
+}
+
+// The higher drag/lift/push threshold — dragging, lifting, or pushing more
+// than the character's own carry capacity (not this cap) is what limits
+// Speed to 5 ft, per the 2024 PHB rule; this cap is simply the max weight
+// that can be dragged/lifted/pushed at all, regardless of Speed.
+function getDragCapacityFor(char) {
+  const str = parseInt(char?.abilities?.str) || 10;
+  return str * getCarryMultiplierFor(char).dragLiftPush;
+}
+
+// Renders the Carrying Capacity tracker on the Inventory tab: current
+// carried weight against the character's max-carry threshold, plus the
+// separate (higher) drag/lift/push threshold from the same 2024 PHB table.
+// Called from renderUnifiedInventory with the totalWeight it already
+// computed, so the weight isn't summed twice.
+function renderEncumbranceTracker(totalWeight, carryCap) {
+  const el = document.getElementById('encumbrance-tracker');
+  if (!el || !currentChar) return;
+  const dragCap = getDragCapacityFor(currentChar);
+  const size = getCreatureSizeFor(currentChar);
+  const pct = carryCap > 0 ? Math.min(100, (totalWeight / carryCap) * 100) : 0;
+  const overCarry = totalWeight > carryCap;
+  const barColor = overCarry ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--accent)';
+  const wtDisp = totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1);
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px">
+      <span style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.5px;color:var(--text3);text-transform:uppercase">Carrying Capacity</span>
+      <span style="font-family:var(--font-ui);font-size:10px;color:${overCarry ? 'var(--red)' : 'var(--text2)'}">${wtDisp} / ${carryCap} lb${overCarry ? ' ⚠' : ''}</span>
+    </div>
+    <div style="height:6px;border-radius:3px;background:var(--bg3);border:1px solid var(--border);overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${barColor};transition:width .15s"></div>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:3px">
+      ${size} size · Drag/Lift/Push up to ${dragCap} lb${overCarry ? ' — Speed no more than 5 ft while doing so' : ''}
+    </div>
+  `;
+}
+window.renderEncumbranceTracker = renderEncumbranceTracker;
 
 function renderFeatItemsWeapons() {
   // Simpler weapon list in Feats & Items tab — just name, damage, equipped toggle, edit
