@@ -2609,6 +2609,18 @@ body.preview-readonly #mi-detail-edit-row * {
                 <option value="">— Subrace —</option>
               </select>
             </div>
+            <div style="margin-bottom:10px">
+              <label class="field-label">Size <span style="font-weight:400;text-transform:none;color:var(--text3)">(affects carrying capacity — leave on Auto unless it differs from your race, e.g. a child character)</span></label>
+              <select class="info-input" id="ci-size-override" data-key="sizeOverride" style="width:100%" onchange="onSizeOverrideChange()">
+                <option value="">Auto (from race)</option>
+                <option value="Tiny">Tiny</option>
+                <option value="Small">Small</option>
+                <option value="Medium">Medium</option>
+                <option value="Large">Large</option>
+                <option value="Huge">Huge</option>
+                <option value="Gargantuan">Gargantuan</option>
+              </select>
+            </div>
             <label class="field-label">Classes</label>
             <div id="mc-class-rows"></div>
             <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:4px">
@@ -29329,17 +29341,27 @@ const CARRY_CAPACITY_TABLE = {
   'Gargantuan': { carry: 120, dragLiftPush: 240 },
 };
 
-// Resolves a character's size from their race data. A race listed as e.g.
-// "Small or Medium" (the player's own choice at character creation, which
-// isn't separately tracked) defaults to Medium — Small and Medium use the
-// same multiplier anyway, so this only actually matters for Tiny/Large/
-// Huge/Gargantuan races, which don't have that ambiguity in this data.
+// Resolves a character's size, preferring an explicit manual override
+// (currentChar.sizeOverride) over the race's default — necessary for
+// characters whose size genuinely differs from their race's usual size,
+// such as a child character, or a race offering a Small/Medium choice
+// this app doesn't separately track. Falls back to race data, then Medium.
 function getCreatureSizeFor(char) {
+  if (char?.sizeOverride && CARRY_CAPACITY_TABLE[char.sizeOverride]) return char.sizeOverride;
   const raceData = typeof getRaceData === 'function' ? getRaceData(char?.race) : null;
   let size = raceData?.size || 'Medium';
   if (/small/i.test(size) && /medium/i.test(size)) size = 'Medium';
   return CARRY_CAPACITY_TABLE[size] ? size : 'Medium';
 }
+
+function onSizeOverrideChange() {
+  if (!currentChar) return;
+  const el = document.getElementById('ci-size-override');
+  currentChar.sizeOverride = el?.value || '';
+  if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
+  debouncedSave();
+}
+window.onSizeOverrideChange = onSizeOverrideChange;
 
 function getCarryMultiplierFor(char) {
   return CARRY_CAPACITY_TABLE[getCreatureSizeFor(char)];
@@ -33615,6 +33637,15 @@ function applyChoiceEffects() {
       const existing = currentChar.weapons.find(w => w.weaponKey === wk);
       if (!existing) {
         const phb = PHB_WEAPONS.find(w => w.key === wk);
+        // No `weight` field here, and none on the PHB_WEAPONS catalog
+        // entries for these three keys either — Organic Weapons are
+        // reformed from the psion's own body (Bone Blade/Flesh Maul/
+        // Viscera Launcher), not a separate carried item, so they must
+        // never contribute to carrying capacity. Every totalWeight sum
+        // in the app reads entry.weight (never a PHB_WEAPONS fallback),
+        // and parseWeightLb treats a missing/falsy weight as 0 — leave
+        // this field unset rather than defaulting it to '0 lb' or
+        // copying a catalog weight that shouldn't exist for these.
         if (phb) currentChar.weapons.push({
           weaponKey: wk, name: phb.name, attackBonus: organicBonus, damageBonus: organicBonus,
           equipped: true, proficient: true, pactWeapon: false,
@@ -41707,9 +41738,10 @@ async function renderPartyOverview() {
 
         const itemsHTML = (c.magicItems || []).map(item => {
           const idx = _partyOverviewItems.push(item) - 1;
+          const effRarity = (typeof getEffectiveItemRarity === 'function' ? getEffectiveItemRarity(item) : item.rarity) || '';
           return `
             <div style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" onclick="event.stopPropagation();openMagicItemDetailModal(_partyOverviewItems[${idx}])">
-              <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:${RARITY_COLOURS[(item.rarity||'').toLowerCase()] || 'var(--text)'};text-decoration:underline;text-decoration-color:transparent" onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'">${getItemDisplayName(item)}${item.rarity ? ` <span style="font-size:9px;font-weight:400;color:var(--text3);text-transform:capitalize">(${item.rarity})</span>` : ''}</div>
+              <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:${RARITY_COLOURS[effRarity.toLowerCase()] || 'var(--text)'};text-decoration:underline;text-decoration-color:transparent" onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'">${getItemDisplayName(item)}${effRarity ? ` <span style="font-size:9px;font-weight:400;color:var(--text3);text-transform:capitalize">(${effRarity})</span>` : ''}</div>
             </div>
           `;
         }).join('');
