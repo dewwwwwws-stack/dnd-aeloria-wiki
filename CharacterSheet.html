@@ -29168,7 +29168,7 @@ function renderUnifiedInventory() {
       sub: entry.equipped ? 'Equipped' : '',
       onClick: `openWeaponEdit(${idx})`,
       onRemove: `removeWeapon(${idx});renderFeatItemsWeapons()`,
-      kind: 'weapon', rowIdx: idx,
+      kind: 'weapon', rowIdx: idx, weightEditable: true,
     });
   });
 
@@ -29183,7 +29183,7 @@ function renderUnifiedInventory() {
       sub: entry.worn ? 'Worn' : '',
       onClick: `openArmorEdit(${idx})`,
       onRemove: `removeArmorOwned(${idx})`,
-      kind: 'armor', rowIdx: idx,
+      kind: 'armor', rowIdx: idx, weightEditable: true,
     });
   });
 
@@ -29204,7 +29204,7 @@ function renderUnifiedInventory() {
         qty, weight: effWeight,
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
         onClick, onRemove,
-        kind: 'magic', rowIdx: idx,
+        kind: 'magic', rowIdx: idx, weightEditable: !item.weaponKey,
       });
     } else if (item.isArmour) {
       armorRows.push({
@@ -29213,7 +29213,7 @@ function renderUnifiedInventory() {
         qty, weight: effWeight,
         sub: [rarityLabel, item.equipped ? 'Equipped' : '', attuneSub].filter(Boolean).join(' · '),
         onClick, onRemove,
-        kind: 'magic', rowIdx: idx,
+        kind: 'magic', rowIdx: idx, weightEditable: item.type === 'shield' || !item.armourKey,
       });
     } else {
       magicRows.push({
@@ -29222,7 +29222,7 @@ function renderUnifiedInventory() {
         qty, weight: effWeight,
         sub: attuneSub,
         onClick, onRemove,
-        kind: 'magic', rowIdx: idx,
+        kind: 'magic', rowIdx: idx, weightEditable: true,
       });
     }
   });
@@ -29258,7 +29258,10 @@ function renderUnifiedInventory() {
   renderEncumbranceTracker(totalWeight, carryCap);
 
   if (!totalCount) {
-    list.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No items yet — use + Add Item above</div>';
+    list.innerHTML = `
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:8px 0;text-align:center;letter-spacing:.5px">No items yet — use + Add Item above</div>
+      <button class="tbtn" style="width:100%;font-size:10px;margin-top:4px" onclick="quickAddGearRow()">+ Quick-add Gear Line</button>
+    `;
     return;
   }
 
@@ -29287,7 +29290,11 @@ function renderUnifiedInventory() {
         <div style="font-family:var(--font-body);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
         ${r.sub ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${r.sub}</div>` : ''}
       </div>
-      ${r.weight ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);flex-shrink:0">${r.weight}</span>` : ''}
+      ${r.weightEditable
+        ? `<input type="number" min="0" step="0.1" value="${parseWeightLb(r.weight) || ''}" placeholder="wt" onclick="event.stopPropagation()"
+            style="width:44px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:10px;flex-shrink:0"
+            oninput="updateRowWeight('${r.kind}',${r.rowIdx},this.value)" onchange="renderUnifiedInventory()"/>`
+        : r.weight ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);flex-shrink:0" title="Weight is set by the linked base item">${r.weight}</span>` : ''}
       <div style="display:flex;align-items:center;gap:3px;flex-shrink:0" onclick="event.stopPropagation()">
         <button class="sp-del-btn" style="opacity:1;font-size:10px;padding:0 4px" onclick="adjustRowQty('${r.kind}',${r.rowIdx},-1)" title="Decrease quantity">−</button>
         <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2);min-width:12px;text-align:center">${r.qty || 1}</span>
@@ -29295,9 +29302,48 @@ function renderUnifiedInventory() {
       </div>
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="event.stopPropagation();${r.onRemove}">✕</button>
     </div>`).join('')}
-  `).join('');
+  `).join('') + `
+    <button class="tbtn" style="width:100%;font-size:10px;margin-top:6px" onclick="quickAddGearRow()">+ Quick-add Gear Line</button>
+  `;
 }
 window.renderUnifiedInventory = renderUnifiedInventory;
+
+// Pushes a blank gear line directly, skipping the Add Item → Gear modal —
+// for adding several gear items back-to-back, opening that modal each time
+// is the friction this exists to remove. Focuses the new row's name input
+// so typing can start immediately.
+function quickAddGearRow() {
+  if (!currentChar) return;
+  if (!currentChar.equipment) currentChar.equipment = [];
+  currentChar.equipment.push({ name: '', qty: 1, weight: '' });
+  renderUnifiedInventory();
+  debouncedSave();
+  const inputs = document.querySelectorAll('.inv-gear-name-input');
+  const last = inputs[inputs.length - 1];
+  if (last) last.focus();
+}
+window.quickAddGearRow = quickAddGearRow;
+
+// Inline weight edit for weapon/armor/magic-item rows in the unified
+// inventory view — mirrors adjustRowQty's kind-routing, and gear's own
+// inline weight input. Only called for rows flagged weightEditable (a
+// magic weapon/armor item with a linked catalog base type, e.g. a Frost
+// Brand set to Longsword, gets its weight from that base type instead and
+// is never wired to this).
+function updateRowWeight(kind, idx, value) {
+  if (!currentChar) return;
+  let arr;
+  if (kind === 'weapon') arr = currentChar.weapons;
+  else if (kind === 'armor') arr = currentChar.armorOwned;
+  else if (kind === 'magic') arr = currentChar.magicItems;
+  else return;
+  const entry = arr?.[idx];
+  if (!entry) return;
+  const n = parseFloat(value);
+  entry.weight = n ? n + ' lb' : '';
+  debouncedSave();
+}
+window.updateRowWeight = updateRowWeight;
 
 // Generic quantity stepper for the unified inventory view — routes to the
 // correct underlying array depending on which kind of row it came from.
@@ -29341,17 +29387,29 @@ const CARRY_CAPACITY_TABLE = {
   'Gargantuan': { carry: 120, dragLiftPush: 240 },
 };
 
-// Resolves a character's size, preferring an explicit manual override
-// (currentChar.sizeOverride) over the race's default — necessary for
-// characters whose size genuinely differs from their race's usual size,
-// such as a child character, or a race offering a Small/Medium choice
-// this app doesn't separately track. Falls back to race data, then Medium.
-function getCreatureSizeFor(char) {
+// Resolves a character's PERMANENT size — the manual override on the main
+// sheet (currentChar.sizeOverride) if set, else race data, else Medium.
+// Deliberately ignores sizeCurrentOverride (the situational one below) —
+// this is what "Same as character" on the Inventory tab's size selector
+// resolves to, so it needs the character's baseline, not whatever they're
+// temporarily sized as right now.
+function getBaseCreatureSizeFor(char) {
   if (char?.sizeOverride && CARRY_CAPACITY_TABLE[char.sizeOverride]) return char.sizeOverride;
   const raceData = typeof getRaceData === 'function' ? getRaceData(char?.race) : null;
   let size = raceData?.size || 'Medium';
   if (/small/i.test(size) && /medium/i.test(size)) size = 'Medium';
   return CARRY_CAPACITY_TABLE[size] ? size : 'Medium';
+}
+
+// Resolves a character's CURRENT effective size for carrying-capacity
+// purposes — preferring a situational override (currentChar.
+// sizeCurrentOverride, set from the Inventory tab for things like Enlarge/
+// Reduce or a temporary Polymorph) over the character's permanent size.
+// The situational field is intentionally separate from sizeOverride so
+// clearing a temporary effect never touches the character's real size.
+function getCreatureSizeFor(char) {
+  if (char?.sizeCurrentOverride && CARRY_CAPACITY_TABLE[char.sizeCurrentOverride]) return char.sizeCurrentOverride;
+  return getBaseCreatureSizeFor(char);
 }
 
 function onSizeOverrideChange() {
@@ -29362,6 +29420,15 @@ function onSizeOverrideChange() {
   debouncedSave();
 }
 window.onSizeOverrideChange = onSizeOverrideChange;
+
+function onCurrentSizeOverrideChange() {
+  if (!currentChar) return;
+  const el = document.getElementById('cur-size-override');
+  currentChar.sizeCurrentOverride = el?.value || '';
+  if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
+  debouncedSave();
+}
+window.onCurrentSizeOverrideChange = onCurrentSizeOverrideChange;
 
 function getCarryMultiplierFor(char) {
   return CARRY_CAPACITY_TABLE[getCreatureSizeFor(char)];
@@ -29394,11 +29461,15 @@ function renderEncumbranceTracker(totalWeight, carryCap) {
   const el = document.getElementById('encumbrance-tracker');
   if (!el || !currentChar) return;
   const dragCap = getDragCapacityFor(currentChar);
+  const baseSize = getBaseCreatureSizeFor(currentChar);
   const size = getCreatureSizeFor(currentChar);
+  const curOverride = currentChar.sizeCurrentOverride || '';
   const pct = carryCap > 0 ? Math.min(100, (totalWeight / carryCap) * 100) : 0;
   const overCarry = totalWeight > carryCap;
   const barColor = overCarry ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--accent)';
   const wtDisp = totalWeight % 1 === 0 ? totalWeight : totalWeight.toFixed(1);
+  const sizeOptions = ['Tiny','Small','Medium','Large','Huge','Gargantuan']
+    .map(s => `<option value="${s}"${curOverride===s?' selected':''}>${s}</option>`).join('');
 
   el.innerHTML = `
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px">
@@ -29408,8 +29479,15 @@ function renderEncumbranceTracker(totalWeight, carryCap) {
     <div style="height:6px;border-radius:3px;background:var(--bg3);border:1px solid var(--border);overflow:hidden">
       <div style="height:100%;width:${pct}%;background:${barColor};transition:width .15s"></div>
     </div>
-    <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:3px">
-      ${size} size · Drag/Lift/Push up to ${dragCap} lb${overCarry ? ' — Speed no more than 5 ft while doing so' : ''}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:3px">
+      <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">
+        ${size} size${curOverride ? ' (temporary)' : ''} · Drag/Lift/Push up to ${dragCap} lb${overCarry ? ' — Speed no more than 5 ft while doing so' : ''}
+      </span>
+      <select id="cur-size-override" onchange="onCurrentSizeOverrideChange()" title="Temporary size — e.g. Enlarge/Reduce, Polymorph — without changing your character's real size"
+        style="font-family:var(--font-ui);font-size:9px;background:var(--bg3);color:${curOverride ? 'var(--accent)' : 'var(--text3)'};border:1px solid var(--border);border-radius:3px;padding:1px 3px;flex-shrink:0">
+        <option value=""${curOverride?'':' selected'}>Same as character (${baseSize})</option>
+        ${sizeOptions}
+      </select>
     </div>
   `;
 }
