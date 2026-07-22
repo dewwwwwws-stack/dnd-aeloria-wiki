@@ -1053,7 +1053,7 @@ body.preview-readonly #mi-detail-edit-row * {
 /* ── Spell System ────────────────────────────────────────── */
 .sp-known-row {
   display: grid;
-  grid-template-columns: 14px 24px minmax(0,1fr) minmax(0,2fr) auto auto;
+  grid-template-columns: 14px 24px minmax(0,1fr) minmax(0,2fr) auto auto auto;
   gap: 0 6px;
   align-items: center;
   padding: 4px 6px;
@@ -23760,7 +23760,7 @@ function renderKnownSpells() {
         if (lbl) return '<span class="sp-tag" style="background:rgba(255,180,50,.15);color:var(--gold);border-color:rgba(255,180,50,.3);font-size:8px">' + lbl + '</span>';
         if (sp.pipType === 'subclass' || src === 'racial' || src === 'subclass') return '<span class="sp-tag" style="background:rgba(100,200,255,.1);color:var(--accent2);border-color:rgba(100,200,255,.2);font-size:8px">RACE/CLASS</span>';
         if (sp.pipType === 'feat-spell' || src === 'feat') return '<span class="sp-tag" style="background:rgba(255,180,50,.1);color:var(--gold);border-color:rgba(255,180,50,.2);font-size:8px">FEAT</span>';
-        return '';
+        return '<div></div>';
       })()}
       ${sp.removableGrant ? `<button class="sp-del-btn" data-key="${sp.key}" data-granted="1" title="Remove granted spell">✕</button>`
         : sp.locked ? '<div></div>'
