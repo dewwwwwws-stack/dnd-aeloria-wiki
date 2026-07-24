@@ -1796,6 +1796,21 @@ body.preview-readonly #mi-detail-edit-row * {
   .two-col-grid { grid-template-columns: 1fr; }
 }
 
+/* ── UNIFIED INVENTORY ROWS (mobile) ───────────────────────
+   Each row packs a badge, optional equip checkbox, name, weight,
+   container picker, qty stepper, and remove button into one line.
+   On a phone that's too much for one row — the name (flex:1, can
+   shrink to ~0) would just get squeezed by the fixed-width controls
+   around it rather than reliably wrapping, since flex-shrink resolves
+   the conflict before flex-wrap ever kicks in. Forcing the name onto
+   its own full-width line makes the split predictable instead of
+   depending on exactly how much room the controls happen to leave. */
+@media (max-width: 480px) {
+  .inv-row { flex-wrap: wrap; row-gap: 4px; }
+  .inv-row-name { flex-basis: 100%; order: 1; }
+  .inv-row > *:not(.inv-row-name) { order: 2; }
+}
+
 /* ── CURRENCY ───────────────────────────────────────────── */
 .currency-grid {
   display: grid;
@@ -2713,12 +2728,6 @@ body.preview-readonly #mi-detail-edit-row * {
               <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
                 <div class="field-label" style="margin-bottom:6px">Hit Dice</div>
                 <div id="hd-rows" style="display:flex;flex-direction:column;gap:6px"></div>
-              </div>
-              <div id="heroic-insp-row" style="display:none;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-                <label class="field-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;text-transform:none;font-size:12px;color:var(--text)" title="Reroll a d20 after seeing the result, before the DM says whether it succeeds. Granted situationally (DM award, another player's ability, etc.) — not automatically recovered.">
-                  <input type="checkbox" id="heroic-insp-toggle" data-key="heroicInspiration" onchange="toggleHeroicInspiration(this.checked)" style="width:15px;height:15px;accent-color:var(--gold)"/>
-                  Heroic Inspiration
-                </label>
               </div>
             </div>
           </div>
@@ -9557,7 +9566,7 @@ const PHB_CLASS_CHOICES = {
     {
       "id": "genie_kind",
       "label": "Genie Kind",
-      "minLevel": 3,
+      "minLevel": 1,
       "type": "dropdown",
       "options": ["Dao (Earth)","Djinni (Air)","Efreeti (Fire)","Marid (Water)"],
       "showIfSubclass": "the genie",
@@ -22572,10 +22581,25 @@ function syncSubclassResistances() {
       if (affinity) grantList.push(affinity);
     }
 
-    // Genie Warlock's Elemental Gift (level 3+, tied to Genie Kind choice).
-    if (subKey === 'warlock/the genie' && level >= 3) {
+    // Genie Warlock's Elemental Gift (level 6+, tied to Genie Kind choice) —
+    // the subclass's own feature text places this at level 6, not 3; the
+    // Genie Kind CHOICE itself is a level-1 decision (ties to bonus spells
+    // and Genie's Wrath from level 1), but the resistance it also
+    // determines doesn't unlock until Elemental Gift does at level 6.
+    if (subKey === 'warlock/the genie') {
       const genieKind = (currentChar.class_choices?.genie_kind || '').toLowerCase().replace(/\s*\(.*\)/, '').trim();
-      const dmgType = GENIE_KIND_RESISTANCE[genieKind];
+      const dmgType = level >= 6 ? GENIE_KIND_RESISTANCE[genieKind] : null;
+      // Self-healing: only one of these four types should ever be
+      // resistant at a time (or none, below level 6), but the generic
+      // cleanup below only removes what THIS function itself previously
+      // tracked granting — a resistance from switching Genie Kind, or set
+      // before that tracking existed, or left over from the level-3
+      // threshold this used to have, can get stranded with no path to
+      // remove it. Since it's a closed 4-type set 1:1 with Genie Kind,
+      // it's safe to actively reconcile all four here directly.
+      Object.values(GENIE_KIND_RESISTANCE).forEach(t => {
+        if (t !== dmgType && currentChar.damageStates[t] === 'resistant') delete currentChar.damageStates[t];
+      });
       if (dmgType) grantList.push(dmgType);
     }
 
@@ -23214,6 +23238,7 @@ function recalcAll() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   if (typeof updateFormsTabVisibility === 'function') updateFormsTabVisibility();
   if (typeof syncHeroicInspirationResource === 'function') syncHeroicInspirationResource();
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
   if (typeof renderConcSaveGuide === 'function') renderConcSaveGuide();
   // Auto-update HP max if using a calculated method
   refreshAutoHPMax();
@@ -31277,12 +31302,12 @@ function renderUnifiedInventory() {
   list.innerHTML = groups.map((group, gi) => `
     <div style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-top:${gi>0?'8px':'0'};padding:0 2px">${group.label}</div>
     ${group.rows.map(r => r.isGear ? `
-    <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer"
+    <div class="inv-row" style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer"
       onclick="openGearEditModal(${r.idx})" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:var(--text3);border:1px solid var(--text3);border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">GEAR</span>
       <input type="number" min="1" value="${r.item.qty||1}" onclick="event.stopPropagation()" style="width:34px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:11px;flex-shrink:0"
         oninput="currentChar.equipment[${r.idx}].qty=parseInt(this.value)||1;debouncedSave()" onchange="renderUnifiedInventory()"/>
-      <div style="flex:1;min-width:0">
+      <div class="inv-row-name" style="flex:1;min-width:0">
         <input type="text" value="${(r.item.name||'').replace(/"/g,'&quot;')}" placeholder="Item name…" class="inv-gear-name-input" onclick="event.stopPropagation()" style="width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px"
           oninput="currentChar.equipment[${r.idx}].name=this.value;debouncedSave()"/>
         ${(r.item.desc || r.containerUid) ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${[r.item.desc ? '📝 ' + r.item.desc.slice(0,60).replace(/</g,'&lt;') + (r.item.desc.length>60?'…':'') : '', containerBadge(r.containerUid)].filter(Boolean).join(' · ')}</div>` : ''}
@@ -31293,11 +31318,11 @@ function renderUnifiedInventory() {
       <button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="event.stopPropagation();openGiveItemModal('equipment',${r.idx})" title="Give to a party member">🎁</button>
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="event.stopPropagation();removeEquipItem(${r.idx})">✕</button>
     </div>` : `
-    <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:${r.onClick ? 'pointer' : 'default'}"
+    <div class="inv-row" style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:${r.onClick ? 'pointer' : 'default'}"
       onclick="${r.onClick}" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
       ${r.equipToggle ? `<input type="checkbox" ${r.equipped?'checked':''} onclick="event.stopPropagation()" onchange="${r.equipToggle}" title="${r.equipLabel}" style="accent-color:${r.badgeColor};flex-shrink:0;cursor:pointer"/>` : ''}
-      <div style="flex:1;min-width:0;overflow:hidden">
+      <div class="inv-row-name" style="flex:1;min-width:0;overflow:hidden">
         <div style="font-family:var(--font-body);font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
         ${(r.sub || r.containerUid || r.equipToggle) ? `<div style="font-family:var(--font-ui);font-size:9px;color:${r.equipped?'var(--accent)':'var(--text3)'}">${[r.equipToggle ? (r.equipped ? r.equipLabel.toUpperCase() : '') : '', r.sub, containerBadge(r.containerUid)].filter(Boolean).join(' · ')}</div>` : ''}
       </div>
@@ -32250,43 +32275,38 @@ function syncGeniesVessel() {
 }
 window.syncGeniesVessel = syncGeniesVessel;
 
-// Heroic Inspiration: Human's Resourceful trait grants it automatically on
-// finishing a Long Rest — a real recovering resource, not just a flag, so
-// it belongs in the Resource Tracker (max 1, recovery: long) alongside
-// spell slots and item charges, and benefits from the Long Rest handler
-// every other recovery:'long' resource already resets through. Every
-// other race/class only ever grants it situationally (a DM award, another
-// player's Bardic Inspiration-style feature, a triggered class feature) —
-// there's no rest or trigger the sheet can safely auto-recover on, so
-// those characters get a plain manual checkbox instead: on when they have
-// it, off when they've spent it or never had it, no automation implied.
+// Heroic Inspiration is a resource for every character now, not just
+// Humans — sits first in the Resource Tracker (minLevel:0, see the
+// customResources sort in renderResourceTracker) since everyone can end
+// up with it regardless of class or level. Only the RECOVERY differs by
+// race: Human's Resourceful trait explicitly grants it back on a Long
+// Rest, so that's a real recovery:'long' entry. Every other race only
+// ever gains it situationally (a DM award, another player's ability) —
+// there's no rest or trigger to safely auto-recover on, so it's the same
+// "max 1, no recovery type, reset it yourself" pattern any other one-off
+// DM-granted resource already uses on this sheet.
 function syncHeroicInspirationResource() {
   if (!currentChar) return false;
-  const isHuman = (currentChar.race || '').toLowerCase().trim() === 'human';
+  // currentChar.race isn't reliably just "human" — some save paths write
+  // the display name instead (e.g. "Human (PHB24)"), a known ambiguity
+  // renderResourceTracker already has to normalize around. An exact match
+  // here would silently treat every Human with that stored form as
+  // non-Human, which is exactly what was happening.
+  const isHuman = (currentChar.race || '').toLowerCase().trim().startsWith('human');
   if (!currentChar.customResources) currentChar.customResources = [];
-  const idx = currentChar.customResources.findIndex(r => r.id === 'heroic_inspiration');
-  if (isHuman && idx === -1) {
-    currentChar.customResources.push({
-      id: 'heroic_inspiration', name: 'Heroic Inspiration',
-      desc: 'Reroll a d20 after seeing the result, before the DM says whether it succeeds — Human (Resourceful).',
-      max: 1, recovery: 'long', recoveryNote: '',
-    });
-  } else if (!isHuman && idx !== -1) {
-    currentChar.customResources.splice(idx, 1);
-    if (currentChar.resources) delete currentChar.resources.heroic_inspiration;
+  let entry = currentChar.customResources.find(r => r.id === 'heroic_inspiration');
+  if (!entry) {
+    entry = { id: 'heroic_inspiration', name: 'Heroic Inspiration', max: 1, minLevel: 0 };
+    currentChar.customResources.unshift(entry);
   }
-  const row = document.getElementById('heroic-insp-row');
-  if (row) row.style.display = isHuman ? 'none' : '';
+  entry.desc = isHuman
+    ? 'Reroll a d20 after seeing the result, before the DM says whether it succeeds — Human (Resourceful).'
+    : 'Reroll a d20 after seeing the result, before the DM says whether it succeeds. Granted situationally (DM award, another player\'s ability, etc.) — reset it yourself when you gain or spend it.';
+  entry.recovery = isHuman ? 'long' : '';
+  entry.recoveryNote = '';
   return isHuman;
 }
 window.syncHeroicInspirationResource = syncHeroicInspirationResource;
-
-function toggleHeroicInspiration(checked) {
-  if (!currentChar) return;
-  currentChar.heroicInspiration = checked;
-  debouncedSave();
-}
-window.toggleHeroicInspiration = toggleHeroicInspiration;
 
 function ensureMagicItems() {
   if (!currentChar) return;
@@ -36834,7 +36854,7 @@ function renderResourceTracker() {
   (currentChar.customResources || []).forEach(cr => {
     allDefs.push({
       id: cr.id, name: cr.name, desc: cr.desc || '',
-      recovery: cr.recovery, _max: cr.max,
+      recovery: cr.recovery, _max: cr.max, minLevel: cr.minLevel,
       isCustom: true, recoveryNote: cr.recoveryNote || '',
     });
   });
