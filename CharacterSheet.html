@@ -19560,6 +19560,12 @@ const ACTIVE_EFFECT_DEFS = {
     color:      'var(--accent2)',
     desc:       "Fly Speed 40 ft while gripping the cloak's edges with both hands, in Dim Light or Darkness. Lost if you stop gripping it, or leave Dim Light/Darkness.",
   },
+  summon_dragon_active: {
+    label:      'Summon Dragon',
+    icon:       '🐲',
+    color:      'var(--accent2)',
+    desc:       "Marks the Summoned Draconic Spirit as actually out and in play, not just selected in the Summon tab — while active, you personally gain Resistance to whichever damage type its form is set to.",
+  },
   rage: {
     label:      'Rage',
     icon:       '⚔',
@@ -19634,6 +19640,7 @@ function toggleActiveEffect(id) {
   calcSpeed();          // dragon wings affects speed display
   renderACMethods();    // bladesong / mage_armor affect AC
   recalcQuickStats();
+  if (typeof syncSummonSharedResistance === 'function') syncSummonSharedResistance();
 }
 
 function hasMageArmorAccess() {
@@ -19661,10 +19668,20 @@ function hasCloakOfBatFlightAccess() {
   return (currentChar.magicItems || []).some(item => item.key === 'cloak_of_the_bat' && item.attuned);
 }
 
+// Summon Dragon's Shared Resistance: only available while Summon Dragon
+// is the currently selected spell in the Summon tab — matches Cloak of
+// the Bat's item-gated pattern (eligible to toggle only while the
+// relevant thing is actually in play), not just always-available.
+function hasSummonDragonActiveAccess() {
+  if (!currentChar) return false;
+  return currentChar._activeSummonSpell === 'summon_dragon';
+}
+
 function isEffectEligible(id) {
   if (!currentChar) return false;
   if (id === 'mage_armor') return hasMageArmorAccess();
   if (id === 'cloak_of_bat_flight') return hasCloakOfBatFlightAccess();
+  if (id === 'summon_dragon_active') return hasSummonDragonActiveAccess();
   const def = ACTIVE_EFFECT_DEFS[id];
   if (!def) return false;
   const allEntries = getAllClasses();
@@ -22714,10 +22731,14 @@ function syncItemResistances() {
 window.syncItemResistances = syncItemResistances;
 
 // "Shared Resistances" (currently unique to Summon Dragon's Draconic
-// Spirit): while the spell/form is selected, the CASTER personally gains
+// Spirit): while the spell/form is selected AND the summon is marked
+// active via the "Summon Dragon" Active Effects toggle (same pattern as
+// Bladesong, Cloak of the Bat, etc.), the CASTER personally gains
 // resistance to whichever of the five types is currently chosen — not
-// just the summoned creature. Auto-retracts if the form changes, the
-// spell is deselected, or a different summon spell is picked instead.
+// just the summoned creature. Selecting a summon spell to view its stat
+// block or as your default choice for later isn't the same as the
+// creature being out right now, hence the separate toggle. Auto-retracts
+// if the form changes, the spell is deselected, or the toggle turns off.
 function syncSummonSharedResistance() {
   if (!currentChar) return;
   if (!currentChar.damageStates) currentChar.damageStates = {};
@@ -22726,7 +22747,7 @@ function syncSummonSharedResistance() {
   let grant = null;
   const spellKey = currentChar._activeSummonSpell;
   const def = spellKey ? SUMMON_SPELL_DEFS?.[spellKey] : null;
-  if (def?.sharedResistance) {
+  if (def?.sharedResistance && typeof isEffectActive === 'function' && isEffectActive('summon_dragon_active')) {
     const form = currentChar._activeSummonForm;
     if (form) grant = form.toLowerCase();
   }
@@ -41794,6 +41815,8 @@ function onSummonSpellChange() {
   if (!spellKey) {
     if (descEl) { descEl.style.display = 'none'; descEl.innerHTML = ''; }
     if (currentChar) { currentChar._activeSummonSpell = null; debouncedSave(); }
+    if (typeof deactivateIneligibleActiveEffects === 'function') deactivateIneligibleActiveEffects();
+    if (typeof renderActiveEffects === 'function') renderActiveEffects();
     syncSummonSharedResistance();
     renderSummonTab(); return;
   }
@@ -41840,8 +41863,16 @@ function onSummonSpellChange() {
     currentChar._activeSummonForm = null;
   }
 
-  // Persist active spell
-  if (currentChar) { currentChar._activeSummonSpell = spellKey; debouncedSave(); }
+  // Persist active spell — switching to a different spell means any
+  // Active Effects toggle tied to the previous one (e.g. "Summon Dragon")
+  // is no longer eligible and gets cleaned up below; that status
+  // shouldn't silently carry over to whatever's now selected.
+  if (currentChar) {
+    currentChar._activeSummonSpell = spellKey;
+    debouncedSave();
+  }
+  if (typeof deactivateIneligibleActiveEffects === 'function') deactivateIneligibleActiveEffects();
+  if (typeof renderActiveEffects === 'function') renderActiveEffects();
 
   syncSummonSharedResistance();
   renderSummonTab();
