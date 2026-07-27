@@ -30751,6 +30751,14 @@ let _weaponEditIdx = null; // null = add new
 // display (see the "Damage" section of calcWeaponAttack for the
 // matching read side).
 let _wmDamageLines = [];
+// True while _wmDamageLines is still just a reflection of the selected
+// weapon's default damage — the user hasn't actually customized anything
+// yet, so it's safe to keep refreshing it (matching the same
+// dataset.autoFilled pattern the Name field already uses). Cleared the
+// moment the user actually edits, adds, or removes a line, at which
+// point it's a real customization and switching weapons in the dropdown
+// should stop touching it.
+let _wmDamageLinesAutoFilled = false;
 const WEAPON_DAMAGE_TYPES = ['acid','bludgeoning','cold','fire','force','lightning','necrotic','piercing','poison','psychic','radiant','slashing','thunder'];
 
 function renderWeaponDamageLinesEditor() {
@@ -30775,18 +30783,21 @@ function renderWeaponDamageLinesEditor() {
 }
 
 function addWeaponDamageLine() {
+  _wmDamageLinesAutoFilled = false;
   _wmDamageLines.push({ count: 1, die: 8, bonus: 0, type: '' });
   renderWeaponDamageLinesEditor();
 }
 window.addWeaponDamageLine = addWeaponDamageLine;
 
 function removeWeaponDamageLine(idx) {
+  _wmDamageLinesAutoFilled = false;
   _wmDamageLines.splice(idx, 1);
   renderWeaponDamageLinesEditor();
 }
 window.removeWeaponDamageLine = removeWeaponDamageLine;
 
 function updateWeaponDamageLine(idx, field, value) {
+  _wmDamageLinesAutoFilled = false;
   const line = _wmDamageLines[idx];
   if (!line) return;
   line[field] = (field === 'count' || field === 'die' || field === 'bonus') ? (parseInt(value) || 0) : value;
@@ -30815,6 +30826,7 @@ function openAddWeapon() {
   document.getElementById('wm-attack-bonus').value = '0';
   document.getElementById('wm-damage-bonus').value = '0';
   _wmDamageLines = [];
+  _wmDamageLinesAutoFilled = true;
   document.getElementById('wm-desc').value = '';
   document.getElementById('wm-qty').value = '1';
   document.getElementById('wm-weight').value = '';
@@ -30838,6 +30850,7 @@ function dmOpenAddWeaponForChar(charId, charName) {
   document.getElementById('wm-attack-bonus').value = '0';
   document.getElementById('wm-damage-bonus').value = '0';
   _wmDamageLines = [];
+  _wmDamageLinesAutoFilled = true;
   document.getElementById('wm-desc').value = '';
   document.getElementById('wm-qty').value = '1';
   document.getElementById('wm-weight').value = '';
@@ -30865,12 +30878,18 @@ function openWeaponEdit(idx) {
   document.getElementById('wm-damage-bonus').value = String(entry.damageBonus || 0);
   if (Array.isArray(entry.damageLines) && entry.damageLines.length) {
     _wmDamageLines = entry.damageLines.map(l => ({ ...l }));
+    _wmDamageLinesAutoFilled = false;
   } else if (entry.customDamage) {
     // Migrate the legacy single "XdY" string into one editable line.
     const cm = entry.customDamage.match(/^(\d+)d(\d+)$/i);
     _wmDamageLines = cm ? [{ count: parseInt(cm[1]), die: parseInt(cm[2]), bonus: 0, type: '' }] : [];
+    _wmDamageLinesAutoFilled = false;
   } else {
+    // No explicit override on this entry — it's using the catalog
+    // weapon's default, so it's safe to show (and keep refreshing) an
+    // auto-filled preview line.
     _wmDamageLines = [];
+    _wmDamageLinesAutoFilled = true;
   }
   document.getElementById('wm-desc').value = entry.desc || '';
   document.getElementById('wm-qty').value = String(entry.qty || 1);
@@ -30928,6 +30947,16 @@ function onWeaponModalKeyChange() {
     }
     profEl.checked = key === 'unarmed_strike' ? true : isWeaponProficient(phb.key, phb.type);
 
+    // Pre-fill the damage editor with this weapon's default so it shows
+    // a real starting point instead of nothing — only while the state is
+    // still just an auto-fill, never overwriting an actual customization.
+    // Unarmed Strike has its own dedicated Damage Source picker below
+    // instead (its damage depends on which source is selected there).
+    if (key !== 'unarmed_strike' && phb.damage && _wmDamageLinesAutoFilled) {
+      _wmDamageLines = [{ count: phb.damage.count, die: phb.damage.die, bonus: 0, type: phb.damage.type || '' }];
+      renderWeaponDamageLinesEditor();
+    }
+
     if (key === 'unarmed_strike') {
       // Build unarmed source picker
       const sources = getUnarmedDamage();
@@ -30979,7 +31008,7 @@ async function applyWeaponModal() {
   const name    = document.getElementById('wm-name').value.trim();
   const atkBonus = parseInt(document.getElementById('wm-attack-bonus').value) || 0;
   const dmgBonus = parseInt(document.getElementById('wm-damage-bonus').value) || 0;
-  const damageLines = _wmDamageLines.filter(l => l.count && l.die).map(l => ({ ...l }));
+  const damageLines = _wmDamageLinesAutoFilled ? [] : _wmDamageLines.filter(l => l.count && l.die).map(l => ({ ...l }));
   const desc      = document.getElementById('wm-desc').value.trim();
   const qty       = Math.max(1, parseInt(document.getElementById('wm-qty').value) || 1);
   const weight    = document.getElementById('wm-weight').value.trim();
