@@ -4864,6 +4864,20 @@ body.preview-readonly #mi-detail-edit-row * {
         </div>
       </div>
 
+      <!-- Attack/damage ability -->
+      <div>
+        <label class="field-label">Attack / Damage Ability <span style="font-weight:400;text-transform:none;color:var(--text3)">(leave as Default to use the weapon's normal rule)</span></label>
+        <select id="wm-ability-override" class="info-input" style="width:100%;box-sizing:border-box">
+          <option value="">Default (Strength, Dexterity if Ranged/Finesse)</option>
+          <option value="str">Strength</option>
+          <option value="dex">Dexterity</option>
+          <option value="con">Constitution</option>
+          <option value="int">Intelligence</option>
+          <option value="wis">Wisdom</option>
+          <option value="cha">Charisma</option>
+        </select>
+      </div>
+
       <!-- Damage lines -->
       <div>
         <label class="field-label">Damage <span style="font-weight:400;text-transform:none;color:var(--text3)">(leave empty to use the weapon's default)</span></label>
@@ -7599,7 +7613,8 @@ function openInventoryItemDetailModal(entry, kind, charData) {
       dmgStr = entry.customDamage || '';
     }
     const props = (phb?.properties || []).map(p => getWeaponPropertyLabel ? getWeaponPropertyLabel(p) : p).join(', ');
-    meta = [dmgStr, phb?.type, phb?.list, phb?.value, entry.equipped ? 'Equipped' : '', entry.weight].filter(Boolean).join(' · ');
+    const abilNote = entry.abilityOverride ? `Uses ${entry.abilityOverride.toUpperCase()}` : '';
+    meta = [dmgStr, phb?.type, phb?.list, phb?.value, abilNote, entry.equipped ? 'Equipped' : '', entry.weight].filter(Boolean).join(' · ');
     const parts = [];
     if (phb?.desc) parts.push(renderItemMarkdown(phb.desc));
     if (props) parts.push(`<p><strong>Properties:</strong> ${props}</p>`);
@@ -22505,12 +22520,34 @@ function renderConditions() {
 // use this: they're cumulative-level mechanics with their own dedicated
 // tracked UI (pips, mutation rolls) that this simple lookup doesn't
 // attempt to replicate — this is just "what does this condition do."
+// Turns a bare mention of another condition's name inside a condition's
+// own description (e.g. "the Incapacitated and Prone conditions" inside
+// Unconscious's text) into a clickable italic link that opens that
+// condition's own modal in turn — lets someone follow "Unconscious ->
+// Incapacitated -> Prone" without leaving the modal. Deliberately
+// excludes the condition's own name (no point linking to itself) and
+// matches on whole words only so it can't partially match inside an
+// unrelated word.
+function linkifyConditionRefs(html, currentName) {
+  if (!html || typeof CONDITION_INFO === 'undefined') return html;
+  const others = Object.keys(CONDITION_INFO).filter(n => n !== currentName);
+  if (!others.length) return html;
+  // Longest names first so a multi-word condition name isn't partially
+  // shadowed by a shorter one that happens to share a prefix/substring.
+  others.sort((a, b) => b.length - a.length);
+  const escaped = others.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const pattern = new RegExp('\\b(' + escaped.join('|') + ')\\b', 'g');
+  return html.replace(pattern, (match) =>
+    `<span onclick="event.stopPropagation();openConditionInfoModal('${match.replace(/'/g,"\\'")}')" style="font-style:italic;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;color:var(--accent)" title="View ${match}">${match}</span>`
+  );
+}
+
 function openConditionInfoModal(name) {
   const info = typeof CONDITION_INFO !== 'undefined' ? CONDITION_INFO[name] : null;
   if (!info) return;
   document.getElementById('condition-info-title').textContent = name;
   document.getElementById('condition-info-source').textContent = info.source || '';
-  document.getElementById('condition-info-body').innerHTML = info.desc || '';
+  document.getElementById('condition-info-body').innerHTML = linkifyConditionRefs(info.desc || '', name);
   openModal('condition-info-modal');
 }
 window.openConditionInfoModal = openConditionInfoModal;
@@ -30833,6 +30870,7 @@ function openAddWeapon() {
   document.getElementById('wm-weight').value = '';
   document.getElementById('wm-equipped').checked = true;
   document.getElementById('wm-proficient').checked = true;
+  document.getElementById('wm-ability-override').value = '';
   populateWeaponModalDropdown();
   document.getElementById('wm-weapon-key').value = '';
   renderWeaponDamageLinesEditor();
@@ -30857,6 +30895,7 @@ function dmOpenAddWeaponForChar(charId, charName) {
   document.getElementById('wm-weight').value = '';
   document.getElementById('wm-equipped').checked = true;
   document.getElementById('wm-proficient').checked = true;
+  document.getElementById('wm-ability-override').value = '';
   populateWeaponModalDropdown();
   document.getElementById('wm-weapon-key').value = '';
   renderWeaponDamageLinesEditor();
@@ -30897,6 +30936,7 @@ function openWeaponEdit(idx) {
   document.getElementById('wm-weight').value = entry.weight || '';
   document.getElementById('wm-equipped').checked = entry.equipped !== false;
   document.getElementById('wm-proficient').checked = entry.proficient !== false;
+  document.getElementById('wm-ability-override').value = entry.abilityOverride || '';
   renderWeaponDamageLinesEditor();
   onWeaponModalKeyChange();
   openModal('weapon-edit-modal');
@@ -31015,6 +31055,7 @@ async function applyWeaponModal() {
   const weight    = document.getElementById('wm-weight').value.trim();
   const equipped  = document.getElementById('wm-equipped').checked;
   const proficient = document.getElementById('wm-proficient').checked;
+  const abilityOverride = document.getElementById('wm-ability-override').value || null;
 
   if (!key && !name) { toast('Enter a weapon name', 'warn'); return; }
 
@@ -31026,6 +31067,7 @@ async function applyWeaponModal() {
     attackBonus:   atkBonus,
     damageBonus:   dmgBonus,
     damageLines:   damageLines.length ? damageLines : null,
+    abilityOverride: abilityOverride,
     desc:          desc || null,
     qty:           qty,
     weight:        weight || null,
