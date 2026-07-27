@@ -33892,7 +33892,7 @@ function renderScrollSpellPickerList() {
   }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
 
   if (count) count.textContent = `${filtered.length} spell${filtered.length===1?'':'s'}`;
-  list.innerHTML = filtered.slice(0, 200).map(sp => {
+  list.innerHTML = filtered.slice(0, 600).map(sp => {
     const lvlLabel = sp.level === 0 ? 'Cantrip' : `${sp.level}${sp.level===1?'st':sp.level===2?'nd':sp.level===3?'rd':'th'}`;
     return `<div class="spell-browser-row" style="cursor:pointer;display:flex;justify-content:space-between;padding:4px 6px;border-radius:3px" onclick="selectScrollSpell('${sp.key}')" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
       <span style="font-family:var(--font-body);font-size:12px;color:var(--text)">${sp.name}</span>
