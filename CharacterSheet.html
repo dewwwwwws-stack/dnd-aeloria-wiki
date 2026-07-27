@@ -33581,6 +33581,23 @@ function refreshVariableItemText(item) {
       return; // no catalog match (e.g. a fully custom item) — nothing to derive from
     }
   }
+  // Spell Scroll: name and rarity both derive from the spell actually
+  // scribed on it, not the generic catalog entry — previously neither
+  // ever updated after choosing a spell, since this fell through to the
+  // magicBonus-suffix logic below, which does nothing for a scroll.
+  if ((item.type || '').toLowerCase() === 'scroll' && item.scrollSpellKey) {
+    const spell = PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey);
+    if (spell) {
+      const lv = item.scrollSpellLevel ?? spell.level;
+      const lvLabel = lv === 0 ? 'Cantrip' : `${lv}${lv===1?'st':lv===2?'nd':lv===3?'rd':'th'} Level`;
+      item.name = `${item._baseName || 'Spell Scroll'} of ${spell.name} (${lvLabel})`;
+      // Official Spell Scroll rarity-by-level table (PHB'24) — cantrip and
+      // 1st both common, then two levels per rarity step up to Legendary at 9th.
+      item.rarity = lv <= 1 ? 'common' : lv <= 3 ? 'uncommon' : lv <= 5 ? 'rare' : lv <= 8 ? 'very rare' : 'legendary';
+      item.desc = item._baseDesc || item.desc;
+    }
+    return;
+  }
   if (item.tiers) {
     // Named-tier items — each tier is a fully different item (name, rarity,
     // and effect), not a suffix change, so pull the whole set directly
