@@ -1811,6 +1811,12 @@ body.preview-readonly #mi-detail-edit-row * {
   .inv-row > *:not(.inv-row-name) { order: 2; }
 }
 
+/* ── PARTY OVERVIEW: expandable inventory categories ───────── */
+.po-details > summary { list-style: none; }
+.po-details > summary::-webkit-details-marker { display: none; }
+.po-details .po-arrow { display: inline-block; transition: transform .15s; }
+.po-details[open] .po-arrow { transform: rotate(90deg); }
+
 /* ── CURRENCY ───────────────────────────────────────────── */
 .currency-grid {
   display: grid;
@@ -4858,10 +4864,11 @@ body.preview-readonly #mi-detail-edit-row * {
         </div>
       </div>
 
-      <!-- Custom damage override -->
+      <!-- Damage lines -->
       <div>
-        <label class="field-label">Custom Damage (optional, e.g. 2d6)</label>
-        <input id="wm-custom-damage" class="info-input" type="text" placeholder="Leave blank to use weapon default"/>
+        <label class="field-label">Damage <span style="font-weight:400;text-transform:none;color:var(--text3)">(leave empty to use the weapon's default)</span></label>
+        <div id="wm-damage-lines-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
+        <button type="button" class="tbtn" style="font-size:10px" onclick="addWeaponDamageLine()">+ Add Damage Line</button>
       </div>
 
       <!-- Description / notes -->
@@ -7560,6 +7567,68 @@ function openTreasureDetailModal(key, kind) {
   openModal('treasure-detail-modal');
 }
 window.openTreasureDetailModal = openTreasureDetailModal;
+
+// Weapons/Armor/Gear detail view — reuses the same treasure-detail-modal
+// elements as openTreasureDetailModal above, but for owned Weapon/Armor/
+// Gear entries, which are per-character custom objects (custom name,
+// notes, weight) rather than a simple catalog key. Used by Party
+// Overview's read-only inventory browser; falls back to the PHB catalog
+// entry (weapon/armor stats and properties) when the owned entry matches
+// one by key, otherwise shows whatever the entry itself carries (name,
+// weight, notes) — covers homebrew/custom items with no catalog match.
+function openInventoryItemDetailModal(entry, kind, charData) {
+  if (!entry) return;
+  let name, meta, body;
+  if (kind === 'weapon') {
+    const phb = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
+    name = entry.name || phb?.name || 'Weapon';
+    let dmgStr;
+    if (Array.isArray(entry.damageLines) && entry.damageLines.length) {
+      dmgStr = entry.damageLines.filter(l=>l.count&&l.die).map(l => `${l.count}d${l.die}${l.bonus?(l.bonus>=0?'+':'')+l.bonus:''}${l.type?' '+l.type:''}`).join(' + ');
+    } else if (phb?.damage) {
+      let dCount = phb.damage.count, dDie = phb.damage.die, dType = phb.damage.type;
+      // Monk Martial Arts: Unarmed Strike, Simple Melee weapons, and the
+      // Shortsword all use the larger of the weapon's own die or the
+      // Monk's Martial Arts die — same gating condition and "use the
+      // bigger one" logic as the real attack calculation.
+      const isMonkWeapon = phb.monk === true || phb.unarmed === true || (phb.type === 'Simple' && phb.list === 'melee') || entry.weaponKey === 'shortsword';
+      const monkDie = (charData && isMonkWeapon) ? getMonkDieForChar(charData) : null;
+      if (monkDie && monkDie > dDie) { dDie = monkDie; dCount = 1; }
+      dmgStr = `${dCount}d${dDie}${dType ? ' ' + dType : ''}`;
+    } else {
+      dmgStr = entry.customDamage || '';
+    }
+    const props = (phb?.properties || []).map(p => getWeaponPropertyLabel ? getWeaponPropertyLabel(p) : p).join(', ');
+    meta = [dmgStr, phb?.type, phb?.list, phb?.value, entry.equipped ? 'Equipped' : '', entry.weight].filter(Boolean).join(' · ');
+    const parts = [];
+    if (phb?.desc) parts.push(renderItemMarkdown(phb.desc));
+    if (props) parts.push(`<p><strong>Properties:</strong> ${props}</p>`);
+    if (phb?.mastery) parts.push(`<p><strong>Mastery:</strong> ${getWeaponPropertyLabel ? getWeaponPropertyLabel(phb.mastery) : phb.mastery} — ${getWeaponMasteryDesc(phb.mastery, phb.mastery_desc)}</p>`);
+    if (entry.notes) parts.push(`<p>${entry.notes}</p>`);
+    body = parts.join('') || '<p style="color:var(--text3)">No further details.</p>';
+  } else if (kind === 'armor') {
+    const phb = PHB_ARMOUR.find(a => a.key === entry.key);
+    name = entry.name || phb?.name || 'Armor';
+    const dexNote = phb?.type === 'light' ? '+ full DEX mod' : phb?.type === 'medium' ? '+ DEX mod (max 2)' : phb?.type === 'heavy' ? 'no DEX mod' : '';
+    const acStr = phb ? `AC ${phb.ac}${dexNote ? ' ' + dexNote : ''}` : (entry.customAC ? `AC ${entry.customAC}` : '');
+    meta = [acStr, phb?.type, phb?.value, entry.worn ? 'Worn' : '', entry.weight].filter(Boolean).join(' · ');
+    const parts = [];
+    if (phb?.desc) parts.push(renderItemMarkdown(phb.desc));
+    if (phb?.strReq) parts.push(`<p><strong>Strength required:</strong> ${phb.strReq}</p>`);
+    if (phb?.stealthDisadv) parts.push(`<p>Disadvantage on Stealth checks.</p>`);
+    if (entry.notes) parts.push(`<p>${entry.notes}</p>`);
+    body = parts.join('') || '<p style="color:var(--text3)">No further details.</p>';
+  } else { // gear
+    name = entry.name || 'Item';
+    meta = [entry.weight, (entry.qty && entry.qty > 1) ? `×${entry.qty}` : ''].filter(Boolean).join(' · ');
+    body = entry.desc ? renderItemMarkdown(entry.desc) : '<p style="color:var(--text3)">No further details.</p>';
+  }
+  document.getElementById('td-detail-title').textContent = name;
+  document.getElementById('td-detail-meta').textContent = meta;
+  document.getElementById('td-detail-body').innerHTML = body;
+  openModal('treasure-detail-modal');
+}
+window.openInventoryItemDetailModal = openInventoryItemDetailModal;
 
 let _miDetailOwnedIdx = null; // tracks which owned item index is open in the detail modal, for the Edit Notes button
 function openMagicItemDetailModal(keyOrItem) {
@@ -17200,79 +17269,83 @@ const PHB_SPELL_LIST = [{"key": "acid_splash", "name": "Acid Splash", "level": 0
 // PHB WEAPONS
 // ═══════════════════════════════════════════════════════════
 const PHB_WEAPONS = [
-{"key":"unarmed_strike","name":"Unarmed Strike","type":"Simple","list":"melee","ability":"str","unarmed":true,"damage":{"count":1,"die":1,"type":"bludgeoning"},"properties":[],"range":"5 ft","desc":"Strike with your body — fists, elbows, knees, or headbutt. Damage scales with Martial Arts die if Monk."},
-{"key":"club","weight":"2 lb","name":"Club","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":4,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["light"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":null,"monk":true},
-{"key":"dagger","weight":"1 lb","name":"Dagger","type":"Simple","list":"melee","ability":"dex","damage":{"count":1,"die":4,"type":"piercing"},"versatile_die":null,"range":"Melee, 20/60 ft","thrown_range":null,"properties":["finesse","light","thrown"],"mastery":"nick","mastery_desc":"Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)","ammo":null,"monk":true},
-{"key":"greatclub","weight":"10 lb","name":"Greatclub","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed"],"mastery":"push","mastery_desc":"Hit: push target 10 ft away","ammo":null,"monk":true},
-{"key":"handaxe","weight":"2 lb","name":"Handaxe","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":6,"type":"slashing"},"versatile_die":null,"range":"Melee, 20/60 ft","thrown_range":null,"properties":["light","thrown"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":null,"monk":true},
-{"key":"javelin","weight":"2 lb","name":"Javelin","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":6,"type":"piercing"},"versatile_die":null,"range":"Melee, 30/120 ft","thrown_range":null,"properties":["thrown"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":null,"monk":true},
-{"key":"light_hammer","weight":"2 lb","name":"Light Hammer","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":4,"type":"bludgeoning"},"versatile_die":null,"range":"Melee, 20/60 ft","thrown_range":null,"properties":["light","thrown"],"mastery":"nick","mastery_desc":"Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)","ammo":null,"monk":true},
-{"key":"mace","weight":"4 lb","name":"Mace","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":6,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":[],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on next attack before your next turn","ammo":null,"monk":true},
-{"key":"quarterstaff","weight":"4 lb","name":"Quarterstaff","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":6,"type":"bludgeoning"},"versatile_die":8,"range":"Melee","thrown_range":null,"properties":["versatile"],"mastery":"topple","mastery_desc":"Hit: target makes CON save or falls Prone","ammo":null,"monk":true},
-{"key":"sickle","weight":"2 lb","name":"Sickle","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":4,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["light"],"mastery":"nick","mastery_desc":"Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)","ammo":null,"monk":true},
-{"key":"spear","weight":"3 lb","name":"Spear","type":"Simple","list":"melee","ability":"str","damage":{"count":1,"die":6,"type":"piercing"},"versatile_die":8,"range":"Melee, 20/60 ft","thrown_range":null,"properties":["thrown","versatile"],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on next attack before your next turn","ammo":null,"monk":true},
-{"key":"dart","weight":"¼ lb","name":"Dart","type":"Simple","list":"ranged","ability":"dex","damage":{"count":1,"die":4,"type":"piercing"},"versatile_die":null,"range":"20/60 ft","thrown_range":null,"properties":["finesse","thrown"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"darts","monk":false},
-{"key":"light_crossbow","weight":"5 lb","name":"Light Crossbow","type":"Simple","list":"ranged","ability":"dex","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":null,"range":"80/320 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"bolts","monk":false},
-{"key":"shortbow","weight":"2 lb","name":"Shortbow","type":"Simple","list":"ranged","ability":"dex","damage":{"count":1,"die":6,"type":"piercing"},"versatile_die":null,"range":"80/320 ft","thrown_range":null,"properties":["two_handed"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"arrows","monk":false},
-{"key":"sling","name":"Sling","type":"Simple","list":"ranged","ability":"dex","damage":{"count":1,"die":4,"type":"bludgeoning"},"versatile_die":null,"range":"30/120 ft","thrown_range":null,"properties":[],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"bullets","monk":false},
-{"key":"battleaxe","weight":"4 lb","name":"Battleaxe","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"slashing"},"versatile_die":10,"range":"Melee","thrown_range":null,"properties":["versatile"],"mastery":"topple","mastery_desc":"Hit: target makes CON save or falls Prone","ammo":null,"monk":false},
-{"key":"flail","weight":"2 lb","name":"Flail","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":[],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on next attack before your next turn","ammo":null,"monk":false},
-{"key":"glaive","weight":"6 lb","name":"Glaive","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":10,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed","heavy","reach"],"mastery":"graze","mastery_desc":"Miss: still deal ability modifier damage","ammo":null,"monk":false},
-{"key":"greataxe","weight":"7 lb","name":"Greataxe","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":12,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed","heavy"],"mastery":"cleave","mastery_desc":"Hit: attack one other creature within 5 ft (same action, once/turn)","ammo":null,"monk":false},
-{"key":"greatsword","weight":"6 lb","name":"Greatsword","type":"Martial","list":"melee","ability":"str","damage":{"count":2,"die":6,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed","heavy"],"mastery":"graze","mastery_desc":"Miss: still deal ability modifier damage","ammo":null,"monk":false},
-{"key":"halberd","weight":"6 lb","name":"Halberd","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":10,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed","heavy","reach"],"mastery":"cleave","mastery_desc":"Hit: attack one other creature within 5 ft (same action, once/turn)","ammo":null,"monk":false},
-{"key":"lance","weight":"6 lb","name":"Lance","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":10,"type":"piercing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed","heavy","reach"],"mastery":"topple","mastery_desc":"Hit: target makes CON save or falls Prone","ammo":null,"monk":false},
-{"key":"longsword","weight":"3 lb","name":"Longsword","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"slashing"},"versatile_die":10,"range":"Melee","thrown_range":null,"properties":["versatile"],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on next attack before your next turn","ammo":null,"monk":false},
-{"key":"maul","weight":"10 lb","name":"Maul","type":"Martial","list":"melee","ability":"str","damage":{"count":2,"die":6,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed","heavy"],"mastery":"topple","mastery_desc":"Hit: target makes CON save or falls Prone","ammo":null,"monk":false},
-{"key":"morningstar","weight":"4 lb","name":"Morningstar","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":[],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on next attack before your next turn","ammo":null,"monk":false},
-{"key":"pike","weight":"18 lb","name":"Pike","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":10,"type":"piercing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed","heavy","reach"],"mastery":"push","mastery_desc":"Hit: push target 10 ft away","ammo":null,"monk":false},
-{"key":"rapier","weight":"2 lb","name":"Rapier","type":"Martial","list":"melee","ability":"dex","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["finesse"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":null,"monk":false},
-{"key":"scimitar","weight":"3 lb","name":"Scimitar","type":"Martial","list":"melee","ability":"dex","damage":{"count":1,"die":6,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["finesse","light"],"mastery":"nick","mastery_desc":"Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)","ammo":null,"monk":true},
-{"key":"shortsword","weight":"2 lb","name":"Shortsword","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":6,"type":"piercing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["finesse","light"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":null,"monk":true},
-{"key":"trident","weight":"4 lb","name":"Trident","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":10,"range":"Melee, 20/60 ft","thrown_range":null,"properties":["thrown","versatile"],"mastery":"topple","mastery_desc":"Hit: target makes CON save or falls Prone","ammo":null,"monk":false},
-{"key":"warhammer","weight":"5 lb","name":"Warhammer","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"bludgeoning"},"versatile_die":10,"range":"Melee","thrown_range":null,"properties":["versatile"],"mastery":"push","mastery_desc":"Hit: push target 10 ft away","ammo":null,"monk":false},
-{"key":"war_pick","weight":"2 lb","name":"War Pick","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":10,"range":"Melee","thrown_range":null,"properties":["versatile"],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on next attack before your next turn","ammo":null,"monk":false},
-{"key":"whip","weight":"3 lb","name":"Whip","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":4,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["finesse","reach"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":null,"monk":false},
-{"key":"hand_crossbow","weight":"3 lb","name":"Hand Crossbow","type":"Martial","list":"ranged","ability":"dex","damage":{"count":1,"die":6,"type":"piercing"},"versatile_die":null,"range":"30/120 ft","thrown_range":null,"properties":["light","loading"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"bolts","monk":false},
-{"key":"heavy_crossbow","weight":"18 lb","name":"Heavy Crossbow","type":"Martial","list":"ranged","ability":"dex","damage":{"count":1,"die":10,"type":"piercing"},"versatile_die":null,"range":"100/400 ft","thrown_range":null,"properties":["two_handed","heavy","loading"],"mastery":"push","mastery_desc":"Hit: push target 10 ft away","ammo":"bolts","monk":false},
-{"key":"longbow","weight":"2 lb","name":"Longbow","type":"Martial","list":"ranged","ability":"dex","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":null,"range":"150/600 ft","thrown_range":null,"properties":["two_handed","heavy"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"arrows","monk":false},
-{"key":"musket","weight":"10 lb","name":"Musket","type":"Martial","list":"firearm","ability":"dex","damage":{"count":1,"die":12,"type":"piercing"},"versatile_die":null,"range":"40/120 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"bullets","monk":false},
-{"key":"pistol","weight":"3 lb","name":"Pistol","type":"Martial","list":"firearm","ability":"dex","damage":{"count":1,"die":10,"type":"piercing"},"versatile_die":null,"range":"30/90 ft","thrown_range":null,"properties":["loading"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"bullets","monk":false}
+{"key": "unarmed_strike", "name": "Unarmed Strike", "type": "Simple", "list": "melee", "ability": "str", "unarmed": true, "damage": {"count": 1, "die": 1, "type": "bludgeoning"}, "properties": [], "range": "5 ft", "desc": "Instead of using a weapon to make a melee attack, you can use a punch, kick, head-butt, or similar forceful blow — an Unarmed Strike, a melee attack using your body to damage, grapple, or shove a target within 5 feet of you. Choose one of the following options for its effect.\n\nDamage. You make an attack roll against the target; your bonus equals your Strength modifier plus your Proficiency Bonus. On a hit, the target takes Bludgeoning damage equal to 1 plus your Strength modifier.\n\nGrapple. The target makes a Strength or Dexterity saving throw (its choice) — DC 8 plus your Strength modifier and Proficiency Bonus — or has the Grappled condition. Only possible if the target is no more than one size larger than you and you have a hand free.\n\nShove. The target makes a Strength or Dexterity saving throw (its choice) — DC 8 plus your Strength modifier and Proficiency Bonus — or you either push it 5 feet away or it has the Prone condition. Only possible if the target is no more than one size larger than you.\n\nDamage scales with your Martial Arts die if you're a Monk."},
+{"key": "club", "weight": "2 lb", "name": "Club", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 4, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["light"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": null, "monk": true, "value": "1 SP"},
+{"key": "dagger", "weight": "1 lb", "name": "Dagger", "type": "Simple", "list": "melee", "ability": "dex", "damage": {"count": 1, "die": 4, "type": "piercing"}, "versatile_die": null, "range": "Melee, 20/60 ft", "thrown_range": null, "properties": ["finesse", "light", "thrown"], "mastery": "nick", "mastery_desc": "Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)", "ammo": null, "monk": true, "value": "2 GP"},
+{"key": "greatclub", "weight": "10 lb", "name": "Greatclub", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed"], "mastery": "push", "mastery_desc": "Hit: push target 10 ft away", "ammo": null, "monk": true, "value": "2 SP"},
+{"key": "handaxe", "weight": "2 lb", "name": "Handaxe", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "slashing"}, "versatile_die": null, "range": "Melee, 20/60 ft", "thrown_range": null, "properties": ["light", "thrown"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": null, "monk": true, "value": "5 GP"},
+{"key": "javelin", "weight": "2 lb", "name": "Javelin", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "Melee, 30/120 ft", "thrown_range": null, "properties": ["thrown"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": null, "monk": true, "value": "5 SP"},
+{"key": "light_hammer", "weight": "2 lb", "name": "Light Hammer", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 4, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee, 20/60 ft", "thrown_range": null, "properties": ["light", "thrown"], "mastery": "nick", "mastery_desc": "Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)", "ammo": null, "monk": true, "value": "2 GP"},
+{"key": "mace", "weight": "4 lb", "name": "Mace", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": [], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": true, "value": "5 GP"},
+{"key": "quarterstaff", "weight": "4 lb", "name": "Quarterstaff", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "bludgeoning"}, "versatile_die": 8, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "topple", "mastery_desc": "Hit: target makes CON save or falls Prone", "ammo": null, "monk": true, "value": "2 SP"},
+{"key": "sickle", "weight": "2 lb", "name": "Sickle", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 4, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["light"], "mastery": "nick", "mastery_desc": "Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)", "ammo": null, "monk": true, "value": "1 GP"},
+{"key": "spear", "weight": "3 lb", "name": "Spear", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": 8, "range": "Melee, 20/60 ft", "thrown_range": null, "properties": ["thrown", "versatile"], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": true, "value": "1 GP"},
+{"key": "dart", "weight": "¼ lb", "name": "Dart", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 4, "type": "piercing"}, "versatile_die": null, "range": "20/60 ft", "thrown_range": null, "properties": ["finesse", "thrown"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "darts", "monk": false, "value": "5 CP"},
+{"key": "light_crossbow", "weight": "5 lb", "name": "Light Crossbow", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "80/320 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bolts", "monk": false, "value": "25 GP"},
+{"key": "shortbow", "weight": "2 lb", "name": "Shortbow", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "80/320 ft", "thrown_range": null, "properties": ["two_handed"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "arrows", "monk": false, "value": "25 GP"},
+{"key": "sling", "name": "Sling", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 4, "type": "bludgeoning"}, "versatile_die": null, "range": "30/120 ft", "thrown_range": null, "properties": [], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bullets", "monk": false, "value": "1 SP"},
+{"key": "battleaxe", "weight": "4 lb", "name": "Battleaxe", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "slashing"}, "versatile_die": 10, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "topple", "mastery_desc": "Hit: target makes CON save or falls Prone", "ammo": null, "monk": false, "value": "10 GP"},
+{"key": "flail", "weight": "2 lb", "name": "Flail", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": [], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": false, "value": "10 GP"},
+{"key": "glaive", "weight": "6 lb", "name": "Glaive", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 10, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy", "reach"], "mastery": "graze", "mastery_desc": "Miss: still deal ability modifier damage", "ammo": null, "monk": false, "value": "20 GP"},
+{"key": "greataxe", "weight": "7 lb", "name": "Greataxe", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 12, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy"], "mastery": "cleave", "mastery_desc": "Hit: attack one other creature within 5 ft (same action, once/turn)", "ammo": null, "monk": false, "value": "30 GP"},
+{"key": "greatsword", "weight": "6 lb", "name": "Greatsword", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 2, "die": 6, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy"], "mastery": "graze", "mastery_desc": "Miss: still deal ability modifier damage", "ammo": null, "monk": false, "value": "50 GP"},
+{"key": "halberd", "weight": "6 lb", "name": "Halberd", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 10, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy", "reach"], "mastery": "cleave", "mastery_desc": "Hit: attack one other creature within 5 ft (same action, once/turn)", "ammo": null, "monk": false, "value": "20 GP"},
+{"key": "lance", "weight": "6 lb", "name": "Lance", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 10, "type": "piercing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy", "reach"], "mastery": "topple", "mastery_desc": "Hit: target makes CON save or falls Prone", "ammo": null, "monk": false, "value": "10 GP"},
+{"key": "longsword", "weight": "3 lb", "name": "Longsword", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "slashing"}, "versatile_die": 10, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": false, "value": "15 GP"},
+{"key": "maul", "weight": "10 lb", "name": "Maul", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 2, "die": 6, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy"], "mastery": "topple", "mastery_desc": "Hit: target makes CON save or falls Prone", "ammo": null, "monk": false, "value": "10 GP"},
+{"key": "morningstar", "weight": "4 lb", "name": "Morningstar", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": [], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": false, "value": "15 GP"},
+{"key": "pike", "weight": "18 lb", "name": "Pike", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 10, "type": "piercing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy", "reach"], "mastery": "push", "mastery_desc": "Hit: push target 10 ft away", "ammo": null, "monk": false, "value": "5 GP"},
+{"key": "rapier", "weight": "2 lb", "name": "Rapier", "type": "Martial", "list": "melee", "ability": "dex", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["finesse"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": null, "monk": false, "value": "25 GP"},
+{"key": "scimitar", "weight": "3 lb", "name": "Scimitar", "type": "Martial", "list": "melee", "ability": "dex", "damage": {"count": 1, "die": 6, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["finesse", "light"], "mastery": "nick", "mastery_desc": "Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)", "ammo": null, "monk": true, "value": "25 GP"},
+{"key": "shortsword", "weight": "2 lb", "name": "Shortsword", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["finesse", "light"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": null, "monk": true, "value": "10 GP"},
+{"key": "trident", "weight": "4 lb", "name": "Trident", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": 10, "range": "Melee, 20/60 ft", "thrown_range": null, "properties": ["thrown", "versatile"], "mastery": "topple", "mastery_desc": "Hit: target makes CON save or falls Prone", "ammo": null, "monk": false, "value": "5 GP"},
+{"key": "warhammer", "weight": "5 lb", "name": "Warhammer", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "bludgeoning"}, "versatile_die": 10, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "push", "mastery_desc": "Hit: push target 10 ft away", "ammo": null, "monk": false, "value": "15 GP"},
+{"key": "war_pick", "weight": "2 lb", "name": "War Pick", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": 10, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": false, "value": "5 GP"},
+{"key": "whip", "weight": "3 lb", "name": "Whip", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 4, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["finesse", "reach"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": null, "monk": false, "value": "2 GP"},
+{"key": "hand_crossbow", "weight": "3 lb", "name": "Hand Crossbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "30/120 ft", "thrown_range": null, "properties": ["light", "loading"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "bolts", "monk": false, "value": "75 GP"},
+{"key": "heavy_crossbow", "weight": "18 lb", "name": "Heavy Crossbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 10, "type": "piercing"}, "versatile_die": null, "range": "100/400 ft", "thrown_range": null, "properties": ["two_handed", "heavy", "loading"], "mastery": "push", "mastery_desc": "Hit: push target 10 ft away", "ammo": "bolts", "monk": false, "value": "50 GP"},
+{"key": "longbow", "weight": "2 lb", "name": "Longbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "150/600 ft", "thrown_range": null, "properties": ["two_handed", "heavy"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "arrows", "monk": false, "value": "50 GP"},
+{"key": "musket", "weight": "10 lb", "name": "Musket", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 1, "die": 12, "type": "piercing"}, "versatile_die": null, "range": "40/120 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bullets", "monk": false, "value": "500 GP"},
+{"key": "pistol", "weight": "3 lb", "name": "Pistol", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 1, "die": 10, "type": "piercing"}, "versatile_die": null, "range": "30/90 ft", "thrown_range": null, "properties": ["loading"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "bullets", "monk": false, "value": "250 GP"}
 ,
-{"key":"rifle_automatic", "weight": "8 lb","name":"Automatic Rifle","type":"Martial","list":"firearm","ability":"dex","damage":{"count":2,"die":8,"type":"piercing"},"versatile_die":null,"range":"80/240 ft","thrown_range":null,"properties":["two_handed","loading","burst_fire"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"firearm_rounds","monk":false,"source":"DMG24","desc":"Modern firearm. Two-handed, Loading, Burst Fire (expend 10 rounds to attack with Advantage; on a hit, deal an extra 1d8 damage of the weapon's type)."},
-{"key":"rifle_hunting", "weight": "8 lb","name":"Hunting Rifle","type":"Martial","list":"firearm","ability":"dex","damage":{"count":2,"die":10,"type":"piercing"},"versatile_die":null,"range":"80/240 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"firearm_rounds","monk":false,"source":"DMG24","desc":"Modern firearm. Two-handed, Loading."},
-{"key":"revolver", "weight": "3 lb","name":"Revolver","type":"Martial","list":"firearm","ability":"dex","damage":{"count":2,"die":8,"type":"piercing"},"versatile_die":null,"range":"40/120 ft","thrown_range":null,"properties":["loading"],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on its next attack roll before the start of your next turn","ammo":"firearm_rounds","monk":false,"source":"DMG24","desc":"Modern firearm. Loading."},
-{"key":"pistol_semiautomatic", "weight": "3 lb","name":"Semiautomatic Pistol","type":"Martial","list":"firearm","ability":"dex","damage":{"count":2,"die":6,"type":"piercing"},"versatile_die":null,"range":"50/150 ft","thrown_range":null,"properties":["loading"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"firearm_rounds","monk":false,"source":"DMG24","desc":"Modern firearm. Loading."},
-{"key":"shotgun", "weight": "7 lb","name":"Shotgun","type":"Martial","list":"firearm","ability":"dex","damage":{"count":2,"die":8,"type":"piercing"},"versatile_die":null,"range":"30/90 ft","thrown_range":null,"properties":["loading"],"mastery":"push","mastery_desc":"Hit: target pushed up to 10 ft straight away from you","ammo":"firearm_rounds","monk":false,"source":"DMG24","desc":"Modern firearm. Loading."},
-{"key":"rifle_antimatter", "weight": "10 lb","name":"Antimatter Rifle","type":"Martial","list":"firearm","ability":"dex","damage":{"count":6,"die":8,"type":"necrotic"},"versatile_die":null,"range":"120/360 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"sap","mastery_desc":"Hit: target has Disadvantage on its next attack roll before the start of your next turn","ammo":"energy_cell","monk":false,"source":"DMG24","desc":"Futuristic firearm. Two-handed, Loading."},
-{"key":"pistol_laser", "weight": "2 lb","name":"Laser Pistol","type":"Martial","list":"firearm","ability":"dex","damage":{"count":3,"die":6,"type":"radiant"},"versatile_die":null,"range":"40/120 ft","thrown_range":null,"properties":["loading"],"mastery":"vex","mastery_desc":"Hit: gain Advantage on your next attack against the target","ammo":"energy_cell","monk":false,"source":"DMG24","desc":"Futuristic firearm. Loading."},
-{"key":"rifle_laser", "weight": "7 lb","name":"Laser Rifle","type":"Martial","list":"firearm","ability":"dex","damage":{"count":3,"die":8,"type":"radiant"},"versatile_die":null,"range":"100/300 ft","thrown_range":null,"properties":["two_handed","loading"],"mastery":"slow","mastery_desc":"Hit: target Speed \u221210 ft until start of your next turn","ammo":"energy_cell","monk":false,"source":"DMG24","desc":"Futuristic firearm. Two-handed, Loading."}
+{"key": "rifle_automatic", "weight": "8 lb", "name": "Automatic Rifle", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 2, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "80/240 ft", "thrown_range": null, "properties": ["two_handed", "loading", "burst_fire"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "firearm_rounds", "monk": false, "source": "DMG24", "desc": "Modern firearm. Two-handed, Loading, Burst Fire (expend 10 rounds to attack with Advantage; on a hit, deal an extra 1d8 damage of the weapon's type)."},
+{"key": "rifle_hunting", "weight": "8 lb", "name": "Hunting Rifle", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 2, "die": 10, "type": "piercing"}, "versatile_die": null, "range": "80/240 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "firearm_rounds", "monk": false, "source": "DMG24", "desc": "Modern firearm. Two-handed, Loading."},
+{"key": "revolver", "weight": "3 lb", "name": "Revolver", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 2, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "40/120 ft", "thrown_range": null, "properties": ["loading"], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on its next attack roll before the start of your next turn", "ammo": "firearm_rounds", "monk": false, "source": "DMG24", "desc": "Modern firearm. Loading."},
+{"key": "pistol_semiautomatic", "weight": "3 lb", "name": "Semiautomatic Pistol", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 2, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "50/150 ft", "thrown_range": null, "properties": ["loading"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "firearm_rounds", "monk": false, "source": "DMG24", "desc": "Modern firearm. Loading."},
+{"key": "shotgun", "weight": "7 lb", "name": "Shotgun", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 2, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "30/90 ft", "thrown_range": null, "properties": ["loading"], "mastery": "push", "mastery_desc": "Hit: target pushed up to 10 ft straight away from you", "ammo": "firearm_rounds", "monk": false, "source": "DMG24", "desc": "Modern firearm. Loading."},
+{"key": "rifle_antimatter", "weight": "10 lb", "name": "Antimatter Rifle", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 6, "die": 8, "type": "necrotic"}, "versatile_die": null, "range": "120/360 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on its next attack roll before the start of your next turn", "ammo": "energy_cell", "monk": false, "source": "DMG24", "desc": "Futuristic firearm. Two-handed, Loading."},
+{"key": "pistol_laser", "weight": "2 lb", "name": "Laser Pistol", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 3, "die": 6, "type": "radiant"}, "versatile_die": null, "range": "40/120 ft", "thrown_range": null, "properties": ["loading"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "energy_cell", "monk": false, "source": "DMG24", "desc": "Futuristic firearm. Loading."},
+{"key": "rifle_laser", "weight": "7 lb", "name": "Laser Rifle", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 3, "die": 8, "type": "radiant"}, "versatile_die": null, "range": "100/300 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "energy_cell", "monk": false, "source": "DMG24", "desc": "Futuristic firearm. Two-handed, Loading."}
 ,
-{"key":"bone_blade","name":"Bone Blade","type":"Simple","list":"melee","ability":"int","damage":{"count":1,"die":8,"type":"piercing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["finesse"],"mastery":"","mastery_desc":"Advantage if an ally is within 5 ft of the target (not incapacitated)","ammo":null,"monk":false,"source":"UA25P","desc":"Finesse; advantage if ally within 5 ft of target (not incapacitated)"},
-{"key":"flesh_maul","name":"Flesh Maul","type":"Simple","list":"melee","ability":"int","damage":{"count":1,"die":10,"type":"bludgeoning"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":[],"mastery":"","mastery_desc":"On hit: target has disadvantage on next STR/CON save before start of its next turn","ammo":null,"monk":false,"source":"UA25P","desc":"On hit: target has disadvantage on next STR/CON save before start of its next turn"},
-{"key":"viscera_launcher","name":"Viscera Launcher","type":"Simple","list":"ranged","ability":"int","damage":{"count":1,"die":6,"type":"acid"},"versatile_die":null,"range":"30/90 ft","thrown_range":null,"properties":[],"mastery":"","mastery_desc":"Once per turn: +1d6 acid damage on hit","ammo":null,"monk":false,"source":"UA25P","desc":"Once per turn: +1d6 acid damage on hit"},
-{"key":"double_bladed_scimitar","weight":"6 lb","name":"Double-bladed scimitar","type":"Martial","list":"melee","ability":"str","damage":{"count":2,"die":4,"type":"slashing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["two_handed"],"mastery":"","mastery_desc":"Two-handed; With Attack action, one attack as bonus action for 1d4","ammo":null,"monk":false,"source":"2014"},
-{"key":"hoopak__melee","weight":"2 lb","name":"Hoopak, melee","type":"Martial","list":"melee","ability":"str","damage":{"count":1,"die":6,"type":"piercing"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["finesse","two_handed"],"mastery":"","mastery_desc":"Finesse, two-handed; Can be used ranged (40/160 ft) with ammo, for 1d4 bludgeoning damage","ammo":null,"monk":false,"source":"2014"},
-{"key":"hoopak__ranged","weight":"2 lb","name":"Hoopak, ranged","type":"Martial","list":"ranged","ability":"str","damage":{"count":1,"die":4,"type":"bludgeoning"},"versatile_die":null,"range":"40/160 ft","thrown_range":null,"properties":["finesse","two_handed","ammunition"],"mastery":"","mastery_desc":"Ammunition, finesse, two-handed; Can be used in melee without ammo, for 1d6 piercing damage","ammo":null,"monk":false,"source":"2014"},
-{"key":"oversized_longbow","weight":"2 lb","name":"Oversized Longbow","type":"Martial","list":"ranged","ability":"dex","damage":{"count":2,"die":6,"type":"piercing"},"versatile_die":null,"range":"150/600 ft","thrown_range":null,"properties":["two_handed","heavy","ammunition"],"mastery":"","mastery_desc":"Ammunition, heavy, two-handed; Damage uses Str; Requires Medium size and Str 18","ammo":null,"monk":false,"source":"2014"},
-{"key":"force_demolisher","name":"Force Demolisher","type":"Simple","list":"melee","ability":"int","damage":{"count":1,"die":10,"type":"force"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":["reach"],"mastery":"","mastery_desc":"Hit (target 1+ size smaller than me): push or pull target up to 10 ft","ammo":null,"monk":false,"source":"EFotA","desc":"Arcane Armor weapon (Dreadnaught model). Uses INT for attack and damage rolls."},
-{"key":"thunder_pulse","name":"Thunder Pulse","type":"Simple","list":"melee","ability":"int","damage":{"count":1,"die":8,"type":"thunder"},"versatile_die":null,"range":"Melee","thrown_range":null,"properties":[],"mastery":"","mastery_desc":"Hit: target has Disadvantage on attacks vs others until start of my next turn","ammo":null,"monk":false,"source":"EFotA","desc":"Arcane Armor weapon (Guardian model). Uses INT for attack and damage rolls."},
+{"key": "bone_blade", "name": "Bone Blade", "type": "Simple", "list": "melee", "ability": "int", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["finesse"], "mastery": "", "mastery_desc": "Advantage if an ally is within 5 ft of the target (not incapacitated)", "ammo": null, "monk": false, "source": "UA25P", "desc": "Finesse; advantage if ally within 5 ft of target (not incapacitated)"},
+{"key": "flesh_maul", "name": "Flesh Maul", "type": "Simple", "list": "melee", "ability": "int", "damage": {"count": 1, "die": 10, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": [], "mastery": "", "mastery_desc": "On hit: target has disadvantage on next STR/CON save before start of its next turn", "ammo": null, "monk": false, "source": "UA25P", "desc": "On hit: target has disadvantage on next STR/CON save before start of its next turn"},
+{"key": "viscera_launcher", "name": "Viscera Launcher", "type": "Simple", "list": "ranged", "ability": "int", "damage": {"count": 1, "die": 6, "type": "acid"}, "versatile_die": null, "range": "30/90 ft", "thrown_range": null, "properties": [], "mastery": "", "mastery_desc": "Once per turn: +1d6 acid damage on hit", "ammo": null, "monk": false, "source": "UA25P", "desc": "Once per turn: +1d6 acid damage on hit"},
+{"key": "aarakocra_talons", "name": "Talons", "type": "Simple", "list": "melee", "ability": "str", "unarmed": true, "damage": {"count": 1, "die": 6, "type": "slashing"}, "versatile_die": null, "range": "5 ft", "thrown_range": null, "properties": [], "mastery": "", "mastery_desc": "", "ammo": null, "monk": false, "source": "Aarakocra (MPMM)", "desc": "Natural weapon. Deals Slashing damage instead of the Bludgeoning damage normal for an unarmed strike."},
+{"key": "centaur_hooves", "name": "Hooves", "type": "Simple", "list": "melee", "ability": "str", "unarmed": true, "damage": {"count": 1, "die": 6, "type": "bludgeoning"}, "versatile_die": null, "range": "5 ft", "thrown_range": null, "properties": [], "mastery": "", "mastery_desc": "", "ammo": null, "monk": false, "source": "Centaur (MPMM)", "desc": "Natural weapon. Equine Build: your hooves deal 1d6 Bludgeoning damage as an unarmed strike."},
+{"key": "tabaxi_claws", "name": "Cat's Claws", "type": "Simple", "list": "melee", "ability": "str", "unarmed": true, "damage": {"count": 1, "die": 6, "type": "slashing"}, "versatile_die": null, "range": "5 ft", "thrown_range": null, "properties": [], "mastery": "", "mastery_desc": "", "ammo": null, "monk": false, "source": "Tabaxi (MPMM)", "desc": "Natural weapon. Deals Slashing damage instead of the Bludgeoning damage normal for an unarmed strike."},
+{"key": "dhampir_fangs", "name": "Vampiric Fangs", "type": "Simple", "list": "melee", "ability": "str", "unarmed": true, "damage": {"count": 1, "die": 4, "type": "piercing"}, "versatile_die": null, "range": "5 ft", "thrown_range": null, "properties": [], "mastery": "", "mastery_desc": "", "ammo": null, "monk": false, "source": "Dhampir (BoH)", "desc": "Natural weapon. Deals Piercing plus Necrotic damage instead of the Bludgeoning damage normal for an unarmed strike. On hit, once per turn: regain HP equal to Proficiency Bonus (limited uses, long rest); target has the Bloodied condition until the start of your next turn."},
+{"key": "double_bladed_scimitar", "weight": "6 lb", "name": "Double-bladed scimitar", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 2, "die": 4, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed"], "mastery": "", "mastery_desc": "Two-handed; With Attack action, one attack as bonus action for 1d4", "ammo": null, "monk": false, "source": "2014"},
+{"key": "hoopak__melee", "weight": "2 lb", "name": "Hoopak, melee", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["finesse", "two_handed"], "mastery": "", "mastery_desc": "Finesse, two-handed; Can be used ranged (40/160 ft) with ammo, for 1d4 bludgeoning damage", "ammo": null, "monk": false, "source": "2014"},
+{"key": "hoopak__ranged", "weight": "2 lb", "name": "Hoopak, ranged", "type": "Martial", "list": "ranged", "ability": "str", "damage": {"count": 1, "die": 4, "type": "bludgeoning"}, "versatile_die": null, "range": "40/160 ft", "thrown_range": null, "properties": ["finesse", "two_handed", "ammunition"], "mastery": "", "mastery_desc": "Ammunition, finesse, two-handed; Can be used in melee without ammo, for 1d6 piercing damage", "ammo": null, "monk": false, "source": "2014"},
+{"key": "oversized_longbow", "weight": "2 lb", "name": "Oversized Longbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 2, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "150/600 ft", "thrown_range": null, "properties": ["two_handed", "heavy", "ammunition"], "mastery": "", "mastery_desc": "Ammunition, heavy, two-handed; Damage uses Str; Requires Medium size and Str 18", "ammo": null, "monk": false, "source": "2014"},
+{"key": "force_demolisher", "name": "Force Demolisher", "type": "Simple", "list": "melee", "ability": "int", "damage": {"count": 1, "die": 10, "type": "force"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["reach"], "mastery": "", "mastery_desc": "Hit (target 1+ size smaller than me): push or pull target up to 10 ft", "ammo": null, "monk": false, "source": "EFotA", "desc": "Arcane Armor weapon (Dreadnaught model). Uses INT for attack and damage rolls."},
+{"key": "thunder_pulse", "name": "Thunder Pulse", "type": "Simple", "list": "melee", "ability": "int", "damage": {"count": 1, "die": 8, "type": "thunder"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": [], "mastery": "", "mastery_desc": "Hit: target has Disadvantage on attacks vs others until start of my next turn", "ammo": null, "monk": false, "source": "EFotA", "desc": "Arcane Armor weapon (Guardian model). Uses INT for attack and damage rolls."},
 {"key":"lightning_launcher","name":"Lightning Launcher","type":"Simple","list":"ranged","ability":"int","damage":{"count":1,"die":6,"type":"lightning"},"versatile_die":null,"range":"90/300 ft","thrown_range":null,"properties":[],"mastery":"","mastery_desc":"Once per turn on hit: +1d6 Lightning damage","ammo":null,"monk":false,"source":"EFotA","desc":"Arcane Armor weapon (Infiltrator model). Uses INT for attack and damage rolls."}];
 
 const PHB_ARMOUR = [
-{"key":"mage_armor","name":"Mage armor","ac":13,"type":"light","stealthDisadv":false,"strReq":0},
-{"key":"padded","weight":"8 lb","name":"Padded","ac":11,"type":"light","stealthDisadv":true,"strReq":0},
-{"key":"leather","weight":"10 lb","name":"Leather","ac":11,"type":"light","stealthDisadv":false,"strReq":0},
-{"key":"studded_leather","weight":"13 lb","name":"Studded leather","ac":12,"type":"light","stealthDisadv":false,"strReq":0},
-{"key":"hide","weight":"12 lb","name":"Hide","ac":12,"type":"medium","stealthDisadv":false,"strReq":0},
-{"key":"chain_shirt","weight":"20 lb","name":"Chain shirt","ac":13,"type":"medium","stealthDisadv":false,"strReq":0},
-{"key":"scale_mail","weight":"45 lb","name":"Scale mail","ac":14,"type":"medium","stealthDisadv":true,"strReq":0},
-{"key":"breastplate","weight":"20 lb","name":"Breastplate","ac":14,"type":"medium","stealthDisadv":false,"strReq":0},
-{"key":"half_plate","weight":"40 lb","name":"Half Plate","ac":15,"type":"medium","stealthDisadv":true,"strReq":0},
-{"key":"ring_mail","weight":"40 lb","name":"Ring Mail","ac":14,"type":"heavy","stealthDisadv":true,"strReq":0},
-{"key":"chain_mail","weight":"55 lb","name":"Chain Mail","ac":16,"type":"heavy","stealthDisadv":true,"strReq":13},
-{"key":"splint","weight":"60 lb","name":"Splint","ac":17,"type":"heavy","stealthDisadv":true,"strReq":15},
-{"key":"plate","weight":"65 lb","name":"Plate","ac":18,"type":"heavy","stealthDisadv":true,"strReq":15}
+{"key": "mage_armor", "name": "Mage armor", "ac": 13, "type": "light", "stealthDisadv": false, "strReq": 0},
+{"key": "padded", "weight": "8 lb", "name": "Padded", "ac": 11, "type": "light", "stealthDisadv": true, "strReq": 0, "value": "5 GP"},
+{"key": "leather", "weight": "10 lb", "name": "Leather", "ac": 11, "type": "light", "stealthDisadv": false, "strReq": 0, "value": "10 GP"},
+{"key": "studded_leather", "weight": "13 lb", "name": "Studded leather", "ac": 12, "type": "light", "stealthDisadv": false, "strReq": 0, "value": "45 GP"},
+{"key": "hide", "weight": "12 lb", "name": "Hide", "ac": 12, "type": "medium", "stealthDisadv": false, "strReq": 0, "value": "10 GP"},
+{"key": "chain_shirt", "weight": "20 lb", "name": "Chain shirt", "ac": 13, "type": "medium", "stealthDisadv": false, "strReq": 0, "value": "50 GP"},
+{"key": "scale_mail", "weight": "45 lb", "name": "Scale mail", "ac": 14, "type": "medium", "stealthDisadv": true, "strReq": 0, "value": "50 GP"},
+{"key": "breastplate", "weight": "20 lb", "name": "Breastplate", "ac": 14, "type": "medium", "stealthDisadv": false, "strReq": 0, "value": "400 GP"},
+{"key": "half_plate", "weight": "40 lb", "name": "Half Plate", "ac": 15, "type": "medium", "stealthDisadv": true, "strReq": 0, "value": "750 GP"},
+{"key": "ring_mail", "weight": "40 lb", "name": "Ring Mail", "ac": 14, "type": "heavy", "stealthDisadv": true, "strReq": 0, "value": "30 GP"},
+{"key": "chain_mail", "weight": "55 lb", "name": "Chain Mail", "ac": 16, "type": "heavy", "stealthDisadv": true, "strReq": 13, "value": "75 GP"},
+{"key": "splint", "weight": "60 lb", "name": "Splint", "ac": 17, "type": "heavy", "stealthDisadv": true, "strReq": 15, "value": "200 GP"},
+{"key": "plate", "weight": "65 lb", "name": "Plate", "ac": 18, "type": "heavy", "stealthDisadv": true, "strReq": 15, "value": "1,500 GP"}
 ];
 
 // ═══════════════════════════════════════════════════════════
@@ -23284,6 +23357,7 @@ function recalcAll() {
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
   if (typeof updateFormsTabVisibility === 'function') updateFormsTabVisibility();
   if (typeof syncHeroicInspirationResource === 'function') syncHeroicInspirationResource();
+  if (typeof syncNaturalWeapons === 'function') { syncNaturalWeapons(); if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory(); }
   if (typeof renderResourceTracker === 'function') renderResourceTracker();
   if (typeof renderConcSaveGuide === 'function') renderConcSaveGuide();
   // Auto-update HP max if using a calculated method
@@ -25206,7 +25280,7 @@ function getFeatGrantedSpells() {
   // Returns spells granted by feats (Magic Initiate, Fey Touched etc) from featSpells store
   // Excludes pact tome, mystic arcanum, and magical secrets (those have their own renderers)
   ensureSpellData();
-  const EXCLUDED_PREFIXES = ['pact_tome','mystic_arcanum','magical_secrets','magical_discoveries'];
+  const EXCLUDED_PREFIXES = ['pact_tome', 'book_of_ancient_secrets', 'mystic_arcanum', 'magical_secrets', 'magical_discoveries'];
   // Also exclude temp two-pass keys
   const EXCLUDED_SUFFIXES = ['_cantrips','_spells'];
   const result = [];
@@ -26328,6 +26402,19 @@ function getMonkDie() {
   return MONK_MARTIAL_DIE[Math.min(lv, 20)];
 }
 
+// Same as getMonkDie() above, but reads from an explicit character object
+// instead of the global currentChar — used by Party Overview's read-only
+// weapon preview, which never reassigns currentChar to whichever party
+// member's card is being shown; it just holds their data in a local
+// variable, so getAllClasses()/getClassLevelCount() would silently read
+// the wrong character (or none) if called directly from there.
+function getMonkDieForChar(c) {
+  const monkEntry = (c?.classes || []).find(e => e.class?.toLowerCase() === 'monk');
+  if (!monkEntry) return null;
+  const lv = monkEntry.levels?.length || 0;
+  return MONK_MARTIAL_DIE[Math.min(lv, 20)] || null;
+}
+
 // ── Calculate attack for a weapon entry ──────────────────
 function calcWeaponAttack(entry) {
   // entry = { weaponKey, name, attackBonus, damageBonus, versatileMode,
@@ -26396,8 +26483,17 @@ function calcWeaponAttack(entry) {
   atkBonus -= getDrunkennessAttackPenalty();
 
   // ── Damage ───────────────────────────────────────────────
-  let dmgDie, dmgCount, dmgType;
-  if (entry.customDamage) {
+  let dmgDie, dmgCount, dmgType, dmgLineBonus = 0, extraDamageLines = [];
+  if (Array.isArray(entry.damageLines) && entry.damageLines.length) {
+    const [first, ...rest] = entry.damageLines;
+    if (first && first.count && first.die) {
+      dmgCount = first.count; dmgDie = first.die; dmgType = first.type || '';
+      dmgLineBonus = first.bonus || 0;
+    }
+    extraDamageLines = rest.filter(l => l && l.count && l.die).map(l =>
+      `${l.count}d${l.die}${l.bonus ? (l.bonus>=0?'+':'')+l.bonus : ''}${l.type ? ' '+l.type : ''}`
+    );
+  } else if (entry.customDamage) {
     const cm = entry.customDamage.match(/^(\d+)d(\d+)$/i);
     if (cm) { dmgCount = parseInt(cm[1]); dmgDie = parseInt(cm[2]); dmgType = ''; }
   }
@@ -26447,6 +26543,7 @@ function calcWeaponAttack(entry) {
   dmgBonus += (entry.damageBonus || 0); // magic item bonus
   dmgBonus += (entry.attackBonus || 0); // magic +1/+2/+3 also adds to damage
   dmgBonus += ammoBonus; // magic ammunition bonus also adds to damage
+  dmgBonus += dmgLineBonus; // flat bonus on the weapon's own first damage line
 
   // Frenzy (Path of the Berserker): bonus dice on the first hit each turn while Raging + using Reckless Attack
   let frenzyDieStr = null;
@@ -26467,6 +26564,7 @@ function calcWeaponAttack(entry) {
     dmgStr = `${dmgCount}d${dmgDie}${dmgBonus >= 0 ? '+' : ''}${dmgBonus}${dmgType ? ' '+dmgType : ''}`.trim();
   }
   if (frenzyDieStr) dmgStr += ` + ${frenzyDieStr} (Frenzy)`;
+  if (extraDamageLines.length) dmgStr += extraDamageLines.map(l => ` + ${l}`).join('');
 
   // ── Notes ────────────────────────────────────────────────
   const notes = [];
@@ -30643,6 +30741,72 @@ window.clearAmmoType = clearAmmoType;
 // ── Weapon modal ──────────────────────────────────────────
 let _weaponEditIdx = null; // null = add new
 
+// Draft state for the weapon modal's structured damage-line editor — a
+// weapon can deal damage from more than one dice line (e.g. a flaming
+// sword: 1d8 Slashing + 1d6 Fire), each with its own dice count, die
+// size, flat bonus, and damage type. Mirrors the _msDraft pattern used
+// elsewhere for modal-scoped editing state; read back into entry.damageLines
+// on save. The first line is what drives the actual attack roll's
+// primary damage; any further lines are extra damage appended to the
+// display (see the "Damage" section of calcWeaponAttack for the
+// matching read side).
+let _wmDamageLines = [];
+const WEAPON_DAMAGE_TYPES = ['acid','bludgeoning','cold','fire','force','lightning','necrotic','piercing','poison','psychic','radiant','slashing','thunder'];
+
+function renderWeaponDamageLinesEditor() {
+  const body = document.getElementById('wm-damage-lines-list');
+  if (!body) return;
+  body.innerHTML = _wmDamageLines.map((line, i) => `
+    <div style="display:flex;gap:5px;align-items:center">
+      <input type="number" min="1" value="${line.count ?? 1}" placeholder="Qty" style="width:44px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:4px;color:var(--text);font-size:11px"
+        onchange="updateWeaponDamageLine(${i},'count',this.value)"/>
+      <span style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">d</span>
+      <select style="width:56px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:4px;color:var(--text);font-size:11px" onchange="updateWeaponDamageLine(${i},'die',this.value)">
+        ${[4,6,8,10,12,20].map(d => `<option value="${d}" ${(line.die||8)==d?'selected':''}>d${d}</option>`).join('')}
+      </select>
+      <input type="number" value="${line.bonus || 0}" placeholder="±0" style="width:52px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:4px;color:var(--text);font-size:11px"
+        onchange="updateWeaponDamageLine(${i},'bonus',this.value)"/>
+      <select style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:4px;color:var(--text);font-size:11px" onchange="updateWeaponDamageLine(${i},'type',this.value)">
+        ${WEAPON_DAMAGE_TYPES.map(t => `<option value="${t}" ${(line.type||'')===t?'selected':''}>${t[0].toUpperCase()+t.slice(1)}</option>`).join('')}
+      </select>
+      <span onclick="removeWeaponDamageLine(${i})" style="cursor:pointer;color:var(--red);font-size:14px;padding:0 4px" title="Remove this damage line">✕</span>
+    </div>`).join('');
+  updateWeaponModalPreview();
+}
+
+function addWeaponDamageLine() {
+  _wmDamageLines.push({ count: 1, die: 8, bonus: 0, type: '' });
+  renderWeaponDamageLinesEditor();
+}
+window.addWeaponDamageLine = addWeaponDamageLine;
+
+function removeWeaponDamageLine(idx) {
+  _wmDamageLines.splice(idx, 1);
+  renderWeaponDamageLinesEditor();
+}
+window.removeWeaponDamageLine = removeWeaponDamageLine;
+
+function updateWeaponDamageLine(idx, field, value) {
+  const line = _wmDamageLines[idx];
+  if (!line) return;
+  line[field] = (field === 'count' || field === 'die' || field === 'bonus') ? (parseInt(value) || 0) : value;
+  updateWeaponModalPreview();
+}
+window.updateWeaponDamageLine = updateWeaponDamageLine;
+
+// Small live preview of the combined damage string as lines are edited —
+// separate from onWeaponModalKeyChange's own preview (which shows the
+// catalog weapon's default properties/mastery), since a custom damage
+// override should visibly take priority once any lines exist.
+function updateWeaponModalPreview() {
+  const preview = document.getElementById('wm-preview');
+  if (!preview || !_wmDamageLines.length) return;
+  const validLines = _wmDamageLines.filter(l => l.count && l.die);
+  if (!validLines.length) return;
+  const combined = validLines.map(l => `${l.count}d${l.die}${l.bonus ? (l.bonus>=0?'+':'')+l.bonus : ''}${l.type ? ' '+l.type : ''}`).join(' + ');
+  preview.innerHTML = `<span style="color:var(--accent)">${combined}</span>`;
+}
+
 function openAddWeapon() {
   _invModalDMTarget = null;
   _weaponEditIdx = null;
@@ -30650,7 +30814,7 @@ function openAddWeapon() {
   document.getElementById('wm-name').value = '';
   document.getElementById('wm-attack-bonus').value = '0';
   document.getElementById('wm-damage-bonus').value = '0';
-  document.getElementById('wm-custom-damage').value = '';
+  _wmDamageLines = [];
   document.getElementById('wm-desc').value = '';
   document.getElementById('wm-qty').value = '1';
   document.getElementById('wm-weight').value = '';
@@ -30658,6 +30822,7 @@ function openAddWeapon() {
   document.getElementById('wm-proficient').checked = true;
   populateWeaponModalDropdown();
   document.getElementById('wm-weapon-key').value = '';
+  renderWeaponDamageLinesEditor();
   onWeaponModalKeyChange();
   openModal('weapon-edit-modal');
 }
@@ -30672,7 +30837,7 @@ function dmOpenAddWeaponForChar(charId, charName) {
   document.getElementById('wm-name').value = '';
   document.getElementById('wm-attack-bonus').value = '0';
   document.getElementById('wm-damage-bonus').value = '0';
-  document.getElementById('wm-custom-damage').value = '';
+  _wmDamageLines = [];
   document.getElementById('wm-desc').value = '';
   document.getElementById('wm-qty').value = '1';
   document.getElementById('wm-weight').value = '';
@@ -30680,6 +30845,7 @@ function dmOpenAddWeaponForChar(charId, charName) {
   document.getElementById('wm-proficient').checked = true;
   populateWeaponModalDropdown();
   document.getElementById('wm-weapon-key').value = '';
+  renderWeaponDamageLinesEditor();
   onWeaponModalKeyChange();
   openModal('weapon-edit-modal');
 }
@@ -30697,12 +30863,21 @@ function openWeaponEdit(idx) {
   document.getElementById('wm-name').value = entry.name || '';
   document.getElementById('wm-attack-bonus').value = String(entry.attackBonus || 0);
   document.getElementById('wm-damage-bonus').value = String(entry.damageBonus || 0);
-  document.getElementById('wm-custom-damage').value = entry.customDamage || '';
+  if (Array.isArray(entry.damageLines) && entry.damageLines.length) {
+    _wmDamageLines = entry.damageLines.map(l => ({ ...l }));
+  } else if (entry.customDamage) {
+    // Migrate the legacy single "XdY" string into one editable line.
+    const cm = entry.customDamage.match(/^(\d+)d(\d+)$/i);
+    _wmDamageLines = cm ? [{ count: parseInt(cm[1]), die: parseInt(cm[2]), bonus: 0, type: '' }] : [];
+  } else {
+    _wmDamageLines = [];
+  }
   document.getElementById('wm-desc').value = entry.desc || '';
   document.getElementById('wm-qty').value = String(entry.qty || 1);
   document.getElementById('wm-weight').value = entry.weight || '';
   document.getElementById('wm-equipped').checked = entry.equipped !== false;
   document.getElementById('wm-proficient').checked = entry.proficient !== false;
+  renderWeaponDamageLinesEditor();
   onWeaponModalKeyChange();
   openModal('weapon-edit-modal');
 }
@@ -30804,7 +30979,7 @@ async function applyWeaponModal() {
   const name    = document.getElementById('wm-name').value.trim();
   const atkBonus = parseInt(document.getElementById('wm-attack-bonus').value) || 0;
   const dmgBonus = parseInt(document.getElementById('wm-damage-bonus').value) || 0;
-  const customDmg = document.getElementById('wm-custom-damage').value.trim();
+  const damageLines = _wmDamageLines.filter(l => l.count && l.die).map(l => ({ ...l }));
   const desc      = document.getElementById('wm-desc').value.trim();
   const qty       = Math.max(1, parseInt(document.getElementById('wm-qty').value) || 1);
   const weight    = document.getElementById('wm-weight').value.trim();
@@ -30820,7 +30995,7 @@ async function applyWeaponModal() {
     name:          name || phb?.name || 'Weapon',
     attackBonus:   atkBonus,
     damageBonus:   dmgBonus,
-    customDamage:  customDmg || null,
+    damageLines:   damageLines.length ? damageLines : null,
     desc:          desc || null,
     qty:           qty,
     weight:        weight || null,
@@ -32451,6 +32626,50 @@ function getCompatibleWeaponKeys(typeStr) {
 // Auto-created entries are tagged with _fromMagicItem (the owning item's _uid)
 // so they can be found again, updated, or cleaned up without disturbing
 // weapons the player created manually.
+// Racial natural weapons (Aarakocra Talons, Centaur Hooves, Tabaxi Cat's
+// Claws, Dhampir Vampiric Fangs) — same "grown from your own body, not
+// carried" reasoning as Metamorph's organic weapons: always proficient,
+// no weight contribution, auto-removed if the race changes away from it.
+// currentChar.race isn't reliably just the plain key — some save paths
+// write the display name instead (the same ambiguity that caused a real
+// bug in Heroic Inspiration's Human detection) — so this matches against
+// both the key and the race's display name.
+function syncNaturalWeapons() {
+  if (!currentChar) return;
+  ensureWeaponData();
+  const NATURAL_WEAPON_BY_RACE = {
+    multiverse_aarakocra: 'aarakocra_talons',
+    multiverse_centaur:   'centaur_hooves',
+    tabaxi_motm:          'tabaxi_claws',
+    dhampir_boh:          'dhampir_fangs',
+  };
+  const raceRaw = (currentChar.race || '').toLowerCase().trim();
+  let wantedKey = NATURAL_WEAPON_BY_RACE[raceRaw] || null;
+  if (!wantedKey) {
+    // Fall back to matching by display name (e.g. "Tabaxi (MPMM)") in
+    // case race was saved as the name rather than the key.
+    for (const [raceKey, weaponKey] of Object.entries(NATURAL_WEAPON_BY_RACE)) {
+      const raceName = (PHB_RACES[raceKey]?.name || '').toLowerCase();
+      if (raceName && raceRaw === raceName) { wantedKey = weaponKey; break; }
+    }
+  }
+  const allNaturalKeys = Object.values(NATURAL_WEAPON_BY_RACE);
+  for (let idx = currentChar.weapons.length - 1; idx >= 0; idx--) {
+    const w = currentChar.weapons[idx];
+    if ((w.naturalWeapon || allNaturalKeys.includes(w.weaponKey)) && w.weaponKey !== wantedKey) {
+      currentChar.weapons.splice(idx, 1);
+    }
+  }
+  if (wantedKey && !currentChar.weapons.some(w => w.weaponKey === wantedKey)) {
+    const phb = PHB_WEAPONS.find(w => w.key === wantedKey);
+    if (phb) currentChar.weapons.push({
+      weaponKey: wantedKey, name: phb.name, equipped: true, proficient: true,
+      versatileMode: false, customDamage: null, naturalWeapon: true,
+    });
+  }
+}
+window.syncNaturalWeapons = syncNaturalWeapons;
+
 function syncMagicWeaponsToInventory() {
   if (!currentChar) return;
   ensureWeaponData();
@@ -36389,6 +36608,10 @@ function applyChoiceEffects() {
   // Human (Resourceful): auto-grant/remove the Heroic Inspiration resource
   // — see syncHeroicInspirationResource() for the full rationale.
   syncHeroicInspirationResource();
+
+  // Racial natural weapons — see syncNaturalWeapons() for the full
+  // rationale.
+  syncNaturalWeapons();
 
   // Metamorph: auto-add organic weapons when Metamorph subclass selected
   const _isMetamorph = (getClassEntry('psion')?.subclass || '').toLowerCase() === 'metamorph';
@@ -44506,14 +44729,53 @@ async function renderPartyOverview() {
           `<span style="font-size:9px;font-family:var(--font-ui);padding:2px 7px;border-radius:8px;background:var(--bg3);color:var(--text3);text-transform:uppercase;letter-spacing:.5px">${cond}</span>`
         ).join('');
 
+        // Party Overview is read-only reference — no equip toggles, qty
+        // steppers, or remove buttons like the real Inventory tab; just
+        // enough per-row detail to be useful at a glance, collapsed by
+        // default since a fully-geared level 10+ character across six
+        // categories would otherwise make every other card unreachable
+        // without scrolling.
+        const poSection = (title, count, rowsHTML) => {
+          if (!count) return '';
+          return `
+            <details class="po-details" style="margin-top:6px" onclick="event.stopPropagation()">
+              <summary style="cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;display:flex;align-items:center;gap:5px;user-select:none">
+                <span class="po-arrow">▶</span> ${title} <span style="color:var(--text2)">(${count})</span>
+              </summary>
+              <div style="padding-left:15px;margin-top:2px">${rowsHTML}</div>
+            </details>`;
+        };
+        const poRow = (name, sub, color, onclick) => `
+          <div style="padding:5px 0;border-top:1px solid var(--border);${onclick ? 'cursor:pointer' : ''}" ${onclick ? `onclick="event.stopPropagation();${onclick}"` : ''}>
+            <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:${color||'var(--text)'};${onclick ? "text-decoration:underline;text-decoration-color:transparent" : ''}" ${onclick ? `onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'"` : ''}>${name}${sub ? ` <span style="font-size:9px;font-weight:400;color:var(--text3)">${sub}</span>` : ''}</div>
+          </div>`;
+
+        const magicWeaponNames = new Set(
+          (c.magicItems || []).filter(mi => mi.isWeapon).map(mi => (mi.customName || mi.name || '').toLowerCase().trim())
+        );
+        const displayWeapons = (c.weapons || []).filter(w => !w._fromMagicItem && !magicWeaponNames.has((w.name || '').toLowerCase().trim()));
+        const charIdx = _partyOverviewItems.push(c) - 1;
+        const weaponsHTML = displayWeapons.map(w => {
+          const nm = w.name || PHB_WEAPONS.find(x => x.key === w.weaponKey)?.name || 'Weapon';
+          const idx = _partyOverviewItems.push(w) - 1;
+          return poRow(nm, w.equipped ? '· Equipped' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'weapon',_partyOverviewItems[${charIdx}])`);
+        }).join('');
+
+        const armorHTML = (c.armorOwned || []).map(a => {
+          const nm = a.name || PHB_ARMOUR.find(x => x.key === a.key)?.name || 'Armor';
+          const idx = _partyOverviewItems.push(a) - 1;
+          return poRow(nm, a.worn ? '· Worn' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'armor')`);
+        }).join('');
+
+        const gearHTML = (c.equipment || []).map(g => {
+          const idx = _partyOverviewItems.push(g) - 1;
+          return poRow(g.name || 'Item', (g.qty && g.qty > 1) ? `×${g.qty}` : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'gear')`);
+        }).join('');
+
         const itemsHTML = (c.magicItems || []).map(item => {
           const idx = _partyOverviewItems.push(item) - 1;
           const effRarity = (typeof getEffectiveItemRarity === 'function' ? getEffectiveItemRarity(item) : item.rarity) || '';
-          return `
-            <div style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" onclick="event.stopPropagation();openMagicItemDetailModal(_partyOverviewItems[${idx}])">
-              <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:${RARITY_COLOURS[effRarity.toLowerCase()] || 'var(--text)'};text-decoration:underline;text-decoration-color:transparent" onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'">${getItemDisplayName(item)}${effRarity ? ` <span style="font-size:9px;font-weight:400;color:var(--text3);text-transform:capitalize">(${effRarity})</span>` : ''}</div>
-            </div>
-          `;
+          return poRow(getItemDisplayName(item), effRarity ? `(${effRarity})` : '', RARITY_COLOURS[effRarity.toLowerCase()] || 'var(--text)', `openMagicItemDetailModal(_partyOverviewItems[${idx}])`);
         }).join('');
 
         const valuablesHTML = (c.valuables || []).map(v => {
@@ -44521,12 +44783,23 @@ async function renderPartyOverview() {
           if (!def) return '';
           const value = typeof getValuableValue === 'function' ? getValuableValue(v, def) : def.value;
           const qty = v.qty || 1;
-          return `
-            <div style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" onclick="event.stopPropagation();openTreasureDetailModal('${v.key.replace(/'/g,"\\'")}','valuable')">
-              <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:var(--coin-gold);text-decoration:underline;text-decoration-color:transparent" onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'">${def.name}${qty>1?` ×${qty}`:''} <span style="font-size:9px;font-weight:400;color:var(--text3);text-transform:none">(${value}${qty>1?' each':''})</span></div>
-            </div>
-          `;
+          return poRow(`${def.name}${qty>1?` ×${qty}`:''}`, `(${value}${qty>1?' each':''})`, 'var(--coin-gold)', `openTreasureDetailModal('${v.key.replace(/'/g,"\\'")}','valuable')`);
         }).join('');
+
+        const mountsHTML = (c.mountsVehicles || []).map(mv => {
+          const def = typeof MOUNTS_VEHICLES_CATALOG !== 'undefined' ? MOUNTS_VEHICLES_CATALOG.find(d => d.key === mv.key) : null;
+          if (!def) return '';
+          return poRow(def.name, '', 'var(--accent2)', `openTreasureDetailModal('${mv.key.replace(/'/g,"\\'")}','mount')`);
+        }).join('');
+
+        const inventorySectionsHTML = [
+          poSection('Weapons', displayWeapons.length, weaponsHTML),
+          poSection('Armor', (c.armorOwned||[]).length, armorHTML),
+          poSection('Gear', (c.equipment||[]).length, gearHTML),
+          poSection('Magic Items', (c.magicItems||[]).length, itemsHTML),
+          poSection('Valuables', (c.valuables||[]).length, valuablesHTML),
+          poSection('Mounts & Vehicles', (c.mountsVehicles||[]).length, mountsHTML),
+        ].join('');
 
         return `
           <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;${downed ? 'opacity:.6' : ''};display:flex;gap:16px;cursor:pointer" onclick="previewCharacterSheet('${id}')" title="Click to view ${(c.charName||'this character').replace(/"/g,'&quot;')}'s full sheet (read-only)">
@@ -44543,8 +44816,7 @@ async function renderPartyOverview() {
                 <div style="height:100%;width:${hpPct}%;background:${hpCol}"></div>
               </div>
               ${conditions ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${conditions}</div>` : ''}
-              ${itemsHTML ? `<div style="margin-top:8px">${itemsHTML}</div>` : ''}
-              ${valuablesHTML ? `<div style="margin-top:8px">${valuablesHTML}</div>` : ''}
+              ${inventorySectionsHTML}
             </div>
           </div>
         `;
