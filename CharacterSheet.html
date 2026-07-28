@@ -12698,6 +12698,7 @@ const CLASS_SKILL_COUNTS= {
 const RACE_SKILL_POOLS  = {
   "dwarf": {"pool": ["Insight", "Perception", "Survival"], "count": 1, "name": "Dwarf (PHB24)"},
   "elf": {"pool": ["Insight", "Perception", "Survival"], "count": 1, "name": "Elf (PHB24)"},
+  "elf_lfl": {"pool": ["Insight", "Perception", "Survival"], "count": 1, "name": "Elf (LFL)"},
   "halfling": {"pool": "any", "count": 1, "name": "Halfling (PHB24)"},
   "human": {"pool": "any", "count": 1, "name": "Human (PHB24)"},
   "half_elf": {"pool": "any", "count": 2, "name": "Half-Elf (EFotA)"},
@@ -37919,9 +37920,15 @@ function renderResourceTracker() {
   if (!body || !currentChar) return;
 
   const cls   = getPrimaryClass().toLowerCase().trim();
-  // Normalize race to key form — gatherSheetData may have written display name
+  // Normalize race to key form — gatherSheetData may have written display
+  // name. Only attempt this when the current value ISN'T already a valid
+  // PHB_RACES key — otherwise a perfectly valid race that simply has no
+  // RACIAL_RESOURCES entry (most races don't need one) would get
+  // incorrectly "corrected" via startsWith to any other, shorter race key
+  // it happens to be a prefix of (e.g. "elf_lfl" silently becoming "elf",
+  // permanently, on every render).
   let race = (currentChar.race||'').toLowerCase().trim();
-  if (race && !RACIAL_RESOURCES[race]) {
+  if (race && !PHB_RACES[race] && !RACIAL_RESOURCES[race]) {
     const matchKey = Object.keys(RACIAL_RESOURCES).find(k =>
       race.startsWith(k) || k === race.replace(/\s*\(.*\)/, '').trim()
     );
@@ -39171,7 +39178,7 @@ function doShortRest() {
 
   const cls   = getPrimaryClass().toLowerCase().trim();
   let race  = (currentChar.race||'').toLowerCase().trim();
-  if (race && !RACIAL_RESOURCES[race]) {
+  if (race && !PHB_RACES[race] && !RACIAL_RESOURCES[race]) {
     const _rk = Object.keys(RACIAL_RESOURCES).find(k => race.startsWith(k) || k === race.replace(/\s*\(.*\)/, '').trim());
     if (_rk) race = _rk;
   }
@@ -39241,8 +39248,9 @@ function buildAllResourceDefs() {
   if (!currentChar) return [];
   const cls   = getPrimaryClass().toLowerCase().trim();
   let race  = (currentChar.race||'').toLowerCase().trim();
-  // Normalize race key (strip display suffix like "(PHB24)")
-  if (race && !RACIAL_RESOURCES[race]) {
+  // Normalize race key (strip display suffix like "(PHB24)") — only when
+  // it's not already a valid PHB_RACES key on its own.
+  if (race && !PHB_RACES[race] && !RACIAL_RESOURCES[race]) {
     const matchKey = Object.keys(RACIAL_RESOURCES).find(k =>
       race.startsWith(k) || k === race.replace(/\s*\(.*\)/, '').trim()
     );
@@ -39393,8 +39401,8 @@ function doLongRest() {
   const cls   = getPrimaryClass().toLowerCase().trim();
   let race  = (currentChar.race||'').toLowerCase().trim();
 
-  // Normalize race key
-  if (race && !RACIAL_RESOURCES[race]) {
+  // Normalize race key — only when it's not already a valid PHB_RACES key
+  if (race && !PHB_RACES[race] && !RACIAL_RESOURCES[race]) {
     const _rk = Object.keys(RACIAL_RESOURCES).find(k =>
       race.startsWith(k) || k === race.replace(/\s*\(.*\)/, '').trim()
     );
