@@ -23734,6 +23734,7 @@ function populateMainSheet() {
     }
     let val = key.includes('.') ? key.split('.').reduce((o,k) => o?.[k], c) : c[key];
     if (val === undefined || val === null) return;
+    if (key === 'notes_bg' || key === 'backstory') val = deobfuscateText(val);
     if (el.type === 'checkbox') el.checked = !!val;
     else el.value = val;
   });
@@ -23798,6 +23799,41 @@ function populateMainSheet() {
 // GATHER SHEET DATA INTO currentChar BEFORE SAVE
 // ═══════════════════════════════════════════════════════════
 
+// Lightweight obfuscation for fields marked private (Private Notes, and
+// Backstory when the "keep private too" checkbox is on) — NOT real
+// encryption. The "key" below is embedded in this app's own source, so
+// anyone who reads the code (or just recognizes the OBF: prefix and looks
+// it up) can trivially reverse it. This exists specifically to stop
+// CASUAL browsing of the raw character file on GitHub — every player in
+// a campaign needs read access to that repo to save their own character,
+// so without this, opening someone else's file directly shows their
+// private text in the clear. It does not protect against anyone who
+// deliberately works out how this app stores things.
+const _OBF_KEY = "a D&D character sheet privacy shim, not real security";
+function obfuscateText(text) {
+  if (!text) return text;
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    out += String.fromCharCode(text.charCodeAt(i) ^ _OBF_KEY.charCodeAt(i % _OBF_KEY.length));
+  }
+  // btoa() only handles Latin1 — encode to UTF-8 bytes first so accents,
+  // emoji, etc. in someone's notes survive the round trip intact.
+  return 'OBF:' + btoa(unescape(encodeURIComponent(out)));
+}
+function deobfuscateText(stored) {
+  if (!stored || typeof stored !== 'string' || !stored.startsWith('OBF:')) return stored || '';
+  try {
+    const decoded = decodeURIComponent(escape(atob(stored.slice(4))));
+    let result = '';
+    for (let i = 0; i < decoded.length; i++) {
+      result += String.fromCharCode(decoded.charCodeAt(i) ^ _OBF_KEY.charCodeAt(i % _OBF_KEY.length));
+    }
+    return result;
+  } catch(e) {
+    return stored; // corrupted somehow — fail safe by showing the raw stored value rather than crashing
+  }
+}
+
 function gatherSheetData() {
   if (!currentChar) return;
   // Keys managed by their own systems — don't overwrite with raw input display values
@@ -23811,6 +23847,12 @@ function gatherSheetData() {
     // Handle flat keys only (nested handled separately)
     if (!key.includes('.')) currentChar[key] = val;
   });
+  // Obfuscate privacy-marked fields for storage — Private Notes always,
+  // Backstory only when the "keep private too" checkbox is on. This is
+  // what actually gets written to the saved file, so the raw plaintext
+  // never reaches the JSON on disk for these two fields.
+  if (currentChar.notes_bg) currentChar.notes_bg = obfuscateText(currentChar.notes_bg);
+  if (currentChar.backstoryPrivate && currentChar.backstory) currentChar.backstory = obfuscateText(currentChar.backstory);
   // Currency
   if (!currentChar.currency) currentChar.currency = {};
   ['cp','sp','gp','pp'].forEach(k => {
