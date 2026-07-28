@@ -4290,12 +4290,30 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <!-- ── FEAT DETAIL MODAL ─────────────────────────────────── -->
 <div class="modal-overlay hidden" id="spell-detail-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+
+<div class="modal-overlay hidden" id="give-inspiration-modal">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-title">
+      Heroic Inspiration Already Full
+      <span class="modal-close" onclick="declineGiveHeroicInspiration()">✕</span>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.5">
+      You're already at full Heroic Inspiration, so the Long Rest can't refresh it — by the rules, it's lost unless you give it to a party member who doesn't have it.
+    </div>
+    <div id="give-inspiration-list" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;margin-bottom:12px"></div>
+    <button class="tbtn" style="width:100%;font-size:11px" onclick="declineGiveHeroicInspiration()">Let it be lost</button>
+  </div>
+</div>
   <div class="modal" style="max-width:600px">
     <div class="modal-header">
       <span id="spell-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('spell-detail-modal')">✕</button>
     </div>
     <div id="spell-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
+    <div id="spell-detail-upcast-row" style="display:none;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)">
+      <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap">Cast at Level</label>
+      <select id="spell-detail-upcast-select" class="info-input" style="width:auto;min-width:70px" onchange="onSpellDetailLevelChange(this.value)"></select>
+    </div>
     <div id="spell-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:60vh;overflow-y:auto;padding-right:4px"></div>
   </div>
 </div>
@@ -7510,9 +7528,143 @@ function formatSpellComponents(sp) {
   return { text: parts.join(', '), consumed: hasM && (raw.includes('\u2020') || (sp.material && /consum/i.test(sp.material))) };
 }
 
+// Highlights the part of a cantrip's description that reflects what it
+// actually does at the character's current level — mirrors how some
+// other VTT/character tools show a heightened/scaled spell's live value
+// highlighted in the text, rather than making the player cross-reference
+// a separate scaling table themselves. Only fires for real cantrips
+// (level 0) with the standard "Cantrip Upgrade. The damage increases by
+// XdY..." phrasing PHB'24 cantrips consistently use — anything that
+// doesn't match that exact shape is left completely alone rather than
+// guessing, since a wrong substitution is worse than no highlight at all.
+function highlightCantripScaling(fullDescHtml, spell, charLevel) {
+  if (!spell || spell.level !== 0 || !fullDescHtml) return fullDescHtml;
+  const raw = spell.descFull || spell.desc || '';
+
+  // Eldritch Blast and anything else that scales beam/projectile count
+  // rather than a damage die — highlight the relevant beam-count clause
+  // in the Cantrip Upgrade paragraph itself, since there's no single
+  // number in the main body to swap out (it's a structural difference:
+  // one attack roll becomes several).
+  const beamMatch = raw.match(/creates? (two|three|four) beams? at level 5,? (two|three|four) beams? at level 11,? and (two|three|four) beams? at level 17/i);
+  if (beamMatch) {
+    const tier = charLevel >= 17 ? 3 : charLevel >= 11 ? 2 : charLevel >= 5 ? 1 : 0;
+    if (tier > 0) {
+      const words = ['one', beamMatch[1], beamMatch[2], beamMatch[3]];
+      const current = words[tier];
+      const pattern = new RegExp(`\\b(${current} beams?)\\b`, 'i');
+      return fullDescHtml.replace(pattern, (m, phrase) => `<span style="color:var(--accent);font-weight:600">${phrase}</span>`);
+    }
+    return fullDescHtml;
+  }
+
+  // Standard damage-dice scaling: "The damage increases by XdY when you
+  // reach levels 5 (2dY), 11 (3dY), and 17 (4dY)."
+  const dmgMatch = raw.match(/increases by \d+d(\d+) when you reach levels? 5 \((\d+)d\d+\),? 11 \((\d+)d\d+\),? and 17 \((\d+)d\d+\)/i);
+  if (!dmgMatch) return fullDescHtml;
+  const die = dmgMatch[1];
+  const tierCounts = [1, parseInt(dmgMatch[2]), parseInt(dmgMatch[3]), parseInt(dmgMatch[4])];
+  const tier = charLevel >= 17 ? 3 : charLevel >= 11 ? 2 : charLevel >= 5 ? 1 : 0;
+  const currentCount = tierCounts[tier];
+  // Only the FIRST occurrence of the base "1dY" in the main body (before
+  // the Cantrip Upgrade paragraph) is the live damage value to replace —
+  // the same pattern can legitimately appear again inside the upgrade
+  // text itself, which must stay untouched as reference/flavor text.
+  const upgradeIdx = fullDescHtml.search(/Cantrip Upgrade/i);
+  const before = upgradeIdx === -1 ? fullDescHtml : fullDescHtml.slice(0, upgradeIdx);
+  const after  = upgradeIdx === -1 ? '' : fullDescHtml.slice(upgradeIdx);
+  const basePattern = new RegExp(`\\b1d${die}\\b`);
+  if (!basePattern.test(before)) return fullDescHtml;
+  const replacement = currentCount === 1 ? `1d${die}` : `${currentCount}d${die}`;
+  const highlighted = before.replace(basePattern, `<span style="color:var(--accent);font-weight:600">${replacement}</span>`);
+  return highlighted + after;
+}
+
+const _NUMBER_WORDS = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
+
+// Same idea as highlightCantripScaling, for leveled spells cast with a
+// higher-than-base slot — checked directly against every matching spell
+// in the catalog before building this, so the two patterns below cover
+// the real, consistent phrasing PHB'24 spells use rather than a guess:
+// a flat "damage/healing increases by NdM per slot level above L" (the
+// large majority — Fireball, Cure Wounds, Guiding Bolt, etc.), or "one
+// more/additional [noun] per slot level above L" (Magic Missile,
+// Scorching Ray, and every spell that scales how many targets/effects it
+// affects, like Bless or Command). The second pattern only highlights
+// when the main body actually spells out a number word to find and
+// increment (e.g. "up to three creatures") — several spells with an
+// implied singular target ("Choose a Humanoid...") have nothing explicit
+// to highlight, and are left alone rather than guessing where to insert one.
+function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
+  if (!spell || !spell.level || spell.level === 0 || !fullDescHtml) return fullDescHtml;
+  const raw = spell.descFull || spell.desc || '';
+  const extraLevels = Math.max(0, castLevel - spell.level);
+
+  const upgradeIdx = fullDescHtml.search(/Using a Higher-Level Spell Slot|At Higher Levels/i);
+  const before = upgradeIdx === -1 ? fullDescHtml : fullDescHtml.slice(0, upgradeIdx);
+  const after  = upgradeIdx === -1 ? '' : fullDescHtml.slice(upgradeIdx);
+
+  // Pattern A: flat dice increase — "The X increases by NdM for each spell slot level above L."
+  const dmgMatch = raw.match(/increases by (\d+)d(\d+) for each spell slot level above \d+/i);
+  if (dmgMatch) {
+    const incCount = parseInt(dmgMatch[1]);
+    const die = dmgMatch[2];
+    const baseDicePattern = new RegExp(`(\\d+)d${die}\\b`);
+    const baseMatch = before.match(baseDicePattern);
+    if (!baseMatch) return fullDescHtml;
+    const newCount = parseInt(baseMatch[1]) + incCount * extraLevels;
+    const highlighted = before.replace(baseDicePattern, `<span style="color:var(--accent);font-weight:600">${newCount}d${die}</span>`);
+    return highlighted + after;
+  }
+
+  // Pattern B: "one more/additional [noun] for each spell slot level above L"
+  const countMatch = raw.match(/\bone (?:more|additional)\b[\w\s]*?\bfor each spell slot level above \d+/i);
+  if (countMatch) {
+    const numWordPattern = new RegExp(`\\b(${_NUMBER_WORDS.slice(1).join('|')})\\b`, 'i');
+    const baseMatch = before.match(numWordPattern);
+    if (!baseMatch) return fullDescHtml;
+    const baseNum = _NUMBER_WORDS.indexOf(baseMatch[1].toLowerCase());
+    const newNum = baseNum + extraLevels;
+    const newWord = _NUMBER_WORDS[newNum] || String(newNum);
+    const idx2 = before.search(numWordPattern);
+    const highlighted = before.slice(0, idx2) + `<span style="color:var(--accent);font-weight:600">${newWord}</span>` + before.slice(idx2 + baseMatch[1].length);
+    return highlighted + after;
+  }
+
+  return fullDescHtml;
+}
+
+let _spellDetailKey = null; // tracks which spell is open, so the level selector can re-render without needing the full modal-open flow again
+
+// Renders the spell detail body for a given cast level — shared by both
+// the initial modal open and the level selector's onchange, so they can
+// never drift out of sync with each other.
+function renderSpellDetailBody(sp, castLevel) {
+  const bodyEl = document.getElementById('spell-detail-body');
+  if (!bodyEl) return;
+  const fullDesc = sp.descFull || sp.desc || '';
+  let html = fullDesc
+    ? fullDesc.replace(/\n/g,'<br>').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/&lt;br&gt;/g,'<br>')
+    : '';
+  if (html) {
+    html = sp.level === 0
+      ? highlightCantripScaling(html, sp, typeof getLevel === 'function' ? getLevel() : 1)
+      : highlightSpellUpcast(html, sp, castLevel);
+  }
+  bodyEl.innerHTML = html || '<em style="color:var(--text3)">No description available.</em>';
+}
+
+function onSpellDetailLevelChange(levelStr) {
+  const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
+  if (!sp) return;
+  renderSpellDetailBody(sp, parseInt(levelStr) || sp.level);
+}
+window.onSpellDetailLevelChange = onSpellDetailLevelChange;
+
 function openSpellDetailModal(key, name) {
   const sp = PHB_SPELL_LIST.find(s => s.key === key);
   if (!sp) return;
+  _spellDetailKey = key;
 
   const titleEl = document.getElementById('spell-detail-title');
   const metaEl  = document.getElementById('spell-detail-meta');
@@ -7539,10 +7691,22 @@ function openSpellDetailModal(key, name) {
   ].filter(Boolean);
   metaEl.innerHTML = tags.join('');
 
-  const fullDesc = sp.descFull || sp.desc || '';
-  bodyEl.innerHTML = fullDesc
-    ? fullDesc.replace(/\n/g,'<br>').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/&lt;br&gt;/g,'<br>')
-    : '<em style="color:var(--text3)">No description available.</em>';
+  const upcastRow = document.getElementById('spell-detail-upcast-row');
+  const upcastSelect = document.getElementById('spell-detail-upcast-select');
+  const isUpcastable = sp.level > 0 && /Using a Higher-Level Spell Slot|At Higher Levels/i.test(sp.descFull || '');
+  if (upcastRow && upcastSelect) {
+    if (isUpcastable) {
+      const opts = [];
+      for (let lv = sp.level; lv <= 9; lv++) opts.push(`<option value="${lv}">${lv}${lv===sp.level?' (base)':''}</option>`);
+      upcastSelect.innerHTML = opts.join('');
+      upcastSelect.value = String(sp.level);
+      upcastRow.style.display = 'flex';
+    } else {
+      upcastRow.style.display = 'none';
+    }
+  }
+
+  renderSpellDetailBody(sp, sp.level);
   openModal('spell-detail-modal');
 }
 
@@ -32689,15 +32853,25 @@ function syncHeroicInspirationResource() {
   const isHuman = (currentChar.race || '').toLowerCase().trim().startsWith('human');
   if (!currentChar.customResources) currentChar.customResources = [];
   let entry = currentChar.customResources.find(r => r.id === 'heroic_inspiration');
+  const isNewEntry = !entry;
   if (!entry) {
     entry = { id: 'heroic_inspiration', name: 'Heroic Inspiration', max: 1, minLevel: 0 };
     currentChar.customResources.unshift(entry);
   }
   entry.desc = isHuman
     ? 'Reroll a d20 after seeing the result, before the DM says whether it succeeds — Human (Resourceful).'
-    : 'Reroll a d20 after seeing the result, before the DM says whether it succeeds. Granted situationally (DM award, another player\'s ability, etc.) — reset it yourself when you gain or spend it.';
+    : 'Reroll a d20 after seeing the result, before the DM says whether it succeeds. Granted situationally by the DM — starts unavailable until they grant it; reset it yourself when you gain or spend it.';
   entry.recovery = isHuman ? 'long' : '';
   entry.recoveryNote = '';
+  // A non-Human doesn't inherently start with Heroic Inspiration the way
+  // a Human does — only initialize it as already-used (0/1, i.e. not yet
+  // granted) the FIRST time this entry is ever created, never on later
+  // syncs, so this can't stomp a DM's actual grant or the player's
+  // current usage back to empty every time recalcAll() runs.
+  if (isNewEntry && !isHuman) {
+    if (!currentChar.resources) currentChar.resources = {};
+    currentChar.resources['heroic_inspiration'] = 1;
+  }
   return isHuman;
 }
 window.syncHeroicInspirationResource = syncHeroicInspirationResource;
@@ -37462,6 +37636,12 @@ function renderResourceTracker() {
   });
 
   // ── Custom (player-added) resources ───────────────────────
+  // Sync immediately before reading, not just relying on recalcAll/
+  // applyChoiceEffects to have already run first — guarantees the
+  // recovery type shown here (Long Rest for Human, Manual otherwise)
+  // always reflects the character's current race, even if this render
+  // pass happens to fire before those other call sites do.
+  if (typeof syncHeroicInspirationResource === 'function') syncHeroicInspirationResource();
   (currentChar.customResources || []).forEach(cr => {
     allDefs.push({
       id: cr.id, name: cr.name, desc: cr.desc || '',
@@ -38656,6 +38836,15 @@ function doLongRest() {
   if (!currentChar) return;
   if (!currentChar.resources) currentChar.resources = {};
 
+  // Capture BEFORE the reset loop below overwrites it — the whole point
+  // is knowing whether Inspiration was already full going into this Long
+  // Rest, since the actual rule ("if you gain it but already have it,
+  // it's lost unless given away") only applies to that specific case.
+  const isHumanForInspiration = (currentChar.race || '').toLowerCase().trim().startsWith('human');
+  const inspirationWasFull = isHumanForInspiration &&
+    (parseInt(currentChar.resources['heroic_inspiration']) || 0) === 0 &&
+    (currentChar.customResources || []).some(r => r.id === 'heroic_inspiration');
+
   // Contamination: each Long Rest finished while at 1+ levels risks
   // gaining another. Reminds rather than rolls — on a natural 1, gain a
   // level yourself via the Contamination pips, which will prompt the
@@ -38770,7 +38959,86 @@ function doLongRest() {
   debouncedSave();
   // Deferred re-render to catch any async state that settles after synchronous reset
   setTimeout(() => { if (currentChar) renderResourceTracker(); }, 50);
+
+  if (inspirationWasFull) {
+    setTimeout(() => promptGiveHeroicInspiration(), 100);
+  }
 }
+
+// Per the actual Heroic Inspiration rule: gaining it while already at full
+// means it's lost unless given to a party member who lacks it. Shown
+// after a Long Rest for a Human who was already full. Lists other
+// characters in the SAME campaign (excluding self) who don't currently
+// have it — writes directly to their file the same way any other
+// cross-character update in this app does (fresh fetch, modify, save,
+// broadcast), since this is one player granting it to another, not a
+// change to the giver's own data.
+async function promptGiveHeroicInspiration() {
+  const modal = document.getElementById('give-inspiration-modal');
+  const list = document.getElementById('give-inspiration-list');
+  if (!modal || !list) return;
+  list.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading party members…</div>';
+  openModal('give-inspiration-modal');
+
+  try {
+    const allChars = await fetchAllCharacters();
+    const myCampaign = currentChar._campaign || null;
+    const myId = currentChar.id || currentChar._id || null;
+    const eligible = allChars.filter(({ id, char }) => {
+      if ((char._campaign || null) !== myCampaign) return false;
+      if (id === myId || char.charName === currentChar.charName) return false;
+      const theirUsed = parseInt(char.resources?.['heroic_inspiration']) || 0;
+      return theirUsed > 0 || !(char.customResources || []).some(r => r.id === 'heroic_inspiration');
+    });
+
+    if (!eligible.length) {
+      list.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No one else in your campaign is missing Heroic Inspiration right now.</div>';
+      return;
+    }
+    list.innerHTML = eligible.map(({ id, char }) => `
+      <button class="tbtn" style="width:100%;text-align:left;font-size:12px;padding:8px 10px" onclick="giveHeroicInspirationTo('${id}','${(char.charName||id).replace(/'/g,"\\'")}')">
+        ${char.charName || id}
+      </button>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = `<div style="font-family:var(--font-ui);font-size:11px;color:var(--red)">Couldn't load party members: ${e.message}</div>`;
+  }
+}
+window.promptGiveHeroicInspiration = promptGiveHeroicInspiration;
+
+async function giveHeroicInspirationTo(charId, charName) {
+  try {
+    const { content: c, sha } = await GH.getFile(`${charId}.json`);
+    if (!c.customResources) c.customResources = [];
+    if (!c.customResources.some(r => r.id === 'heroic_inspiration')) {
+      const theirRace = (c.race || '').toLowerCase().trim();
+      const theirIsHuman = theirRace.startsWith('human');
+      c.customResources.unshift({
+        id: 'heroic_inspiration', name: 'Heroic Inspiration', max: 1, minLevel: 0,
+        recovery: theirIsHuman ? 'long' : '',
+        desc: theirIsHuman
+          ? 'Reroll a d20 after seeing the result, before the DM says whether it succeeds — Human (Resourceful).'
+          : 'Reroll a d20 after seeing the result, before the DM says whether it succeeds. Granted situationally by the DM — starts unavailable until they grant it; reset it yourself when you gain or spend it.',
+      });
+    }
+    if (!c.resources) c.resources = {};
+    c.resources['heroic_inspiration'] = 0; // 0 used = full
+    await GH.putFile(`${charId}.json`, c, sha);
+    if (typeof broadcastCharUpdate === 'function') broadcastCharUpdate(charId, 'magicItems');
+    toast(`Gave Heroic Inspiration to ${charName}`, 'ok');
+  } catch (e) {
+    toast('Failed to give Inspiration: ' + e.message, 'error');
+  } finally {
+    closeModal('give-inspiration-modal');
+  }
+}
+window.giveHeroicInspirationTo = giveHeroicInspirationTo;
+
+function declineGiveHeroicInspiration() {
+  closeModal('give-inspiration-modal');
+  toast('Heroic Inspiration lost — not given to anyone', 'info');
+}
+window.declineGiveHeroicInspiration = declineGiveHeroicInspiration;
 
 
 // ═══════════════════════════════════════════════════════════
