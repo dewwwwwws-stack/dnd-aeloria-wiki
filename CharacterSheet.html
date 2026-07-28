@@ -5420,29 +5420,45 @@ async function handleRemoteCharUpdate(field) {
     const conditionsChanged = JSON.stringify(fresh.conditions) !== JSON.stringify(currentChar.conditions);
 
     if ((field === 'magicItems' || field === 'full') && itemsChanged) {
-      currentChar.magicItems      = fresh.magicItems;
-      currentChar.customResources = fresh.customResources;
-      currentChar.resources       = fresh.resources;
-      if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel();
-      if (typeof renderResourceTracker === 'function') renderResourceTracker();
-      if (typeof recalcAll === 'function') recalcAll();
-      toast('Your DM updated your items', 'ok');
+      if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) {
+        // A local edit is still queued to be written — that's the user's
+        // own not-yet-persisted intent, and it must win over stale server
+        // data. Once the local save actually goes through, the server
+        // will reflect it and there's nothing left to reconcile.
+        console.log('[realtime] local save pending, deferring remote magicItems overwrite');
+      } else {
+        currentChar.magicItems      = fresh.magicItems;
+        currentChar.customResources = fresh.customResources;
+        currentChar.resources       = fresh.resources;
+        if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel();
+        if (typeof renderResourceTracker === 'function') renderResourceTracker();
+        if (typeof recalcAll === 'function') recalcAll();
+        toast('Your DM updated your items', 'ok');
+      }
     }
     if ((field === 'hp' || field === 'full') && hpChanged) {
-      currentChar.hp_current  = fresh.hp_current;
-      currentChar.hp_max      = fresh.hp_max;
-      currentChar.hp_temp     = fresh.hp_temp;
-      currentChar.exhaustion  = fresh.exhaustion;
-      currentChar.death_saves = fresh.death_saves;
-      if (typeof populateMainSheet === 'function') populateMainSheet();
-      if (typeof renderDeathSaves === 'function') renderDeathSaves();
-      toast('Your HP was updated', 'ok');
+      if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) {
+        console.log('[realtime] local save pending, deferring remote hp overwrite');
+      } else {
+        currentChar.hp_current  = fresh.hp_current;
+        currentChar.hp_max      = fresh.hp_max;
+        currentChar.hp_temp     = fresh.hp_temp;
+        currentChar.exhaustion  = fresh.exhaustion;
+        currentChar.death_saves = fresh.death_saves;
+        if (typeof populateMainSheet === 'function') populateMainSheet();
+        if (typeof renderDeathSaves === 'function') renderDeathSaves();
+        toast('Your HP was updated', 'ok');
+      }
     }
     if ((field === 'condition' || field === 'full') && conditionsChanged) {
-      currentChar.conditions = fresh.conditions;
-      currentChar.exhaustion = fresh.exhaustion;
-      if (typeof renderConditions === 'function') renderConditions();
-      toast('A condition changed', 'ok');
+      if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) {
+        console.log('[realtime] local save pending, deferring remote condition overwrite');
+      } else {
+        currentChar.conditions = fresh.conditions;
+        currentChar.exhaustion = fresh.exhaustion;
+        if (typeof renderConditions === 'function') renderConditions();
+        toast('A condition changed', 'ok');
+      }
     }
     if (field === 'note') {
       currentChar._dmNote = fresh._dmNote;
@@ -5738,17 +5754,24 @@ document.addEventListener('input', e => {
   if (e.target && e.target.tagName === 'TEXTAREA') autoGrowTextarea(e.target);
 });
 
-function openModal(id) {
+function openModal(id, keepOthersOpen = false) {
   const el = document.getElementById(id);
   if (!el) return;
   // Guarantee only one modal is ever visible at a time — if something else
   // was left open (a prior modal that didn't get properly closed, an
   // unrelated trigger firing alongside this one, etc.), this closes it
   // first rather than letting two modal-overlays stack on top of each
-  // other at the same z-index.
-  document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(other => {
-    if (other !== el) other.classList.add('hidden');
-  });
+  // other at the same z-index. keepOthersOpen=true opts out of this for
+  // genuinely nested flows (a picker sub-modal opening on top of an
+  // already-open parent modal, e.g. the scroll spell picker over the item
+  // editor) — without it, opening the sub-modal would silently force-close
+  // the parent, which never came back once the sub-modal closed, making
+  // the whole flow look like selecting anything had no effect at all.
+  if (!keepOthersOpen) {
+    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(other => {
+      if (other !== el) other.classList.add('hidden');
+    });
+  }
   // Always move modal to body to escape any stacking context (overflow:hidden, z-index, etc.)
   if (el.parentElement !== document.body) {
     el._originalParent = el.parentElement;
@@ -6080,8 +6103,8 @@ async function fetchAllCharacters() {
   const results = await Promise.all(chars.map(async (f) => {
     try {
       const id = f.name.replace('.json','');
-      const { content } = await GH.getFile(f.name);
-      return { id, char: content };
+      const { content, sha } = await GH.getFile(f.name);
+      return { id, char: content, sha };
     } catch(e) {
       console.warn('[fetchAllCharacters] failed for', f.name, e.message);
       return null;
@@ -6209,7 +6232,9 @@ function buildDMInventoryHTML(c, charId) {
     const rarityColor = RARITY_COLOURS[effRarity] || 'var(--gold)';
     const rarityLabel = effRarity ? effRarity.charAt(0).toUpperCase()+effRarity.slice(1) : '';
     const attuneSub = item.attunement ? (item.attuned ? 'Attuned' : 'Not attuned') : '';
-    const onEdit = `dmOpenItemEdit('${charId}','${charName}',${idx})`;
+    const onEdit = (item.isCustom || item.rarity === 'primeval vestige')
+      ? `dmOpenCustomItemEdit('${charId}','${charName}',${idx})`
+      : `dmOpenItemEdit('${charId}','${charName}',${idx})`;
     if (item.isWeapon && !item.isAmmo) {
       weaponRows.push({
         badge: 'WPN', color: rarityColor,
@@ -8237,8 +8262,8 @@ function enterApp() {
 }
 
 const _origOpenModal = openModal;
-openModal = function(id) {
-  _origOpenModal(id);
+openModal = function(id, keepOthersOpen = false) {
+  _origOpenModal(id, keepOthersOpen);
   if (id === 'hp-method-modal') renderHPMethods();
   if (id === 'ac-modal')        renderACMethods();
 };
@@ -32269,7 +32294,7 @@ function openMagicalSecrets(id, label, sourceLists, maxCount, desc, cantripOnly,
   document.getElementById('ms-level-filter').value = '';
 
   renderMSBrowser();
-  openModal('magical-secrets-modal');
+  openModal('magical-secrets-modal', true);
 }
 
 function renderMSBrowser() {
@@ -33871,7 +33896,7 @@ function refreshScrollRowDisplay() {
 }
 
 function openScrollSpellPicker() {
-  openModal('scroll-spell-picker-modal');
+  openModal('scroll-spell-picker-modal', true);
   renderScrollSpellPickerList();
 }
 window.openScrollSpellPicker = openScrollSpellPicker;
@@ -33950,6 +33975,23 @@ async function dmOpenItemEdit(charId, charName, idx) {
 }
 window.dmOpenItemEdit = dmOpenItemEdit;
 
+// DM-remote equivalent for custom/vestige items specifically — these carry
+// fields (effects, charges, granted spells) the regular mi-edit-modal
+// doesn't expose at all, so they need the full custom-item editor, not
+// dmOpenItemEdit's limited form.
+async function dmOpenCustomItemEdit(charId, charName, idx) {
+  try {
+    const { content: c } = await GH.getFile(`${charId}.json`);
+    const item = c.magicItems?.[idx];
+    if (!item) { toast('Item no longer exists — refreshing', 'warn'); refreshSingleCharacterCard(charId); return; }
+    _ciDMTarget = { charId, charName, idx, charData: c };
+    openCustomItemModal(idx, item);
+  } catch(e) {
+    toast('Failed to load item: ' + e.message, 'error');
+  }
+}
+window.dmOpenCustomItemEdit = dmOpenCustomItemEdit;
+
 async function applyMagicItemEdit() {
   const customName = document.getElementById('mi-edit-customname').value.trim();
   const weight     = document.getElementById('mi-edit-weight').value.trim();
@@ -34020,6 +34062,14 @@ async function applyMagicItemEdit() {
 let _ciEditIdx = null; // null = creating a new item; otherwise editing currentChar.magicItems[idx]
 let _ciMode = 'character'; // 'character' = owned custom item; 'catalog' = DM editing the shared catalog
 let _ciCatalogKey = null;  // catalog key being edited (catalog mode), or null when creating new
+// Set when a DM opens a SPECIFIC PLAYER'S ALREADY-OWNED custom/vestige item
+// for editing (as opposed to the shared catalog template in 'catalog' mode,
+// or the player's own item in 'character' mode). Previously there was no
+// way to edit an already-granted instance remotely at all — only its
+// catalog template — so DM edits never reached items already in a
+// player's inventory, and "remove and re-add" was the only way to pick up
+// a change (re-adding re-copies the now-updated catalog data fresh).
+let _ciDMTarget = null; // { charId, charName, idx } or null
 
 function toggleCustomItemChargeFields(checked) {
   const box = document.getElementById('ci-charge-fields');
@@ -34028,16 +34078,19 @@ function toggleCustomItemChargeFields(checked) {
   if (typeof renderCustomItemGrantedSpells === 'function') renderCustomItemGrantedSpells();
 }
 
-function openCustomItemModal(idx) {
+function openCustomItemModal(idx, dmItem = null) {
   ensureMagicItems();
   _ciMode = 'character';
   _ciCatalogKey = null;
+  if (!dmItem) _ciDMTarget = null;
   const delBtn = document.getElementById('ci-delete-btn');
   if (delBtn) delBtn.style.display = 'none';
   _ciEditIdx = (idx === undefined || idx === null) ? null : idx;
-  const item = _ciEditIdx !== null ? currentChar.magicItems[_ciEditIdx] : null;
+  const item = dmItem || (_ciEditIdx !== null ? currentChar.magicItems[_ciEditIdx] : null);
 
-  document.getElementById('ci-modal-title').textContent = item ? 'Edit Custom Item' : 'Add Custom Magic Item';
+  document.getElementById('ci-modal-title').textContent = _ciDMTarget
+    ? `Edit Custom Item — ${_ciDMTarget.charName}`
+    : (item ? 'Edit Custom Item' : 'Add Custom Magic Item');
   document.getElementById('ci-item-name').value        = item?.name || '';
   document.getElementById('ci-rarity').value      = item?.rarity || 'uncommon';
   document.getElementById('ci-attunement').value  = item?.attunement ? '1' : '0';
@@ -34056,7 +34109,7 @@ function openCustomItemModal(idx) {
   const hasCharges = !!item?._resourceId;
   document.getElementById('ci-has-charges').checked = hasCharges;
   toggleCustomItemChargeFields(hasCharges);
-  const linkedRes = hasCharges ? (currentChar.customResources || []).find(r => r.id === item._resourceId) : null;
+  const linkedRes = hasCharges ? ((_ciDMTarget?.charData || currentChar).customResources || []).find(r => r.id === item._resourceId) : null;
   document.getElementById('ci-charges-max').value      = linkedRes?.max || 1;
   document.getElementById('ci-charges-recovery').value = linkedRes?.recovery || 'long';
   document.getElementById('ci-charges-days').value     = linkedRes?.recoveryNote || '';
@@ -34171,8 +34224,7 @@ function renderCustomItemGrantedSpells() {
   `).join('');
 }
 
-function saveCustomItemModal() {
-  ensureMagicItems();
+async function saveCustomItemModal() {
   const name = document.getElementById('ci-item-name').value.trim();
   if (!name) { toast('Please enter a name for the item.', 'info'); return; }
 
@@ -34203,10 +34255,30 @@ function saveCustomItemModal() {
   const chargeRecovery = document.getElementById('ci-charges-recovery').value;
   const chargeNote     = chargeRecovery === 'none' ? document.getElementById('ci-charges-days').value.trim() : '';
 
+  // DM-remote: re-fetch fresh rather than trust whatever was loaded when
+  // the modal opened, same reasoning as applyMagicItemEdit's DM branch —
+  // avoids writing a save that conflicts with the SHA the player's own
+  // sheet may have advanced in the meantime.
+  const dmTarget = _ciDMTarget;
+  let targetChar, sha;
+  if (dmTarget) {
+    try {
+      const fetched = await GH.getFile(`${dmTarget.charId}.json`);
+      targetChar = fetched.content;
+      sha = fetched.sha;
+    } catch (e) {
+      toast('Failed to save item: ' + e.message, 'error');
+      return;
+    }
+  } else {
+    targetChar = currentChar;
+  }
+  if (!targetChar.magicItems) targetChar.magicItems = [];
+
   let item;
   if (_ciEditIdx !== null) {
-    item = currentChar.magicItems[_ciEditIdx];
-    if (!item) { closeModal('custom-item-modal'); return; }
+    item = targetChar.magicItems[_ciEditIdx];
+    if (!item) { closeModal('custom-item-modal'); toast('Item no longer exists', 'warn'); _ciDMTarget = null; return; }
   } else {
     item = {
       key: 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
@@ -34216,7 +34288,7 @@ function saveCustomItemModal() {
       attuned: false,
       _uid: 'mi_' + Math.random().toString(36).slice(2, 10),
     };
-    currentChar.magicItems.push(item);
+    targetChar.magicItems.push(item);
   }
 
   item.name       = name;
@@ -34248,12 +34320,12 @@ function saveCustomItemModal() {
 
   // Charges → linked entry in the Resources panel (same pip-tracker/rest-recovery as everything else)
   if (hasCharges) {
-    if (!currentChar.customResources) currentChar.customResources = [];
-    let res = item._resourceId ? currentChar.customResources.find(r => r.id === item._resourceId) : null;
+    if (!targetChar.customResources) targetChar.customResources = [];
+    let res = item._resourceId ? targetChar.customResources.find(r => r.id === item._resourceId) : null;
     if (!res) {
       const resId = 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6);
       res = { id: resId, name: '', desc: '', max: chargeMax, recovery: chargeRecovery, recoveryNote: chargeNote, _fromMagicItem: item._uid };
-      currentChar.customResources.push(res);
+      targetChar.customResources.push(res);
       item._resourceId = resId;
     } else {
       res.max = chargeMax;
@@ -34263,13 +34335,13 @@ function saveCustomItemModal() {
     res.name = item.customName || item.name;
     res.desc = shortDesc || desc.slice(0, 140);
   } else if (item._resourceId) {
-    currentChar.customResources = (currentChar.customResources || []).filter(r => r.id !== item._resourceId);
-    if (currentChar.resources) delete currentChar.resources[item._resourceId];
+    targetChar.customResources = (targetChar.customResources || []).filter(r => r.id !== item._resourceId);
+    if (targetChar.resources) delete targetChar.resources[item._resourceId];
     item._resourceId = null;
   }
 
   // Granted spells → resolve PHB spell keys, link/clean up resources for limited-use grants
-  if (!currentChar.customResources) currentChar.customResources = [];
+  if (!targetChar.customResources) targetChar.customResources = [];
   const oldResourceIds = new Set((item.grantedSpells || []).map(gs => gs._resourceId).filter(Boolean));
   const keptResourceIds = new Set();
 
@@ -34288,11 +34360,11 @@ function saveCustomItemModal() {
         ritual: !!gs.ritual, _resourceId: gs._resourceId || null,
       };
       if (out.grantType === 'limited') {
-        let res = out._resourceId ? currentChar.customResources.find(r => r.id === out._resourceId) : null;
+        let res = out._resourceId ? targetChar.customResources.find(r => r.id === out._resourceId) : null;
         if (!res) {
           const resId = 'custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6) + '_' + Math.random().toString(36).slice(2,4);
           res = { id: resId, name: '', desc: '', max: out.usesMax, recovery: out.recovery, _fromMagicItem: item._uid };
-          currentChar.customResources.push(res);
+          targetChar.customResources.push(res);
           out._resourceId = resId;
         } else {
           res.max = out.usesMax;
@@ -34310,17 +34382,72 @@ function saveCustomItemModal() {
   // Clean up resources for grants that were removed or switched off limited-use
   oldResourceIds.forEach(resId => {
     if (!keptResourceIds.has(resId)) {
-      currentChar.customResources = currentChar.customResources.filter(r => r.id !== resId);
-      if (currentChar.resources) delete currentChar.resources[resId];
+      targetChar.customResources = targetChar.customResources.filter(r => r.id !== resId);
+      if (targetChar.resources) delete targetChar.resources[resId];
     }
   });
 
   closeModal('custom-item-modal');
-  renderMagicItemsPanel();
-  if (typeof renderResourceTracker === 'function') renderResourceTracker();
-  recalcAll();
-  debouncedSave();
-  toast(`${name} saved`, 'ok');
+
+  if (dmTarget) {
+    try {
+      await GH.putFile(`${dmTarget.charId}.json`, targetChar, sha);
+      broadcastCharUpdate(dmTarget.charId, 'magicItems');
+      const cached = _partyCharCache[dmTarget.charId];
+      if (cached) Object.assign(cached, targetChar);
+      const cachedList = _allCharFiles.find(f => f.id === dmTarget.charId);
+      if (cachedList) cachedList.char = targetChar;
+      refreshSingleCharacterCard(dmTarget.charId, targetChar);
+
+      // Propagate the same definitional update to every other character
+      // who owns a matching instance (same key) — a shared/evolving item
+      // like a Primeval Vestige can exist on more than one PC, and all of
+      // them need to reflect the same growth, not just whichever one the
+      // DM happened to click on. Only the "what the item IS" fields sync;
+      // nothing about how a specific player has configured or used their
+      // own copy gets touched.
+      let syncedCount = 0;
+      if (item.key) {
+        const allChars = await fetchAllCharacters();
+        for (const entry of allChars) {
+          if (entry.id === dmTarget.charId) continue; // already handled above
+          const matches = (entry.char.magicItems || []).filter(mi => mi.key === item.key);
+          if (!matches.length) continue;
+          matches.forEach(mi => {
+            mi.name       = name;
+            mi.rarity     = rarity;
+            mi.attunement = attunement;
+            mi.type       = type;
+            mi.isWeapon   = isWeapon;
+            mi.isArmour   = isArmour;
+            mi.isAmmo     = isAmmo;
+            mi.shortDesc  = shortDesc;
+            mi.desc       = desc;
+            mi.effects    = Object.keys(effects).length ? effects : null;
+          });
+          await GH.putFile(`${entry.id}.json`, entry.char, entry.sha);
+          broadcastCharUpdate(entry.id, 'magicItems');
+          const cached2 = _partyCharCache[entry.id];
+          if (cached2) Object.assign(cached2, entry.char);
+          const cachedList2 = _allCharFiles.find(f => f.id === entry.id);
+          if (cachedList2) cachedList2.char = entry.char;
+          refreshSingleCharacterCard(entry.id, entry.char);
+          syncedCount++;
+        }
+      }
+      toast(`${name} updated for ${dmTarget.charName}` + (syncedCount ? ` and ${syncedCount} other character${syncedCount>1?'s':''}` : ''), 'ok');
+    } catch (e) {
+      toast('Failed to save item: ' + e.message, 'error');
+    } finally {
+      _ciDMTarget = null;
+    }
+  } else {
+    renderMagicItemsPanel();
+    if (typeof renderResourceTracker === 'function') renderResourceTracker();
+    recalcAll();
+    debouncedSave();
+    toast(`${name} saved`, 'ok');
+  }
 }
 
 // ── DM catalog item management ────────────────────────────
@@ -34670,6 +34797,7 @@ async function confirmGrantItem() {
       const { content: c, sha } = await GH.getFile(`${charId}.json`);
 
       let itemName;
+      let grantedIdx = null;
       if (_grantItemType === 'magic') {
         const result = addMagicItemToCharacter(c, _grantItemKey);
         if (!result.added) {
@@ -34677,6 +34805,7 @@ async function confirmGrantItem() {
           return;
         }
         itemName = result.item.name;
+        grantedIdx = (c.magicItems || []).indexOf(result.item);
       } else {
         const entry = _grantEntryFor(_grantItemType, _grantItemKey);
         if (_grantItemType === 'weapon') { if (!c.weapons) c.weapons = []; c.weapons.push(entry); itemName = entry.name; }
@@ -34703,6 +34832,19 @@ async function confirmGrantItem() {
       if (cached) cached.char = c;
       toast(`${itemName} granted to ${c.charName||charId}`, 'ok');
       closeModal('grant-item-modal');
+
+      // Same "needs a follow-up choice" check as the player-side add flow —
+      // a granted item left unconfigured (spell never chosen on a scroll,
+      // bonus tier never picked, etc.) would otherwise just sit there as
+      // generic/Common with no obvious path back to configuring it.
+      if (_grantItemType === 'magic' && grantedIdx !== null) {
+        const grantedItem = c.magicItems[grantedIdx];
+        const fx = grantedItem.effects || {};
+        const needsBonusPick = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable' || !!grantedItem.tiers || !!grantedItem.resistanceOptions || (grantedItem.type||'').toLowerCase() === 'scroll';
+        if (needsBonusPick) {
+          setTimeout(() => dmOpenItemEdit(charId, c.charName || charId, grantedIdx), 150);
+        }
+      }
       return;
     } catch(e) {
       lastErr = e;
