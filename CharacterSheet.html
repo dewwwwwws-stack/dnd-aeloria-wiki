@@ -19794,7 +19794,10 @@ function hasMageArmorAccess() {
     ...(currentChar.spells?.known    || []),
     ...(currentChar.spells?.spellbook|| []),
   ];
-  return allSpellKeys.some(k => k === 'mage_armor');
+  if (allSpellKeys.some(k => k === 'mage_armor')) return true;
+  // Feat-granted (Magic Initiate, or any other feat that can grant it)
+  if (typeof getFeatGrantedSpells === 'function' && getFeatGrantedSpells().some(s => s.key === 'mage_armor')) return true;
+  return false;
 }
 
 // Cloak of the Bat: the Fly Speed only works while gripping the cloak's
@@ -37230,6 +37233,41 @@ function renderResourceTracker() {
     });
   }
 
+  // Auto-generate resources from feat-granted leveled spells (Magic
+  // Initiate's 1st-level spell, and anything else that works the same
+  // way) — cast once without expending a spell slot, regained on a Long
+  // Rest. Cantrips are excluded since they're always available and need
+  // no tracking at all.
+  if (typeof getFeatGrantedSpells === 'function') {
+    getFeatGrantedSpells().filter(s => s.level > 0).forEach(s => {
+      const id = `feat_spell_${s.key}`.replace(/[^a-z0-9_]/g,'_');
+      if (allDefs.find(d => d.id === id)) return;
+      allDefs.push({
+        id, name: s.name, recovery: 'long', _max: 1,
+        desc: `Cast ${s.name} once without a spell slot. Regain this use on a Long Rest (still castable normally using an actual spell slot, unlimited).`,
+      });
+    });
+  }
+
+  // Auto-generate a toggle resource for invocation-granted at-will spells
+  // that are also ongoing Active Effects (currently just Mage Armor via
+  // Armor of Shadows) — being "free" doesn't mean it's automatically on;
+  // it still needs to be activated like any other conditional buff, and
+  // this gives a way to do that directly from the Resource Tracker
+  // instead of only from the Defense tab's own checkbox (both read/write
+  // the exact same underlying state, so toggling either one stays in sync).
+  if (typeof getInvocationGrantedSpells === 'function') {
+    getInvocationGrantedSpells().forEach(s => {
+      if (s.key !== 'mage_armor' || s.grantType !== 'atWill') return;
+      const id = `invocation_toggle_${s.key}`;
+      if (allDefs.find(d => d.id === id)) return;
+      allDefs.push({
+        id, name: s.name, type: 'toggle', effectId: s.key, recovery: '',
+        desc: `Granted at will by ${s.invoc || 'an invocation'} — toggle on while active, no slot or use expended.`,
+      });
+    });
+  }
+
   // ── Subclass feature resources ────────────────────────
   // Scan each class's subclass features for usages-bearing features
   getAllClasses().forEach(entry => {
@@ -37630,6 +37668,7 @@ function renderResourceEntry(def, level, prof) {
   const isDisplay = def.type === 'display';
   const isModalBtn = def.type === 'modal-button';
   const isActivateRecovery = def.type === 'activate-recovery';
+  const isToggle = def.type === 'toggle';
   const _rawRec  = (def.recovery || 'long').toLowerCase().trim();
   const recovery = _rawRec.startsWith('short') || _rawRec === 'sr' ? 'short'
                  : _rawRec.startsWith('long')  || _rawRec === 'lr' ? 'long'
@@ -37645,7 +37684,7 @@ function renderResourceEntry(def, level, prof) {
   const _ttMeta = def.recoveryNote ? `Manual only — ${def.recoveryNote}` : recovery ? `Recovers on ${recovery === 'short' ? 'Short Rest' : recovery === 'long' ? 'Long Rest' : recovery}` : '';
   const _ttJumpName = (def.name||def.label||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
   const recLabel = recovery === 'short' ? 'SR' : recovery === 'long' ? 'LR' : recovery === 'dusk' ? 'DUSK' : recovery === 'dawn' ? 'DAWN'
-                 : def.recoveryNote ? def.recoveryNote.slice(0, 16) : 'MANUAL';
+                 : def.recoveryNote ? (def.recoveryNote.length > 10 ? def.recoveryNote.slice(0, 9) + '…' : def.recoveryNote) : 'MANUAL';
 
   // Evaluate dieFormula if present (e.g. psionic energy dice size)
   let _dieBadge = '';
@@ -37706,6 +37745,18 @@ function renderResourceEntry(def, level, prof) {
           ${isExhausted?'disabled':''} onclick="${isExhausted?'':`activateRecoveryFeature('${def.id}','${def.recoveryAction}',${max})`}">
           ▶ Activate
         </button>
+      </div>
+      <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${def.desc||''}</div>
+    </div>`;
+  } else if (isToggle) {
+    const isOn = typeof isEffectActive === 'function' && isEffectActive(def.effectId);
+    html += `<div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="tbtn" style="font-size:10px;padding:5px 12px;${isOn?'background:var(--accent);color:#000;font-weight:700':''}"
+          onclick="toggleActiveEffect('${def.effectId}');renderResourceTracker();">
+          ${isOn ? '◉ Active' : '○ Activate'}
+        </button>
+        <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">At will</span>
       </div>
       <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${def.desc||''}</div>
     </div>`;
