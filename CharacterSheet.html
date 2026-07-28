@@ -2625,6 +2625,14 @@ body.preview-readonly #mi-detail-edit-row * {
                 <option value="">— Subrace —</option>
               </select>
             </div>
+            <div id="ci-racial-spell-ability-row" style="display:none;margin-bottom:10px">
+              <label class="field-label">Racial Spellcasting Ability <span style="font-weight:400;text-transform:none;color:var(--text3)">(chosen once, when you select this lineage — used for the DC/attack of spells granted by this racial trait)</span></label>
+              <select class="info-input" id="ci-racial-spell-ability" data-key="racialSpellAbility" style="width:100%" onchange="recalcAll()">
+                <option value="int">Intelligence</option>
+                <option value="wis">Wisdom</option>
+                <option value="cha">Charisma</option>
+              </select>
+            </div>
             <div style="margin-bottom:10px">
               <label class="field-label">Size <span style="font-weight:400;text-transform:none;color:var(--text3)">(affects carrying capacity — leave on Auto unless it differs from your race, e.g. a child character)</span></label>
               <select class="info-input" id="ci-size-override" data-key="sizeOverride" style="width:100%" onchange="onSizeOverrideChange()">
@@ -3284,6 +3292,7 @@ body.preview-readonly #mi-detail-edit-row * {
           <div class="spell-stat-box"><div class="spell-stat-label" id="sp-prep-label">Prepared</div><div class="spell-stat-val" id="sp-prepared">—</div></div>
         </div>
         <div id="sp-casting-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5"></div>
+        <div id="sp-racial-stats-note" style="font-family:var(--font-ui);font-size:10px;color:var(--gold);margin-top:4px;line-height:1.5;display:none"></div>
         <div id="sp-active-effects" style="margin-top:8px;display:none"></div>
 
         <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
@@ -3397,6 +3406,7 @@ body.preview-readonly #mi-detail-edit-row * {
           </span>
           <div style="display:flex;gap:6px;align-items:center">
             <button class="tbtn" id="sp-feat-config-btn" style="font-size:9px;padding:2px 8px;color:var(--gold);border-color:var(--gold);display:none" onclick="openFeatConfigFromSpellsTab()"></button>
+            <button class="tbtn" id="sp-spellbook-setup-btn" style="font-size:9px;padding:2px 8px;color:var(--gold);display:none" onclick="openSpellbookSetup()">📖 Spellbook Setup</button>
             <button class="tbtn" id="sp-levelup-btn" style="font-size:9px;padding:2px 8px;color:var(--accent);display:none" onclick="openLevelUpSpellModal()">✦ Manage Spells</button>
           </div>
         </div>
@@ -4573,6 +4583,38 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <!-- ── SKILL PROFICIENCY SETUP MODAL ─────────────────────── -->
 <div class="modal-overlay hidden" id="magical-secrets-modal">
+
+<div class="modal-overlay hidden" id="spellbook-setup-modal">
+  <div class="modal-box" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-title">
+      Spellbook Setup
+      <span class="modal-close" onclick="closeModal('spellbook-setup-modal')">✕</span>
+    </div>
+    <div id="sbs-summary" style="font-family:var(--font-ui);font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)"></div>
+
+    <div style="overflow-y:auto;flex:1;min-height:0">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase">Base Spellbook Spells</div>
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2)"><span id="sbs-base-count">0</span> / <span id="sbs-base-target">0</span> selected</div>
+        </div>
+        <input type="text" id="sbs-base-search" class="info-input" placeholder="Search spells…" style="margin-bottom:6px" oninput="renderSpellbookSetupPicker('base')">
+        <div id="sbs-base-list" style="display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:4px"></div>
+      </div>
+
+      <div id="sbs-savant-section" style="margin-top:14px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase"><span id="sbs-savant-title">Savant Spells</span> (free)</div>
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2)"><span id="sbs-savant-count">0</span> / <span id="sbs-savant-target">0</span> selected</div>
+        </div>
+        <input type="text" id="sbs-savant-search" class="info-input" placeholder="Search spells…" style="margin-bottom:6px" oninput="renderSpellbookSetupPicker('savant')">
+        <div id="sbs-savant-list" style="display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:4px"></div>
+      </div>
+    </div>
+
+    <button class="tbtn primary" style="width:100%;margin-top:12px" onclick="applySpellbookSetup()">Add Selected Spells to Spellbook</button>
+  </div>
+</div>
   <div class="modal-box" style="max-width:520px;max-height:88vh;display:flex;flex-direction:column">
     <div class="modal-title">
       <span id="ms-modal-title">Magical Secrets</span>
@@ -9003,10 +9045,10 @@ const PHB_SUBCLASSES = {
   "warlock/the celestial": {"name":"The Celestial","source":"PHB","bonusSpells":["cure_wounds", "guiding_bolt", "lesser_restoration", "light", "sacred_flame", "daylight", "revivify", "guardian_of_faith", "wall_of_fire", "greater_restoration", "summon_celestial"],"features":[{"name": "Healing Light", "level": 3, "desc": "As a Bonus Action, heal a visible creature within 60 ft (or myself) by spending dice from a pool. Pool = 1d6 per Warlock level. Spend up to CHA modifier dice at once. Each die heals 1d6 HP. Pool replenishes on Long Rest.", "usages": null, "recovery": null}, {"name": "Radiant Soul", "level": 6, "desc": "Once per turn when I deal Radiant or Fire spell damage, I add my CHA modifier to the spell's damage against one of its targets.", "usages": null, "recovery": null}, {"name": "Celestial Resilience", "level": 10, "desc": "I gain Temp HP when I finish a Rest or use Magical Cunning (Warlock level + CHA modifier). Up to 5 visible creatures also each gain 1/2 my Warlock level Temp HP.", "usages": null, "recovery": null}, {"name": "Searing Vengeance", "level": 14, "desc": "Once per Long Rest when an ally within 60 ft or I would make a Death Save, I can instead: end Prone condition on that creature, it regains HP equal to half its HP maximum, stands up, and each creature within 30 ft of my choice takes 2d8 + CHA Radiant damage and is Blinded until end of my next turn.", "usages": 1, "recovery": "long rest"}]},
   "warlock/the fiend": {"name":"The Fiend","source":"PHB","bonusSpells":["burning_hands", "command", "scorching_ray", "suggestion", "fireball", "stinking_cloud", "fire_shield", "wall_of_fire", "geas", "insect_plague"],"features":[{"name": "Dark One's Blessing", "level": 3, "desc": "When I reduce a hostile creature to 0 HP, I gain CHA modifier + Warlock level Temp HP (min 1). Also gain this temp HP if an enemy within 10 ft drops to 0 HP.", "usages": null, "recovery": null}, {"name": "Dark One's Own Luck", "level": 6, "desc": "Once per roll, when I make an ability check or saving throw, I can add 1d10 after rolling the d20 but before results apply.", "usages": null, "recovery": null}, {"name": "Fiendish Resilience", "level": 10, "desc": "At the end of a Rest, choose one damage type (not Force) to be Resistant to until I choose another at the end of a rest.", "usages": null, "recovery": null}, {"name": "Hurl Through Hell", "level": 14, "desc": "Once per turn when I hit a creature, I can force it to make a CHA save or be Incapacitated and disappear to a hellish demiplane until the start of my next turn, taking 8d10 Psychic damage on return.", "usages": 1, "recovery": "long rest"}]},
   "warlock/the great old one": {"name":"The Great Old One","source":"PHB","bonusSpells":["detect_thoughts", "dissonant_whispers", "phantasmal_force", "tashas_hideous_laughter", "clairvoyance", "hunger_of_hadar", "confusion", "summon_aberration", "modify_memory", "telekinesis"],"features":[{"name": "Awakened Mind", "level": 3, "desc": "As a Bonus Action, one visible creature within 30 ft and I can speak telepathically while within CHA modifier \u00d7 10 ft. The effect ends after 10 minutes.", "usages": null, "recovery": null}, {"name": "Clairvoyant Combatant", "level": 6, "desc": "When I use Awakened Mind, I can force the creature to make a WIS save. Fail: Disadvantage on attacks against me and I have Advantage on attacks against it for the duration.", "usages": 1, "recovery": "short rest"}, {"name": "Eldritch Hex", "level": 10, "desc": "I always have Hex prepared. When I cast it and choose an Ability, the target also has Disadvantage on saving throws using that Ability for the spell's duration.", "usages": null, "recovery": null}, {"name": "Create Thrall", "level": 14, "desc": "Summon Aberration can be cast without Concentration; that casting lasts 1 minute and the Aberration gains Temp HP equal to my Warlock level. When I cast it with a spell slot, its Temp HP also equals my Warlock level.", "usages": null, "recovery": null}]},
-  "wizard/abjurer": {"name":"Abjurer","source":"PHB","features":[{"name":"Abjuration Savant","level":3,"desc":"Whenever I prepare my Wizard spells, I can prepare a number of Abjuration spells in addition to my normal preparations. The maximum spell level of these bonus spells and how many I can prepare both increase as I gain Wizard levels. These spells don't count against the number of spells I can prepare.","usages":null,"recovery":null},{"name":"Arcane Ward","level":3,"desc":"Once per Long Rest when I cast an Abj spell with a spell slot I can create a magic ward on myself that lasts until the end of my next Long Rest. When I take damage the ward takes it instead; I apply my Resistances & Vulnerabilities before this. If th","usages":null,"recovery":"long rest"},{"name":"Projected Ward","level":6,"desc":"When a creature I can see w/in 30 ft of me takes damage, I can take a Reaction for my Arcane Ward to absorb that it after that creature's Resistances & Vulnerabilities. If the ward reaches 0 Hit Points the warded creature takes any remaining damage.","usages":null,"recovery":null},{"name":"Spell Breaker","level":10,"desc":"I always have Counterspell & Dispel Magic prepared. I can cast Dispel Magic as a Bonus Action & add my Prof Bonus to its ability check. When I cast either spell with a spell slot that slot isn't expended if the spell fails.","usages":null,"recovery":null},{"name":"Spell Resistance","level":14,"desc":"I have Adv on saving throws against spells & Resistance to the damage of spells.","usages":null,"recovery":null}]},
-  "wizard/diviner": {"name":"Diviner","source":"PHB","features":[{"name":"Divination Savant","level":3,"desc":"Whenever I prepare my Wizard spells, I can prepare a number of Divination spells in addition to my normal preparations. The maximum spell level of these bonus spells and how many I can prepare both increase as I gain Wizard levels. These spells don't count against the number of spells I can prepare.","usages":null,"recovery":null},{"name":"Portent","level":3,"desc":"When I finish a Long Rest I can record a number of d20 rolls; Once per turn before a d20 test is rolled by me or a crea. I can see, I can replace the roll, spending the d20. These reset when I finish a long rest.","usages":null,"recovery":null},{"name":"Expert Divination","level":6,"desc":"When I cast using a level 2+ spell slot, I regain one slot below the level cast & level 5-.","usages":null,"recovery":null},{"name":"The Third Eye","level":10,"desc":"Once per Rest as a Bonus Action, I gain one of the following benefits until my next rest. Darkvision: I gain Darkvision with a range of 120 feet. Greater Comprehension: I can read any language. See Invisibility: I can cast See Invisibility without sp","usages":null,"recovery":"short rest"},{"name":"Greater Portent","level":14,"desc":"Roll three d20s for my Portent feature rather than two.","usages":null,"recovery":null}]},
-  "wizard/evoker": {"name":"Evoker","source":"PHB","features":[{"name":"Evocation Savant","level":3,"desc":"Whenever I prepare my Wizard spells, I can prepare a number of Evocation spells in addition to my normal preparations. The maximum spell level of these bonus spells and how many I can prepare both increase as I gain Wizard levels. These spells don't count against the number of spells I can prepare.","usages":null,"recovery":null},{"name":"Potent Cantrip","level":3,"desc":"When I cast a cantrip at a creature and miss or the target passes its save, the target takes half the cantrip's damage (if any) but suffers no additional effect from the cantrip.","usages":null,"recovery":null},{"name":"Sculpt Spell","level":6,"desc":"When I cast an Evoc spell that affects other creatures I can see I can choose the spell's level + 1 creatures who pass automatically & take no damage if they would've taken half.","usages":null,"recovery":null},{"name":"Empowered Evocation","level":10,"desc":"When I cast an Evoc Wizard spell I can add my Int mod to one of its damage rolls.","usages":null,"recovery":null},{"name":"Overchannel","level":14,"desc":"When I cast a Wizard spell that deals damage with a slot of level 1-5, I can deal max damage with that spell on the turn I cast it once per rest with no adverse effect. The second time I take 2d12 Necro damage (ignore Resistance/Immunity) for each le","usages":null,"recovery":null}]},
-  "wizard/illusionist": {"name":"Illusionist","source":"PHB","features":[{"name":"Illusion Savant","level":3,"desc":"Whenever I prepare my Wizard spells, I can prepare a number of Illusion spells in addition to my normal preparations. The maximum spell level of these bonus spells and how many I can prepare both increase as I gain Wizard levels. These spells don't count against the number of spells I can prepare.","usages":null,"recovery":null},{"name":"Improved Illusion","level":3,"desc":"I can cast Illus spells w/out V components; Illus spells with a range of 10+ ft go up by 60 ft I know and can cast Minor Illusion as a Bonus Action, creating both a sound & image with one cast. It doesn't count against my cantrips known.","usages":null,"recovery":null},{"name":"Phantasmal Creatures","level":6,"desc":"I always have Summon Beast and Summon Fey prepared. Once per Long Rest I can cast each spell as an Illus spell and cast it without a spell slot, halving the summoned creature's HP & making it appear spectral.","usages":null,"recovery":null},{"name":"Illusory Self","level":10,"desc":"As a reaction, I can block an attack against me with an illusion of myself. It returns on a rest or by spending a Level 2+ spell slot (no action).","usages":null,"recovery":"short rest"},{"name":"Illusory Reality","level":14,"desc":"As a Bonus Action during an Illus spell I cast with a spell slot I can make one object in it real for 1 min (does no damage, gives no conditions).","usages":null,"recovery":null}]},
+  "wizard/abjurer": {"name":"Abjurer","source":"PHB","features":[{"name":"Abjuration Savant","level":3,"desc":"Choose two Wizard spells from the Abjuration school, each of which must be no higher than level 2, and add them to my spellbook for free. In addition, whenever I gain access to a new level of spell slots in this class, I can add one Wizard spell from the Abjuration school to my spellbook for free. The chosen spell must be of a level for which I have spell slots.","usages":null,"recovery":null},{"name":"Arcane Ward","level":3,"desc":"Once per Long Rest when I cast an Abj spell with a spell slot I can create a magic ward on myself that lasts until the end of my next Long Rest. When I take damage the ward takes it instead; I apply my Resistances & Vulnerabilities before this. If th","usages":null,"recovery":"long rest"},{"name":"Projected Ward","level":6,"desc":"When a creature I can see w/in 30 ft of me takes damage, I can take a Reaction for my Arcane Ward to absorb that it after that creature's Resistances & Vulnerabilities. If the ward reaches 0 Hit Points the warded creature takes any remaining damage.","usages":null,"recovery":null},{"name":"Spell Breaker","level":10,"desc":"I always have Counterspell & Dispel Magic prepared. I can cast Dispel Magic as a Bonus Action & add my Prof Bonus to its ability check. When I cast either spell with a spell slot that slot isn't expended if the spell fails.","usages":null,"recovery":null},{"name":"Spell Resistance","level":14,"desc":"I have Adv on saving throws against spells & Resistance to the damage of spells.","usages":null,"recovery":null}]},
+  "wizard/diviner": {"name":"Diviner","source":"PHB","features":[{"name":"Divination Savant","level":3,"desc":"Choose two Wizard spells from the Divination school, each of which must be no higher than level 2, and add them to my spellbook for free. In addition, whenever I gain access to a new level of spell slots in this class, I can add one Wizard spell from the Divination school to my spellbook for free. The chosen spell must be of a level for which I have spell slots.","usages":null,"recovery":null},{"name":"Portent","level":3,"desc":"When I finish a Long Rest I can record a number of d20 rolls; Once per turn before a d20 test is rolled by me or a crea. I can see, I can replace the roll, spending the d20. These reset when I finish a long rest.","usages":null,"recovery":null},{"name":"Expert Divination","level":6,"desc":"When I cast using a level 2+ spell slot, I regain one slot below the level cast & level 5-.","usages":null,"recovery":null},{"name":"The Third Eye","level":10,"desc":"Once per Rest as a Bonus Action, I gain one of the following benefits until my next rest. Darkvision: I gain Darkvision with a range of 120 feet. Greater Comprehension: I can read any language. See Invisibility: I can cast See Invisibility without sp","usages":null,"recovery":"short rest"},{"name":"Greater Portent","level":14,"desc":"Roll three d20s for my Portent feature rather than two.","usages":null,"recovery":null}]},
+  "wizard/evoker": {"name":"Evoker","source":"PHB","features":[{"name":"Evocation Savant","level":3,"desc":"Choose two Wizard spells from the Evocation school, each of which must be no higher than level 2, and add them to my spellbook for free. In addition, whenever I gain access to a new level of spell slots in this class, I can add one Wizard spell from the Evocation school to my spellbook for free. The chosen spell must be of a level for which I have spell slots.","usages":null,"recovery":null},{"name":"Potent Cantrip","level":3,"desc":"When I cast a cantrip at a creature and miss or the target passes its save, the target takes half the cantrip's damage (if any) but suffers no additional effect from the cantrip.","usages":null,"recovery":null},{"name":"Sculpt Spell","level":6,"desc":"When I cast an Evoc spell that affects other creatures I can see I can choose the spell's level + 1 creatures who pass automatically & take no damage if they would've taken half.","usages":null,"recovery":null},{"name":"Empowered Evocation","level":10,"desc":"When I cast an Evoc Wizard spell I can add my Int mod to one of its damage rolls.","usages":null,"recovery":null},{"name":"Overchannel","level":14,"desc":"When I cast a Wizard spell that deals damage with a slot of level 1-5, I can deal max damage with that spell on the turn I cast it once per rest with no adverse effect. The second time I take 2d12 Necro damage (ignore Resistance/Immunity) for each le","usages":null,"recovery":null}]},
+  "wizard/illusionist": {"name":"Illusionist","source":"PHB","features":[{"name":"Illusion Savant","level":3,"desc":"Choose two Wizard spells from the Illusion school, each of which must be no higher than level 2, and add them to my spellbook for free. In addition, whenever I gain access to a new level of spell slots in this class, I can add one Wizard spell from the Illusion school to my spellbook for free. The chosen spell must be of a level for which I have spell slots.","usages":null,"recovery":null},{"name":"Improved Illusion","level":3,"desc":"I can cast Illus spells w/out V components; Illus spells with a range of 10+ ft go up by 60 ft I know and can cast Minor Illusion as a Bonus Action, creating both a sound & image with one cast. It doesn't count against my cantrips known.","usages":null,"recovery":null},{"name":"Phantasmal Creatures","level":6,"desc":"I always have Summon Beast and Summon Fey prepared. Once per Long Rest I can cast each spell as an Illus spell and cast it without a spell slot, halving the summoned creature's HP & making it appear spectral.","usages":null,"recovery":null},{"name":"Illusory Self","level":10,"desc":"As a reaction, I can block an attack against me with an illusion of myself. It returns on a rest or by spending a Level 2+ spell slot (no action).","usages":null,"recovery":"short rest"},{"name":"Illusory Reality","level":14,"desc":"As a Bonus Action during an Illus spell I cast with a spell slot I can make one object in it real for 1 min (does no damage, gives no conditions).","usages":null,"recovery":null}]},
   "bard/moon": {"name": "College of the Moon", "source": "FRHoF", "features": [{"name": "Moon's Inspiration", "level": 3, "desc": "Inspired Eclipse: When I use a Bonus Action to give a creature Bardic Inspiration, I can gain the Invisible condition and teleport up to 30 ft to an unoccupied space I can see. This lasts until the start of my next turn, and ends early if I make an attack roll, deal damage, or cast a spell. Lunar Vitality: Once per turn, when I heal a creature with a spell, I can expend a Bardic Inspiration die and add the number rolled to the HP restored; the creature's Speed also increases by 10 ft until the end of its next turn.", "usages": null, "recovery": null}, {"name": "Primal Lore", "level": 3, "desc": "I learn Druidic and a cantrip from the Druid spell list (it counts as a Bard spell for me, and I can replace it with another Druid cantrip when I gain a Bard level). I also gain proficiency in one of the following skills: Animal Handling, Insight, Medicine, Nature, Perception, or Survival.", "usages": null, "recovery": null}, {"name": "Blessing of Moonlight", "level": 6, "desc": "I always have Moonbeam prepared. Once per Long Rest, I can modify a casting of Moonbeam so that I glow for the duration, shedding Dim Light in a 5-ft Emanation. When a creature fails its save against this Moonbeam's effects, another creature I can see within 60 ft of me (my choice) regains 2d4 HP.", "usages": 1, "recovery": "long rest"}, {"name": "Eventide's Splendor", "level": 14, "desc": "Shadow of the New Moon: When I use Inspired Eclipse, the creature who received my Bardic Inspiration can also gain the Invisible condition and immediately use its Reaction to teleport up to 30 ft to an unoccupied space it can see, remaining Invisible until the start of its next turn. Vibrance of the Full Moon: When I use Lunar Vitality, I can roll 1d6 and use that result instead of expending a Bardic Inspiration die.", "usages": null, "recovery": null}]},
   "cleric/knowledge": {"name": "Knowledge Domain", "source": "FRHoF", "bonusSpells": ["command", "comprehend_languages", "detect_magic", "detect_thoughts", "identify", "mind_spike", "dispel_magic", "nondetection", "tongues", "arcane_eye", "banishment", "confusion", "legend_lore", "scrying", "synaptic_static"], "features": [{"name": "Knowledge Domain", "level": 3, "desc": "I gain proficiency with one Artisan's Tools set. Blessings of Knowledge: Proficiency and Expertise in two of: Arcana, History, Nature, Religion, or another Int-based skill.", "usages": null, "recovery": null}, {"name": "Mind Magic", "level": 3, "desc": "Channel Divinity: I can cast Detect Thoughts without expending a spell slot or requiring Concentration. Creatures with Int 3 or lower automatically fail the save.", "usages": null, "recovery": null}, {"name": "Unfettered Mind", "level": 6, "desc": "I gain Telepathy out to 60 ft and can contact a number of creatures equal to my WIS modifier (min 1) simultaneously. I also gain proficiency in Insight.", "usages": null, "recovery": null}, {"name": "Divine Foreknowledge", "level": 17, "desc": "Once per Long Rest as a Bonus Action, I gain Advantage on all D20 Tests for 1 hour. I can restore this use by expending a level 6+ spell slot.", "usages": 1, "recovery": "long rest"}]},
   "fighter/banneret": {"name": "Banneret", "source": "FRHoF", "bonusSpells": ["comprehend_languages"], "features": [{"name": "Knightly Envoy", "level": 3, "desc": "Comprehension: cast Comprehend Languages as a Ritual (CHA). Polyglot: learn one additional language. Rally the Troops: gain the Group Recovery feature \u2014 once per rest, when using Second Wind, choose CHA modifier allies (min 1) in 30 ft to also regain 1d4 + Fighter level HP.", "usages": null, "recovery": null}, {"name": "Team Tactics", "level": 7, "desc": "When I use Group Recovery, each chosen ally has Advantage on D20 Tests until the start of my next turn.", "usages": null, "recovery": null}, {"name": "Rallying Surge", "level": 10, "desc": "When I use Action Surge, choose up to CHA modifier allies (min 1) in 30-ft Emanation. Each can use a Reaction to make one attack, Dash, or Dodge.", "usages": null, "recovery": null}, {"name": "Shared Resilience", "level": 15, "desc": "When a visible ally within 60 ft fails a save, I can use a Reaction to expend a use of Indomitable. The ally can reroll the save with a bonus equal to my Fighter level.", "usages": null, "recovery": null}, {"name": "Inspiring Commander", "level": 18, "desc": "Bolstered Rally: Group Recovery and Rallying Surge now affect a 60-ft Emanation. Unshakable Bravery: Immunity to Charmed and Frightened conditions.", "usages": null, "recovery": null}]},
@@ -15508,8 +15550,7 @@ const PHB_RACES = {
   }
 ,
   "boggart": {"name": "Boggart (LFL)", "speed": 30, "size": "Medium", "darkvision": 60, "dmgres": [], "languages": "Common + 1 of your choice", "trait": "Boggart\\n\u2022 Source: Lorwyn/Shadowmoor crossover (LFL).", "source": "LFL", "asi": "+2 and +1 to two of the following, or +1 to all three", "flySpeed": 0, "traits": "Speed 30 ft \u00b7 Darkvision 60 ft \u00b7 Size Small", "scorestxt": "+2 DEX, +1 WIS", "features": [{"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Mischief", "level": 1, "desc": "Proficiency in Deception and Sleight of Hand."}, {"name": "Trickster Magic", "level": 1, "desc": "Know Vicious Mockery cantrip. At 3rd level: Disguise Self 1/Long Rest. At 5th level: Mirror Image 1/Long Rest. WIS is spellcasting ability."}]},
-  "elf_lorwyn": {"name": "Lorwyn Elf (LFL)", "speed": 30, "size": "Small", "darkvision": 0, "dmgres": [], "languages": "Common + 1 of your choice", "trait": "Lorwyn Elf\\n\u2022 Source: Lorwyn/Shadowmoor crossover (LFL).", "source": "LFL", "asi": "+2 and +1 to two of the following, or +1 to all three", "flySpeed": 0, "traits": "Speed 30 ft \u00b7 Size Medium", "scorestxt": "+2 DEX, +1 WIS", "features": [{"name": "Fey Ancestry", "level": 1, "desc": "Advantage on saves vs. Charmed, can't be magically put to sleep."}, {"name": "Hunter's Bond", "level": 1, "desc": "Proficiency in Survival and one martial weapon of your choice."}, {"name": "Elvish Perfection", "level": 1, "desc": "Proficiency in one skill: Perception, Insight, Athletics, or Acrobatics. Advantage on saves vs. Exhaustion."}]},
-  "elf_shadowmoor": {"name": "Shadowmoor Elf (LFL)", "speed": 30, "size": "Small", "darkvision": 60, "dmgres": [], "languages": "Common + 1 of your choice", "trait": "Shadowmoor Elf\\n\u2022 Source: Lorwyn/Shadowmoor crossover (LFL).", "source": "LFL", "asi": "+2 and +1 to two of the following, or +1 to all three", "flySpeed": 0, "traits": "Speed 30 ft \u00b7 Darkvision 60 ft \u00b7 Size Medium", "scorestxt": "+2 DEX, +1 INT", "features": [{"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Fey Ancestry", "level": 1, "desc": "Advantage on saves vs. Charmed, can't be magically put to sleep."}, {"name": "Aurora Magic", "level": 1, "desc": "Know Dancing Lights cantrip (INT-based). At 3rd level: Faerie Fire 1/Long Rest."}]},
+  "elf_lfl": {"name": "Elf (LFL)", "speed": 30, "size": "Medium", "darkvision": 60, "dmgres": [], "languages": "Common + 1 of your choice", "trait": "Elf\\n\u2022 Source: Lorwyn/Shadowmoor crossover (LFL).\\n\u2022 Elven Lineage: Choose a lineage (Lorwyn or Shadowmoor) that grants supernatural abilities at levels 1, 3, and 5. Int, Wis, or Cha is my spellcasting ability for spells cast with this trait (choose the ability when the lineage is selected). At levels 3 and 5, the higher-level spell is always prepared and can be cast once without a spell slot, regaining that use on a Long Rest, or cast normally with an appropriate spell slot.\\n\u2022 Fey Ancestry: Advantage on saving throws to avoid or end the Charmed condition.\\n\u2022 Keen Senses: Proficiency in the Insight, Perception, or Survival skill (choose one).\\n\u2022 Trance: I don't need to sleep, and magic can't put me to sleep. I can finish a Long Rest in 4 hours if I spend those hours in a trance-like meditation, during which I retain consciousness.", "source": "LFL", "asi": "+2 and +1 to two of the following, or +1 to all three", "flySpeed": 0, "traits": "Speed 30 ft \u00b7 Darkvision 60 ft \u00b7 Size Medium", "features": [], "subraces": {"lorwyn": {"name": "Lorwyn Elf", "trait": "Lorwyn Lineage\\n\u2022 Level 1: Know the Thorn Whip cantrip. Whenever I finish a Long Rest, I can replace that cantrip with a different cantrip from the Druid spell list.\\n\u2022 Level 3: Always have Command prepared; cast once/Long Rest without a slot.\\n\u2022 Level 5: Always have Silence prepared; cast once/Long Rest without a slot.", "speed": null, "darkvision": null, "dmgres": [], "spellAbility": "INT", "scorestxt": "+2 DEX, +1 WIS"}, "shadowmoor": {"name": "Shadowmoor Elf", "trait": "Shadowmoor Lineage\\n\u2022 Level 1: Darkvision increases to 120 ft. Know the Starry Wisp cantrip.\\n\u2022 Level 3: Always have Heroism prepared; cast once/Long Rest without a slot.\\n\u2022 Level 5: Always have Gentle Repose prepared; cast once/Long Rest without a slot.", "speed": null, "darkvision": 120, "dmgres": [], "spellAbility": "INT", "scorestxt": "+2 DEX, +1 INT"}}},
   "faerie": {"name": "Faerie (LFL)", "speed": 30, "size": "Small", "darkvision": 60, "dmgres": [], "languages": "Common + 1 of your choice", "trait": "Faerie\\n\u2022 Source: Lorwyn/Shadowmoor crossover (LFL).", "source": "LFL", "asi": "+2 and +1 to two of the following, or +1 to all three", "flySpeed": 30, "traits": "Speed 30 ft \u00b7 Fly 30 ft \u00b7 Darkvision 60 ft \u00b7 Size Small", "scorestxt": "+2 and +1 to two different abilities, or +1 to three", "features": [{"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Fairy Magic", "level": 1, "desc": "Know Druidcraft cantrip. At 3rd level: Faerie Fire 1/Long Rest. At 5th level: Enlarge/Reduce 1/Long Rest. INT, WIS, or CHA is spellcasting ability."}, {"name": "Flight", "level": 1, "desc": "Fly Speed = Walk Speed (30 ft). To use it, you can't be wearing medium or heavy armor."}, {"name": "Fey", "level": 1, "desc": "Your creature type is Fey, not Humanoid."}]},
   "flamekin": {
     "name": "Flamekin (LFL)", "speed": 30, "size": "Medium", "darkvision": 60, "dmgres": ["Fire"], "languages": "Common + 1 of your choice", "trait": "Flamekin\\n\u2022 Source: Lorwyn/Shadowmoor crossover (LFL).", "source": "LFL", "asi": "+2 and +1 to two of the following, or +1 to all three", "flySpeed": 0, "traits": "Speed 30 ft \u00b7 Darkvision 60 ft \u00b7 Size Small", "scorestxt": "+2 CHA, +1 INT", "features": [{"name": "Fire Resistance", "level": 1, "desc": "Resistance to Fire damage."}, {"name": "Elemental Essence", "level": 1, "desc": "Know Produce Flame cantrip. At 3rd level: Burning Hands 1/Long Rest. At 5th level: Scorching Ray 1/Long Rest. CHA is spellcasting ability."}, {"name": "Inner Fire", "level": 1, "desc": "When hit by a melee attack, attacker takes Fire damage = PB (Reaction). PB/Long Rest."}]},
@@ -24225,6 +24266,51 @@ function getWarlockSlotLevel(level) {
   return WARLOCK_SLOT_LEVEL[level] || 1;
 }
 
+// Returns the race/subrace's hardcoded default spellcasting ability
+// (e.g. Dark Elf's "INT") — this is a fallback only. The actual rule for
+// every race that grants a spell this way (Elven Lineage, Tiefling
+// Legacy, Gnomish Lineage, etc.) is that the player CHOOSES Int, Wis, or
+// Cha once, when they select the lineage — it isn't fixed, and it isn't
+// automatically whatever their class uses.
+function getRacialSpellAbilityDefault() {
+  if (!currentChar) return null;
+  const raceData = typeof getRaceData === 'function' ? getRaceData(currentChar.race) : null;
+  if (!raceData) return null;
+  const subData = typeof getSubraceData === 'function' ? getSubraceData(currentChar.race, currentChar.subrace) : null;
+  const ability = subData?.spellAbility || raceData.spellAbility || null;
+  return ability ? ability.toLowerCase() : null;
+}
+
+// The ability actually in effect for racial spells — the player's own
+// choice if they've made one, falling back to the race's hardcoded
+// default only until they do. Returns null if this race/subrace doesn't
+// grant a spell with a choosable ability at all.
+function getEffectiveRacialSpellAbility() {
+  const hasChoice = !!getRacialSpellAbilityDefault();
+  if (!hasChoice) return null;
+  const chosen = (currentChar?.racialSpellAbility || '').toLowerCase().trim();
+  return ['int','wis','cha'].includes(chosen) ? chosen : getRacialSpellAbilityDefault();
+}
+
+// DC/attack for racial spells specifically — kept separate from
+// calcSpellStats() (which is class-based) since a spellcasting
+// character's racial ability choice can genuinely differ from their
+// class's spellcasting ability, and both need to be correct
+// independently rather than one silently overwriting the other.
+function calcRacialSpellStats() {
+  const ability = getEffectiveRacialSpellAbility();
+  if (!ability || !currentChar) return { ability: null, dc: 0, atk: 0 };
+  const abs  = getAbilities();
+  const prof = getProf();
+  const mod  = abilityMod(abs[ability]);
+  const dc   = 8 + prof + mod;
+  const atk  = prof + mod;
+  return { ability, mod, dc, atk };
+}
+window.getRacialSpellAbilityDefault  = getRacialSpellAbilityDefault;
+window.getEffectiveRacialSpellAbility = getEffectiveRacialSpellAbility;
+window.calcRacialSpellStats           = calcRacialSpellStats;
+
 // ═══════════════════════════════════════════════════════════
 // SPELLCASTING STATS
 // ═══════════════════════════════════════════════════════════
@@ -24236,11 +24322,19 @@ function getSpellAbility() {
 
 function calcSpellStats() {
   if (!currentChar) return { ability:null, dc:0, atk:0, prepLimit:null };
-  const ability = getSpellAbility();
+  let ability   = getSpellAbility();
   const abs     = getAbilities();
   const prof    = getProf();
   const level   = getLevel();
   const cls     = getSpellcastingClass();
+
+  // No real spellcasting class — but if a racial trait grants a spell
+  // with its own chosen ability, that's still a working spellcasting
+  // ability for THIS character, even without a caster class. Previously
+  // this fell straight through to a broken 0 DC / +0 attack instead.
+  if (!ability && typeof getEffectiveRacialSpellAbility === 'function') {
+    ability = getEffectiveRacialSpellAbility();
+  }
 
   if (!ability) return { ability:null, dc:0, atk:0, prepLimit:null };
 
@@ -24287,6 +24381,22 @@ function renderSpellStats() {
     atkEl.textContent = spellAtkAdv ? atkStr + ' (Adv)' : atkStr;
     if (atkFormula) atkEl.title = spellAtkAdv ? atkFormula + ' + Advantage on spell attacks' : atkFormula;
     atkEl.style.color = (atkBonus || spellAtkAdv) ? 'var(--accent2)' : '';
+  }
+
+  // A racial spell's DC/attack only needs its own separate line when its
+  // chosen ability actually differs from the class-based one shown above
+  // — if they match (or there's no class at all, so the fallback above
+  // already IS the racial ability), the shared display is already correct.
+  const racialNoteEl = document.getElementById('sp-racial-stats-note');
+  if (racialNoteEl) {
+    const racialAbility = typeof getEffectiveRacialSpellAbility === 'function' ? getEffectiveRacialSpellAbility() : null;
+    if (racialAbility && ability && racialAbility !== ability) {
+      const rs = calcRacialSpellStats();
+      racialNoteEl.textContent = `Racial spells (${racialAbility.toUpperCase()}): DC ${rs.dc} · ${rs.atk >= 0 ? '+' : ''}${rs.atk} to hit`;
+      racialNoteEl.style.display = '';
+    } else {
+      racialNoteEl.style.display = 'none';
+    }
   }
 
   // Spell count box — "PREPARED" for swap-on-LR, "SPELLS" for swap-on-LU
@@ -25405,8 +25515,8 @@ const RACIAL_BONUS_SPELLS = {
   "elf/dark": [{"key":"dancing_lights","name":"Dancing Lights","minLevel":1,"cantrip":true},{"key":"faerie_fire","name":"Faerie Fire","minLevel":3},{"key":"darkness","name":"Darkness","minLevel":5}],
   "elf/high": [{"key":"prestidigitation","name":"Prestidigitation","minLevel":1,"cantrip":true},{"key":"detect_magic","name":"Detect Magic","minLevel":3},{"key":"misty_step","name":"Misty Step","minLevel":5}],
   "elf/wood": [{"key":"druidcraft","name":"Druidcraft","minLevel":1,"cantrip":true},{"key":"longstrider","name":"Longstrider","minLevel":3},{"key":"pass_without_trace","name":"Pass without Trace","minLevel":5}],
-  "elf_lorwyn": [],
-  "elf_shadowmoor": [{"key": "dancing_lights", "name": "Dancing Lights", "minLevel": 1, "cantrip": true}, {"key": "faerie_fire", "name": "Faerie Fire", "minLevel": 3}],
+  "elf_lfl/lorwyn": [{"key":"thorn_whip","name":"Thorn Whip","minLevel":1,"cantrip":true},{"key":"command","name":"Command","minLevel":3},{"key":"silence","name":"Silence","minLevel":5}],
+  "elf_lfl/shadowmoor": [{"key":"starry_wisp","name":"Starry Wisp","minLevel":1,"cantrip":true},{"key":"heroism","name":"Heroism","minLevel":3},{"key":"gentle_repose","name":"Gentle Repose","minLevel":5}],
   "faerie": [{"key": "druidcraft", "name": "Druidcraft", "minLevel": 1, "cantrip": true}, {"key": "faerie_fire", "name": "Faerie Fire", "minLevel": 3}, {"key": "enlarge_reduce", "name": "Enlarge/Reduce", "minLevel": 5}],
   "fallen_aasimar": [{"key": "light", "name": "Light", "minLevel": 1, "cantrip": true}],
   "fierna_tiefling": [{"key": "friends", "name": "Friends", "minLevel": 1, "cantrip": true}, {"key": "charm_person", "name": "Charm Person", "minLevel": 3}, {"key": "suggestion", "name": "Suggestion", "minLevel": 5}],
@@ -25994,6 +26104,9 @@ function renderKnownSpells() {
   // this modal's fixed-cap known-list logic doesn't represent that.
   const luBtn = document.getElementById('sp-levelup-btn');
   if (luBtn) luBtn.style.display = (sc && !isWiz) ? 'inline-flex' : 'none';
+
+  const sbsBtn = document.getElementById('sp-spellbook-setup-btn');
+  if (sbsBtn) sbsBtn.style.display = isWiz ? 'inline-flex' : 'none';
 
   // Wizard subtitle: spellbook count + prep count
   let _wizSubtitle = document.getElementById('sp-wiz-subtitle');
@@ -36535,6 +36648,158 @@ function openMagicalSecretsDef(id) {
 }
 window.openMagicalSecretsDef = openMagicalSecretsDef;
 window.openMagicalSecrets    = openMagicalSecrets;
+
+// ═══════════════════════════════════════════════════════════
+// WIZARD SPELLBOOK SETUP — for a Wizard joining a campaign at a
+// higher level, or anyone catching an existing character's
+// spellbook up to what the rules say it should contain by now.
+// ═══════════════════════════════════════════════════════════
+
+// Base progression (Spellbook feature): 6 level-1 spells at Wizard
+// level 1, +2 Wizard spells (any school, of a level you have slots
+// for) each level thereafter.
+// Savant progression (all 8 core subclasses use the identical
+// mechanic, just a different school): 2 free school-restricted
+// spells (level ≤2) at level 3, +1 more each time a NEW spell slot
+// level is gained from level 3 onward.
+function computeExpectedSpellbookCounts() {
+  if (!currentChar) return null;
+  const wizLv = typeof getClassLevelCount === 'function' ? getClassLevelCount('wizard') : 0;
+  if (!wizLv) return null;
+
+  const baseTarget = 6 + 2 * (wizLv - 1);
+
+  const slots = getSpellSlots('wizard', wizLv) || [];
+  let maxPrepLevel = 0;
+  for (let i = slots.length - 1; i >= 0; i--) { if (slots[i] > 0) { maxPrepLevel = i + 1; break; } }
+
+  let savantTarget = 0, school = null, subclassName = null;
+  const entry = getAllClasses().find(e => (e.class || '').toLowerCase().trim() === 'wizard');
+  subclassName = entry?.subclass || null;
+  const subKey = subclassName ? getSubclassKey('wizard', subclassName) : null;
+  if (subKey && wizLv >= 3) {
+    const subData = PHB_SUBCLASSES[subKey];
+    const savantFeature = subData?.features?.find(f => f.level === 3 && /\sSavant$/i.test(f.name || ''));
+    if (savantFeature) {
+      school = savantFeature.name.replace(/\s*Savant$/i, '');
+      savantTarget = 2;
+      let prevTierCount = (getSpellSlots('wizard', 3) || []).filter(x => x > 0).length;
+      for (let lv = 4; lv <= wizLv; lv++) {
+        const tierCount = (getSpellSlots('wizard', lv) || []).filter(x => x > 0).length;
+        if (tierCount > prevTierCount) { savantTarget++; prevTierCount = tierCount; }
+      }
+    }
+  }
+
+  return { wizLv, baseTarget, maxPrepLevel, savantTarget, school, subclassName };
+}
+window.computeExpectedSpellbookCounts = computeExpectedSpellbookCounts;
+
+let _sbsDraftBase = [];
+let _sbsDraftSavant = [];
+
+function openSpellbookSetup() {
+  const info = computeExpectedSpellbookCounts();
+  const summary = document.getElementById('sbs-summary');
+  if (!info || !summary) { toast('Spellbook Setup is only for Wizards.', 'info'); return; }
+
+  const book = currentChar.spells?.spellbook || [];
+  const currentTotal = book.filter(s => s.level > 0).length;
+  const currentSavantSchoolCount = info.school
+    ? book.filter(s => s.level > 0 && (PHB_SPELL_LIST.find(sp => sp.key === s.key)?.school || '') === info.school).length
+    : 0;
+
+  let html = `Level ${info.wizLv} Wizard: spellbook should have <b>${info.baseTarget}</b> spells (any school, level ≤${info.maxPrepLevel}). You currently have <b>${currentTotal}</b>.`;
+  if (info.school) {
+    html += `<br>Your ${info.subclassName} Savant feature grants <b>${info.savantTarget}</b> free ${info.school} spells (separate from the base count above). You have <b>${currentSavantSchoolCount}</b> ${info.school} spell${currentSavantSchoolCount===1?'':'s'} in your book right now — that's a rough estimate of Savant spells already picked, not a guarantee, since a base pick could also happen to be ${info.school}.`;
+  }
+  summary.innerHTML = html;
+
+  _sbsDraftBase = [];
+  _sbsDraftSavant = [];
+  document.getElementById('sbs-base-target').textContent = Math.max(0, info.baseTarget - currentTotal);
+  document.getElementById('sbs-base-search').value = '';
+  const savantSection = document.getElementById('sbs-savant-section');
+  if (info.school) {
+    savantSection.style.display = '';
+    document.getElementById('sbs-savant-title').textContent = `${info.school} Savant Spells`;
+    document.getElementById('sbs-savant-target').textContent = Math.max(0, info.savantTarget - currentSavantSchoolCount);
+    document.getElementById('sbs-savant-search').value = '';
+  } else {
+    savantSection.style.display = 'none';
+  }
+
+  renderSpellbookSetupPicker('base');
+  renderSpellbookSetupPicker('savant');
+  openModal('spellbook-setup-modal');
+}
+window.openSpellbookSetup = openSpellbookSetup;
+
+function renderSpellbookSetupPicker(which) {
+  const info = computeExpectedSpellbookCounts();
+  if (!info) return;
+  const list = document.getElementById(`sbs-${which}-list`);
+  if (!list) return;
+  const q = (document.getElementById(`sbs-${which}-search`)?.value || '').toLowerCase().trim();
+  const draft = which === 'base' ? _sbsDraftBase : _sbsDraftSavant;
+  const book = currentChar.spells?.spellbook || [];
+  const inBookKeys = new Set(book.map(s => s.key));
+
+  let spells = PHB_SPELL_LIST.filter(sp => {
+    if (sp.level < 1 || sp.level > info.maxPrepLevel) return false;
+    if (!sp.classes.includes('wizard')) return false;
+    if (inBookKeys.has(sp.key)) return false;
+    if (which === 'savant') { if (!info.school || sp.school !== info.school) return false; }
+    if (q && !sp.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+
+  const LVLNAMES = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
+  list.innerHTML = spells.map(sp => {
+    const isSelected = draft.includes(sp.key);
+    return `
+      <div class="sp-browser-row" style="cursor:pointer" onclick="toggleSpellbookSetupSpell('${which}','${sp.key}')">
+        <span class="sp-level-badge">${sp.level}</span>
+        <div>
+          <div class="sp-browser-name" style="${isSelected?'color:var(--accent)':''}">${sp.name}</div>
+          <div class="sp-browser-school">${LVLNAMES[sp.level]} Level · ${sp.school}</div>
+        </div>
+        <button class="sp-add-btn" style="${isSelected?'background:var(--red)':''}">${isSelected ? '✕' : '+'}</button>
+      </div>
+    `;
+  }).join('') || `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:8px">No matching spells</div>`;
+
+  document.getElementById(`sbs-${which}-count`).textContent = draft.length;
+}
+window.renderSpellbookSetupPicker = renderSpellbookSetupPicker;
+
+function toggleSpellbookSetupSpell(which, key) {
+  const draft = which === 'base' ? _sbsDraftBase : _sbsDraftSavant;
+  const idx = draft.indexOf(key);
+  if (idx === -1) draft.push(key); else draft.splice(idx, 1);
+  renderSpellbookSetupPicker(which);
+}
+window.toggleSpellbookSetupSpell = toggleSpellbookSetupSpell;
+
+function applySpellbookSetup() {
+  if (!currentChar.spells) currentChar.spells = {};
+  if (!currentChar.spells.spellbook) currentChar.spells.spellbook = [];
+  const allPicked = [..._sbsDraftBase, ..._sbsDraftSavant];
+  let added = 0;
+  allPicked.forEach(key => {
+    if (currentChar.spells.spellbook.some(s => s.key === key)) return;
+    const phb = PHB_SPELL_LIST.find(sp => sp.key === key);
+    if (!phb) return;
+    currentChar.spells.spellbook.push({ key, name: phb.name, level: phb.level });
+    added++;
+  });
+  closeModal('spellbook-setup-modal');
+  if (typeof recalcAll === 'function') recalcAll();
+  toast(`Added ${added} spell${added===1?'':'s'} to your spellbook`, 'ok');
+}
+window.applySpellbookSetup = applySpellbookSetup;
+
 window.openSkillSetup        = openSkillSetup;
 window.openSkillSetupForFeat = openSkillSetupForFeat;
 window.applySkillSetup       = applySkillSetup;
@@ -39515,6 +39780,26 @@ function applyRaceDefaults(race, subrace) {
   const rd  = getRaceData(race);
   const srd = subrace ? getSubraceData(race, subrace) : null;
   if (!rd) return;
+
+  // Racial Spellcasting Ability picker — shown only when this race/subrace
+  // actually grants a spell with a choosable ability. Initializes to the
+  // race's own default the first time this race/subrace is selected, but
+  // never overwrites a choice the player has already made.
+  const raSARow = document.getElementById('ci-racial-spell-ability-row');
+  const raSASel = document.getElementById('ci-racial-spell-ability');
+  const defaultAbility = (srd?.spellAbility || rd.spellAbility || '').toLowerCase();
+  if (raSARow && raSASel) {
+    if (defaultAbility) {
+      raSARow.style.display = '';
+      if (!['int','wis','cha'].includes((currentChar.racialSpellAbility || '').toLowerCase())) {
+        currentChar.racialSpellAbility = defaultAbility;
+        raSASel.value = defaultAbility;
+      }
+    } else {
+      raSARow.style.display = 'none';
+      currentChar.racialSpellAbility = '';
+    }
+  }
 
   // Speed: subrace overrides base if set
   const speed = (srd?.speed) || rd.speed || 30;
