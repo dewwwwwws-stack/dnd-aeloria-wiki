@@ -3037,7 +3037,13 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
 
           <div class="panel">
-            <div class="panel-title">Backstory</div>
+            <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Backstory</span>
+              <label style="display:flex;align-items:center;gap:5px;font-family:var(--font-ui);font-size:10px;color:var(--text3);text-transform:none;letter-spacing:normal;font-weight:400;cursor:pointer">
+                <input type="checkbox" id="bg-backstory-private" data-key="backstoryPrivate" style="cursor:pointer"/>
+                Keep private too
+              </label>
+            </div>
             <textarea class="sheet-textarea" id="bg-backstory" data-key="backstory"
               placeholder="Your character&#39;s origin story, history, motivations, goals, enemies, secrets…"
               style="min-height:260px"></textarea>
@@ -3083,7 +3089,8 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
 
           <div class="panel">
-            <div class="panel-title">Background Notes</div>
+            <div class="panel-title">Private Notes</div>
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin:-6px 0 8px;line-height:1.4">Not visible to other players — hidden from the Character Sheet previewer (Party Overview, shared links, etc.).</div>
             <textarea class="sheet-textarea" id="bg-notes" data-key="notes_bg"
               placeholder="Other background details, secrets, rumours…"
               style="min-height:160px"></textarea>
@@ -23711,6 +23718,20 @@ function populateMainSheet() {
   // Text / number inputs with data-key
   document.querySelectorAll('[data-key]').forEach(el => {
     const key = el.dataset.key;
+    // Private Notes is explicitly never shown to anyone previewing this
+    // sheet (Party Overview, a shared link, etc.) — skipped here rather
+    // than just hidden with CSS afterward, so the actual text never
+    // reaches the DOM in the first place for a viewer to find. Backstory
+    // is redacted the same way, but only when the player has opted in
+    // via the "keep private too" checkbox. Both get a placeholder that
+    // says so explicitly — the default placeholder would otherwise
+    // misleadingly read as "never filled in" rather than "hidden".
+    if (key === 'notes_bg' && window._previewMode) {
+      el.value = ''; el.placeholder = 'Private — not shown in preview.'; return;
+    }
+    if (key === 'backstory' && window._previewMode && c.backstoryPrivate) {
+      el.value = ''; el.placeholder = 'Private — not shown in preview.'; return;
+    }
     let val = key.includes('.') ? key.split('.').reduce((o,k) => o?.[k], c) : c[key];
     if (val === undefined || val === null) return;
     if (el.type === 'checkbox') el.checked = !!val;
@@ -30566,15 +30587,19 @@ function renderAttacksPanel() {
     hasAnyAttack = true;
 
     // Flurry of Blows (lv1+): 2 unarmed strikes as Bonus Action, costs 1 Focus Point
+    // (3 at Monk level 10+, once Heightened Focus improves Monk's Focus)
+    const fobStrikeCount = monkLvForAtk >= 10 ? 'three' : 'two';
     const fobRow = document.createElement('div');
     fobRow.className = 'attack-row';
-    fobRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto;gap:0 8px;align-items:start;padding:5px 8px;margin-bottom:4px';
+    fobRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto;gap:0 8px;align-items:start;padding:5px 8px;margin-bottom:4px;cursor:pointer';
+    fobRow.title = 'View full Monk\'s Focus feature';
+    fobRow.onclick = () => jumpToFeatureByName("Monk's Focus");
     fobRow.innerHTML = `
       <div>
         <div class="attack-name">Flurry of Blows</div>
         <div class="attack-sub">Bonus Action · 1 Focus Point · 2× Unarmed · DEX or STR</div>
       </div>
-      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 8px">2 unarmed strikes that cost 1 Focus Point. Each can trigger Stunning Strike, Open Hand Technique, etc.</div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 8px"><strong>Flurry of Blows.</strong> You can expend 1 Focus Point to make <span style="color:var(--accent);font-weight:600">${fobStrikeCount}</span> Unarmed Strikes as a Bonus Action. <span style="text-decoration:underline;cursor:pointer" onclick="event.stopPropagation();openInventoryItemDetailModal({weaponKey:'unarmed_strike'},'weapon')">See full Unarmed Strike rules →</span></div>
       <div style="text-align:center"><div class="attack-stat">${atkStr}</div><div class="attack-stat-label">To Hit</div></div>
       <div style="text-align:center"><div class="attack-stat" style="font-size:11px">1d${monkDieSize}${dmgBonus} Bludg.</div><div class="attack-stat-label">× 2 Damage</div></div>
     `;
@@ -30583,13 +30608,15 @@ function renderAttacksPanel() {
     // Bonus Action Unarmed Strike (Step of the Wind / general BA unarmed)
     const baRow = document.createElement('div');
     baRow.className = 'attack-row';
-    baRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto;gap:0 8px;align-items:start;padding:5px 8px;margin-bottom:4px';
+    baRow.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto;gap:0 8px;align-items:start;padding:5px 8px;margin-bottom:4px;cursor:pointer';
+    baRow.title = 'View full Martial Arts feature';
+    baRow.onclick = () => jumpToFeatureByName('Martial Arts');
     baRow.innerHTML = `
       <div>
         <div class="attack-name">Unarmed Strike (BA)</div>
         <div class="attack-sub">Bonus Action · Martial Arts · DEX or STR</div>
       </div>
-      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 8px">Bonus unarmed strike after Attack action with monk weapon or unarmed strike.</div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 8px"><strong>Bonus Unarmed Strike.</strong> You can make an Unarmed Strike as a Bonus Action. <span style="text-decoration:underline;cursor:pointer" onclick="event.stopPropagation();openInventoryItemDetailModal({weaponKey:'unarmed_strike'},'weapon')">See full Unarmed Strike rules →</span></div>
       <div style="text-align:center"><div class="attack-stat">${atkStr}</div><div class="attack-stat-label">To Hit</div></div>
       <div style="text-align:center"><div class="attack-stat" style="font-size:11px">1d${monkDieSize}${dmgBonus} Bludg.</div><div class="attack-stat-label">Damage</div></div>
     `;
@@ -37913,7 +37940,7 @@ function renderResourceEntry(def, level, prof) {
   const isModalBtn = def.type === 'modal-button';
   const isActivateRecovery = def.type === 'activate-recovery';
   const isToggle = def.type === 'toggle';
-  const _rawRec  = (def.recovery || 'long').toLowerCase().trim();
+  const _rawRec  = (def.recovery === undefined || def.recovery === null ? 'long' : def.recovery).toLowerCase().trim();
   const recovery = _rawRec.startsWith('short') || _rawRec === 'sr' ? 'short'
                  : _rawRec.startsWith('long')  || _rawRec === 'lr' ? 'long'
                  : _rawRec.startsWith('dusk') ? 'dusk'
@@ -45168,6 +45195,15 @@ async function previewCharacterSheet(charId) {
     currentChar.id = charId; // guarantee this matches the actual filename
     currentCharSHA = null;   // never let a preview carry a real SHA into any save path
     window._previewMode = true;
+    // Redact at the source, not just at display time — every code path
+    // that reads currentChar.notes_bg from here on sees nothing, because
+    // the actual private text is genuinely gone from this session's data,
+    // not merely skipped by one particular render function.
+    currentChar.notes_bg = '';
+    // Backstory is only redacted if the player has explicitly opted into
+    // that with the "keep private too" checkbox — unlike Private Notes,
+    // it's visible by default, so this only applies when they've asked for it.
+    if (currentChar.backstoryPrivate) currentChar.backstory = '';
 
     enterApp();
     switchPage('main');
