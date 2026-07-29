@@ -4592,24 +4592,8 @@ body.preview-readonly #mi-detail-edit-row * {
     </div>
     <div id="sbs-summary" style="font-family:var(--font-ui);font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)"></div>
 
-    <div style="overflow-y:auto;flex:1;min-height:0">
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase">Base Spellbook Spells</div>
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2)"><span id="sbs-base-count">0</span> / <span id="sbs-base-target">0</span> selected</div>
-        </div>
-        <input type="text" id="sbs-base-search" class="info-input" placeholder="Search spells…" style="margin-bottom:6px" oninput="renderSpellbookSetupPicker('base')">
-        <div id="sbs-base-list" style="display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:4px"></div>
-      </div>
-
-      <div id="sbs-savant-section" style="margin-top:14px;display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase"><span id="sbs-savant-title">Savant Spells</span> (free)</div>
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2)"><span id="sbs-savant-count">0</span> / <span id="sbs-savant-target">0</span> selected</div>
-        </div>
-        <input type="text" id="sbs-savant-search" class="info-input" placeholder="Search spells…" style="margin-bottom:6px" oninput="renderSpellbookSetupPicker('savant')">
-        <div id="sbs-savant-list" style="display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:4px"></div>
-      </div>
+    <div id="sbs-levels-container" style="overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:14px">
+      <!-- populated by renderSpellbookSetupLevels() — one section per wizard level -->
     </div>
 
     <button class="tbtn primary" style="width:100%;margin-top:12px" onclick="applySpellbookSetup()">Add Selected Spells to Spellbook</button>
@@ -7765,7 +7749,7 @@ function openSpellDetailModal(key, name) {
   }
 
   renderSpellDetailBody(sp, sp.level);
-  openModal('spell-detail-modal');
+  openModal('spell-detail-modal', true);
 }
 
 // Shows full details for a magic item: catalog item (by key) or an owned
@@ -36752,6 +36736,68 @@ window.openMagicalSecrets    = openMagicalSecrets;
 // mechanic, just a different school): 2 free school-restricted
 // spells (level ≤2) at level 3, +1 more each time a NEW spell slot
 // level is gained from level 3 onward.
+// Builds the per-pick level cap arrays for both pools — pick N in the
+// base pool must be spell level baseCaps[N-1] or lower, same idea for
+// savant. This is what actually enforces picking in the correct order
+// (six 1st-level spells first, then two more 1st-level, then 1st/2nd
+// once level 3 is reached, etc.) rather than allowing any level up to
+// the character's current max to fill any remaining slot.
+function computeSpellbookPickCaps() {
+  if (!currentChar) return { baseCaps: [], savantCaps: [], levelSteps: [], school: null, subclassName: null, wizLv: 0 };
+  const wizLv = typeof getClassLevelCount === 'function' ? getClassLevelCount('wizard') : 0;
+  if (!wizLv) return { baseCaps: [], savantCaps: [], levelSteps: [], school: null, subclassName: null, wizLv: 0 };
+
+  const entry = getAllClasses().find(e => (e.class || '').toLowerCase().trim() === 'wizard');
+  const subclassName = entry?.subclass || null;
+  const subKey = subclassName ? getSubclassKey('wizard', subclassName) : null;
+  let school = null;
+  if (subKey) {
+    const subData = PHB_SUBCLASSES[subKey];
+    const savantFeature = subData?.features?.find(f => f.level === 3 && /\sSavant$/i.test(f.name || ''));
+    if (savantFeature) school = savantFeature.name.replace(/\s*Savant$/i, '');
+  }
+
+  const baseCaps = [], savantCaps = [], levelSteps = [];
+  let prevTierCount = 0;
+  for (let lv = 1; lv <= wizLv; lv++) {
+    const slots = getSpellSlots('wizard', lv) || [];
+    let maxLv = 0;
+    for (let i = slots.length - 1; i >= 0; i--) { if (slots[i] > 0) { maxLv = i + 1; break; } }
+    const baseCount = lv === 1 ? 6 : 2;
+    for (let i = 0; i < baseCount; i++) baseCaps.push(maxLv);
+
+    let savantCount = 0, savantMaxLv = maxLv;
+    if (school && lv >= 3) {
+      if (lv === 3) savantCount = 2;
+      else {
+        const tierCount = slots.filter(x => x > 0).length;
+        if (tierCount > prevTierCount) savantCount = 1;
+      }
+      savantMaxLv = lv === 3 ? 2 : Math.min(maxLv, 2 + (lv >= 5 ? maxLv - 2 : 0));
+      for (let i = 0; i < savantCount; i++) savantCaps.push(savantMaxLv);
+      // Savant spells are capped at level 2 until level 5+, where they can
+      // go up to whatever slot level was just gained — this keeps the
+      // Evocation Savant "no higher than level 2" wording intact for the
+      // first two picks while still allowing later, higher-level free picks.
+    }
+    prevTierCount = slots.filter(x => x > 0).length;
+
+    if (baseCount > 0 || savantCount > 0) {
+      levelSteps.push({ level: lv, baseCount, baseMaxLevel: maxLv, savantCount, savantMaxLevel: savantMaxLv });
+    }
+  }
+  // The very first two Savant picks are always capped at 2, regardless of
+  // character level, since the feature text is explicit about that for
+  // the initial grant — only picks gained from a later, higher slot tier
+  // can exceed it.
+  if (savantCaps.length >= 1) savantCaps[0] = 2;
+  if (savantCaps.length >= 2) savantCaps[1] = 2;
+  levelSteps.forEach(s => { if (s.level === 3) s.savantMaxLevel = 2; });
+
+  return { baseCaps, savantCaps, levelSteps, school, subclassName, wizLv };
+}
+window.computeSpellbookPickCaps = computeSpellbookPickCaps;
+
 function computeExpectedSpellbookCounts() {
   if (!currentChar) return null;
   const wizLv = typeof getClassLevelCount === 'function' ? getClassLevelCount('wizard') : 0;
@@ -36788,101 +36834,195 @@ window.computeExpectedSpellbookCounts = computeExpectedSpellbookCounts;
 let _sbsDraftBase = [];
 let _sbsDraftSavant = [];
 
+// Allocates existing spellbook entries to specific level-steps, earliest
+// first — since a spell could only have been picked once its level was
+// actually unlocked, this gives a consistent, deterministic view of
+// "which level's grant did this probably come from" even though the
+// spellbook data itself doesn't track that. School-matching spells are
+// claimed by Savant slots first (the more restrictive pool), with
+// anything left over falling through to Base slots.
+// Every non-spellbook way a spell might already be accessible to this
+// character — racial traits, feats (Magic Initiate etc.), subclass
+// bonus spells, magic-item-granted spells. Reuses the exact same
+// aggregator functions the Known Spells list is built from, rather than
+// re-deriving this separately, so the two can never drift out of sync
+// with each other. Returns a Map from spell key to a short source label.
+function getExternalSpellSources() {
+  const map = new Map();
+  if (typeof getRacialBonusSpells === 'function') {
+    getRacialBonusSpells().forEach(sp => { if (!map.has(sp.key)) map.set(sp.key, sp.label || 'Racial'); });
+  }
+  if (typeof getFeatGrantedSpells === 'function') {
+    getFeatGrantedSpells().forEach(sp => { if (!map.has(sp.key)) map.set(sp.key, 'Feat'); });
+  }
+  if (typeof getSubclassBonusSpells === 'function') {
+    getSubclassBonusSpells().forEach(sp => { if (sp.available && !map.has(sp.key)) map.set(sp.key, sp.subclass || 'Subclass'); });
+  }
+  if (typeof getMagicItemGrantedSpells === 'function') {
+    getMagicItemGrantedSpells().forEach(sp => { if (!map.has(sp.key)) map.set(sp.key, sp.itemName || 'Item'); });
+  }
+  return map;
+}
+window.getExternalSpellSources = getExternalSpellSources;
+
+function computeSpellbookAllocation() {
+  const caps = computeSpellbookPickCaps();
+  if (!caps.wizLv) return null;
+  const book = currentChar.spells?.spellbook || [];
+  const levelOf = (key) => PHB_SPELL_LIST.find(sp => sp.key === key)?.level ?? 99;
+  const owned = book.filter(s => s.level > 0).map(s => s.key).sort((a, b) => levelOf(a) - levelOf(b));
+  let ownedPool = [...owned];
+  let ownedSavantPool = caps.school
+    ? owned.filter(k => (PHB_SPELL_LIST.find(sp => sp.key === k)?.school || '') === caps.school)
+    : [];
+
+  // Takes the first spell in the pool whose actual level fits within
+  // maxLevel — never just the first item regardless of level, since a
+  // 3rd-level spell can't have come from a step capped at 1st level.
+  const takeFitting = (pool, maxLevel) => {
+    const idx = pool.findIndex(k => levelOf(k) <= maxLevel);
+    if (idx === -1) return null;
+    return pool.splice(idx, 1)[0];
+  };
+
+  const steps = caps.levelSteps.map(step => {
+    const savantFilled = [];
+    for (let i = 0; i < step.savantCount; i++) {
+      const k = takeFitting(ownedSavantPool, step.savantMaxLevel);
+      if (!k) break;
+      savantFilled.push(k);
+      const oi = ownedPool.indexOf(k);
+      if (oi !== -1) ownedPool.splice(oi, 1);
+    }
+    const baseFilled = [];
+    for (let i = 0; i < step.baseCount; i++) {
+      const k = takeFitting(ownedPool, step.baseMaxLevel);
+      if (!k) break;
+      baseFilled.push(k);
+      const si = ownedSavantPool.indexOf(k);
+      if (si !== -1) ownedSavantPool.splice(si, 1);
+    }
+    return { ...step, baseFilled, savantFilled };
+  });
+  return { ...caps, steps };
+}
+window.computeSpellbookAllocation = computeSpellbookAllocation;
+
+let _sbsDraftByLevel = {}; // { level: { base: [keys], savant: [keys] } }
+
 function openSpellbookSetup() {
-  const info = computeExpectedSpellbookCounts();
+  const alloc = computeSpellbookAllocation();
   const summary = document.getElementById('sbs-summary');
-  if (!info || !summary) { toast('Spellbook Setup is only for Wizards.', 'info'); return; }
+  if (!alloc || !summary) { toast('Spellbook Setup is only for Wizards.', 'info'); return; }
 
   const book = currentChar.spells?.spellbook || [];
   const currentTotal = book.filter(s => s.level > 0).length;
-  const currentSavantSchoolCount = info.school
-    ? book.filter(s => s.level > 0 && (PHB_SPELL_LIST.find(sp => sp.key === s.key)?.school || '') === info.school).length
-    : 0;
 
-  let html = `Level ${info.wizLv} Wizard: spellbook should have <b>${info.baseTarget}</b> spells (any school, level ≤${info.maxPrepLevel}). You currently have <b>${currentTotal}</b>.`;
-  if (info.school) {
-    html += `<br>Your ${info.subclassName} Savant feature grants <b>${info.savantTarget}</b> free ${info.school} spells (separate from the base count above). You have <b>${currentSavantSchoolCount}</b> ${info.school} spell${currentSavantSchoolCount===1?'':'s'} in your book right now — that's a rough estimate of Savant spells already picked, not a guarantee, since a base pick could also happen to be ${info.school}.`;
+  let html = `Level ${alloc.wizLv} Wizard — your book should have <b>${alloc.baseCaps.length}</b> spells total. You have <b>${currentTotal}</b> in it now.`;
+  if (alloc.school) {
+    html += `<br>Of those, <b>${alloc.savantCaps.length}</b> should be free ${alloc.school} spells from your ${alloc.subclassName} Savant feature.`;
   }
   summary.innerHTML = html;
 
-  _sbsDraftBase = [];
-  _sbsDraftSavant = [];
-  document.getElementById('sbs-base-target').textContent = Math.max(0, info.baseTarget - currentTotal);
-  document.getElementById('sbs-base-search').value = '';
-  const savantSection = document.getElementById('sbs-savant-section');
-  if (info.school) {
-    savantSection.style.display = '';
-    document.getElementById('sbs-savant-title').textContent = `${info.school} Savant Spells`;
-    document.getElementById('sbs-savant-target').textContent = Math.max(0, info.savantTarget - currentSavantSchoolCount);
-    document.getElementById('sbs-savant-search').value = '';
-  } else {
-    savantSection.style.display = 'none';
-  }
-
-  renderSpellbookSetupPicker('base');
-  renderSpellbookSetupPicker('savant');
+  _sbsDraftByLevel = {};
+  renderSpellbookSetupLevels();
   openModal('spellbook-setup-modal');
 }
 window.openSpellbookSetup = openSpellbookSetup;
 
-function renderSpellbookSetupPicker(which) {
-  const info = computeExpectedSpellbookCounts();
-  if (!info) return;
-  const list = document.getElementById(`sbs-${which}-list`);
-  if (!list) return;
-  const q = (document.getElementById(`sbs-${which}-search`)?.value || '').toLowerCase().trim();
-  const draft = which === 'base' ? _sbsDraftBase : _sbsDraftSavant;
-  const book = currentChar.spells?.spellbook || [];
-  const inBookKeys = new Set(book.map(s => s.key));
-
-  let spells = PHB_SPELL_LIST.filter(sp => {
-    if (sp.level < 1 || sp.level > info.maxPrepLevel) return false;
-    if (!sp.classes.includes('wizard')) return false;
-    if (inBookKeys.has(sp.key)) return false;
-    if (which === 'savant') { if (!info.school || sp.school !== info.school) return false; }
-    if (q && !sp.name.toLowerCase().includes(q)) return false;
-    return true;
-  });
-  spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+function renderSpellbookSetupLevels() {
+  const alloc = computeSpellbookAllocation();
+  const container = document.getElementById('sbs-levels-container');
+  if (!alloc || !container) return;
 
   const LVLNAMES = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
-  list.innerHTML = spells.map(sp => {
-    const isSelected = draft.includes(sp.key);
-    return `
-      <div class="sp-browser-row" style="cursor:pointer" onclick="toggleSpellbookSetupSpell('${which}','${sp.key}')">
-        <span class="sp-level-badge">${sp.level}</span>
-        <div>
-          <div class="sp-browser-name" style="${isSelected?'color:var(--accent)':''}">${sp.name}</div>
-          <div class="sp-browser-school">${LVLNAMES[sp.level]} Level · ${sp.school}</div>
+  const inBookKeys = new Set((currentChar.spells?.spellbook || []).map(s => s.key));
+  const externalSources = typeof getExternalSpellSources === 'function' ? getExternalSpellSources() : new Map();
+
+  container.innerHTML = alloc.steps.map(step => {
+    if (!_sbsDraftByLevel[step.level]) _sbsDraftByLevel[step.level] = { base: [], savant: [] };
+    const draft = _sbsDraftByLevel[step.level];
+
+    const baseNeeded = Math.max(0, step.baseCount - step.baseFilled.length - draft.base.length);
+    const savantNeeded = Math.max(0, step.savantCount - step.savantFilled.length - draft.savant.length);
+    const isComplete = baseNeeded === 0 && savantNeeded === 0;
+
+    const subSection = (which, needed, filled, maxLevel, label, colorVar) => {
+      if (step[which === 'base' ? 'baseCount' : 'savantCount'] === 0) return '';
+      const draftKeys = draft[which];
+      const alreadyKeys = filled.map(k => PHB_SPELL_LIST.find(sp => sp.key === k)).filter(Boolean);
+      let optionsHtml = '';
+      if (needed > 0) {
+        const q = '';
+        let spells = PHB_SPELL_LIST.filter(sp => {
+          if (sp.level < 1 || sp.level > maxLevel) return false;
+          if (!sp.classes.includes('wizard')) return false;
+          if (inBookKeys.has(sp.key)) return false;
+          if (which === 'savant' && (!alloc.school || sp.school !== alloc.school)) return false;
+          return true;
+        });
+        spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+        optionsHtml = spells.map(sp => {
+          const isSelected = draftKeys.includes(sp.key);
+          const externalLabel = externalSources.get(sp.key);
+          return `
+            <div class="sp-browser-row" style="cursor:pointer" onclick="toggleSpellbookSetupSpell(${step.level},'${which}','${sp.key}')">
+              <span class="sp-level-badge">${sp.level}</span>
+              <div>
+                <div class="sp-browser-name" style="${isSelected?'color:var(--accent)':''};text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" title="Click to view full description" onclick="event.stopPropagation();openSpellDetailModal('${sp.key}','${sp.name.replace(/'/g,"\\'")}')">${sp.name}</div>
+                <div class="sp-browser-school">${LVLNAMES[sp.level]} Level · ${sp.school}${sp.ritual ? ` <span style="color:var(--purple)" title="Ritual — can be cast as a ritual straight from the spellbook, without being prepared">· Ritual</span>` : ''}${externalLabel ? ` <span style="color:var(--gold)" title="Already accessible via ${externalLabel}, independent of your spellbook">· Already known (${externalLabel})</span>` : ''}</div>
+              </div>
+              <button class="sp-add-btn" style="${isSelected?'background:var(--red)':''}">${isSelected ? '✕' : '+'}</button>
+            </div>
+          `;
+        }).join('');
+      }
+      return `
+        <div style="margin-top:6px">
+          <div style="font-family:var(--font-ui);font-size:9px;color:${colorVar};letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px">
+            ${label} — level ≤${maxLevel} ${needed > 0 ? `(${needed} more needed)` : '(filled)'}
+          </div>
+          ${alreadyKeys.length ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:3px">Already in book: ${alreadyKeys.map(sp=>sp.name).join(', ')}</div>` : ''}
+          ${draftKeys.length ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-bottom:3px">Selected now: ${draftKeys.map(k=>PHB_SPELL_LIST.find(sp=>sp.key===k)?.name||k).join(', ')}</div>` : ''}
+          ${needed > 0 ? `<div style="display:flex;flex-direction:column;gap:2px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:4px">${optionsHtml || `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:6px">No matching spells at level ≤${maxLevel}</div>`}</div>` : ''}
         </div>
-        <button class="sp-add-btn" style="${isSelected?'background:var(--red)':''}">${isSelected ? '✕' : '+'}</button>
-      </div>
+      `;
+    };
+
+    return `
+      <details ${isComplete ? '' : 'open'} style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;background:${isComplete?'var(--bg2)':'transparent'}">
+        <summary style="cursor:pointer;font-family:var(--font-ui);font-size:11px;color:${isComplete?'var(--accent)':'var(--text)'};font-weight:600">
+          Level ${step.level} ${isComplete ? '✓' : ''}
+        </summary>
+        ${subSection('base', baseNeeded, step.baseFilled, step.baseMaxLevel, 'Base Spells', 'var(--text3)')}
+        ${subSection('savant', savantNeeded, step.savantFilled, step.savantMaxLevel, `${alloc.school||''} Savant Spells (free)`, 'var(--gold)')}
+      </details>
     `;
-  }).join('') || `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:8px">No matching spells</div>`;
-
-  document.getElementById(`sbs-${which}-count`).textContent = draft.length;
+  }).join('');
 }
-window.renderSpellbookSetupPicker = renderSpellbookSetupPicker;
+window.renderSpellbookSetupLevels = renderSpellbookSetupLevels;
 
-function toggleSpellbookSetupSpell(which, key) {
-  const draft = which === 'base' ? _sbsDraftBase : _sbsDraftSavant;
+function toggleSpellbookSetupSpell(level, which, key) {
+  if (!_sbsDraftByLevel[level]) _sbsDraftByLevel[level] = { base: [], savant: [] };
+  const draft = _sbsDraftByLevel[level][which];
   const idx = draft.indexOf(key);
   if (idx === -1) draft.push(key); else draft.splice(idx, 1);
-  renderSpellbookSetupPicker(which);
+  renderSpellbookSetupLevels();
 }
 window.toggleSpellbookSetupSpell = toggleSpellbookSetupSpell;
 
 function applySpellbookSetup() {
   if (!currentChar.spells) currentChar.spells = {};
   if (!currentChar.spells.spellbook) currentChar.spells.spellbook = [];
-  const allPicked = [..._sbsDraftBase, ..._sbsDraftSavant];
   let added = 0;
-  allPicked.forEach(key => {
-    if (currentChar.spells.spellbook.some(s => s.key === key)) return;
-    const phb = PHB_SPELL_LIST.find(sp => sp.key === key);
-    if (!phb) return;
-    currentChar.spells.spellbook.push({ key, name: phb.name, level: phb.level });
-    added++;
+  Object.values(_sbsDraftByLevel).forEach(({ base, savant }) => {
+    [...base, ...savant].forEach(key => {
+      if (currentChar.spells.spellbook.some(s => s.key === key)) return;
+      const phb = PHB_SPELL_LIST.find(sp => sp.key === key);
+      if (!phb) return;
+      currentChar.spells.spellbook.push({ key, name: phb.name, level: phb.level });
+      added++;
+    });
   });
   closeModal('spellbook-setup-modal');
   if (typeof recalcAll === 'function') recalcAll();
