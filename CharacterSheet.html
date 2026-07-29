@@ -2570,10 +2570,10 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
           <div class="panel" style="margin-top:10px">
             <div class="panel-title">Quick Stats</div>
-            <div class="qs-row"><span class="qs-label">Prof Bonus</span><span class="qs-val qs-accent" id="qs-prof">+2</span></div>
-            <div class="qs-row"><span class="qs-label">Initiative</span><span class="qs-val" id="qs-init">+0</span><span class="qs-sub" id="qs-init-sub"></span></div>
-            <div class="qs-row"><span class="qs-label">Passive Perception</span><span class="qs-val" id="qs-pp">10</span><span class="qs-sub" id="qs-pp-sub"></span></div>
-            <div class="qs-row"><span class="qs-label">Carry Capacity</span><span class="qs-val" id="qs-carry">— lb</span></div>
+            <div class="qs-row"><span class="qs-label" data-glossary-term="proficiency">Prof Bonus</span><span class="qs-val qs-accent" id="qs-prof">+2</span></div>
+            <div class="qs-row"><span class="qs-label" data-glossary-term="initiative">Initiative</span><span class="qs-val" id="qs-init">+0</span><span class="qs-sub" id="qs-init-sub"></span></div>
+            <div class="qs-row"><span class="qs-label" data-glossary-term="passive perception">Passive Perception</span><span class="qs-val" id="qs-pp">10</span><span class="qs-sub" id="qs-pp-sub"></span></div>
+            <div class="qs-row"><span class="qs-label" data-glossary-term="carrying capacity">Carry Capacity</span><span class="qs-val" id="qs-carry">— lb</span></div>
             <div class="qs-row" id="qs-extra-attacks-row" style="display:none"><span class="qs-label">Extra Attacks</span><span class="qs-val" id="qs-extra-attacks">—</span></div>
           </div>
           <div class="panel" style="margin-top:10px">
@@ -2593,6 +2593,59 @@ body.preview-readonly #mi-detail-edit-row * {
               <span id="class-choices-subtitle" style="font-size:9px;color:var(--text3)"></span>
             </div>
             <div id="class-choices-body"></div>
+          </div>
+          <div class="panel" style="margin-top:10px">
+            <div class="panel-title">Boons &amp; Curses</div>
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:8px">Story-granted effects — a fey lord's blessing, a hag's curse — not Epic Boon feats. Click one for the full effect text.</div>
+            <div id="boons-curses-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <input class="info-input" id="boon-curse-quick-name" placeholder="Name…" style="width:100%;font-size:11px" onkeydown="if(event.key==='Enter')quickAddBoonCurse('boon')"/>
+              <div style="display:flex;gap:6px">
+                <button class="tbtn" style="flex:1;font-size:10px;color:var(--accent);border-color:var(--accent)" onclick="quickAddBoonCurse('boon')">✨ Boon</button>
+                <button class="tbtn" style="flex:1;font-size:10px;color:var(--red);border-color:var(--red)" onclick="quickAddBoonCurse('curse')">💀 Curse</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:10px">
+            <div class="panel-title">Exhaustion
+              <span id="exh-level-badge" style="font-size:10px;color:var(--text2)">Level 0</span>
+            </div>
+            <div class="exh-pips" id="exh-pips"></div>
+            <div id="exh-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;letter-spacing:.5px;line-height:1.6"></div>
+          </div>
+
+          <div class="panel" style="margin-top:10px">
+            <div class="panel-title">Contamination
+              <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
+                <span id="cont-level-badge" style="font-size:10px;color:var(--text2)">Level 0</span>
+                <span onclick="openModal('contamination-info-modal')" title="Contamination rules" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:8px;margin:-8px">
+                  <span style="font-size:11px;color:var(--text3);border:1px solid var(--border);border-radius:50%;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none">i</span>
+                </span>
+              </span>
+            </div>
+            <div class="exh-pips" id="cont-pips"></div>
+            <div id="cont-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;letter-spacing:.5px;line-height:1.6"></div>
+            <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <span style="font-family:var(--font-ui);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">Mutations</span>
+                <button class="tbtn" style="font-size:9px;padding:2px 8px" onclick="openMutationLookupModal()">🎲 Add</button>
+              </div>
+              <div id="cont-mutations-list" style="display:flex;flex-direction:column;gap:6px"></div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:10px">
+            <div class="panel-title">Drunkenness
+              <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
+                <span id="drunk-level-badge" style="font-size:10px;color:var(--text2)">Level 0</span>
+                <span onclick="openConditionInfoModal('Drunkenness')" title="Drunkenness rules" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:8px;margin:-8px">
+                  <span style="font-size:11px;color:var(--text3);border:1px solid var(--border);border-radius:50%;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none">i</span>
+                </span>
+              </span>
+            </div>
+            <div class="exh-pips" id="drunk-pips"></div>
+            <div id="drunk-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;letter-spacing:.5px;line-height:1.6"></div>
           </div>
         </div>
 
@@ -2662,10 +2715,10 @@ body.preview-readonly #mi-detail-edit-row * {
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin:8px 0">
                 <div><div class="stat-badge" id="disp-ac">10</div><div class="stat-label" data-glossary-term="armor class">AC</div></div>
-                <div><div class="stat-badge" id="disp-init">+0</div><div class="stat-label">Initiative</div></div>
+                <div><div class="stat-badge" id="disp-init">+0</div><div class="stat-label" data-glossary-term="initiative">Initiative</div></div>
                 <div>
                   <div class="stat-badge" id="disp-speed" style="font-size:14px;min-width:52px">30</div>
-                  <div class="stat-label">Speed (ft)</div>
+                  <div class="stat-label" data-glossary-term="speed">Speed (ft)</div>
                   <div id="speed-note" style="font-family:var(--font-ui);font-size:9px;color:var(--text3);text-align:center;margin-top:2px;line-height:1.3;max-width:80px;word-break:break-word"></div>
                 </div>
               </div>
@@ -2685,6 +2738,12 @@ body.preview-readonly #mi-detail-edit-row * {
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                   <label class="field-label" style="margin:0">Speed Overrides</label>
                   <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">0 = use racial default</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:6px;font-family:var(--font-ui);font-size:9px;color:var(--text3)">
+                  <span data-glossary-term="jumping">Jumping</span>
+                  <span data-glossary-term="crawling">Crawling</span>
+                  <span data-glossary-term="flying">Flying</span>
+                  <span data-glossary-term="swimming">Swimming</span>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
                   <div>
@@ -2740,7 +2799,7 @@ body.preview-readonly #mi-detail-edit-row * {
               </div>
               <div id="ds-rule-note" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);margin-top:4px;line-height:1.4"></div>
               <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-                <div class="field-label" style="margin-bottom:6px">Hit Dice</div>
+                <div class="field-label" style="margin-bottom:6px" data-glossary-term="hit point dice">Hit Dice</div>
                 <div id="hd-rows" style="display:flex;flex-direction:column;gap:6px"></div>
               </div>
             </div>
@@ -2896,58 +2955,6 @@ body.preview-readonly #mi-detail-edit-row * {
               <input class="info-input" id="custom-condition-input" placeholder="Custom condition (e.g. Contamination)…" style="flex:1;font-size:11px" onkeydown="if(event.key==='Enter')addCustomCondition()"/>
               <button class="tbtn" style="font-size:10px" onclick="addCustomCondition()">+ Add</button>
             </div>
-          </div>
-
-          <div class="panel" style="margin-top:10px">
-            <div class="panel-title">Boons &amp; Curses</div>
-            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:8px">Story-granted effects — a fey lord's blessing, a hag's curse — not Epic Boon feats. Click one for the full effect text.</div>
-            <div id="boons-curses-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
-            <div style="display:flex;gap:6px">
-              <input class="info-input" id="boon-curse-quick-name" placeholder="Name…" style="flex:1;font-size:11px" onkeydown="if(event.key==='Enter')quickAddBoonCurse('boon')"/>
-              <button class="tbtn" style="font-size:10px;color:var(--accent);border-color:var(--accent)" onclick="quickAddBoonCurse('boon')">✨ Boon</button>
-              <button class="tbtn" style="font-size:10px;color:var(--red);border-color:var(--red)" onclick="quickAddBoonCurse('curse')">💀 Curse</button>
-            </div>
-          </div>
-
-          <div class="panel" style="margin-top:10px">
-            <div class="panel-title">Exhaustion
-              <span id="exh-level-badge" style="font-size:10px;color:var(--text2)">Level 0</span>
-            </div>
-            <div class="exh-pips" id="exh-pips"></div>
-            <div id="exh-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;letter-spacing:.5px;line-height:1.6"></div>
-          </div>
-
-          <div class="panel" style="margin-top:10px">
-            <div class="panel-title">Contamination
-              <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
-                <span id="cont-level-badge" style="font-size:10px;color:var(--text2)">Level 0</span>
-                <span onclick="openModal('contamination-info-modal')" title="Contamination rules" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:8px;margin:-8px">
-                  <span style="font-size:11px;color:var(--text3);border:1px solid var(--border);border-radius:50%;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none">i</span>
-                </span>
-              </span>
-            </div>
-            <div class="exh-pips" id="cont-pips"></div>
-            <div id="cont-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;letter-spacing:.5px;line-height:1.6"></div>
-            <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                <span style="font-family:var(--font-ui);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">Mutations</span>
-                <button class="tbtn" style="font-size:9px;padding:2px 8px" onclick="openMutationLookupModal()">🎲 Add</button>
-              </div>
-              <div id="cont-mutations-list" style="display:flex;flex-direction:column;gap:6px"></div>
-            </div>
-          </div>
-
-          <div class="panel" style="margin-top:10px">
-            <div class="panel-title">Drunkenness
-              <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
-                <span id="drunk-level-badge" style="font-size:10px;color:var(--text2)">Level 0</span>
-                <span onclick="openConditionInfoModal('Drunkenness')" title="Drunkenness rules" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:8px;margin:-8px">
-                  <span style="font-size:11px;color:var(--text3);border:1px solid var(--border);border-radius:50%;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;pointer-events:none">i</span>
-                </span>
-              </span>
-            </div>
-            <div class="exh-pips" id="drunk-pips"></div>
-            <div id="drunk-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;letter-spacing:.5px;line-height:1.6"></div>
           </div>
         </div>
 
@@ -4898,7 +4905,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="weapon-edit-modal">
-  <div class="modal-box" style="max-width:480px">
+  <div class="modal-box" style="max-width:480px;max-height:90vh;overflow-y:auto">
     <div class="modal-title">
       <span id="weapon-modal-title">Add Weapon</span>
       <span class="modal-close" onclick="closeModal('weapon-edit-modal')">&#x2715;</span>
@@ -9075,8 +9082,8 @@ const PHB_SUBCLASSES = {
   "artificer/battle smith": {"name":"Battle Smith","source":"EFotA","bonusSpells":["heroism", "shield", "shining_smite", "warding_bond", "aura_of_vitality", "conjure_barrage", "aura_of_purity", "fire_shield", "banishing_smite", "mass_cure_wounds"],"features":[{"name":"Battle Ready & Tool Proficiency","level":3,"desc":"I gain proficiency with martial weapons and smith's tools | I can use my Intelligence modifier instead of Strength or Dexterity for magic weapons","usages":null,"recovery":null},{"name":"Steel Defender","level":3,"desc":"When I finish a Long Rest, I can use smith's tools to create a Steel Defender (see Companion tab). It obeys my commands and acts on my initiative right after me; unless I use a Bonus Action to command it, it only takes the Dodge action. I can't have more than one at a time.","usages":null,"recovery":null},{"name":"Extra Attack","level":5,"desc":"I can attack twice, instead of once, whenever I take the Attack action on my turn.","usages":null,"recovery":null},{"name":"Arcane Jolt","level":9,"desc":"Once per turn when my Steel Defender or a magic weapon I'm wielding hits a target, I can have it deal an extra 2d6 force damage (4d6 at level 15) to the target, or restore 2d6 HP (4d6 at level 15) to a different creature within 30 ft of the target hit.","usages":"int_mod","recovery":"long rest"},{"name":"Improved Defender","level":15,"desc":"My defender's Deflect Attack now deals its attacker 1d4 + my Int mod force damage | My arcane jolt damage/healing increases to 4d6; My steel defender gains +2 AC","usages":null,"recovery":null}]},
   "artificer/cartographer": {"name": "Cartographer", "source": "EFotA", "bonusSpells": ["faerie_fire", "guiding_bolt", "healing_word", "locate_object", "mind_spike", "call_lightning", "clairvoyance", "banishment", "locate_creature", "scrying", "teleportation_circle"], "features": [{"name": "Tool of the Trade", "level": 3, "desc": "Proficiency with Calligrapher's Supplies and Cartographer's Tools. I can scribe a spell scroll using PHB (2024) crafting rules in half the normal time.", "usages": null, "recovery": null}, {"name": "Adventurer's Atlas", "level": 3, "desc": "When I finish a Long Rest holding Cartographer's Tools and touching at least 2 creatures (I can be one of them), I can create a magical map for each, up to 1 + my INT modifier (min 2) targets. The maps are illegible to anyone else, and last until I die or until I use this feature again (existing maps vanish immediately). While carrying a map, a creature gains a +1d4 bonus to Initiative rolls, and knows the location of all other map holders on the same plane \u2014 letting it target another map holder with a spell or effect that requires line of sight regardless of actual sight, so long as the target is within range.", "usages": null, "recovery": null}, {"name": "Mapping Magic", "level": 3, "desc": "On my turn, as long as my Speed isn't 0, I can expend half my movement to teleport to an unoccupied space I can see within 10 ft, or to within 5 ft of a creature within 30 ft of me. I can also cast Faerie Fire, without expending a spell slot, a number of times equal to my INT modifier per Long Rest.", "usages": "int_mod", "recovery": "long rest"}, {"name": "Guided Precision", "level": 5, "desc": "Once per turn, when I cast a Cartographer Spell or hit a creature under Faerie Fire with an attack, I add my INT modifier to one damage roll. Taking damage does not break my Concentration on Faerie Fire.", "usages": null, "recovery": null}, {"name": "Ingenious Movement", "level": 9, "desc": "When I use Flash of Genius, a willing creature of my choice (or myself) can also teleport up to 30 ft to an unoccupied space I can see, as part of the same Reaction.", "usages": null, "recovery": null}, {"name": "Superior Atlas", "level": 15, "desc": "My Adventurer's Atlas improves: Safe Haven \u2014 when a map holder drops to 0 HP without dying outright, it can destroy its map to teleport to within 5 ft of me or another map holder of its choice, and its HP becomes twice my Artificer level. Unerring Path \u2014 once per Long Rest, if I'm one of the map holders, I can cast Find the Path without a spell slot, without preparing it, and without spell components.", "usages": 1, "recovery": "long rest"}]},
   "psion/metamorph": {"name":"Metamorph","source":"UA25P","bonusSpells":["alter_self", "cure_wounds", "inflict_wounds", "lesser_restoration", "aura_of_vitality", "haste", "polymorph", "stoneskin", "contagion", "mass_cure_wounds"],"extraAttackLevels":[6],"features":[{"name":"Metamorph Spells","level":3,"desc":"I always have certain spells prepared that don't count against spells prepared","usages":null,"recovery":null},{"name":"Mutable Form","level":3,"desc":"Bonus action, expend 1 Psionic Energy Die to stretch limbs for 1 minute | Roll die; gain temp HP = roll + Int mod (min 1); gain: +5 ft reach, +5 ft speed | Touch spells with 1 action casting time have 10 ft range","usages":null,"recovery":null},{"name":"Organic Weapons","level":3,"desc":"Magic action to reform free hand into Bone Blade, Flesh Maul, or Viscera Launcher | Can use before attack roll when taking Attack action; retains form until changed/unconscious | I can use Int for attack and damage rolls instead of Str or Dex","usages":null,"recovery":null},{"name":"Extra Attack","level":6,"desc":"I can attack twice instead of once when taking the Attack action | I can cast a psion cantrip (1 action) in place of one attack","usages":null,"recovery":null},{"name":"Flesh Weaver","level":6,"desc":"When I use Mutable Form, I can expend additional Psionic Energy Die for benefits: | Organic Defense: +2 AC | Empowered Healing: When spell restores HP, expend 1 die, roll, add to HP restored","usages":null,"recovery":null},{"name":"Improved Mutable Form","level":10,"desc":"Mutable Form lasts 10 minutes and I choose one additional benefit: | Stony Epidermis: Adv on Con saves for concentration; resist 1 damage type (choice) | Superior Stride: Dash as bonus action (unarmored); climb/swim speed = speed | Unnatural Flexibility: +1 AC; move through 1-inch spaces; 5 ft to escape restraints/grapple","usages":null,"recovery":null},{"name":"Life-Bending Weapons","level":14,"desc":"When I hit with Organic Weapon, roll 1 Psionic Energy Die (doesn't expend) | Target takes extra Necrotic dmg = roll | Alternatively, expend 1 die: target takes Necrotic dmg = roll |   Chosen creatures in 30-ft emanation regain HP = roll + Int mod; once per turn","usages":null,"recovery":null}]},
-  "psion/psykinetic": {"name":"Psykinetic","source":"UA25P","bonusSpells":["cloud_of_daggers", "levitate", "shield", "thunderwave", "telekinetic_crush", "otilukes_resilient_sphere"],"features":[{"name":"Psykinetic Spells","level":3,"desc":"I always have certain spells prepared that don't count against spells prepared","usages":null,"recovery":null},{"name":"Stronger Telekinesis","level":3,"desc":"When I cast Mage Hand, range increases by 30 ft and hand can carry up to 20 lbs","usages":null,"recovery":null},{"name":"Telekinetic Techniques","level":3,"desc":"When I use Telekinetic Propel, I can roll 1d4 instead of expending Psionic Energy Die | When target fails save, I can impose one effect: | Boost: target's speed +10 ft until start of my next turn | Disorient: target can't make opportunity attacks until start of its next turn | Telekinetic Bolt: targ","usages":null,"recovery":null},{"name":"Destructive Trance","level":6,"desc":"At start of turn, expend 1 Psionic Energy Die to enter destructive state for 10 min | I gain 20 ft fly speed and hover | When I cast psion spell with spell slot, roll Psionic Energy Die (doesn't expend) | Add roll to one damage roll of the spell","usages":null,"recovery":null},{"name":"Rebounding Field","level":6,"desc":"When I cast Shield causing triggering attack to miss, can expend 1 Psionic Energy Die | Attacker makes Dex save; roll 1 die | Fail: attacker takes Force dmg = roll + Int mod; Success: half damage | Either way, I gain temp HP = damage dealt","usages":null,"recovery":null},{"name":"Enhanced Telekinetic Crush","level":10,"desc":"When I cast Telekinetic Crush, can expend 1 Psionic Energy Die to modify spell: | Target's speed halved until start of my next turn (regardless of save) | Roll the die and add to one damage roll of the spell","usages":null,"recovery":null},{"name":"Heightened Telekinesis","level":14,"desc":"I can cast Telekinesis by expending 4 Psionic Energy Dice instead of spell slot | When cast this way, can modify: no concentration, duration 1 min, target Gargantuan","usages":null,"recovery":null}]},
-  "psion/telepath": {"name":"Telepath","source":"UA25P","bonusSpells":["command", "detect_thoughts", "mind_spike", "counterspell", "compulsion", "confusion", "modify_memory", "yolandes_regal_presence"],"features":[{"name":"Mind Infiltrator","level":3,"desc":"When I cast Detect Thoughts, can expend 1 Psionic Energy Die to modify: | Spell requires no components or concentration | When using Read Thoughts, target doesn't know I'm probing if it fails save","usages":null,"recovery":null},{"name":"Telepath Spells","level":3,"desc":"I always have certain spells prepared that don't count against spells prepared","usages":null,"recovery":null},{"name":"Telepathic Distraction","level":3,"desc":"Reaction when creature I can see within telepathy range hits with attack | Roll 1 Psionic Energy Die and subtract from attack roll, potentially causing miss | Die expended only if target misses the attack","usages":null,"recovery":null},{"name":"Bulwark Mind","level":6,"desc":"At start of turn, expend 1 Psionic Energy Die to fortify mind for 10 minutes: | Resistance to Psychic damage | When I make Int/Wis/Cha save, add Psionic Energy Die roll to save (doesn't expend die) | Can't use if I have Incapacitated condition","usages":null,"recovery":null},{"name":"Potent Thoughts","level":6,"desc":"I have 60 ft telepathy; I add Int mod to damage from psion cantrips","usages":null,"recovery":null},{"name":"Telepathic Bolstering","level":10,"desc":"Reaction when I or creature within telepathy range fails check or misses attack | Expend 1 Psionic Energy Die, roll, add to d20 | Die expended only if check succeeds or attack hits","usages":null,"recovery":null},{"name":"Scramble Minds","level":14,"desc":"I can cast Confusion by expending 4 Psionic Energy Dice instead of spell slot | When cast this way, modify: sphere radius 30 ft, choose 1 crea to auto-succeed save | When affected creature starts turn, I choose their behavior instead of rolling","usages":null,"recovery":null}]},
+  "psion/psykinetic": {"name":"Psykinetic","source":"UA25P","bonusSpells":["cloud_of_daggers", "levitate", "shield", "thunderwave", "slow", "telekinetic_crush", "otilukes_resilient_sphere", "stone_shape", "telekinesis", "wall_of_force"],"features":[{"name":"Psykinetic Spells","level":3,"desc":"I always have certain spells prepared that don't count against spells prepared","usages":null,"recovery":null},{"name":"Stronger Telekinesis","level":3,"desc":"When I cast Mage Hand, range increases by 30 ft and hand can carry up to 20 lbs","usages":null,"recovery":null},{"name":"Telekinetic Techniques","level":3,"desc":"When I use Telekinetic Propel, I can roll 1d4 instead of expending Psionic Energy Die | When target fails save, I can impose one effect: | Boost: target's speed +10 ft until start of my next turn | Disorient: target can't make opportunity attacks until start of its next turn | Telekinetic Bolt: targ","usages":null,"recovery":null},{"name":"Destructive Trance","level":6,"desc":"At start of turn, expend 1 Psionic Energy Die to enter destructive state for 10 min | I gain 20 ft fly speed and hover | When I cast psion spell with spell slot, roll Psionic Energy Die (doesn't expend) | Add roll to one damage roll of the spell","usages":null,"recovery":null},{"name":"Rebounding Field","level":6,"desc":"When I cast Shield causing triggering attack to miss, can expend 1 Psionic Energy Die | Attacker makes Dex save; roll 1 die | Fail: attacker takes Force dmg = roll + Int mod; Success: half damage | Either way, I gain temp HP = damage dealt","usages":null,"recovery":null},{"name":"Enhanced Telekinetic Crush","level":10,"desc":"When I cast Telekinetic Crush, can expend 1 Psionic Energy Die to modify spell: | Target's speed halved until start of my next turn (regardless of save) | Roll the die and add to one damage roll of the spell","usages":null,"recovery":null},{"name":"Heightened Telekinesis","level":14,"desc":"I can cast Telekinesis by expending 4 Psionic Energy Dice instead of spell slot | When cast this way, can modify: no concentration, duration 1 min, target Gargantuan","usages":null,"recovery":null}]},
+  "psion/telepath": {"name":"Telepath","source":"UA25P","bonusSpells":["bane", "command", "detect_thoughts", "mind_spike", "counterspell", "speak_with_plants", "compulsion", "confusion", "awaken", "modify_memory"],"features":[{"name":"Mind Infiltrator","level":3,"desc":"When I cast Detect Thoughts, can expend 1 Psionic Energy Die to modify: | Spell requires no components or concentration | When using Read Thoughts, target doesn't know I'm probing if it fails save","usages":null,"recovery":null},{"name":"Telepath Spells","level":3,"desc":"I always have certain spells prepared that don't count against spells prepared","usages":null,"recovery":null},{"name":"Telepathic Distraction","level":3,"desc":"Reaction when creature I can see within telepathy range hits with attack | Roll 1 Psionic Energy Die and subtract from attack roll, potentially causing miss | Die expended only if target misses the attack","usages":null,"recovery":null},{"name":"Bulwark Mind","level":6,"desc":"At start of turn, expend 1 Psionic Energy Die to fortify mind for 10 minutes: | Resistance to Psychic damage | When I make Int/Wis/Cha save, add Psionic Energy Die roll to save (doesn't expend die) | Can't use if I have Incapacitated condition","usages":null,"recovery":null},{"name":"Potent Thoughts","level":6,"desc":"I have 60 ft telepathy; I add Int mod to damage from psion cantrips","usages":null,"recovery":null},{"name":"Telepathic Bolstering","level":10,"desc":"Reaction when I or creature within telepathy range fails check or misses attack | Expend 1 Psionic Energy Die, roll, add to d20 | Die expended only if check succeeds or attack hits","usages":null,"recovery":null},{"name":"Scramble Minds","level":14,"desc":"I can cast Confusion by expending 4 Psionic Energy Dice instead of spell slot | When cast this way, modify: sphere radius 30 ft, choose 1 crea to auto-succeed save | When affected creature starts turn, I choose their behavior instead of rolling","usages":null,"recovery":null}]},
   "psion/psi warper": {"name":"Psi Warper","source":"UA25P","bonusSpells":["expeditious_retreat", "feather_fall", "misty_step", "shatter", "blink", "haste", "banishment", "dimension_door", "steel_wind_strike", "teleportation_circle"],"features":[{"name":"Teleportation","level":3,"desc":"I can cast Misty Step once without expending a spell slot per long rest | I can restore this use by expending 1 Psionic Energy Die (no action required)","usages":null,"recovery":null},{"name":"Warp Propel","level":3,"desc":"When a target fails its save against my Telekinetic Propel: | Instead of pushing, I can teleport target to unoccupied space within 30 ft horizontal to me","usages":null,"recovery":null},{"name":"Warp Space","level":6,"desc":"When I cast Shatter, I can expend 1 Psionic Energy Die: | Sphere radius becomes 20 ft; failed saves are pulled to center of sphere","usages":null,"recovery":null},{"name":"Teleporter Combat","level":6,"desc":"Immediately after I cast Misty Step: | I can cast one psion cantrip with 1 action casting time as part of the bonus action","usages":null,"recovery":null},{"name":"Duplicitous Target","level":10,"desc":"When a creature I can see makes an attack against me, I can use my reaction: | Expend 1 Psionic Energy Die, choose willing creature within 30 ft without incapacitated | We teleport and swap places; the willing creature becomes target of the attack","usages":null,"recovery":null},{"name":"Mass Teleportation","level":14,"desc":"As a magic action, expend 4 Psionic Energy Dice: | Choose Huge or smaller creatures within 30 ft, up to Int modifier (min 1) | Teleport each to unoccupied space within 150 ft; unwilling get Wis save","usages":null,"recovery":null}]},
   "cleric/arcana": {"name":"Arcana Domain","source":"XUA25","bonusSpells":["detect_magic", "magic_missile", "magic_weapon", "nystuls_magic_aura", "dispel_magic", "magic_circle", "arcane_eye", "leomunds_secret_chest", "planar_binding", "teleportation_circle"],"features":[{"name":"Arcane Initiate","level":3,"desc":"I gain Expertise with Arcana and two wizard cantrips that count as cleric cantrips","usages":null,"recovery":null},{"name":"Channel Divinity: Modify Magic","level":3,"desc":"When I cast a spell, I can expend one use of my Channel Divinity & change the spell in one of the following ways (no action required). | • Fortifying Spell. One target of the spell gains a number of Temp HP equal to 2d8 + my Cleric level. | • Tenacious Spell. When I cast a spell that forces a creature to make a saving throw, I choose one target of the spell I can see. I roll 1d6 and apply the number rolled as a penalty to the target's saving throw.","usages":null,"recovery":null},{"name":"Dispelling Recovery","level":6,"desc":"Immediately after I cast a spell with a spell slot that restores HP to a creature or ends a condition on a creature, I can cast Dispel Magic on the creature as a Bonus Action without expending a spell slot.","usages":"wis_mod","recovery":"long rest"},{"name":"Arcane Mastery","level":17,"desc":"I add four wizards spells, a 6th, 7th, 8th, and 9th-level spell, to my domain spells. | As any domain spell, these spells are automatically prepared and count as cleric spells. | Whenever I gain a Cleric level, I can replace one of these spells with another Wizard spell of the same level.","usages":null,"recovery":null}]},
   "fighter/arcane archer": {"name":"Arcane Archer","source":"XUA25","features":[{"name":"Arcane Archer Lore","level":3,"desc":"I gain Proficiency in Arcana & Nature. If I already have Prof in one or both, I instead gain Prof with a skill (or 2) of my choice. | I know either the Druidcraft or Prestidigitation cantrip. Intelligence is my spellcasting ability for it.","usages":null,"recovery":null},{"name":"Arcane Shot","level":3,"desc":"Choose Feature |   I learn an additional Arcane Shot option of my choice when I reach Fighter lvls 7, 10, 15, & 18. When I learn a new Arcane Shot option, I can replace one option I know with a different one. | Using Arcane Shot: once per turn, after I hit with a ranged attack using a weapon with the Ammunition property, I can use one of my Arcane Shot options on the target.","usages":2,"recovery":"short rest"},{"name":"Curving Shot","level":7,"desc":"If I make an attack roll with a weapon with the Ammunition property and miss, as a Bonus Action immediately after the attack, I can make an extra attack with the same piece of ammo against a different target that I can see, that is within the weapon's range and within 60 ft of the attack's original target.","usages":null,"recovery":null},{"name":"Magical Ammunition","level":7,"desc":"As a Magic action, I can imbue a piece of nonmagical ammo with one of the following magical properties & fire it at a solid surface I can see within range. | On a hit, the ammo's effect activates, and the ammo attaches to the surface for the duration of the effect, after which, it is destroyed.","usages":null,"recovery":null},{"name":"Ever Ready Shot","level":10,"desc":"When I roll Initiative, I regain one expended use of Arcane Shot.","usages":null,"recovery":null},{"name":"Arcane Burst","level":15,"desc":"I can push creatures away from me with my arcane mastery. When I use Indomitable, each creature of my choice in a 10' Emanation originating from me muct scceed on a Strength saving throw against my Arcane Shot DC or be pushed up to 20' straight away from me.","usages":null,"recovery":null},{"name":"Masterful Shots","level":18,"desc":"When a creature I can see misses me with an attack roll, I can use my Reaction to move up to half my Speed away from the attacker without provoking Opportunity Attacks. | I can then make a ranged attack roll against the attacker as part of this Reaction if the attacker is within the weapon's range.","usages":null,"recovery":null}]},
@@ -23091,7 +23098,7 @@ function linkifyGlossaryTerms(html, excludeName) {
   // Guidance, Resistance, Command, Charm, Fear, Sleep) are deliberately
   // skipped, since linking every stray use of an ordinary English word
   // would create far more noise than value.
-  const SPELL_LINK_EXCLUDE = new Set(['light','heal','guidance','resistance','command','charm','fear','sleep','web','wish','contact','friends','sanctuary','silence','jump','fly','haste','slow','blur','feign','sunbeam','moonbeam','banishment','revivify']);
+  const SPELL_LINK_EXCLUDE = new Set(['light','heal','guidance','resistance','command','charm','fear','sleep','wish','contact','friends','harm','dawn']);
   if (typeof PHB_SPELL_LIST !== 'undefined') {
     PHB_SPELL_LIST.forEach(sp => {
       const lc = sp.name.toLowerCase();
@@ -23112,7 +23119,8 @@ function linkifyGlossaryTerms(html, excludeName) {
   const names = [...terms.keys()].sort((a, b) => b.length - a.length);
   const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const pattern = new RegExp('\\b(' + escaped.join('|') + ')(?:e?s)?\\b', 'gi');
-  return html.replace(pattern, (fullMatch, baseTerm) => {
+
+  const replacer = (fullMatch, baseTerm) => {
     const info = terms.get(baseTerm.toLowerCase());
     if (!info) return fullMatch;
     const opener = info.type === 'condition'
@@ -23122,7 +23130,16 @@ function linkifyGlossaryTerms(html, excludeName) {
       : `openGlossaryTermModal('${info.key.replace(/'/g,"\\'")}')`;
     const titleText = info.type === 'spell' ? info.display : baseTerm;
     return `<span onclick="event.stopPropagation();${opener}" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;color:var(--accent)" title="View ${titleText}">${fullMatch}</span>`;
-  });
+  };
+
+  // Split into alternating tag / text segments (the capture group in the
+  // split regex keeps the tags in the result array). Only odd-indexed
+  // segments are actual tags (<...>) — even-indexed segments are the
+  // text between them, which is the only thing ever passed through the
+  // glossary pattern. This guarantees tag attributes are never touched,
+  // no matter what text they happen to contain.
+  const segments = html.split(/(<[^>]+>)/);
+  return segments.map((seg, i) => (i % 2 === 1) ? seg : seg.replace(pattern, replacer)).join('');
 }
 window.linkifyGlossaryTerms = linkifyGlossaryTerms;
 
@@ -36265,7 +36282,7 @@ function renderClassFeatures() {
     const levelStr  = e.level ? `<span class="feat-card-level" style="font-size:8px">${ORDINALS[e.level]||'Lv'+e.level}</span>` : '';
     const sourceStr = e.source ? `<span class="feat-card-source" style="font-size:8px">${e.source}</span>` : '';
     const descHtml  = e.desc
-      ? `<div class="feat-card-desc" style="font-size:10px;margin-top:2px">${e.desc.replace(/\|/g,'<br>').replace(/\n/g,'<br>')}</div>`
+      ? `<div class="feat-card-desc" style="font-size:10px;margin-top:2px">${e.desc.replace(/\|/g,'<br>').replace(/\\n/g,'<br>').replace(/\n/g,'<br>')}</div>`
       : '';
 
     const safeDesc = (e.desc||'').replace(/"/g,'&quot;').replace(/\|/g,' · ').replace(/\n/g,' ');
@@ -44657,21 +44674,26 @@ function populateFeaturesTab() {
     if (eSubData && eLv >= 3) {
       if (eSubData.bonusSpells?.length) {
         const spells = eSubData.bonusSpells;
-        // bonusSpells pairs unlock at class levels 3,5,9,13,17 (spell levels 1-2,3-4,5-6,7-8,9-10)
-        const CLASS_UNLOCK_LVS = [3, 5, 9, 13, 17];
-        const spellLines = [];
-        for (let i = 0; i < spells.length; i += 2) {
-          const pair = spells.slice(i, i+2)
-            .map(s => {
-              // Convert key like "detect_thoughts" → "Detect Thoughts"
-              const phbSp = PHB_SPELL_LIST.find(p => p.key === s);
-              if (phbSp) return phbSp.name;
-              return s.split(/[_\s]+/).map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
-            });
-          const charLv = CLASS_UNLOCK_LVS[i/2] || (i*2+3);
-          const actualCharLv = clsLvToCharLv(eCls, charLv);
-          spellLines.push(`Level ${actualCharLv}: ${pair.join(', ')}`);
-        }
+        // Group each spell by the class level at which it actually unlocks — derived
+        // from the spell's own level via subclassSpellMinClassLevel(), the same
+        // function getSubclassBonusSpells() uses. Some subclasses (e.g. Psion's
+        // Metamorph) unlock four spells at once at level 3 because two spell levels'
+        // worth of slots open simultaneously for full casters — a fixed "2 spells
+        // per unlock, every 3/5/9/13/17" assumption doesn't hold for those.
+        const castType = eClsData?.spellcasting?.type || 'full';
+        const groups = {};
+        spells.forEach(s => {
+          const phbSp = PHB_SPELL_LIST.find(p => p.key === s);
+          const name = phbSp ? phbSp.name
+            : s.split(/[_\s]+/).map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+          const spLv = phbSp?.level ?? 1;
+          const unlockLv = subclassSpellMinClassLevel(spLv, castType);
+          (groups[unlockLv] = groups[unlockLv] || []).push(name);
+        });
+        const spellLines = Object.keys(groups).map(Number).sort((a,b) => a-b).map(lv => {
+          const actualCharLv = clsLvToCharLv(eCls, lv);
+          return `Level ${actualCharLv}: ${groups[lv].join(', ')}`;
+        });
         entries.push({
           level: subclassUnlockCharLv,
           id: `sub_bonusspells_${ci}`, name: 'Bonus Spells (Always Prepared)',
@@ -44966,7 +44988,7 @@ function populateFeaturesTab() {
         ${usageStr}
       </div>
       <div style="margin-top:-4px;margin-bottom:4px">${sourceBadge}</div>
-      ${e.desc ? `<div class="feat-card-desc">${e.isHtml ? e.desc : e.desc.replace(/\|/g,'<br>').replace(/\n/g,'<br>')}</div>` : ''}
+      ${e.desc ? `<div class="feat-card-desc">${e.isHtml ? e.desc : e.desc.replace(/\|/g,'<br>').replace(/\\n/g,'<br>').replace(/\n/g,'<br>')}</div>` : ''}
       ${spellLinks ? `<div style="margin-top:6px">${spellLinks}</div>` : ''}
     </div>
   `;
