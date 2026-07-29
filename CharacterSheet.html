@@ -23067,20 +23067,36 @@ const GLOSSARY_ALIASES = {
 
 function linkifyGlossaryTerms(html, excludeName) {
   if (!html) return html;
-  const terms = new Map(); // display-cased term -> { type, key }
+  const exclude = (excludeName || '').toLowerCase();
+  const terms = new Map(); // lowercase term -> { type, key, display }
   if (typeof RULES_GLOSSARY !== 'undefined') {
     Object.values(RULES_GLOSSARY).forEach(g => {
-      if (g.name.toLowerCase() !== (excludeName || '').toLowerCase()) terms.set(g.name, { type: 'glossary', key: g.name.toLowerCase() });
+      if (g.name.toLowerCase() !== exclude) terms.set(g.name.toLowerCase(), { type: 'glossary', key: g.name.toLowerCase() });
     });
   }
   Object.entries(GLOSSARY_ALIASES).forEach(([alias, targetKey]) => {
-    if (targetKey !== (excludeName || '').toLowerCase() && typeof RULES_GLOSSARY !== 'undefined' && RULES_GLOSSARY[targetKey]) {
-      terms.set(alias, { type: 'glossary', key: targetKey });
+    if (targetKey !== exclude && typeof RULES_GLOSSARY !== 'undefined' && RULES_GLOSSARY[targetKey]) {
+      terms.set(alias.toLowerCase(), { type: 'glossary', key: targetKey });
     }
   });
   if (typeof CONDITION_INFO !== 'undefined') {
     Object.keys(CONDITION_INFO).forEach(n => {
-      if (n.toLowerCase() !== (excludeName || '').toLowerCase() && !terms.has(n)) terms.set(n, { type: 'condition', key: n });
+      if (n.toLowerCase() !== exclude && !terms.has(n.toLowerCase())) terms.set(n.toLowerCase(), { type: 'condition', key: n });
+    });
+  }
+  // Spell names — lets a spell mentioned in passing (an item's "casts
+  // chill touch," a feat's granted cantrip) link straight to that
+  // spell's own detail view. Multi-word names carry little false-positive
+  // risk; a handful of very short, common-word spell names (Light, Heal,
+  // Guidance, Resistance, Command, Charm, Fear, Sleep) are deliberately
+  // skipped, since linking every stray use of an ordinary English word
+  // would create far more noise than value.
+  const SPELL_LINK_EXCLUDE = new Set(['light','heal','guidance','resistance','command','charm','fear','sleep','web','wish','contact','friends','sanctuary','silence','jump','fly','haste','slow','blur','feign','sunbeam','moonbeam','banishment','revivify']);
+  if (typeof PHB_SPELL_LIST !== 'undefined') {
+    PHB_SPELL_LIST.forEach(sp => {
+      const lc = sp.name.toLowerCase();
+      if (lc === exclude || terms.has(lc) || SPELL_LINK_EXCLUDE.has(lc)) return;
+      terms.set(lc, { type: 'spell', key: sp.key, display: sp.name });
     });
   }
   if (!terms.size) return html;
@@ -23089,17 +23105,23 @@ function linkifyGlossaryTerms(html, excludeName) {
   // optional plural suffix (Roll -> Rolls, Class -> Classes) without
   // being captured as part of the term itself, so "Attack Rolls" still
   // resolves to the "attack roll" entry while displaying the "s" as
-  // written.
+  // written. The whole pattern is case-insensitive so "hit points" in
+  // ordinary prose matches the same as "Hit Points" in PHB-style text —
+  // the matched text itself is what gets displayed either way, never
+  // replaced with the canonical casing.
   const names = [...terms.keys()].sort((a, b) => b.length - a.length);
   const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const pattern = new RegExp('\\b(' + escaped.join('|') + ')(?:e?s)?\\b', 'g');
+  const pattern = new RegExp('\\b(' + escaped.join('|') + ')(?:e?s)?\\b', 'gi');
   return html.replace(pattern, (fullMatch, baseTerm) => {
-    const info = terms.get(baseTerm);
+    const info = terms.get(baseTerm.toLowerCase());
     if (!info) return fullMatch;
     const opener = info.type === 'condition'
-      ? `openConditionInfoModal('${baseTerm.replace(/'/g,"\\'")}')`
+      ? `openConditionInfoModal('${info.key.replace(/'/g,"\\'")}')`
+      : info.type === 'spell'
+      ? `openSpellDetailModal('${info.key.replace(/'/g,"\\'")}','${(info.display||'').replace(/'/g,"\\'")}')`
       : `openGlossaryTermModal('${info.key.replace(/'/g,"\\'")}')`;
-    return `<span onclick="event.stopPropagation();${opener}" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;color:var(--accent)" title="View ${baseTerm}">${fullMatch}</span>`;
+    const titleText = info.type === 'spell' ? info.display : baseTerm;
+    return `<span onclick="event.stopPropagation();${opener}" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;color:var(--accent)" title="View ${titleText}">${fullMatch}</span>`;
   });
 }
 window.linkifyGlossaryTerms = linkifyGlossaryTerms;
@@ -23201,7 +23223,7 @@ function openConditionInfoModal(name) {
   if (!info) return;
   document.getElementById('condition-info-title').textContent = name;
   document.getElementById('condition-info-source').textContent = info.source || '';
-  document.getElementById('condition-info-body').innerHTML = linkifyConditionRefs(info.desc || '', name);
+  document.getElementById('condition-info-body').innerHTML = linkifyGlossaryTerms(info.desc || '', name);
   openModal('condition-info-modal');
 }
 window.openConditionInfoModal = openConditionInfoModal;
@@ -44973,7 +44995,7 @@ function populateFeaturesTab() {
     }
   }
 
-  el.innerHTML = html2;
+  el.innerHTML = typeof linkifyGlossaryTerms === 'function' ? linkifyGlossaryTerms(html2) : html2;
 
   // Append scaling tables at top of Features tab
   const scalingWrap = document.createElement('div');
