@@ -2564,7 +2564,7 @@ body.preview-readonly #mi-detail-edit-row * {
         <div class="main-left">
           <div class="panel">
             <div class="panel-title">Ability Scores
-              <button class="tbtn" style="font-size:9px;padding:1px 6px;float:right" onclick="openModal('asi-modal')">&#9881; Setup</button>
+              <button class="tbtn" style="font-size:9px;padding:1px 6px;float:right" onclick="openModal('asi-modal');renderASIOverrides()">&#9881; Setup</button>
             </div>
             <div id="ability-block"></div>
           </div>
@@ -4613,6 +4613,20 @@ body.preview-readonly #mi-detail-edit-row * {
   </div>
 </div>
 
+<!-- Pure read-only feat viewer — for "what does this feat actually do" links
+     (Quick Start background/feats steps, etc). Kept separate from
+     feat-detail-modal on purpose: that one is a feat-choice/config modal with
+     its own Apply button, not a description view. -->
+<div class="modal-overlay hidden" id="feat-info-modal">
+  <div class="modal-box" style="max-width:480px;max-height:80vh;overflow-y:auto">
+    <div class="modal-title">
+      <span id="feat-info-title">Feat</span>
+      <span class="modal-close" onclick="closeModal('feat-info-modal')">&#x2715;</span>
+    </div>
+    <div id="feat-info-body"></div>
+  </div>
+</div>
+
 <!-- ── SKILL PROFICIENCY SETUP MODAL ─────────────────────── -->
 <div class="modal-overlay hidden" id="magical-secrets-modal">
 
@@ -5905,6 +5919,14 @@ function closeModal(id) {
     renderQuickStartStep();
   }
   if (id === 'levelup-spell-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'spells') {
+    openModal('quick-start-modal');
+    renderQuickStartStep();
+  }
+  // A feat needing its own ASI/config choice (e.g. Resilient) opens feat-detail-modal
+  // on top of the wizard. Closing it (Apply, Cancel, or the X) needs to bring the
+  // wizard back to its Feats step — without this, the player lands with no modal
+  // visible at all and the Quick Start flow looks like it silently ended.
+  if (id === 'feat-detail-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'feats') {
     openModal('quick-start-modal');
     renderQuickStartStep();
   }
@@ -7705,6 +7727,38 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
     return highlighted + after;
   }
 
+  // Pattern C: flat number increase — "X increases/gains by N ... for each
+  // spell slot level above L." (False Life, Aid, Armor of Agathys, etc.)
+  // This is genuinely additive on top of a base that often already contains
+  // dice (e.g. False Life's "2d4 + 4 Temporary Hit Points"), so rewriting a
+  // number embedded in that base text in place would be guesswork and could
+  // silently edit the wrong digit. Instead, insert the computed bonus right
+  // after the base amount in the main effect text — e.g. False Life's
+  // "You gain 2d4 + 4 Temporary Hit Points" becomes "...2d4 + 4 +10...".
+  const flatMatch = raw.match(/\b(\d+)\b(?!\s*d\s*\d)[^.]*?for each spell slot level above \d+/i);
+  if (flatMatch && extraLevels > 0) {
+    const perLevel = parseInt(flatMatch[1]);
+    const total = perLevel * extraLevels;
+    const bonusSpan = `<span style="color:var(--accent);font-weight:600">+ ${total}</span>`;
+    // Find where the base amount sits in the main text — either "gain(s)
+    // N..." (False Life: "You gain 2d4 + 4") or "increase(s) by N..."
+    // (Aid: "Hit Points increase by 5") — and drop the bonus right after it.
+    const baseQtyPattern = /\b(?:increase[s]?\s+by|gain[s]?)\s+\d+(?:\s*d\s*\d+)?(?:\s*\+\s*\d+)?/i;
+    const baseQtyMatch = before.match(baseQtyPattern);
+    if (baseQtyMatch) {
+      const insertAt = baseQtyMatch.index + baseQtyMatch[0].length;
+      const highlighted = before.slice(0, insertAt) + ' ' + bonusSpan + before.slice(insertAt);
+      return highlighted + after;
+    }
+    // Fallback for phrasing that doesn't match either pattern above — still
+    // surface the number somewhere rather than showing nothing at all.
+    const sentenceMatchIdx = after.search(/for each spell slot level above \d+/i);
+    const sentenceEndIdx = sentenceMatchIdx === -1 ? -1 : after.indexOf('.', sentenceMatchIdx);
+    if (sentenceEndIdx !== -1) {
+      return before + after.slice(0, sentenceEndIdx + 1) + ` (${bonusSpan} at this level)` + after.slice(sentenceEndIdx + 1);
+    }
+  }
+
   return fullDescHtml;
 }
 
@@ -7768,20 +7822,32 @@ function openSpellDetailModal(key, name) {
 
   const upcastRow = document.getElementById('spell-detail-upcast-row');
   const upcastSelect = document.getElementById('spell-detail-upcast-select');
-  const isUpcastable = sp.level > 0 && /Using a Higher-Level Spell Slot|At Higher Levels/i.test(sp.descFull || '');
+  const isMysticArcanum = typeof getMysticArcanumSpells === 'function'
+    && getMysticArcanumSpells().some(a => a.key === sp.key);
+  const isUpcastable = !isMysticArcanum && sp.level > 0
+    && /Using a Higher-Level Spell Slot|At Higher Levels/i.test(sp.descFull || '');
+  // Warlocks only ever have Pact Magic slots, which are all the same
+  // (usually higher) level — they can't choose to cast at the spell's
+  // base level the way a regular caster can, so default to the pact
+  // slot level rather than the spell's own level. Falls back to the
+  // spell's base level if pact magic isn't present or its slot level
+  // is somehow lower than the spell's own level.
+  const pactSlotLevel = typeof computeSpellSlotsForChar === 'function'
+    ? computeSpellSlotsForChar(currentChar)?.warlock?.slotLevel : null;
+  const defaultCastLevel = (isUpcastable && pactSlotLevel && pactSlotLevel >= sp.level) ? pactSlotLevel : sp.level;
   if (upcastRow && upcastSelect) {
     if (isUpcastable) {
       const opts = [];
       for (let lv = sp.level; lv <= 9; lv++) opts.push(`<option value="${lv}">${lv}${lv===sp.level?' (base)':''}</option>`);
       upcastSelect.innerHTML = opts.join('');
-      upcastSelect.value = String(sp.level);
+      upcastSelect.value = String(defaultCastLevel);
       upcastRow.style.display = 'flex';
     } else {
       upcastRow.style.display = 'none';
     }
   }
 
-  renderSpellDetailBody(sp, sp.level);
+  renderSpellDetailBody(sp, defaultCastLevel);
   openModal('spell-detail-modal', true);
 }
 
@@ -23099,10 +23165,26 @@ function linkifyGlossaryTerms(html, excludeName) {
   // skipped, since linking every stray use of an ordinary English word
   // would create far more noise than value.
   const SPELL_LINK_EXCLUDE = new Set(['light','heal','guidance','resistance','command','charm','fear','sleep','wish','contact','friends','harm','dawn']);
+  // If this block of text explicitly says "spell" or "cast" (casts/casting),
+  // that's a strong signal the person means the spell, not the rule — e.g.
+  // "cast Darkness" or "the Resistance spell". In that case, a spell whose
+  // name collides with a glossary/condition term should win the link
+  // instead of silently losing to the rule (or, for the always-skipped
+  // common-word names, staying unlinked). Without that signal, the
+  // existing glossary-wins / exclude-list behavior is unchanged.
+  const preferSpellContext = /\b(spell|cast\w*)\b/i.test(html);
   if (typeof PHB_SPELL_LIST !== 'undefined') {
     PHB_SPELL_LIST.forEach(sp => {
       const lc = sp.name.toLowerCase();
-      if (lc === exclude || terms.has(lc) || SPELL_LINK_EXCLUDE.has(lc)) return;
+      if (lc === exclude) return;
+      const existing = terms.get(lc);
+      if (existing) {
+        if (preferSpellContext && existing.type !== 'spell') {
+          terms.set(lc, { type: 'spell', key: sp.key, display: sp.name });
+        }
+        return;
+      }
+      if (SPELL_LINK_EXCLUDE.has(lc)) return; // bare common-word spells stay unlinked either way — no rule/condition here to disambiguate from
       terms.set(lc, { type: 'spell', key: sp.key, display: sp.name });
     });
   }
@@ -42125,6 +42207,26 @@ function featNeedsModal(featName) {
   return hasAsi || !!extra;
 }
 
+function openFeatInfoModal(featName) {
+  if (!featName) return;
+  const phb = Object.values(PHB_FEATS_FULL).find(f => f.name === featName)
+           || Object.values(PHB_FEATS).find(f => f.name === featName);
+  const titleEl = document.getElementById('feat-info-title');
+  const bodyEl  = document.getElementById('feat-info-body');
+  if (titleEl) titleEl.textContent = featName;
+  if (bodyEl) {
+    bodyEl.innerHTML = `
+      ${phb?.prereq ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-bottom:8px">Prereq: ${phb.prereq}</div>` : ''}
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${(phb?.desc || 'No description available.').replace(/\|/g,' · ')}</div>
+    `;
+  }
+  // keepOthersOpen=true — this is routinely opened from inside the Quick
+  // Start wizard modal, and the default openModal() behaviour of closing
+  // every other modal first would silently boot the wizard out from under it.
+  openModal('feat-info-modal', true);
+}
+window.openFeatInfoModal = openFeatInfoModal;
+
 function openFeatDetailModal(slotId, featName) {
   if (!featName) return;
   _featDetailSlotId = slotId;
@@ -45898,10 +46000,11 @@ function renderQuickStartFeatsStep(body) {
             ${opts.map(opt => `<button class="tbtn" style="font-size:11px;padding:4px 10px" onclick="chooseDualOriginFeat('${slot.id}','${opt.trim().replace(/'/g,"\\'")}','${slot.locked.replace(/'/g,"\\'")}')"><span style="color:var(--gold)">${opt.trim()}</span></button>`).join('')}
           </div>`;
       } else {
+        const lockedFeatName = (activeLockedFeat || slot.locked).replace(/'/g,"\\'");
         content += `
           <div style="margin-top:6px">
             <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border:1px solid var(--accent3);border-radius:var(--radius);padding:8px 10px">
-              <span style="font-family:var(--font-body);font-size:13px;color:var(--accent3);font-weight:600">${activeLockedFeat || slot.locked}</span>
+              <span onclick="event.stopPropagation();openFeatInfoModal('${lockedFeatName}')" style="font-family:var(--font-body);font-size:13px;color:var(--accent3);font-weight:600;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer" title="View ${(activeLockedFeat || slot.locked).replace(/"/g,'&quot;')}">${activeLockedFeat || slot.locked}</span>
               <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-left:8px">from background</span>
             </div>
           </div>`;
@@ -45984,7 +46087,7 @@ function renderQuickStartBackgroundDetail(key) {
         <div><strong style="color:var(--text)">Skills:</strong> ${(bg.skills||[]).join(', ') || '—'}</div>
         ${bg.tools?.length ? `<div><strong style="color:var(--text)">Tools:</strong> ${bg.tools.join(', ')}</div>` : ''}
         ${bg.languages?.length || bg.langExtra ? `<div><strong style="color:var(--text)">Languages:</strong> ${(bg.languages||[]).join(', ')}${bg.langExtra ? ` + ${bg.langExtra} of your choice` : ''}</div>` : ''}
-        ${(bg.originFeat || bg.feat) ? `<div><strong style="color:var(--text)">Origin Feat:</strong> ${bg.originFeat || bg.feat}</div>` : ''}
+        ${(bg.originFeat || bg.feat) ? `<div><strong style="color:var(--text)">Origin Feat:</strong> <span onclick="event.stopPropagation();openFeatInfoModal('${(bg.originFeat || bg.feat).replace(/'/g,"\\'")}')" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;color:var(--accent)" title="View ${(bg.originFeat || bg.feat).replace(/"/g,'&quot;')}">${bg.originFeat || bg.feat}</span></div>` : ''}
         <div><strong style="color:var(--text)">Starting Gold:</strong> ${bg.gold || 0} gp</div>
         ${equipList.length ? `<div><strong style="color:var(--text)">Equipment:</strong> ${equipList.join(', ')} <span style="color:var(--text3)">(add these on the Starting Items step)</span></div>` : ''}
       </div>
@@ -46211,6 +46314,7 @@ function quickStartNext() {
     // use, including the draggable-chip modes manual entry doesn't have.
     closeModal('quick-start-modal');
     openModal('asi-modal');
+    renderASIOverrides();
     return;
   } else if (stepId === 'race') {
     if (!currentChar.race) { toast('Pick a race to continue.', 'info'); return; }
@@ -46226,6 +46330,7 @@ function quickStartNext() {
     if (!currentChar.background) { toast('Pick a background to continue.', 'info'); return; }
     closeModal('quick-start-modal');
     openModal('asi-modal');
+    renderASIOverrides();
     if (typeof switchASIMode === 'function') switchASIMode('background');
     return;
   } else if (stepId === 'feats') {
