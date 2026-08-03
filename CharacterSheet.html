@@ -21772,7 +21772,18 @@ function calcSpeed() {
     else if (monkLv >= 6)  unarmoredMovementBonus = 15;
     else                   unarmoredMovementBonus = 10;
   }
-  let final = Math.max(0, base + featBonus + mutableFormSpeedBonus + infiltratorSpeedBonus + unarmoredMovementBonus - penalty);
+  // Barbarian Fast Movement (level 5) and Ranger Roving (level 6): both
+  // grant +10 ft Speed while not wearing HEAVY armor specifically (unlike
+  // Monk's Unarmored Movement above, light/medium armor doesn't disable
+  // these). Previously only in the feature text and class progression
+  // table, same gap Unarmored Movement had before it was wired in.
+  const _umWearingHeavyArmor = !!(_umArmorData && (_umArmorData.type||'').toLowerCase() === 'heavy');
+  const barbarianLv = getClassLevelCount('barbarian');
+  const fastMovementBonus = (barbarianLv >= 5 && !_umWearingHeavyArmor) ? 10 : 0;
+  const rangerLv = getClassLevelCount('ranger');
+  const rovingActive = rangerLv >= 6 && !_umWearingHeavyArmor;
+  const rovingBonus = rovingActive ? 10 : 0;
+  let final = Math.max(0, base + featBonus + mutableFormSpeedBonus + infiltratorSpeedBonus + unarmoredMovementBonus + fastMovementBonus + rovingBonus - penalty);
 
   // Drunkenness (level 5+): "Speed halved" — applied as a final multiplier
   // after flat bonuses/penalties, same convention as other halving effects.
@@ -21799,11 +21810,23 @@ function calcSpeed() {
   const canHover   = !!overrides.hover;
   const flySource  = overrides.fly > 0 ? '' : effectFly > 0 ? ' (Dragon Wings)' : starryFly > 0 ? ' (Starry Form)' : cloakFly > 0 ? ' (Cloak of the Bat)' : raceFly > 0 ? ' (Racial)' : '';
 
+  // Cloak of the Manta Ray: passive 60 ft Swim Speed while attuned — unlike
+  // Cloak of the Bat's flight, this needs no activation/toggle, so it's
+  // just an attunement check, same pattern as other always-on attuned item
+  // bonuses elsewhere on the sheet (Robe of Eyes' senses, etc).
+  const hasMantaRayCloak = (currentChar.magicItems || []).some(item => item.key === 'cloak_of_the_manta_ray' && item.attuned);
+  const mantaRaySwim = hasMantaRayCloak ? 60 : 0;
+  // Gloves of Swimming and Climbing: same passive-while-attuned pattern,
+  // grants both Climb Speed and Swim Speed equal to current Speed.
+  const hasSwimClimbGloves = (currentChar.magicItems || []).some(item => item.key === 'gloves_of_swimming_and_climbing' && item.attuned);
+  const glovesClimb = hasSwimClimbGloves ? final : 0;
+  const glovesSwim = hasSwimClimbGloves ? final : 0;
+
   // Build all speed parts
   const parts = [];
-  if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: [exLevel > 0 ? `−${penalty} exh` : '', drunkLevel >= 5 ? 'halved - Drunk' : '', unarmoredMovementBonus > 0 ? `+${unarmoredMovementBonus} Unarmored Movement` : ''].filter(Boolean).map(s=>` (${s})`).join('') });
-  if (overrides.climb || superiorStride) parts.push({ label: 'Climb',  val: superiorStride ? final : overrides.climb,  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : '' });
-  if (overrides.swim  || superiorStride) parts.push({ label: 'Swim',   val: superiorStride ? final : overrides.swim,   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : '' });
+  if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: [exLevel > 0 ? `−${penalty} exh` : '', drunkLevel >= 5 ? 'halved - Drunk' : '', unarmoredMovementBonus > 0 ? `+${unarmoredMovementBonus} Unarmored Movement` : '', fastMovementBonus > 0 ? '+10 Fast Movement' : '', rovingBonus > 0 ? '+10 Roving' : ''].filter(Boolean).map(s=>` (${s})`).join('') });
+  if (overrides.climb || superiorStride || rovingActive || glovesClimb) parts.push({ label: 'Climb',  val: (superiorStride || rovingActive) ? final : (overrides.climb || glovesClimb),  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : (rovingActive && !overrides.climb ? ' (Roving)' : (glovesClimb && !overrides.climb ? ' (Gloves of Swimming and Climbing)' : '')) });
+  if (overrides.swim  || superiorStride || rovingActive || mantaRaySwim || glovesSwim) parts.push({ label: 'Swim',   val: (superiorStride || rovingActive) ? final : (overrides.swim || mantaRaySwim || glovesSwim),   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : (rovingActive && !overrides.swim  ? ' (Roving)' : (overrides.swim ? '' : (mantaRaySwim ? ' (Cloak of the Manta Ray)' : (glovesSwim ? ' (Gloves of Swimming and Climbing)' : '')))) });
   if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource + (canHover ? ' (hover)' : '') });
   if (overrides.burrow)parts.push({ label: 'Burrow', val: overrides.burrow, note: '' });
 
@@ -41280,8 +41303,17 @@ function renderFeatsList() {
   if (!list || !currentChar) return;
   if (!currentChar.feats) currentChar.feats = [];
   // Filter out _auto feats — they were previously pushed by applyBackgroundDefaults
-  // but are now handled exclusively by the featSlots system
-  const visibleFeats = currentChar.feats.filter(f => !f._auto);
+  // but are now handled exclusively by the featSlots system. Also cross-check
+  // against whatever's actually assigned in featSlots directly (Origin Feat,
+  // Feat/ASI choices, etc.) rather than relying on the _auto flag alone —
+  // a character saved back when applyBackgroundDefaults still pushed these
+  // without tagging them (the tagging was added later, as a partial fix)
+  // would have a stray untagged duplicate that flag-only filtering can't
+  // catch, but name-matching against the slot it actually came from will.
+  const slottedFeatNames = new Set(
+    Object.values(currentChar.featSlots || {}).map(s => s?.feat).filter(Boolean)
+  );
+  const visibleFeats = currentChar.feats.filter(f => !f._auto && !slottedFeatNames.has(f.name));
   list.innerHTML = '';
 
   visibleFeats.forEach((feat, i) => {
