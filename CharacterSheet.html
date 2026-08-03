@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aeloria - Character Sheet</title>
+<title>Character Sheet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
@@ -2106,22 +2106,6 @@ body.preview-readonly #mi-detail-edit-row * {
 }
 .spell-filter-sel option { background: #0e1612; color: var(--text); }
 
-/* ── CLASS FEATURES LIST ────────────────────────────────── */
-.racial-trait-entry {
-  cursor: pointer;
-  transition: background .15s;
-  display: flex; align-items: baseline; gap: 4px;
-  padding: 3px 0; border-bottom: 1px solid var(--border);
-  cursor: help;
-}
-.racial-trait-entry:last-child { border-bottom: none; }
-.racial-trait-entry:hover { background: var(--bg3); border-radius: 3px; }
-.racial-trait-entry:hover .racial-trait-name { color: var(--accent); }
-.racial-trait-name {
-  font-family: var(--font-body); font-size: 13px; color: var(--text);
-  flex: 1; font-weight: 500;
-}
-
 /* ── CLASS CHOICES PANEL ─────────────────────────────────── */
 .choice-entry {
   margin-bottom: 14px;
@@ -2465,9 +2449,8 @@ body.preview-readonly #mi-detail-edit-row * {
     <div class="login-ornament"></div>
     <div class="login-box">
       <button onclick="toggleTheme()" style="position:absolute;top:12px;right:12px;font-size:16px;color:var(--text3);background:none;border:none;cursor:pointer" title="Toggle theme">🌙</button>
-      <div class="login-sigil">✦ ✦ ✦</div>
       <div class="login-title">Character Sheet</div>
-      <div class="login-sub">Aeloria · 2024 Rules</div>
+      <div class="login-sub">Dungeons &amp; Dragons 5.5e</div>
       <div class="login-divider"></div>
 
       <label class="field-label">Select Character</label>
@@ -2510,7 +2493,7 @@ body.preview-readonly #mi-detail-edit-row * {
     align-items:center;justify-content:center;display:none">💾</button>
 
   <div id="topbar">
-    <div class="topbar-title">Aeloria</div>
+    <div class="topbar-title">Character Sheet</div>
     <div class="topbar-sep"></div>
     <div id="char-summary"><strong>-</strong></div>
     <div class="topbar-right">
@@ -2708,7 +2691,7 @@ body.preview-readonly #mi-detail-edit-row * {
           <!-- Defense + HP -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
             <div class="panel">
-              <div class="panel-title">Defense
+              <div class="panel-title">Defense &amp; Senses
                 <button class="tbtn" style="font-size:9px;padding:2px 7px" onclick="openModal('ac-modal')">&#9881; AC</button>
               </div>
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin:8px 0">
@@ -2767,6 +2750,10 @@ body.preview-readonly #mi-detail-edit-row * {
                     <label class="field-label" style="font-size:9px;margin-bottom:2px">Burrow</label>
                     <input class="info-input" type="number" id="ci-speed-burrow" placeholder="-" min="0" step="5" oninput="onSpeedOverrideChange()" style="text-align:center"/>
                   </div>
+                </div>
+                <div style="margin-top:8px">
+                  <label class="field-label" style="font-size:9px;margin-bottom:2px">Senses</label>
+                  <div id="senses-box" style="font-family:var(--font-ui);font-size:10px;color:var(--text2);line-height:1.4;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius)"></div>
                 </div>
                 <!-- hidden field kept for data-key compatibility -->
                 <input type="hidden" id="ci-base-speed" data-key="base_speed" value="30"/>
@@ -2856,9 +2843,6 @@ body.preview-readonly #mi-detail-edit-row * {
             <div id="attacks-panel-body"></div>
             <div id="ammo-section"></div>
           </div>
-
-          <!-- Racial Traits (clickable list - jumps to and highlights the matching card on the Features tab) -->
-          <div id="racial-traits-block" style="margin-top:10px"></div>
 
           <!-- Additional Notes (manual free-text; full feature list lives on the Features tab) -->
           <div class="panel" style="margin-top:10px">
@@ -3594,7 +3578,7 @@ body.preview-readonly #mi-detail-edit-row * {
 <div class="page" id="page-dm">
   <div style="padding:16px;max-width:1400px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-      <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--gold)">⚔ DM Panel - Aeloria</span>
+      <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--gold)">⚔ DM Panel</span>
       <button class="tbtn" onclick="exitDMPanel()" style="margin-left:auto;font-size:10px">← Back to Sheet</button>
     </div>
 
@@ -4628,6 +4612,22 @@ body.preview-readonly #mi-detail-edit-row * {
       <span class="modal-close" onclick="closeModal('feat-info-modal')">&#x2715;</span>
     </div>
     <div id="feat-info-body"></div>
+  </div>
+</div>
+
+<!-- Pure read-only weapon viewer - clicking a weapon row shows this (type,
+     damage, ability used, properties/mastery, weight, etc). Kept separate
+     from weapon-edit-modal on purpose: that one is reached only via the
+     pencil button now and is for changing the weapon's configuration, not
+     for reading about it. -->
+<div class="modal-overlay hidden" id="weapon-detail-modal">
+  <div class="modal-box" style="max-width:520px;max-height:80vh;overflow-y:auto">
+    <div class="modal-title">
+      <span id="weapon-detail-title">Weapon</span>
+      <span class="modal-close" onclick="closeModal('weapon-detail-modal')">&#x2715;</span>
+    </div>
+    <div id="weapon-detail-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+    <div id="weapon-detail-body"></div>
   </div>
 </div>
 
@@ -9234,7 +9234,7 @@ const PHB_SUBCLASSES = {
   "fighter/eldritch knight": {"name":"Eldritch Knight","source":"PHB","features":[{"name":"Spellcasting","level":3,"desc":"    I can cast known wizard cantrips/spells, using Intelligence as my spellcasting ability","usages":null,"recovery":null},{"name":"War Magic","level":7,"desc":"    When I use my action to cast a cantrip, I can make a weapon attack as a bonus action","usages":null,"recovery":null},{"name":"Eldritch Strike","level":10,"desc":"    A creature hit by my weapon attack has disadv. on the save vs. the next spell I cast    This lasts until the end of my next turn","usages":null,"recovery":null},{"name":"Arcane Charge","level":15,"desc":"    When I use Action Surge, I can also teleport up to 30 ft to an empty space I can see    I can do so before or after the extra action","usages":null,"recovery":null},{"name":"Improved War Magic","level":18,"desc":"    When I use my action to cast a spell, I can make a weapon attack as a bonus action","usages":null,"recovery":null}]},
   "fighter/psi warrior": {"name":"Psi Warrior","source":"PHB","features":[{"name": "Psionic Power", "level": 3, "desc": "Gain Psionic Energy Dice (PsiD) equal to twice Prof Bonus. Regain one PsiD on Short Rest, all on Long Rest. Powers: Protective Field, Psionic Strike, Telekinetic Movement.", "usages": null, "recovery": null}, {"name": "Telekinetic Adept", "level": 7, "desc": "Psi-Powered Leap: Bonus Action, gain flying speed equal to twice my Speed until end of turn (1 free use per Short/Long Rest or spend 1 PsiD). Telekinetic Thrust: when Psionic Strike hits, spend 1 PsiD to knock target Prone or push it 10 ft.", "usages": 1, "recovery": "short rest"}, {"name": "Guarded Mind", "level": 10, "desc": "Resistance to Psychic damage. If Charmed or Frightened at the start of my turn, I can spend 1 PsiD (no action) to end that condition.", "usages": null, "recovery": null}, {"name": "Bulwark of Force", "level": 15, "desc": "Bonus Action: choose up to INT modifier creatures (min 1) within 30 ft \u2014 each gains Half Cover for 1 minute or until I'm Incapacitated.", "usages": 1, "recovery": "long rest"}, {"name": "Telekinetic Master", "level": 18, "desc": "Cast Telekinesis without spell slots (INT spellcasting ability). While concentrating, Bonus Action to make a weapon attack.", "usages": 1, "recovery": "long rest"}]},
   "monk/mercy": {"name":"Way of Mercy","source":"PHB","features":[{"name":"Hand of Harm","level":3,"desc":"1/turn when I hit a crea. with an Unarmed Strike and deal dmg 1 FP to add extra Necro. dmg equal to one roll of my Martial Arts die + Wis mod.","usages":null,"recovery":null},{"name":"Hand of Healing","level":3,"desc":"As a Magic action, 1 FP to touch a crea. and restore HP equal to a roll of my Martial Arts die + Wis mod. When I use Flurry of Blows, I can replace one of the Unarmed Strikes with a use of this feature without expending FP for the healing.","usages":null,"recovery":null},{"name":"Implements of Mercy","level":3,"desc":"I gain Proficiency in the Insight and Medicine skills and proficiency with the Herbalism Kit.","usages":null,"recovery":null},{"name":"Physician's Touch","level":6,"desc":"Hand of Healing also ends 1 condition blinded, deafened, paralyzed, poisoned or stunned Hand of Harm also causes the target to be poisoned until the end of my next turn","usages":null,"recovery":null},{"name":"Flurry of Healing and Harm","level":11,"desc":"I can use Hand of Healing instead of each Flurry of Blows unarmed strike without ki cost I can use Hand of Harm on one Flurry of Blows unarmed strike without ki cost I can use this benefit a number of times equal to my Wis Mod, and can't do so again ","usages":null,"recovery":"long rest"}]},
-  "monk/shadow": {"name":"Way of Shadow","source":"PHB","features":[{"name":"Shadow Arts","level":3,"desc":"Darkness : I can expend 1 Focus Point to cast the Darkness spell without expending components. I can see within the spell's area when I cast it with this feature. While the spell persists, I can move its area of Darkness to a space within 60 feet of its current area, no action required.","usages":null,"recovery":null},{"name":"Shadow Step","level":6,"desc":"I can use a Bonus Action to teleport up to 60 feet while in Dim Light or Darkness. I gain Advantage on my next melee attack before the turn ends.","usages":null,"recovery":null},{"name":"Improved Shadow Step","level":11,"desc":"1 Focus Point, I can use Shadow Step to teleport without needing to start and end in Dim Light or Darkness. I can also make an Unarmed Strike immediately after teleporting.","usages":null,"recovery":null},{"name":"Cloak of Shadows","level":17,"desc":"As a Magic action in Dim Light or Darkness, 3 FP to shroud myself in shadows for 1 min. I lose this if I end my turn in Bright Light or am Incapacitated. While shrouded, I gain: The Invisible Condition; I can move through occupied spaces as Difficult Terrain.","usages":null,"recovery":null}]},
+  "monk/shadow": {"name":"Way of Shadow","source":"PHB","bonusSpells":["minor_illusion"],"features":[{"name":"Shadow Arts","level":3,"desc":"Darkness : I can expend 1 Focus Point to cast the Darkness spell without expending components. I can see within the spell's area when I cast it with this feature. While the spell persists, I can move its area of Darkness to a space within 60 feet of its current area, no action required.\n\nShadowy Figments : I know the Minor Illusion cantrip. Wisdom is my spellcasting ability for it.\n\nDarkvision : I gain Darkvision 60 ft (stacks with existing).","usages":null,"recovery":null},{"name":"Shadow Step","level":6,"desc":"I can use a Bonus Action to teleport up to 60 feet while in Dim Light or Darkness. I gain Advantage on my next melee attack before the turn ends.","usages":null,"recovery":null},{"name":"Improved Shadow Step","level":11,"desc":"1 Focus Point, I can use Shadow Step to teleport without needing to start and end in Dim Light or Darkness. I can also make an Unarmed Strike immediately after teleporting.","usages":null,"recovery":null},{"name":"Cloak of Shadows","level":17,"desc":"As a Magic action in Dim Light or Darkness, 3 FP to shroud myself in shadows for 1 min. I lose this if I end my turn in Bright Light or am Incapacitated. While shrouded, I gain: The Invisible Condition; I can move through occupied spaces as Difficult Terrain.","usages":null,"recovery":null}]},
   "monk/elements": {"name":"Way of the Elements","source":"PHB","features":[{"name":"Elemental Attunement","level":3,"desc":"At the start of my turn, 1 FP for 10 mins of elemental energy. While active: My Unarmed Strikes have 10ft extra reach, and deal my choice: Acid, Cold, Fire, Lightning, or Thunder damage, and on hit Str save or I can move the target up to 10ft","usages":null,"recovery":null},{"name":"Elemental Burst","level":6,"desc":"As a Magic action, 2 FP for a 20ft radius burst of Acid, Cold, Fire, Lightning, or Thunder damage within 120ft Affected Creatures make a Dex save, or 3x Martial dice roll damage, half on success.","usages":null,"recovery":null},{"name":"Stride of the Elements","level":11,"desc":"While my Elemental Attunement is active, I gain Fly and Swim Speed equal to my Speed.","usages":null,"recovery":null},{"name":"Elemental Epitome","level":17,"desc":"When Elemental Attunement is active: I gain Resistance to Acid, Cold, Fire, Lightning, or Thunder, and can change on my turn. Step of the Wind adds 20ft Speed, for the duration I can deal damage (Acid, Cold, Fire, Lightning or Thunder), to each creat","usages":null,"recovery":null}]},
   "monk/open hand": {"name":"Way of the Open Hand","source":"PHB","features":[{"name":"Open Hand Technique","level":3,"desc":"When I hit a crea. with a Flurry of Blows attack, I can impose one of these effects: Crea. can't make Opportunity Attacks until its next turn. Crea. makes a Str save or is pushed 15ft Crea. makes a Dex save or is knocked Prone.","usages":null,"recovery":null},{"name":"Wholeness of Body","level":6,"desc":"As a Bonus Action, I can heal myself for 1 Martial die roll + my Wis mod.","usages":null,"recovery":"long rest"},{"name":"Fleet Step","level":11,"desc":"When I use a Bonus Action other than Step of the Wind, I can also use Step of the Wind immediately after.","usages":null,"recovery":null}]},
   "paladin/devotion": {"name":"Oath of Devotion","source":"PHB","bonusSpells":["divine_smite", "protection_from_evil_and_good", "shield_of_faith", "aid", "zone_of_truth", "beacon_of_hope", "dispel_magic", "freedom_of_movement", "guardian_of_faith", "commune", "flame_strike"],"features":[{"name":"Channel Divinity: Sacred Weapon","level":3,"desc":"As part of the attack action, I can imbue 1 held melee weapon for 10 minutes or until I use this feature again. While active, I add my Cha modifier to attacks and choose Radiant or normal damage on each hit. It also emits 20-ft radius bright light and 20-ft more dim light.","usages":null,"recovery":null},{"name":"Aura of Devotion","level":7,"desc":"While I'm not Incapacitated, allies within range and I can't be Charmed. (10-ft aura, 30-ft at level 18+)","usages":null,"recovery":null},{"name":"Smite of Protection","level":15,"desc":"When I cast Divine Smite my allies & I have Half Cover while in my aura of protection until the start of my next turn.","usages":null,"recovery":null},{"name":"Holy Nimbus","level":20,"desc":"As a Bonus Action, I can give my Aura of Protection the benefits below for 10 minutes: Holy Ward: I have Advantage on saving throws I'm forced to make by a Fiend or Undead. Radiant Damage: An enemy that starts its turn in range takes my Cha mod + Proficiency Bonus Radiant damage. Sunlight: The aura is filled with Bright Light that is sunlight. I can end it for free; I can spend a level 5 spell slot or Long Rest to restore it.","usages":1,"recovery":"long rest"}]},
@@ -23573,6 +23573,155 @@ const SUBCLASS_RESISTANCE_TABLE = {
 // Damage type per Genie Kind choice, straight from Elemental Gift's own text.
 const GENIE_KIND_RESISTANCE = { dao: 'bludgeoning', djinni: 'thunder', efreeti: 'fire', marid: 'cold' };
 
+// Explicit allowlist of PERMANENT, PASSIVE subclass sense grants — deliberately
+// not a blind regex scan of every feature's text for "Darkvision/Blindsight N
+// ft", because several features mention senses without actually being a
+// standing trait: Warlock's "The Third Eye" invocation is a once-per-rest
+// activated toggle (one of several alternative benefits, not always-on), and
+// Druid's Circle of the Titan only grants Darkvision while physically
+// shapeshifted into Titan Form. A blind scan would have wrongly granted both
+// permanently. `stacks:true` means the grant explicitly adds to an existing
+// value of that sense (matches each feature's own wording); `stacks:false`
+// means it's simply the better of the two, per normal 5e rules for multiple
+// sources of the same sense.
+const SUBCLASS_SENSE_TABLE = {
+  darkvision: {
+    'ranger/gloom stalker':     { minLevel: 3, ft: 60,  stacks: true  }, // Umbral Sight
+    'monk/shadow':              { minLevel: 3, ft: 60,  stacks: true  }, // Shadow Arts
+    'sorcerer/shadow sorcery':  { minLevel: 3, ft: 120, stacks: false }, // Eyes of the Dark
+    'cleric/twilight domain':   { minLevel: 1, ft: 300, stacks: false }, // Eyes of Night
+  },
+  blindsight: {
+    // (no subclass-level permanent Blindsight grants currently in the
+    // sheet's data — Shadow Sorcery's Blindsight 10 ft from Eyes of the
+    // Dark lives under darkvision above since it's paired with that
+    // feature's Darkvision grant; add here if another one turns up.)
+  },
+  truesight: {},
+  telepathy: {
+    'psion/telepath': { minLevel: 6, ft: 60, stacks: false }, // Potent Thoughts — doubles the base 30 ft from Psionic Power
+  },
+};
+
+// Base-class (not subclass-gated) permanent sense grants — e.g. every Psion
+// has 30 ft of innate telepathy from 1st-level Psionic Power's Telepathic
+// Connection, regardless of subclass. The temporary Bonus-Action range boost
+// from spending a Psionic Energy Die (+10 ft × roll, 1 hour) is deliberately
+// excluded here for the same reason Tremorsense is — it's an activated,
+// resource-limited effect, not a standing trait.
+const CLASS_SENSE_TABLE = {
+  telepathy: {
+    psion: { minLevel: 1, ft: 30, stacks: false },
+  },
+};
+
+// Feat-granted senses — same permanent/passive-only rule as the subclass
+// table above. Sharp Eye (VRGtR origin feat) is the only one currently in
+// the sheet's feat list that grants a standing sense.
+const FEAT_SENSE_TABLE = {
+  darkvision: {
+    'Sharp Eye': { ft: 60, stacks: true }, // "or your existing Darkvision range increases by 60 feet"
+  },
+  blindsight: {},
+};
+
+// Magic item-granted senses — checked against currently ACTIVE items only:
+// attuned (for items that require attunement) or equipped (for items that
+// don't). An unattuned Robe of Eyes sitting in a backpack shouldn't grant
+// anything.
+const ITEM_SENSE_TABLE = {
+  darkvision: { 'robe_of_eyes': { ft: 120, stacks: false } },
+  truesight:  { 'robe_of_eyes': { ft: 120, stacks: false } },
+};
+
+// Fighting Style grants — stored under currentChar.class_choices with a
+// per-class key (fighting_style_ranger, fighting_style_fighter, etc.), so
+// rather than enumerate every possible class-specific key, this just checks
+// whether "Blind Fighting" was picked anywhere among the character's
+// class_choices values.
+const FIGHTING_STYLE_SENSE_TABLE = {
+  blindsight: {
+    'Blind Fighting': { ft: 10, stacks: false },
+  },
+};
+
+// Combines the race's base senses (currentChar._raceDarkvision, set by
+// applyRaceDefaults) with anything granted by base class features, active
+// subclass features, feats, Fighting Style choices, and active magic items
+// into the final currentChar._darkvision / _blindsight / _truesight /
+// _telepathy. Most sources of the same sense don't stack with each other by
+// RAW — you just use the best one — but a source can explicitly say
+// otherwise (Gloom Stalker's Umbral Sight: "Darkvision 60 ft (stacks with
+// existing)"), so each table entry says which rule applies rather than
+// assuming one way or the other.
+//
+// Deliberately NOT covered here: Dwarf's Stonecunning (Tremorsense). It's a
+// Bonus-Action-activated, 10-minute, Proficiency-Bonus-per-Long-Rest ability
+// that also requires touching stone — not a standing trait like Darkvision,
+// so showing it permanently in the Senses box would misrepresent it as
+// always-on. It's tracked instead via the normal Resource Tracker, same as
+// any other limited-use feature.
+function syncFeatureSenses() {
+  if (!currentChar) return;
+  const allClasses = getAllClasses();
+  const featNames = new Set(Object.values(currentChar.featSlots || {}).map(s => s?.feat).filter(Boolean));
+  (currentChar.feats || []).forEach(f => { if (f?.name) featNames.add(f.name); });
+  const choiceValues = Object.values(currentChar.class_choices || {});
+  const activeItemKeys = new Set(
+    (currentChar.magicItems || [])
+      .filter(i => i.attunement ? i.attuned : i.equipped)
+      .map(i => i.key)
+  );
+
+  const SENSE_FIELD = { darkvision: '_darkvision', blindsight: '_blindsight', truesight: '_truesight', telepathy: '_telepathy' };
+  const RACE_FIELD = { darkvision: '_raceDarkvision', blindsight: '_raceBlindsight', truesight: '_raceTruesight', telepathy: '_raceTelepathy' };
+
+  Object.keys(SENSE_FIELD).forEach(sense => {
+    let best = currentChar[RACE_FIELD[sense]] || 0;
+    let stackingBonus = 0;
+
+    allClasses.forEach(entry => {
+      const cls = (entry.class || '').toLowerCase().trim();
+      if (!cls) return;
+      const level = entry.levels?.length || 0;
+
+      const classGrant = CLASS_SENSE_TABLE[sense]?.[cls];
+      if (classGrant && level >= classGrant.minLevel) {
+        if (classGrant.stacks) stackingBonus += classGrant.ft; else best = Math.max(best, classGrant.ft);
+      }
+
+      const subclass = (entry.subclass || '').toLowerCase();
+      if (!subclass) return;
+      const subKey = getSubclassKey(cls, subclass);
+      if (!subKey) return;
+      const subGrant = SUBCLASS_SENSE_TABLE[sense]?.[subKey];
+      if (subGrant && level >= subGrant.minLevel) {
+        if (subGrant.stacks) stackingBonus += subGrant.ft; else best = Math.max(best, subGrant.ft);
+      }
+    });
+
+    featNames.forEach(name => {
+      const grant = FEAT_SENSE_TABLE[sense]?.[name];
+      if (grant) { if (grant.stacks) stackingBonus += grant.ft; else best = Math.max(best, grant.ft); }
+    });
+
+    choiceValues.forEach(val => {
+      const grant = FIGHTING_STYLE_SENSE_TABLE[sense]?.[val];
+      if (grant) { if (grant.stacks) stackingBonus += grant.ft; else best = Math.max(best, grant.ft); }
+    });
+
+    activeItemKeys.forEach(key => {
+      const grant = ITEM_SENSE_TABLE[sense]?.[key];
+      if (grant) { if (grant.stacks) stackingBonus += grant.ft; else best = Math.max(best, grant.ft); }
+    });
+
+    currentChar[SENSE_FIELD[sense]] = best + stackingBonus;
+  });
+}
+// Old name kept as an alias — recalcAll() and applyRaceDefaults() both
+// still call syncFeatureDarkvision(); it now computes all four senses.
+function syncFeatureDarkvision() { syncFeatureSenses(); }
+
 function syncSubclassResistances() {
   if (!currentChar) return;
   if (!currentChar.damageStates) currentChar.damageStates = {};
@@ -24263,6 +24412,8 @@ function recalcAll() {
   if (typeof renderKnownSpells === 'function') renderKnownSpells(); // refresh item-granted spells etc.
   renderAttacksPanel();
   syncSubclassResistances();
+  if (typeof syncFeatureDarkvision === 'function') syncFeatureDarkvision();
+  if (typeof renderRacialTraits === 'function') renderRacialTraits();
   syncItemResistances();
   if (typeof syncSummonSharedResistance === 'function') syncSummonSharedResistance();
   if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
@@ -31245,7 +31396,7 @@ function renderAttacksPanel() {
     const mainRow = document.createElement('div');
     mainRow.className = 'attack-row';
     mainRow.style.cssText = `background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto auto;gap:0 8px;align-items:start;padding:5px 8px;cursor:pointer;${!calc.isProficient?'opacity:.7':''}`;
-    mainRow.onclick = () => openWeaponEdit(idx);
+    mainRow.onclick = () => openWeaponDetail(idx);
 
     const linkedSource = entry._fromMagicItem
       ? (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem)
@@ -31984,6 +32135,70 @@ function dmOpenAddWeaponForChar(charId, charName) {
 }
 window.dmOpenAddWeaponForChar = dmOpenAddWeaponForChar;
 
+// Read-only weapon viewer — clicking a weapon row opens this now, showing
+// type, damage dice, ability used, range, weight, properties, and mastery.
+// Distinct from openWeaponEdit below, which is reached only via the pencil
+// button and is for changing the weapon's configuration.
+function openWeaponDetail(idx) {
+  ensureWeaponData();
+  const entry = currentChar.weapons[idx];
+  if (!entry) return;
+  let calc;
+  try { calc = calcWeaponAttack(entry); } catch (e) { return; }
+  if (!calc) return;
+  const phb = calc.phbWeapon;
+  const name = entry.name || phb?.name || 'Weapon';
+  document.getElementById('weapon-detail-title').textContent = name;
+
+  const properties = (phb?.properties || [])
+    .map(p => p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
+    .join(', ');
+  const masteryDesc = phb?.mastery ? getWeaponMasteryDesc(phb.mastery, phb.mastery_desc) : '';
+  const rangeTxt = phb?.thrown_range ? `${phb.range} (thrown ${phb.thrown_range})` : (phb?.range || entry.range || '');
+
+  const linkedItem = entry._fromMagicItem
+    ? (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem)
+    : null;
+
+  const pills = [
+    phb?.type ? `<span class="meta-pill">${phb.type}</span>` : '',
+    `<span class="meta-pill">${calc.isRanged ? 'Ranged' : 'Melee'}</span>`,
+    calc.abilityKey ? `<span class="meta-pill">Ability: ${calc.abilityKey.toUpperCase()}</span>` : '',
+    calc.dmgStr ? `<span class="meta-pill">Damage: ${calc.dmgStr}</span>` : '',
+    phb?.versatile_die ? `<span class="meta-pill">Versatile: 1d${phb.versatile_die}</span>` : '',
+    rangeTxt ? `<span class="meta-pill">Range: ${rangeTxt}</span>` : '',
+    (entry.weight || phb?.weight) ? `<span class="meta-pill">Weight: ${entry.weight || phb.weight}</span>` : '',
+    properties ? `<span class="meta-pill">${properties}</span>` : '',
+    phb?.mastery ? `<span class="meta-pill" style="color:var(--gold)">Mastery: ${phb.mastery}</span>` : '',
+    !calc.isProficient ? `<span class="meta-pill" style="color:var(--red)">Not Proficient</span>` : '',
+    linkedItem?.rarity ? `<span class="meta-pill" style="color:var(--gold)">${linkedItem.rarity}</span>` : '',
+    linkedItem?.attunement ? `<span class="meta-pill" style="color:${linkedItem.attuned?'var(--accent)':'var(--red)'}">${linkedItem.attuned?'Attuned':'Requires Attunement'}</span>` : '',
+  ].filter(Boolean);
+  document.getElementById('weapon-detail-pills').innerHTML = pills.join('');
+
+  let bodyHtml = '';
+  if (masteryDesc) {
+    bodyHtml += `<div style="margin-bottom:10px;font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6"><strong style="color:var(--gold)">${phb.mastery}.</strong> ${masteryDesc}</div>`;
+  }
+  const descSrc = phb?.desc || entry.desc || '';
+  if (descSrc) {
+    bodyHtml += `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${descSrc.replace(/\n/g, '<br>')}</div>`;
+  }
+  if (linkedItem?.desc) {
+    bodyHtml += `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px">Magic Item - ${(linkedItem.customName || linkedItem.name || '').replace(/</g,'&lt;')}</div>
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${linkedItem.desc.replace(/\n/g, '<br>')}</div>
+    </div>`;
+  }
+  document.getElementById('weapon-detail-body').innerHTML = bodyHtml || '<em style="color:var(--text3)">No description available.</em>';
+
+  // keepOthersOpen=true — this is a lightweight read-only viewer, same
+  // pattern as openFeatInfoModal, so it doesn't need to close whatever
+  // else might be open behind it.
+  openModal('weapon-detail-modal', true);
+}
+window.openWeaponDetail = openWeaponDetail;
+
 function openWeaponEdit(idx) {
   ensureWeaponData();
   const entry = currentChar.weapons[idx];
@@ -32499,7 +32714,8 @@ function renderUnifiedInventory() {
       name: entry.name || phb?.name || 'Weapon',
       qty, weight: entry.weight || '',
       sub: '',
-      onClick: `openWeaponEdit(${idx})`,
+      onClick: `openWeaponDetail(${idx})`,
+      onEditClick: `openWeaponEdit(${idx})`,
       onRemove: `removeWeapon(${idx});renderFeatItemsWeapons()`,
       kind: 'weapon', rowIdx: idx, weightEditable: true, containerUid,
       equipped: !!entry.equipped, equipLabel: 'Equipped',
@@ -32754,6 +32970,7 @@ function renderUnifiedInventory() {
         <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2);min-width:12px;text-align:center">${r.qty || 1}</span>
         <button class="sp-del-btn" style="opacity:1;font-size:10px;padding:0 4px" onclick="adjustRowQty('${r.kind}',${r.rowIdx},1)" title="Increase quantity">+</button>
       </div>` : ''}
+      ${r.onEditClick ? `<button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="event.stopPropagation();${r.onEditClick}" title="Edit">✎</button>` : ''}
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="event.stopPropagation();${r.onRemove}">✕</button>
     </div>`).join('')}
   `).join('') + `
@@ -40658,9 +40875,13 @@ function applyRaceDefaults(race, subrace) {
   }
   calcSpeed();
 
-  // Darkvision: take highest between base and subrace
+  // Darkvision: take highest between base and subrace. This is the race's
+  // OWN contribution only — class/subclass features that grant additional
+  // darkvision (e.g. Gloom Stalker's Umbral Sight, which explicitly stacks)
+  // are combined in separately by syncFeatureDarkvision(), called from
+  // recalcAll() below, since those can change independently of race.
   const dv = Math.max(rd.darkvision || 0, srd?.darkvision || 0);
-  currentChar._darkvision = dv;
+  currentChar._raceDarkvision = dv;
 
   // Damage resistances — a subrace's own resistance OVERRIDES the base
   // race's rather than merging with it. The base race's dmgres is really
@@ -40675,90 +40896,41 @@ function applyRaceDefaults(race, subrace) {
   currentChar._dmgres = subRes.length ? [...new Set(subRes)] : [...new Set(baseRes)];
   syncRacialResistances();
 
-  // Render the racial traits panel
-  renderRacialTraits();
+  // Render the racial traits panel — after recalcAll, since that's what
+  // now combines race + subclass-granted darkvision (syncFeatureDarkvision)
+  // into currentChar._darkvision; rendering first would show a stale,
+  // race-only value until the next unrelated recalc happened to catch up.
   renderClassFeatures();
   recalcAll();
+  renderRacialTraits();
   // Explicitly force AC update since racial AC bonus may have changed
   onACChange();
 }
 
-// ── Render Racial Traits in Class Features panel ─────────────
+// ── Render Senses box (Size + Darkvision) in the Defense panel ──
+// Used to build a whole "Racial Traits" block here too, but everything it
+// showed (Speed, Size, Darkvision, Resistances, subrace trait text) is
+// already built independently and more completely by populateFeaturesTab's
+// own racial traits section on the Features tab — full trait text inline,
+// not just a name that links out to it. Speed itself is also already the
+// stat-badge display in this same Defense panel. So this block was pure
+// duplication; only Size and Darkvision weren't shown anywhere else,
+// which is all this compact box needs to cover now.
 function renderRacialTraits() {
-  if (!currentChar) return;
-  const race    = currentChar.race;
-  const subrace = currentChar.subrace;
-  const rd  = getRaceData(race);
-  const srd = subrace ? getSubraceData(race, subrace) : null;
-  if (!rd) return;
-
-  const level = getLevel();
-  const dv    = currentChar._darkvision || 0;
-  const res   = currentChar._dmgres || [];
-
-  // Add to the class features block as a separate race section
-  let raceBlock = document.getElementById('racial-traits-block');
-  if (!raceBlock) {
-    raceBlock = document.createElement('div');
-    raceBlock.id = 'racial-traits-block';
-    raceBlock.style.marginTop = '10px';
-    const cfBlock = document.getElementById('class-features-block');
-    if (cfBlock && cfBlock.parentNode) {
-      cfBlock.parentNode.insertBefore(raceBlock, cfBlock);
-    }
-  }
-
-  const ORDINALS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th',
-    '11th','12th','13th','14th','15th','16th','17th','18th','19th','20th'];
-
-  const name = srd ? srd.name : rd.name;
-  let html = `<div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)">Racial Traits - ${name}</div>`;
-
-  // Stats row
-  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
-  const effectiveSpeed = (srd?.speed) || rd.speed || 30;
-  const flySpd = (srd?.flySpeed) || rd.flySpeed || 0;
-  const speedTxt = flySpd
-    ? `${effectiveSpeed} ft · Fly ${flySpd} ft`
-    : `${effectiveSpeed} ft`;
-  html += `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text2)">Speed <strong style="color:var(--text)">${speedTxt}</strong></span>`;
-  html += `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text2)">Size <strong style="color:var(--text)">${rd.size}</strong></span>`;
-  if (dv > 0) html += `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text2)">Darkvision <strong style="color:var(--text)">${dv} ft</strong></span>`;
-  if (res.length) html += `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text2)">Resist <strong style="color:var(--gold)">${res.join(', ')}</strong></span>`;
-  html += '</div>';
-
-  // ASI note (scorestxt / asiNote - guard against undefined)
-  const asiText = rd.scorestxt || rd.asiNote || rd.scoresTxt || '';
-  if (asiText) html += `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:8px;line-height:1.5">${asiText}</div>`;
-
-  // Features available at current level
-  const allFeatures = [...(rd.features || [])];
-  // Add subrace-specific features if any
-  if (srd?.trait) {
-    // Show subrace trait as a feature entry
-    allFeatures.push({name: srd.name + ' Traits', level: 1, desc: srd.trait.replace(/\\n/g,' · '), usages: null, recovery: null});
-  }
-
-  const available = allFeatures.filter(f => f.level <= level);
-  for (const f of available) {
-    const usageStr = f.usages
-      ? (() => {
-          const _lv = getLevel();
-          let _u = Array.isArray(f.usages)
-            ? (f.usages[_lv-1] || f.usages[f.usages.length-1])
-            : f.usages;
-          if (typeof _u === 'string') {
-            try { const abs=getAbilities(),prof2=getProf(); _u = new Function('level','prof','int_mod','str_mod','dex_mod','con_mod','wis_mod','cha_mod','return '+_u)(_lv,prof2,abilityMod(abs.int),abilityMod(abs.str),abilityMod(abs.dex),abilityMod(abs.con),abilityMod(abs.wis),abilityMod(abs.cha)); } catch(e){}
-          }
-          return ` <span style="color:var(--text3)">[${_u}/${f.recovery || '-'}]</span>`;
-        })() : '';
-    html += `<div class="racial-trait-entry" title="${(f.desc||'').replace(/"/g,'&quot;')}"
-      onclick="goToFeature(${JSON.stringify(f.name)})">
-      <span class="racial-trait-name">${f.name}</span>${usageStr}
-    </div>`;
-  }
-
-  raceBlock.innerHTML = html;
+  const box = document.getElementById('senses-box');
+  if (!box) return;
+  if (!currentChar) { box.textContent = '—'; return; }
+  const dv = currentChar._darkvision || 0;
+  const bs = currentChar._blindsight || 0;
+  const ts = currentChar._truesight || 0;
+  const tp = currentChar._telepathy || 0;
+  const parts = [
+    dv ? `Darkvision ${dv} ft` : '',
+    bs ? `Blindsight ${bs} ft` : '',
+    ts ? `Truesight ${ts} ft` : '',
+    tp ? `Telepathy ${tp} ft` : '',
+  ].filter(Boolean);
+  box.innerHTML = parts.length ? parts.join(' · ') : '<span style="color:var(--text3)">Normal vision only</span>';
 }
 
 // ── Override calcSpeed to show racial note ────────────────────
@@ -44811,16 +44983,18 @@ function populateFeaturesTab() {
     // Stats summary as a pseudo-entry at level 0
     const dv  = currentChar._darkvision || 0;
     const res = currentChar._dmgres || [];
+    const asiText = rd.scorestxt || rd.asiNote || rd.scoresTxt || '';
     const statParts = [
       `Speed ${rd.speed} ft`,
       `Size ${rd.size}`,
       dv ? `Darkvision ${dv} ft` : '',
       res.length ? `Resist ${res.join(', ')}` : '',
+      asiText,
     ].filter(Boolean);
     entries.push({
       level: 0, id: 'racial_stats', name: raceName,
       source: raceName, sourceType: 'Race',
-      desc: statParts.join(' · ') + ' · ' + rd.asiNote,
+      desc: statParts.join(' · '),
       usages: null, recovery: null,
     });
 
