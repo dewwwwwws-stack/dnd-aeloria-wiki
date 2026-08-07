@@ -3,28 +3,28 @@
 <head>
 <meta charset="utf-8">
 <title>Spell List</title>
-<style>
+<style>@import url('https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#080812;font-family:Georgia,serif;color:#ccc;min-height:100vh}
-header{background:#0d0d20;border-bottom:1px solid #1a1a3a;padding:12px 18px;position:sticky;top:0;z-index:100}
+body{background:#0c0a14;font-family:'Jost',sans-serif;color:#c4b8da;min-height:100vh}
+header{background:#1e1830;border-bottom:1px solid #1a1a3a;padding:12px 18px;position:sticky;top:0;z-index:100}
 h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 .controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.controls input,.controls select{background:#0a0a1a;border:1px solid #2a2a4a;color:#ccc;
-  padding:5px 8px;border-radius:5px;font-size:18px;font-family:Georgia,serif}
+.controls input,.controls select{background:#15111f;border:1px solid #332a47;color:#ccc;
+  padding:5px 8px;border-radius:5px;font-size:18px;font-family:'Jost',sans-serif}
 .controls input{width:180px}
 .controls select{min-width:104px}
 .btn-row{display:flex;gap:3px;flex-wrap:wrap}
 .section-label{flex-basis:100%;width:100%;font-size:12px;color:#557;
   letter-spacing:.18em;text-transform:uppercase;
-  margin:14px 0 2px 0;font-family:Georgia,serif;font-style:italic;
-  padding-bottom:3px;border-bottom:1px solid #1a1a2e}
+  margin:14px 0 2px 0;font-family:'Jost',sans-serif;font-style:italic;
+  padding-bottom:3px;border-bottom:1px solid #332a47}
 .section-label:first-of-type{margin-top:8px}
-.tbtn{background:#0d0d20;border:1px solid #2a2a4a;color:#666;padding:4px 9px;
-  border-radius:5px;cursor:pointer;font-size:18px;font-family:Georgia,serif;white-space:nowrap}
+.tbtn{background:#1e1830;border:1px solid #332a47;color:#756a8a;padding:4px 9px;
+  border-radius:5px;cursor:pointer;font-size:18px;font-family:'Jost',sans-serif;white-space:nowrap}
 .tbtn.active{border-color:#6060aa;color:#aac;background:#15152a}
 .count{color:#3a3a5a;font-size:18px;margin-left:auto;white-space:nowrap}
 .grid{position:relative;padding:14px 18px;min-height:200px}
-.card{background:#0d0d1a;border:1px solid #1a1a30;border-radius:9px;padding:8px;
+.card{background:#1e1830;border:1px solid #463a64;border-radius:9px;padding:8px;
   cursor:pointer;transition:border-color .15s;position:relative;overflow:hidden}
 .card:hover{border-color:#3a3a6a}
 .arcane-card{width:200px}
@@ -40,15 +40,15 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 .linear-card .glyph{aspect-ratio:1.667}
 .card .glyph svg{width:100%;height:auto;display:block;border-radius:5px}
 .glyph-placeholder{width:100%;aspect-ratio:1;background:#0a0a18;border-radius:5px;
-  display:flex;align-items:center;justify-content:center;font-size:15px;color:#2a2a4a;font-style:italic}
+  display:flex;align-items:center;justify-content:center;font-size:15px;color:#332a47;font-style:italic}
 .spell-name{font-size:17px;color:#bbb;font-style:italic;text-align:center;margin-top:6px}
 .spell-meta{font-size:15px;color:#4a4a6a;text-align:center;margin-top:3px}
 .school-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:middle}
-.notation-small{font-size:12px;color:#1e1e3a;text-align:center;margin-top:2px;font-family:monospace;word-break:break-all}
+.notation-small{font-size:12px;color:#5e5270;text-align:center;margin-top:2px;font-family:monospace;word-break:break-all}
 .modal-bg{display:none;position:absolute;left:0;right:0;background:#000c;z-index:9999;
   align-items:center;justify-content:center;padding:12px;overflow-y:auto}
 .modal-bg.open{display:flex}
-.modal{background:#0d0d1a;border:1px solid #2a2a4a;border-radius:12px;padding:18px;
+.modal{background:#1e1830;border:1px solid #332a47;border-radius:12px;padding:18px;
   max-width:960px;width:100%;margin:auto;
   display:flex;flex-direction:row;gap:18px;align-items:stretch;
   max-height:calc(100vh - 24px);overflow:hidden}
@@ -61,7 +61,7 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
 .modal-right{flex:1 1 0;min-width:220px;overflow-y:auto;
   max-height:calc(100vh - 60px);padding-right:4px}
 .modal-right::-webkit-scrollbar{width:3px}
-.modal-right::-webkit-scrollbar-thumb{background:#2a2a4a;border-radius:2px}
+.modal-right::-webkit-scrollbar-thumb{background:#332a47;border-radius:2px}
 /* Controls: two labelled sections, buttons never truncate */
 .mc-section-label{font-size:10px;color:#444;letter-spacing:.1em;
   text-transform:uppercase;margin-bottom:3px;margin-top:6px}
@@ -78,15 +78,15 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
   .modal-right{max-height:none;overflow-y:visible}
 }
 .modal h2{font-style:italic;color:#ccc;font-size:28px;margin-bottom:4px}
-.modal-meta{font-size:16px;color:#555;margin-bottom:10px;line-height:1.6}
+.modal-meta{font-size:16px;color:#6e6878;margin-bottom:10px;line-height:1.6}
 .modal-meta span{display:inline-block;margin-right:14px}
 .mc{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
 .mc-row{display:flex;gap:4px;flex-wrap:wrap}
-.mbtn{flex:0 0 auto;background:#080812;border:1px solid #2a2a4a;color:#555;
+.mbtn{flex:0 0 auto;background:#0c0a14;border:1px solid #332a47;color:#6e6878;
   padding:4px 8px;border-radius:5px;cursor:pointer;font-size:14px;
-  font-family:Georgia,serif;text-align:center;white-space:nowrap}
+  font-family:'Jost',sans-serif;text-align:center;white-space:nowrap}
 .mbtn.active{border-color:#6060aa;color:#aac}
-.notation-big{font-family:monospace;font-size:15px;color:#445;background:#080812;
+.notation-big{font-family:monospace;font-size:15px;color:#445;background:#0c0a14;
   padding:6px 10px;border-radius:5px;margin-bottom:10px;word-break:break-all}
 .spell-desc{font-size:16px;color:#889;line-height:1.65;margin-bottom:10px;padding-right:4px}
 .higher-levels{font-size:15px;color:#556;font-style:italic;margin-bottom:8px;line-height:1.5}
@@ -95,8 +95,8 @@ h1{font-style:italic;color:#aaa;font-size:30px;margin-bottom:10px}
   margin:10px 0 4px;border-top:1px solid #1a1a2a;padding-top:8px}
 .close-btn{float:right;background:none;border:none;color:#444;font-size:28px;cursor:pointer;line-height:1}
 .export-btn{display:block;width:100%;margin-top:12px;padding:6px 8px;
-  background:#080812;border:1px solid #2a2a4a;border-radius:6px;
-  color:#556;font-size:12px;cursor:pointer;font-family:Georgia,serif;
+  background:#0c0a14;border:1px solid #332a47;border-radius:6px;
+  color:#556;font-size:12px;cursor:pointer;font-family:'Jost',sans-serif;
   letter-spacing:.08em;text-align:center}
 .export-btn:hover{border-color:#4a4a7a;color:#99b}
 .export-btn.copied{border-color:#4a7a5a;color:#8bc}
@@ -450,16 +450,16 @@ const ARC = {
   getPassthrough(school, i) { return this.getDot(school,(i%5)+1); },
   base(spellColor) {
     const tc = spellColor || '#ffffff';
-    let s=`<rect width="${this.W}" height="${this.W}" fill="#0d0d1a"/>`;
+    let s=`<rect width="${this.W}" height="${this.W}" fill="#1e1830"/>`;
     s+=`<defs><radialGradient id="arcBgTint" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${tc}" stop-opacity="0.07"/><stop offset="100%" stop-color="${tc}" stop-opacity="0"/></radialGradient></defs>`;
     s+=`<rect width="${this.W}" height="${this.W}" fill="url(#arcBgTint)"/>`;
-    s+=`<circle cx="${this.CX}" cy="${this.CY}" r="${this.R+20}" fill="#1a1a2e" stroke="${tc}44" stroke-width="2"/>`;
+    s+=`<circle cx="${this.CX}" cy="${this.CY}" r="${this.R+20}" fill="#332a47" stroke="${tc}44" stroke-width="2"/>`;
     s+=`<circle cx="${this.CX}" cy="${this.CY}" r="${this.R-30}" fill="#12122a" stroke="${tc}22" stroke-width="1"/>`;
     for(const [school,angle] of Object.entries(this.ANGLES)){
       for(const off of [-22.5,22.5]){
         const a=(angle+off)*Math.PI/180;
         const x2=this.CX+(this.R+20)*Math.sin(a), y2=this.CY-(this.R+20)*Math.cos(a);
-        s+=`<line x1="${this.CX}" y1="${this.CY}" x2="${f(x2)}" y2="${f(y2)}" stroke="#2a2a4a" stroke-width="1"/>`;
+        s+=`<line x1="${this.CX}" y1="${this.CY}" x2="${f(x2)}" y2="${f(y2)}" stroke="#332a47" stroke-width="1"/>`;
       }
     }
     for(const school of _SO){
@@ -467,12 +467,12 @@ const ARC = {
       for(let d=1;d<=5;d++){
         const [x,y]=this.getDot(school,d);
         s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${this.DOT_R+3}" fill="${sc}15" stroke="none"/>`;
-        s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${this.DOT_R}" fill="#1e1e3a" stroke="${sc}88" stroke-width="1.5"/>`;
+        s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${this.DOT_R}" fill="#5e5270" stroke="${sc}88" stroke-width="1.5"/>`;
       }
       const lr=this.R+52, ar=this.ANGLES[school]*Math.PI/180;
       const lx=this.CX+lr*Math.sin(ar), ly=this.CY-lr*Math.cos(ar);
       const rot=this.ANGLES[school];
-      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="32" fill="#888" font-style="italic" transform="rotate(${rot},${f(lx)},${f(ly)})">${school}</text>`;
+      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Jost,sans-serif" font-size="32" fill="#888" font-style="italic" transform="rotate(${rot},${f(lx)},${f(ly)})">${school}</text>`;
     }
     return s;
   },
@@ -501,7 +501,7 @@ const DIV = {
   getDot(school,dot) { return [this.colX(_SO.indexOf(school)), this.dotY(dot)]; },
   getPassthrough(school,i) { return this.getDot(school,(i%5)+1); },
   base() {
-    let s=`<rect width="${this.W}" height="${this.H}" fill="#0d0d1a"/>`;
+    let s=`<rect width="${this.W}" height="${this.H}" fill="#1e1830"/>`;
     s+=`<rect x="${this.MX-20}" y="${this.MY-20}" width="${this.W-2*(this.MX-20)}" height="${this.H-2*(this.MY-20)}" fill="#10101e" rx="4"/>`;
     const cy=this.dotY(3);
     s+=`<line x1="${this.MX-25}" y1="${f(cy)}" x2="${this.W-this.MX+25}" y2="${f(cy)}" stroke="#3a3a5a" stroke-width="2" opacity="0.9"/>`;
@@ -518,12 +518,12 @@ const DIV = {
       const x=this.colX(i);
       for(let d=1;d<=5;d++){
         const y=this.dotY(d);
-        s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${this.DOT_R}" fill="#1a1a30" stroke="#3a3a5a" stroke-width="1.5"/>`;
+        s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${this.DOT_R}" fill="#463a64" stroke="#3a3a5a" stroke-width="1.5"/>`;
       }
       // Labels rotated -90 with text-anchor="start" so they extend upward.
       // The viewBox is extended above y=0 in render() to give room.
       const ly=this.MY-10;
-      s+=`<text x="${f(x)}" y="${f(ly)}" text-anchor="start" dominant-baseline="middle" font-family="Georgia,serif" font-size="28" fill="#888" font-style="italic" transform="rotate(-90,${f(x)},${f(ly)})">${_SO[i]}</text>`;
+      s+=`<text x="${f(x)}" y="${f(ly)}" text-anchor="start" dominant-baseline="middle" font-family="Jost,sans-serif" font-size="28" fill="#888" font-style="italic" transform="rotate(-90,${f(x)},${f(ly)})">${_SO[i]}</text>`;
     }
     return s;
   },
@@ -565,19 +565,19 @@ const PACT = (() => {
   }
   function getPassthrough(school,i){ return getDot(school,(i%5)+1); }
   function base(){
-    let s=`<rect width="${W}" height="${W}" fill="#0d0d1a"/>`;
+    let s=`<rect width="${W}" height="${W}" fill="#1e1830"/>`;
     const pp=PV.map(v=>`${f(v[0])},${f(v[1])}`).join(' ');
     s+=`<polygon points="${pp}" fill="#131325" stroke="#3a3a5a" stroke-width="2.5"/>`;
     const r2=R_PENT-28;
     const ip=[0,1,2,3,4].map(i=>{const a=(-90+i*72)*Math.PI/180;return `${f(CX+r2*Math.cos(a))},${f(CY+r2*Math.sin(a))}`;}).join(' ');
-    s+=`<polygon points="${ip}" fill="#0f0f22" stroke="#2a2a4a" stroke-width="1"/>`;
+    s+=`<polygon points="${ip}" fill="#0f0f22" stroke="#332a47" stroke-width="1"/>`;
     const tp=`${f(TV.tl[0])},${f(TV.tl[1])} ${f(TV.tr[0])},${f(TV.tr[1])} ${f(TV.bt[0])},${f(TV.bt[1])}`;
     s+=`<polygon points="${tp}" fill="#161628" stroke="#3a3a5a" stroke-width="2"/>`;
     for(const [school,[sv,ev,inner]] of Object.entries(SIDES)){
       s+=`<line x1="${f(sv[0])}" y1="${f(sv[1])}" x2="${f(ev[0])}" y2="${f(ev[1])}" stroke="${inner?'#2a2a48':'#252540'}" stroke-width="1.5"/>`;
       for(let d=1;d<=5;d++){
         const [x,y]=getDot(school,d);
-        s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${DOT_R}" fill="#1a1a30" stroke="#3a3a5a" stroke-width="1.5"/>`;
+        s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${DOT_R}" fill="#463a64" stroke="#3a3a5a" stroke-width="1.5"/>`;
       }
       const [sv2,ev2]=SIDES[school];
       const mx=(sv2[0]+ev2[0])/2, my=(sv2[1]+ev2[1])/2;
@@ -587,7 +587,7 @@ const PACT = (() => {
       let lx=mx, ly=my;
       if(ln>0){ const off=inner?20:-22; lx+=(-ddy/ln)*off; ly+=(ddx/ln)*off; }
       if(angle>90||angle<-90) angle+=180;
-      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="${inner?28:34}" fill="${inner?'#888':'#aaa'}" font-style="italic" transform="rotate(${f(angle)},${f(lx)},${f(ly)})">${school}</text>`;
+      s+=`<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Jost,sans-serif" font-size="${inner?28:34}" fill="${inner?'#888':'#aaa'}" font-style="italic" transform="rotate(${f(angle)},${f(lx)},${f(ly)})">${school}</text>`;
     }
     return s;
   }
@@ -655,12 +655,12 @@ const OCT = (() => {
 
   function base(spellColor) {
     const tc = spellColor || '#ffffff';
-    let s = `<rect width="${W}" height="${W}" fill="#0d0d1a"/>`;
+    let s = `<rect width="${W}" height="${W}" fill="#1e1830"/>`;
     s += `<defs><radialGradient id="octBgTint" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${tc}" stop-opacity="0.07"/><stop offset="100%" stop-color="${tc}" stop-opacity="0"/></radialGradient></defs>`;
     s += `<rect width="${W}" height="${W}" fill="url(#octBgTint)"/>`;
 
     // Concentric octagons (background dressing)
-    s += `<polygon points="${octPoints(R+22)}" fill="#1a1a2e" stroke="${tc}44" stroke-width="2"/>`;
+    s += `<polygon points="${octPoints(R+22)}" fill="#332a47" stroke="${tc}44" stroke-width="2"/>`;
     s += `<polygon points="${octPoints(R-2)}"  fill="#141428" stroke="${tc}22" stroke-width="1.2"/>`;
     s += `<polygon points="${octPoints(R*0.66)}" fill="#111122" stroke="#222236" stroke-width="1"/>`;
     s += `<polygon points="${octPoints(R*0.33)}" fill="#0f0f1e" stroke="#1e1e32" stroke-width="0.8"/>`;
@@ -670,11 +670,11 @@ const OCT = (() => {
       // vertex spoke
       const av = (i * 45 - 90) * Math.PI / 180;
       const vx = CX + (R+22) * Math.cos(av), vy = CY + (R+22) * Math.sin(av);
-      s += `<line x1="${CX}" y1="${CY}" x2="${f(vx)}" y2="${f(vy)}" stroke="#2a2a4a" stroke-width="1"/>`;
+      s += `<line x1="${CX}" y1="${CY}" x2="${f(vx)}" y2="${f(vy)}" stroke="#332a47" stroke-width="1"/>`;
       // edge-midpoint spoke
       const am = ((i + 0.5) * 45 - 90) * Math.PI / 180;
       const mx2 = CX + (R+22) * Math.cos(am), my2 = CY + (R+22) * Math.sin(am);
-      s += `<line x1="${CX}" y1="${CY}" x2="${f(mx2)}" y2="${f(my2)}" stroke="#1e1e3a" stroke-width="0.7"/>`;
+      s += `<line x1="${CX}" y1="${CY}" x2="${f(mx2)}" y2="${f(my2)}" stroke="#5e5270" stroke-width="0.7"/>`;
     }
 
     // Empty dot slots (diamonds) and labels for each school
@@ -688,7 +688,7 @@ const OCT = (() => {
         const gpts = `${f(x)},${f(y-gsz)} ${f(x+gsz)},${f(y)} ${f(x)},${f(y+gsz)} ${f(x-gsz)},${f(y)}`;
         const pts = `${f(x)},${f(y-sz)} ${f(x+sz)},${f(y)} ${f(x)},${f(y+sz)} ${f(x-sz)},${f(y)}`;
         s += `<polygon points="${gpts}" fill="${sc}15" stroke="none"/>`;
-        s += `<polygon points="${pts}" fill="#1e1e3a" stroke="${sc}88" stroke-width="1.5"/>`;
+        s += `<polygon points="${pts}" fill="#5e5270" stroke="${sc}88" stroke-width="1.5"/>`;
       }
       // Label: just outside the ring, rotated to follow the edge tangent
       const lr = R + 54;
@@ -698,7 +698,7 @@ const OCT = (() => {
       let rot = i * 45;  // 0=top → label reads upward; adjust for readability
       // Keep text readable: flip if pointing generally downward
       if (rot > 90 && rot < 270) rot += 180;
-      s += `<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia,serif" font-size="32" fill="#888" font-style="italic" transform="rotate(${f(rot)},${f(lx)},${f(ly)})">${school}</text>`;
+      s += `<text x="${f(lx)}" y="${f(ly)}" text-anchor="middle" dominant-baseline="middle" font-family="Jost,sans-serif" font-size="32" fill="#888" font-style="italic" transform="rotate(${f(rot)},${f(lx)},${f(ly)})">${school}</text>`;
     }
     return s;
   }
@@ -999,7 +999,7 @@ const LIN = (() => {
 
   function base(spellColor) {
     const tc = spellColor || '#ffffff';
-    let s = `<rect width="${W}" height="${H}" fill="#0d0d1a"/>`;
+    let s = `<rect width="${W}" height="${H}" fill="#1e1830"/>`;
     // Faint horizontal tint strip along the track
     s += `<rect x="${MX}" y="${CY-MAX_ARC}" width="${W-2*MX}" height="${MAX_ARC*2}" fill="${tc}" opacity="0.03" rx="4"/>`;
     s += `<line x1="${MX}" y1="${CY}" x2="${W-MX}" y2="${CY}" stroke="${tc}33" stroke-width="2"/>`;
@@ -1013,10 +1013,10 @@ const LIN = (() => {
       for (let d = 1; d <= 5; d++) {
         const [x, y] = getDot(school, d);
         s += `<circle cx="${f(x)}" cy="${f(y)}" r="${DOT_R+3}" fill="${sc}18" stroke="none"/>`;
-        s += `<circle cx="${f(x)}" cy="${f(y)}" r="${DOT_R}" fill="#1e1e3a" stroke="${sc}88" stroke-width="1.5"/>`;
+        s += `<circle cx="${f(x)}" cy="${f(y)}" r="${DOT_R}" fill="#5e5270" stroke="${sc}88" stroke-width="1.5"/>`;
       }
       const gx = MX + (si * 5 + 2) * STEP;
-      s += `<text x="${f(gx)}" y="${CY + 42}" text-anchor="middle" dominant-baseline="auto" font-family="Georgia,serif" font-size="32" fill="#888" font-style="italic">${school}</text>`;
+      s += `<text x="${f(gx)}" y="${CY + 42}" text-anchor="middle" dominant-baseline="auto" font-family="Jost,sans-serif" font-size="32" fill="#888" font-style="italic">${school}</text>`;
     }
     return s;
   }
@@ -1232,9 +1232,9 @@ const _RLABELS={skilled:'Skilled — Elegant & Learned',novice:'Novice — Simpl
 function labels(name,level,school,style,w,h=null){
   if(!h) h=w;
   const ls=level===0?'Cantrip':`Level ${level}`;
-  return `<text x="${w/2}" y="28" text-anchor="middle" font-family="Georgia,serif" font-size="25" fill="#cccccc" font-style="italic">${name}</text>
-<text x="${w/2}" y="52" text-anchor="middle" font-family="Georgia,serif" font-size="18" fill="#777">${ls} ${school}</text>
-<text x="${w/2}" y="74" text-anchor="middle" font-family="Georgia,serif" font-size="17" fill="#555" font-style="italic">${_RLABELS[style]||style}</text>`;
+  return `<text x="${w/2}" y="28" text-anchor="middle" font-family="Jost,sans-serif" font-size="25" fill="#cccccc" font-style="italic">${name}</text>
+<text x="${w/2}" y="52" text-anchor="middle" font-family="Jost,sans-serif" font-size="18" fill="#777">${ls} ${school}</text>
+<text x="${w/2}" y="74" text-anchor="middle" font-family="Jost,sans-serif" font-size="17" fill="#555" font-style="italic">${_RLABELS[style]||style}</text>`;
 }
 
 function svg(content,w,h){ return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${content}</svg>`; }
@@ -1242,7 +1242,7 @@ function svg(content,w,h){ return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://ww
 // svgLbl — school label helper used by non-ring renderers
 function svgLbl(x,y,sc,rot){
   const c=_SC[sc],sh=sc.slice(0,3);
-  const base=`font-family="Georgia,serif" font-size="32" fill="${c}" font-style="italic" opacity="0.75" text-anchor="middle" dominant-baseline="middle"`;
+  const base=`font-family="Jost,sans-serif" font-size="32" fill="${c}" font-style="italic" opacity="0.75" text-anchor="middle" dominant-baseline="middle"`;
   return rot!==undefined
     ? `<text x="${f(x)}" y="${f(y)}" ${base} transform="rotate(${rot},${f(x)},${f(y)})">${sh}</text>`
     : `<text x="${f(x)}" y="${f(y)}" ${base}>${sh}</text>`;
@@ -1250,7 +1250,7 @@ function svgLbl(x,y,sc,rot){
 function renderDoubleRing(name,level,school,notation,style){
   const W=1000,CX=500,CY=500,DOT_R=10;
   const color=_SC[school],lv=level||0;
-  const bgBase = `<rect width="${W}" height="${W}" fill="#0d0d1a"/>`
+  const bgBase = `<rect width="${W}" height="${W}" fill="#1e1830"/>`
     + `<defs><radialGradient id="dringBgTint" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${color}" stop-opacity="0.07"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></radialGradient></defs>`
     + `<rect width="${W}" height="${W}" fill="url(#dringBgTint)"/>`;
   const OR=390,IR=205;
@@ -1262,7 +1262,7 @@ function renderDoubleRing(name,level,school,notation,style){
   const pts=parsed.map(p=>{const[x,y]=p.dot?getOpIp(p.school,p.dot):ip(p.school);return{x,y,school:p.school,dot:p.dot};});
   let s=bgBase;
   // Structural background — outer band, divider ring, inner disc
-  s+=`<circle cx="${CX}" cy="${CY}" r="${OR+18}" fill="#1a1a2e" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${CX}" cy="${CY}" r="${OR+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
   s+=`<circle cx="${CX}" cy="${CY}" r="${IR+10}" fill="#141428" stroke="${color}22" stroke-width="1"/>`;
   s+=`<circle cx="${CX}" cy="${CY}" r="${IR-12}" fill="#12122a" stroke="${color}11" stroke-width="1"/>`;
   // Pre-draw empty dot slots: 4 outer + 1 inner per school
@@ -1270,17 +1270,17 @@ function renderDoubleRing(name,level,school,notation,style){
     for(let d=1;d<=4;d++){
       const[ox,oy]=op(sc,d);
       s+=`<circle cx="${f(ox)}" cy="${f(oy)}" r="${DOT_R+3}" fill="${_SC[sc]}15"/>`;
-      s+=`<circle cx="${f(ox)}" cy="${f(oy)}" r="${DOT_R}"   fill="#1e1e3a" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
+      s+=`<circle cx="${f(ox)}" cy="${f(oy)}" r="${DOT_R}"   fill="#5e5270" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
     }
     const[ix,iy]=ip(sc);
     s+=`<circle cx="${f(ix)}" cy="${f(iy)}" r="${DOT_R+1}" fill="${_SC[sc]}15"/>`;
-    s+=`<circle cx="${f(ix)}" cy="${f(iy)}" r="${DOT_R-2}" fill="#1e1e3a" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
+    s+=`<circle cx="${f(ix)}" cy="${f(iy)}" r="${DOT_R-2}" fill="#5e5270" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
   });
   // Sector divider lines — boundary between each school's arc segment
   _SO.forEach((_,i)=>{
     for(const off of [-0.5,0.5]){
       const a=((i+off)/8)*Math.PI*2-Math.PI/2;
-      s+=`<line x1="${f(CX+IR*Math.cos(a))}" y1="${f(CY+IR*Math.sin(a))}" x2="${f(CX+(OR+18)*Math.cos(a))}" y2="${f(CY+(OR+18)*Math.sin(a))}" stroke="#2a2a4a" stroke-width="1"/>`;
+      s+=`<line x1="${f(CX+IR*Math.cos(a))}" y1="${f(CY+IR*Math.sin(a))}" x2="${f(CX+(OR+18)*Math.cos(a))}" y2="${f(CY+(OR+18)*Math.sin(a))}" stroke="#332a47" stroke-width="1"/>`;
     }
   });
   // Guide rings
@@ -1301,7 +1301,7 @@ function renderDoubleRing(name,level,school,notation,style){
 function renderSpokes(name,level,school,notation,style){
   const W=1000,CX=500,CY=500,DOT_R=10;
   const color=_SC[school],lv=level||0;
-  const bgBase = `<rect width="${W}" height="${W}" fill="#0d0d1a"/>`
+  const bgBase = `<rect width="${W}" height="${W}" fill="#1e1830"/>`
     + `<defs><radialGradient id="spokesBgTint" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${color}" stop-opacity="0.07"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></radialGradient></defs>`
     + `<rect width="${W}" height="${W}" fill="url(#spokesBgTint)"/>`;
   const INNER=80,OUTER=420;
@@ -1315,7 +1315,7 @@ function renderSpokes(name,level,school,notation,style){
   const pts=parsed.map(p=>{const[x,y]=p.dot?spokePt(p.school,p.dot):passthroughPt(p.school);return{x,y,school:p.school,dot:p.dot};});
   let s=bgBase;
   // Structural background — outer disc, inner darker zone
-  s+=`<circle cx="${CX}" cy="${CY}" r="${OUTER+18}" fill="#1a1a2e" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${CX}" cy="${CY}" r="${OUTER+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
   s+=`<circle cx="${CX}" cy="${CY}" r="${INNER+12}"  fill="#12122a" stroke="${color}22" stroke-width="1"/>`;
   // Pre-draw empty dot slots along spokes
   _SO.forEach(sc=>{
@@ -1324,7 +1324,7 @@ function renderSpokes(name,level,school,notation,style){
       const r=INNER+(d-1)/(5-1)*(OUTER-INNER);
       const[dx2,dy2]=[CX+r*Math.cos(a),CY+r*Math.sin(a)];
       s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R+3}" fill="${_SC[sc]}15"/>`;
-      s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R}"   fill="#1e1e3a" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
+      s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R}"   fill="#5e5270" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
     }
   });
   // Draw spokes
@@ -1338,7 +1338,7 @@ function renderSpokes(name,level,school,notation,style){
   _SO.forEach((_,i)=>{
     for(const off of [-0.5,0.5]){
       const a=((i+off)/8)*Math.PI*2-Math.PI/2;
-      s+=`<line x1="${CX}" y1="${CY}" x2="${f(CX+(OUTER+18)*Math.cos(a))}" y2="${f(CY+(OUTER+18)*Math.sin(a))}" stroke="#2a2a4a" stroke-width="1"/>`;
+      s+=`<line x1="${CX}" y1="${CY}" x2="${f(CX+(OUTER+18)*Math.cos(a))}" y2="${f(CY+(OUTER+18)*Math.sin(a))}" stroke="#332a47" stroke-width="1"/>`;
     }
   });
   // Concentric guide rings
@@ -1359,7 +1359,7 @@ function renderSpokes(name,level,school,notation,style){
 function renderInwardSpiral(name,level,school,notation,style){
   const W=1000,CX=500,CY=500,DOT_R=10;
   const color=_SC[school],lv=level||0;
-  const bgBase = `<rect width="${W}" height="${W}" fill="#0d0d1a"/>`
+  const bgBase = `<rect width="${W}" height="${W}" fill="#1e1830"/>`
     + `<defs><radialGradient id="spiralBgTint" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${color}" stop-opacity="0.07"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></radialGradient></defs>`
     + `<rect width="${W}" height="${W}" fill="url(#spiralBgTint)"/>`;
   const R=390,VORTEX_R=55; // vortex zone radius
@@ -1381,7 +1381,7 @@ function renderInwardSpiral(name,level,school,notation,style){
   const pts=parsed.map(p=>{const[x,y]=p.dot?dp(p.school,p.dot):pp(p.school);return{x,y,school:p.school,dot:p.dot};});
   let s=bgBase;
   // Structural background — outer ring disc, inner darker zone
-  s+=`<circle cx="${CX}" cy="${CY}" r="${R+18}" fill="#1a1a2e" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${CX}" cy="${CY}" r="${R+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
   s+=`<circle cx="${CX}" cy="${CY}" r="${VORTEX_R+20}" fill="#12122a" stroke="${color}22" stroke-width="1"/>`;
   // Pre-draw empty dot slots on spiral arms
   _SO.forEach(sc=>{
@@ -1392,7 +1392,7 @@ function renderInwardSpiral(name,level,school,notation,style){
       const a=baseA+SWEEP*t;
       const[dx2,dy2]=[CX+r2*Math.cos(a),CY+r2*Math.sin(a)];
       s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R+3}" fill="${_SC[sc]}15"/>`;
-      s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R}"   fill="#1e1e3a" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
+      s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R}"   fill="#5e5270" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
     }
   });
   // Outer ring guide
@@ -1502,7 +1502,7 @@ function renderInwardSpiral(name,level,school,notation,style){
 function renderVenn(name,level,school,notation,style){
   const W=1000,CX=500,CY=500,DOT_R=10;
   const color=_SC[school],lv=level||0;
-  const bgBase = `<rect width="${W}" height="${W}" fill="#0d0d1a"/>`
+  const bgBase = `<rect width="${W}" height="${W}" fill="#1e1830"/>`
     + `<defs><radialGradient id="vennBgTint" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${color}" stop-opacity="0.07"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></radialGradient></defs>`
     + `<rect width="${W}" height="${W}" fill="url(#vennBgTint)"/>`;
   const R=310,OFFSET=155;
@@ -1535,8 +1535,8 @@ function renderVenn(name,level,school,notation,style){
 
   let s=bgBase;
   // Structural background circles — filled band behind dot arcs
-  s+=`<circle cx="${LCX}" cy="${CY}" r="${R+18}" fill="#1a1a2e" stroke="${color}44" stroke-width="2"/>`;
-  s+=`<circle cx="${RCX}" cy="${CY}" r="${R+18}" fill="#1a1a2e" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${LCX}" cy="${CY}" r="${R+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${RCX}" cy="${CY}" r="${R+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
   s+=`<circle cx="${LCX}" cy="${CY}" r="${R-22}" fill="#12122a" stroke="${color}22" stroke-width="1"/>`;
   s+=`<circle cx="${RCX}" cy="${CY}" r="${R-22}" fill="#12122a" stroke="${color}22" stroke-width="1"/>`;
   // Pre-draw empty dot slots on each circle's arc
@@ -1549,7 +1549,7 @@ function renderVenn(name,level,school,notation,style){
       const t=(d-1)/4-0.5,a=schoolA+t*SECTOR;
       const[dx2,dy2]=[cx2+R*Math.cos(a),CY+R*Math.sin(a)];
       s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R+3}" fill="${_SC[sc]}15"/>`;
-      s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R}"   fill="#1e1e3a" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
+      s+=`<circle cx="${f(dx2)}" cy="${f(dy2)}" r="${DOT_R}"   fill="#5e5270" stroke="${_SC[sc]}88" stroke-width="1.5"/>`;
     }
   });
   // Sector divider lines — exactly halfway between adjacent school center angles
@@ -1564,7 +1564,7 @@ function renderVenn(name,level,school,notation,style){
       schoolAngles[schoolAngles.length-1]+SECTOR*0.5,
     ];
     divAngles.forEach(a=>{
-      s+=`<line x1="${f(ccx)}" y1="${f(CY)}" x2="${f(ccx+(R+18)*Math.cos(a))}" y2="${f(CY+(R+18)*Math.sin(a))}" stroke="#2a2a4a" stroke-width="1"/>`;
+      s+=`<line x1="${f(ccx)}" y1="${f(CY)}" x2="${f(ccx+(R+18)*Math.cos(a))}" y2="${f(CY+(R+18)*Math.sin(a))}" stroke="#332a47" stroke-width="1"/>`;
     });
   });
   // Outline rings
@@ -1831,7 +1831,7 @@ function exportGlyph() {
     const canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#0d0d1a';
+    ctx.fillStyle = '#1e1830';
     ctx.fillRect(0, 0, W, H);
     ctx.drawImage(img, 0, 0, W, H);
 
@@ -1884,7 +1884,7 @@ function exportGlyph() {
   function openTab(dataUrl, name) {
     const w = window.open('', '_blank');
     if(w) {
-      w.document.write(`<html><body style="margin:0;background:#0d0d1a">
+      w.document.write(`<html><body style="margin:0;background:#1e1830">
         <img src="${dataUrl}" style="max-width:100%;display:block"/>
         <p style="color:#aaa;font-family:sans-serif;padding:8px;font-size:14px">
           Right-click the image → <b>Save Image As</b> to download as PNG</p>
@@ -2016,7 +2016,7 @@ function renderGrid(cards) {
     div.dataset.idx = i;
     div.innerHTML = `
       <div class="glyph">
-        <div class="glyph-placeholder" style="background:radial-gradient(ellipse at center,${sc}18 0%,#0d0d1a 70%);border:1px solid ${sc}44;border-radius:5px;">
+        <div class="glyph-placeholder" style="background:radial-gradient(ellipse at center,${sc}18 0%,#1e1830 70%);border:1px solid ${sc}44;border-radius:5px;">
           <span style="color:${sc};opacity:0.7;font-size:13px;font-style:italic;">${c.school.slice(0,2)}</span>
         </div>
       </div>
