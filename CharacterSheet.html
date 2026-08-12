@@ -8381,11 +8381,48 @@ const SpellGlyph = (() => {
     return result || START_END_PAIRS[hashString(spellFingerprint(sp)) % START_END_PAIRS.length];
   }
 
-  function generateTransientSchools(sp, nNeeded, startDot) {
+  // ── Transient dot derivation from spell name (base-5 digit expansion) ──
+  // Start/end already guarantee full-notation uniqueness on their own (see
+  // deriveStartEnd), so transient dots don't need cross-spell coordination
+  // for correctness — but rather than an arbitrary fixed cycle, they're
+  // still derived from the spell's own name via an exact formula: sort the
+  // spell's (school,level) siblings alphabetically, take this spell's
+  // 0-indexed rank in that list, and expand the rank in base 5 — one digit
+  // per transient position, digit 0-4 mapped to dot 1-5. Two spells only
+  // share a transient dot at some position if their ranks happen to share
+  // that base-5 digit; full documentation in Notation-Logic.md.
+  function spellRank(sp) {
+    const own = sp.school, lvl = sp.level;
+    const list = (typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []);
+    let group = list.filter(s => s.school === own && s.level === lvl);
+    const spKey = sp.key || sp.name;
+    if (!group.some(s => (s.key || s.name) === spKey)) group = group.concat([sp]);
+    group.sort((a, b) => (a.key || a.name).localeCompare(b.key || b.name));
+    return group.findIndex(s => (s.key || s.name) === spKey);
+  }
+
+  // Rather than raw base-5 digit expansion of rank (which collapses to
+  // mostly-zero digits whenever rank is small relative to how many
+  // transient positions are needed — exactly the common case for sparse
+  // high-level groups — this rotates the same 1,2,3,4,5 cycle the system
+  // always used, offset by this spell's own rank. Every spell still gets a
+  // smooth, locally-varying dot sequence (so same-school repeats within one
+  // spell's own notation essentially never collide on dot too), while the
+  // rank offset ties the specific rotation to the spell's name.
+  function transientDotsFromRank(rank, n) {
+    const dots = [];
+    for (let i = 0; i < n; i++) {
+      const digit = (rank + i) % 5;
+      dots.push(digit + 1);
+    }
+    return dots;
+  }
+
+  function generateTransientSchools(sp, nNeeded, startDot, rankDots) {
     const own = sp.school;
     const seq = [];
     const used = new Set([own + ':' + startDot]);
-    const nextDot = () => (((startDot - 1) + seq.length + 1) % 5) + 1;
+    const nextDot = () => seq.length < rankDots.length ? rankDots[seq.length] : 1;
     function tryAdd(chain, prev) {
       if (seq.length >= nNeeded || !chain) return null;
       const dot = nextDot();
@@ -8461,12 +8498,13 @@ const SpellGlyph = (() => {
     if (!SAR_REV[sp.school]) return null; // unrecognized school, can't render
     const n = sp.level; // already an integer 0-9 in this app's data
     const [startDot, endDot] = deriveStartEnd(sp);
-    const transient = generateTransientSchools(sp, n, startDot);
+    const rank = spellRank(sp);
+    const rankDots = transientDotsFromRank(rank, n);
+    const transient = generateTransientSchools(sp, n, startDot, rankDots);
     const ab = SAR_REV[sp.school];
     const parts = [`${ab}:${startDot}`];
     transient.forEach((sch, i) => {
-      const dot = (((startDot - 1) + i + 1) % 5) + 1;
-      parts.push(`${SAR_REV[sch]}:${dot}`);
+      parts.push(`${SAR_REV[sch]}:${rankDots[i]}`);
     });
     parts.push(`${ab}:${endDot}`);
     return parts.join(' > ');
