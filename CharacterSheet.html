@@ -3168,7 +3168,7 @@ body.preview-readonly #mi-detail-edit-row * {
               </div>
               <div id="mi-browser-body" style="display:none;margin-top:8px">
                 <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
-                  <input class="spell-search-input" id="mi-br-search" placeholder="Search items…"
+                  <input class="spell-search-input" id="mi-br-search" placeholder="Search items…" title="Searches item names and full text. Supports * (any characters) and ? (single character) wildcards."
                     oninput="renderMagicItemBrowser()" style="flex:1;min-width:120px"/>
                   <select class="spell-filter-sel" id="mi-br-rarity" onchange="renderMagicItemBrowser()">
                     <option value="">All Rarities</option>
@@ -3373,7 +3373,7 @@ body.preview-readonly #mi-detail-edit-row * {
             <span id="sp-br-class-pills" style="display:flex;gap:4px;flex-wrap:wrap;flex:1"></span>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
-            <input class="spell-search-input" id="sp-br-search" placeholder="Search…" oninput="renderSpellBrowser()" style="flex:1;min-width:100px"/>
+            <input class="spell-search-input" id="sp-br-search" placeholder="Search…" title="Searches spell names and full rules text. Supports * (any characters) and ? (single character) wildcards." oninput="renderSpellBrowser()" style="flex:1;min-width:100px"/>
             <select class="spell-filter-sel" id="sp-br-level" onchange="renderSpellBrowser()">
               <option value="">All Levels</option>
               <option value="0">Cantrip</option>
@@ -3464,7 +3464,7 @@ body.preview-readonly #mi-detail-edit-row * {
             Your entire class spell list, up to the highest level you have slots for - prepare directly from here rather than searching one at a time.
           </div>
           <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
-            <input id="sp-fullclasslist-search" class="spell-search-input" placeholder="Filter this list…" oninput="renderFullClassSpellList()" style="flex:1"/>
+            <input id="sp-fullclasslist-search" class="spell-search-input" placeholder="Filter this list…" title="Searches spell names and full rules text. Supports * and ? wildcards." oninput="renderFullClassSpellList()" style="flex:1"/>
             <select id="sp-fullclasslist-level" class="spell-filter-sel" onchange="renderFullClassSpellList()" style="width:auto">
               <option value="">All Levels</option>
             </select>
@@ -3674,7 +3674,7 @@ body.preview-readonly #mi-detail-edit-row * {
             <option value="valuable">💎 Valuables</option>
             <option value="mount">🐴 Mounts & Vehicles</option>
           </select>
-          <input class="spell-search-input" id="dm-items-search" placeholder="Search catalog…"
+          <input class="spell-search-input" id="dm-items-search" placeholder="Search catalog…" title="Searches names and full item text. Supports * and ? wildcards."
             oninput="dmRenderItemsList()" style="flex:1;min-width:120px"/>
           <select class="spell-filter-sel" id="dm-items-rarity" onchange="dmRenderItemsList()">
             <option value="">All Rarities</option>
@@ -4439,7 +4439,7 @@ body.preview-readonly #mi-detail-edit-row * {
       Rules Glossary
       <span class="modal-close" onclick="closeModal('glossary-browser-modal')">✕</span>
     </div>
-    <input type="text" id="glossary-browser-search" class="info-input" placeholder="Search terms…" style="margin-bottom:8px" oninput="renderGlossaryBrowser()">
+    <input type="text" id="glossary-browser-search" class="info-input" placeholder="Search terms…" title="Searches term names and full rules text. Supports * and ? wildcards." style="margin-bottom:8px" oninput="renderGlossaryBrowser()">
     <div id="glossary-browser-list" style="overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:2px"></div>
   </div>
 </div>
@@ -4746,7 +4746,7 @@ body.preview-readonly #mi-detail-edit-row * {
     </div>
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:8px" id="ms-modal-desc"></div>
     <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-      <input class="spell-search-input" id="ms-search" placeholder="Search spells…" oninput="renderMSBrowser()" style="flex:1;min-width:120px"/>
+      <input class="spell-search-input" id="ms-search" placeholder="Search spells…" title="Searches spell names and full rules text. Supports * and ? wildcards." oninput="renderMSBrowser()" style="flex:1;min-width:120px"/>
       <select class="spell-filter-sel" id="ms-level-filter" onchange="renderMSBrowser()">
         <option value="">All Levels</option>
         <option value="0">Cantrip</option>
@@ -4830,7 +4830,7 @@ body.preview-readonly #mi-detail-edit-row * {
       <span class="modal-close" onclick="closeModal('scroll-spell-picker-modal')">&#x2715;</span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0">
-      <input class="spell-search-input" id="ssp-search" placeholder="Search…" oninput="renderScrollSpellPickerList()" style="flex:1;min-width:100px"/>
+      <input class="spell-search-input" id="ssp-search" placeholder="Search…" title="Searches spell names and full rules text. Supports * and ? wildcards." oninput="renderScrollSpellPickerList()" style="flex:1;min-width:100px"/>
       <select class="spell-filter-sel" id="ssp-level" onchange="renderScrollSpellPickerList()">
         <option value="">All Levels</option>
         <option value="0">Cantrip</option>
@@ -5333,7 +5333,12 @@ const GH = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `GitHub ${res.status}`);
+      const e = new Error(err.message || `GitHub ${res.status}`);
+      e.status = res.status; // preserved separately from the message text so
+      // callers can branch on the real HTTP status (e.g. 422 sha conflicts)
+      // instead of pattern-matching GitHub's human-readable error string,
+      // which doesn't reliably contain the status code itself.
+      throw e;
     }
     return res.json();
   },
@@ -10780,11 +10785,12 @@ function openGrantFreeSpellModal() {
 window.openGrantFreeSpellModal = openGrantFreeSpellModal;
 
 function renderGrantFreeSpellResults() {
-  const q = document.getElementById('gfs-search').value.trim().toLowerCase();
+  const qRaw = document.getElementById('gfs-search').value.trim();
   const results = document.getElementById('gfs-results');
-  if (q.length < 2) { results.innerHTML = ''; return; }
+  if (qRaw.length < 2) { results.innerHTML = ''; return; }
+  const matchQ = buildSearchMatcher(qRaw);
   const already = new Set((currentChar.grantedSpells || []).map(g => g.key));
-  const matches = PHB_SPELL_LIST.filter(s => s.name.toLowerCase().includes(q) && !already.has(s.key)).slice(0, 30);
+  const matches = PHB_SPELL_LIST.filter(s => matchQ(s.name) && !already.has(s.key)).slice(0, 30);
   results.innerHTML = matches.map(s => `
     <div onclick="selectGrantFreeSpell('${s.key.replace(/'/g,"\\'")}','${s.name.replace(/'/g,"\\'")}')"
       style="padding:6px 8px;border-radius:var(--radius);cursor:pointer;font-family:var(--font-ui);font-size:11px;background:${_gfsSelectedKey===s.key?'var(--accent-bg)':'var(--bg3)'};border:1px solid ${_gfsSelectedKey===s.key?'var(--accent)':'var(--border)'}">
@@ -19465,7 +19471,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"heart_weaver_s_primer","weight":"3 lb","name":"Heart Weaver's Primer","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this book as a wizard spellcasting focus and spellbook. It has 3 charges, regaining 1d3 at dawn. For 1 charge & 1 min of study, I can change a prepared spell to an enchantment spell in it. When I cast an enchantment spell, I can use 1 charge to grant disadv. on the first save one target makes against the spell.","effects":[],"source":"2014"},
 {"key":"libram_of_souls_and_flesh","weight":"3 lb","name":"Libram of Souls and Flesh","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This spellbook starts with 7 spells and is a wizard spellcasting focus. It has 3 charges, regaining 1d3 at dawn. For 1 charge & 1 min of study, I can change a prepared spell to a necromancy spell within. As an action, I can use 1 charge to appear undead for 10 min, causing undead I haven't damage to be indifferent.","effects":[],"source":"2014"},
 {"key":"planecaller_s_codex","weight":"3 lb","name":"Planecaller's Codex","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This spellbook starts with 6 spells and is a wizard spellcasting focus. It has 3 charges, regaining 1d3 at dawn. For 1 charge & 1 min of study, I can change a prepared spell to a conjuration spell within. When I cast a conjuration spell to summon or create one creature, I can give it adv. on attacks for 1 min for 1 charge.","effects":[],"source":"2014"},
-{"key":"protective_verses","weight":"3 lb","name":"Protective Verses","rarity":"rare","type":"wondrous item","attunement":true,"attunementNote":"By a Wizard","attuned":false,"desc":"Spellcasting focus & spellbook (contains Arcane Lock, Dispel Magic, Globe of Invulnerability, Glyph of Warding, Mordenkainen's Private Sanctum, Protection from Evil and Good, Symbol). Action: cast Arcane Lock on the book's cover. 3 charges (regain 1d3 at dawn): 1 charge + 1 min study to swap a prepared spell for an abjuration spell in the book; 1 charge when I cast an abjuration spell to grant a creature within 30 ft 2d10 temp HP.","effects":[],"charges":{"max":3,"recovery":"dawn"},"grantedSpells":[{"spellKey":"arcane_lock","spellName":"Arcane Lock","grantType":"spellbook"},{"spellKey":"dispel_magic","spellName":"Dispel Magic","grantType":"spellbook"},{"spellKey":"globe_of_invulnerability","spellName":"Globe of Invulnerability","grantType":"spellbook"},{"spellKey":"glyph_of_warding","spellName":"Glyph of Warding","grantType":"spellbook"},{"spellKey":"mordenkainens_private_sanctum","spellName":"Mordenkainen's Private Sanctum","grantType":"spellbook"},{"spellKey":"protection_from_evil_and_good","spellName":"Protection from Evil and Good","grantType":"spellbook"},{"spellKey":"symbol","spellName":"Symbol","grantType":"spellbook"}],"source":"2014"},
+{"key":"protective_verses","weight":"3 lb","name":"Protective Verses","rarity":"rare","type":"wondrous item","attunement":true,"attunementNote":"By a Wizard","attuned":false,"desc":"This leather-bound spellbook is reinforced with iron and silver fittings and an iron lock (DC 20 to open). As an action, you can touch the book's cover and cause it to lock as if you cast *arcane lock* on it. When found, the book contains the following spells: *arcane lock*, *dispel magic*, *globe of invulnerability*, *glyph of warding*, *Mordenkainen's private sanctum*, *protection from evil*, and *symbol*. It functions as a spellbook for you.\n\nWhile you are holding the book, you can use it as a spellcasting focus for your wizard spells.\n\nThe book has 3 charges, and it regains 1d3 expended charges daily at dawn. You can use the charges in the following ways while holding it:\n- If you spend 1 minute studying the book, you can expend 1 charge to replace one of your prepared wizard spells with a different spell in the book. The new spell must be of the abjuration school.\n- When you cast an abjuration spell, you can expend 1 charge to grant a creature you can see within 30 feet of you 2d10 temporary hit points.","effects":[],"charges":{"max":3,"recovery":"dawn"},"grantedSpells":[{"spellKey":"arcane_lock","spellName":"Arcane Lock","grantType":"spellbook"},{"spellKey":"dispel_magic","spellName":"Dispel Magic","grantType":"spellbook"},{"spellKey":"globe_of_invulnerability","spellName":"Globe of Invulnerability","grantType":"spellbook"},{"spellKey":"glyph_of_warding","spellName":"Glyph of Warding","grantType":"spellbook"},{"spellKey":"mordenkainens_private_sanctum","spellName":"Mordenkainen's Private Sanctum","grantType":"spellbook"},{"spellKey":"protection_from_evil_and_good","spellName":"Protection from Evil and Good","grantType":"spellbook"},{"spellKey":"symbol","spellName":"Symbol","grantType":"spellbook"}],"source":"2014"},
 {"key":"astral_shard","weight":"1 lb","name":"Astral Shard","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this crystal swirling with silver mist as a spellcasting focus for my sorcerer spells while I hold or wear it. As an action, I can attach or detach it to a Tiny object. Immediately after I cast a spell with a metamagic option while I hold or wear this shard, I can teleport to an unoccupied space I can see within 30 ft.","effects":[],"source":"2014"},
 {"key":"elemental_essence_shard","weight":"1 lb","name":"Elemental Essence Shard","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this flickering crystal as a spellcasting focus for my sorcerer spells while I hold or wear it. As an action, I can attach or detach it to a Tiny object. It holds the essence of an Elemental Plane, which grants me additional benefits when I use a Metamagic option on a spell.","effects":[],"source":"2014"},
 {"key":"far_realm_shard","weight":"1 lb","name":"Far Realm Shard","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action, I can attach/detach this crystal to an object. While I hold or wear it, it works as a spellcasting focus for my sorcerer spells, and when I use a Metamagic option, I can have a creature I can see in 30 ft make a Cha save (my spell save DC) or take 3d6 psychic damage & be frightened of me until my next turn starts.","effects":[],"source":"2014"},
@@ -19687,7 +19693,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"adventurers_overcoat","dmgres":["Cold"],"name":"Adventurer's Overcoat","rarity":"rare","type":"wondrous item","desc":"This well-traveled and now faded overcoat has been worn by countless other mountaineering adventurers. A thin layer of frost hangs along the coat's hem. While wearing the coat, you and friendly creatures within 5 feet of you have resistance to cold damage.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"TGS2"},
 {"key":"arcanists_belt_of_resiliency","name":"Arcanist's Belt of Resiliency","rarity":"rare","type":"wondrous item","desc":"This supple leather belt has seven small crystals placed along its length and a large, domed one set in its buckle. While wearing it, you can use an action to press the buckle to cast the *resilient sphere* spell from it, targeting only yourself. This version of the spell doesn't require concentration and lasts for 1 hour, instead of 1 minute, but creates a sphere that isn't immune to all damage; instead, the spell's remaining duration is reduced by an amount of minutes equal to the damage it takes (AC 15). The sphere has resistance to damage from spells and magical effects. You can end the spell early using a bonus action. Once this property of the belt has been used, it can't be used again until the next dawn.\n\n*Haven't you ever heard of personal space?*","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","charges":{"max":1,"recovery":"dawn"}},
 {"key":"book_of_exalted_deeds","weight":"5 lb","dmgres":["Psychic"],"name":"Book of Exalted Deeds","rarity":"artifact","type":"wondrous item","desc":"The definitive treatise on all that is good in the multiverse, the *Book of Exalted Deeds* figures prominently in many religions. Rather than being a scripture devoted to a particular faith, the book's authors filled the pages with their own visions of true virtue, providing guidance for defeating evil.\n\nThe *Book of Exalted Deeds* rarely lingers in one place. As soon as the book is read, it vanishes to some other corner of the multiverse where its moral guidance can bring hope to an endangered world. Although attempts have been made to copy the work, efforts to do so fail to capture its magical nature or translate the benefits it offers to those pure of heart and firm of purpose.\n\nA heavy clasp, wrought to look like angel wings, keeps the book's contents secure. Only a creature that is attuned to the book can release the clasp that holds it shut. Once the book is opened, the attuned creature must spend 80 hours reading and studying the book to digest its contents and gain its benefits.\n\nOther creatures that peruse the book's open pages can read the text but glean no deeper meaning and reap no benefits. A Fiend, an Undead, or a servant of a god from the Lower Planes that tries to read from the book takes 24d6 Radiant damage. This damage ignores Resistance and Immunity, and it can't be reduced or avoided by any means. A creature reduced to 0 Hit Points by this damage disappears in a flash and is destroyed, leaving its possessions behind. The book then vanishes, and the creature's Attunement to it ends.\n\nBenefits granted by the *Book of Exalted Deeds* last only as long as you strive to do good. If you fail to perform at least one act of kindness or generosity within the span of 10 days, or if you willingly perform an evil act, you lose all the benefits granted by the book.\n\n*Celestial Calm.* While attuned to the book, you have Immunity to the Charmed and Frightened conditions and Resistance to Psychic damage. These benefits become permanent after you spend the requisite amount of time reading and studying the book.\n\n*Divine Wisdom.* After you spend the requisite amount of time reading and studying the book, your Wisdom increases by 2, to a maximum of 24. You can't gain this benefit from the book more than once.\n\n*Enlightened Magic.* After you spend the requisite amount of time reading and studying the book, any spell slot you expend to cast a spell counts as a spell slot of one level higher.\n\nHalo. After you spend the requisite amount of time reading and studying the book, you gain a protective halo. This halo sheds Bright Light in a 10-foot radius and Dim Light for an additional 10 feet. You can dismiss or manifest the halo as a Bonus Action. While present, the halo gives you Advantage on Charisma (Persuasion) checks. In addition, Fiends and Undead within the halo's Bright Light make attack rolls against you with Disadvantage.\n\nRandom Properties. The *Book of Exalted Deeds* has the following random properties:\n\n2 minor beneficial properties:\n- While attuned to the Artifact, you can cast one level 3 spell (Beacon of Hope) from it. After you cast the spell, roll 1d6. On a roll of 1–5, you can't cast it again in this way until the next dawn.\n- While attuned to the Artifact, you gain proficiency in one skill of the DM's choice. (Religion)\n\n2 major beneficial properties\n- While attuned to the Artifact, you can cast one level 7 spell (Resurrection w/ no material components required, and casting time of 1 minute) from it. After you cast the spell, roll 1d6. On a roll of 1–5, you can't cast it again in this way until the next dawn.\n- While attuned to the Artifact, one of your ability scores (WISDOM) increases by 2, to a maximum of 24.\n\nDestroying the Book. The *Book of Exalted Deeds* can't be destroyed. However, drowning the book in the River Styx removes all writing and imagery from its pages and renders the book powerless for 1d100 years.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"DMG24"},
-{"key":"badge_of_the_wayfarer","name":"Badge of the Wayfarer","rarity":"rare","type":"wondrous item","desc":"This badge is formed in the shape of a maple leaf with an embossed porcelain mug. While wearing the badge, you can recite its command phrase over the course of 1 minute to cast the *plane shift* spell using the badge. When cast in this way, the spell's destination can only be the Wayfarer's Respite on the Astral Plane, an inn and pub of legend that drifts throughout the astral sea. The inn has no doors leading outside and can only be entered using the badge. Inside, the Wayfarer's Respite is large, comfortable, and decadent. It's frequently busy, despite its exclusivity, but always seems to have enough room and beds available for the wayward band of adventurers. The inn is expensive and suited for an aristocratic lifestyle, but is known to be willing to barter or trade for treasure, information, and favors.\n\nAny creature that teleports to the inn is magically transported with their belongings back to their original location after 24 hours. You can use the badge to cast the *plane shift* spell again in this way to return to your original location early. Once you return from the Wayfarer's Respite, the badge can't be used again until 7 days have passed.\n\nThe badge's command phrase and purpose is a closely-kept secret. While casting *identify* on the badge only reveals the fact that the badge is magical, a *legend lore* spell reveals the badge's command phrase and properties.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
+{"key":"badge_of_the_wayfarer","name":"Badge of the Wayfarer","rarity":"rare","type":"wondrous item","desc":"This badge is formed in the shape of a maple leaf with an embossed porcelain mug. While wearing the badge, you can recite its command phrase over the course of 1 minute to cast the *plane shift* spell using the badge. When cast in this way, the spell's destination can only be the Wayfarer's Respite on the Astral Plane, an inn and pub of legend that drifts throughout the astral sea. The inn has no doors leading outside and can only be entered using the badge. Inside, the Wayfarer's Respite is large, comfortable, and decadent. It's frequently busy, despite its exclusivity, but always seems to have enough room and beds available for the wayward band of adventurers. The inn is expensive and suited for an aristocratic lifestyle, but is known to be willing to barter or trade for treasure, information, and favors.\n\nAny creature that teleports to the inn is magically transported with their belongings back to their original location after 24 hours. You can use the badge to cast the *plane shift* spell again in this way to return to your original location early. Once you return from the Wayfarer's Respite, the badge can't be used again until 7 days have passed.\n\nThe badge's command phrase and purpose is a closely-kept secret. While casting *identify* on the badge only reveals the fact that the badge is magical, a *legend lore* spell reveals the badge's command phrase and properties.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","charges":{"max":1,"recovery":"none","recoveryNote":"Regains its charge once 7 days have passed since it was last used."},"grantedSpells":[{"spellName":"Plane Shift","grantType":"itemCharges","chargeCost":1}]},
 {"key":"bottled_comet","name":"Bottled Comet","rarity":"rare","type":"wondrous item","desc":"As an action you can throw the orb up to 30 feet. It shatters on impact, releasing a 20-foot-radius burst of contaminated energy. Creatures in the area must succeed on a *DC 15* Constitution save or take (8d6) necrotic damage, and take one level of contamination. In addition, an arcane anomaly occurs, centred on the point of impact.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Drakkenheim"},
 {"key":"eye_of_the_watcher","name":"Eye of the Watcher","rarity":"rare","type":"wondrous item","desc":"While you are attuned to this item, you can cast *see invisibility* on yourself at will.\n\n*Curse.* When you attune to the Eye of The Watcher, you are suddenly overcome with the urge to see what it sees. Make a DC 20 Wisdom saving throw. On a success, you're able to resist the enchantment and are aware of the curse's effects, but are not attuned to it. On a failure, you forcefully tear out one of your own Eyes, taking 4d10 necrotic damage, allowing the Eye of The Watcher to crawl into its place. If you are already missing an Eye, you are simply compelled to allow the Eye to crawl into the empty socket.\n\nYou can see normally while the Eye of The Watcher remains in your socket, but can choose to close your other Eye to see through its magically enhanced lens using a bonus action. Looking through the Eye grants you darkvision of up to 120 feet, and are able to peer through both magical and nonmagical darkness using it. The Eye moves slower than a normal Eye, leaving slight trails and motion blurs behind it as you look through it. While looking only through the Eye of The Watcher, you have disadvantage on any attack you make as well as ability checks that rely on depth perception. You can open your other Eye and regain your normal vision using another bonus action.\n\n*The Watcher familiar.* The Eye is a gruesome familiar. As an action, you can command the Eye to crawl out of its socket and move independently of you. Use the abilities described in the *find familiar* spell when commanding the Eye of The Watcher. The Eye has five hit points, an AC of 12, a movement and climbing speed of 20 feet, does not require air to breathe, and has a +6 bonus to Dexterity (stealth) checks. If the Eye is slain or you dismiss it, it reappears inside your open Eye socket with a sickly sound. If it was slain, you cannot use its magical sight or command it as a familiar again until the following dusk.\n\nTargeting the Eye with the *remove curse* spell or unattuning to it causes the Eye to pull itself out of the socket and crawl away. Slaying the Eye while it is unattuned to a creature destroys the item.\n\n*The dark Eye swiveled, slightly. It was inhuman, to say the least, but its secrets were too vast to discredit.*\n\nEye Crawler - Tiny Aberration, Chaotic Neutral. Armor Class 12. Hit Points 2 (1d4). Speed 30 ft., Climb 30 ft. Initiative +1 (11). STR 3 (-4), DEX 13 (+1), CON 10 (+0), INT 6 (-2), WIS 11 (+0), CHA 5 (-3). Skills Stealth +6. Senses Darkvision 120 ft.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","grantedSpells":[{"spellName":"See Invisibility","grantType":"atWill"}]},
 {"key":"amulet_of_primal_wisdom","name":"Amulet of Primal Wisdom","rarity":"rare","type":"wondrous item","desc":"Crafted from the dried leaves of magical plants and imbued with their dust, this amulet is decorated with a singular dried flower and then encased in sap. The pendant glows softly with the light of springtime and smells of floral fields in bloom.\n\nYour Wisdom score is 19 while you wear this magic amulet. It has no effect on you if your Wisdom is 19 or higher without it.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"scoresOverride":[0,0,0,0,19,0]},"source":"Homebrew"},
@@ -19696,11 +19702,11 @@ const DMG_MAGIC_ITEMS = [
 {"key":"aboleth_brain","name":"Aboleth Brain","rarity":"rare","type":"wondrous item","desc":"*The Brain of a young Aboleth, tainted by an otherwordly power.* The brain can be consumed, granting the following bonuses:\n\nOtherwordly Memories\nYour mind becomes flooded with cosmic memories that aren't your own. Once per day, you may attempt to call upon these memories to try and glean some information about a particular item, place, creature or course of action by making a Wisdom saving throw.\nOn a 20+, you may ask the DM one question, and receive a vague but truthful answer, provided the answer is within these memories. If it is not, the daily use of this feature is not consumed.\nOn a 15-19, you may ask the DM one question, and receive a vision associated with the question asked, provided the answer is within these memories.\nOn a 14 or lower, you take 3d8 psychic damage and have the stunned condition for 1 minute, as your mind is flooded with incomprehensible thoughts.\n\nImproved Mutations\nYou gain a +1 bonus to attack and damage rolls with your organic weapons.\n\nDevouring Urge\nOnce per turn when you hit a creature with your organic weapon, you can deal an extra 1d6 Necrotic or Psychic damage (your choice) to the creature, and you can expend one of your Hit Point Dice to roll it and regain a number of Hit Points equal to the roll plus your Constitution modifier (minimum of 1 Hit Point). In addition, the flesh consumed by the creature temporarily alters your form. The DM will either:\nGrant you a temporary mutation of the DM's choice, which last for 1 minute. Using this feature again on a different creature will replace an existing mutation with the newest one.\nRoll a d100. You gain a random mutation from the Mutations Table, which lasts for 1 minute. Using this feature again on a different creature will replace any existing mutation/s with the newest one/s.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"organicWeaponBonus":1},"grantedResources":[{"name":"Otherworldly Memories","desc":"Wisdom save to glean info from cosmic memories about an item, place, creature, or course of action. 20+: truthful answer (use not consumed if the answer isn't within these memories). 15-19: a vision. 14 or lower: 3d8 Psychic damage and Stunned for 1 minute.","usesMax":1,"recovery":"dawn"}],"source":"Homebrew"},
 {"key":"diviners_dice","name":"Diviner's Dice","rarity":"rare","type":"wondrous item","desc":"This set of three six-sided crystal dice is weakly connected to the tides of fate. You can roll these dice as an action and record the numbers rolled. Once rolled, you can't record any other numbers in this way until the next dawn. While you have the dice on your person, you can use a reaction when you or a creature you can see within 60 feet of you makes an attack roll or ability check to add or subtract one of the recorded numbers from the attack roll or ability check's total. You can wait to use this reaction until after the creature rolls the d20, but must decide before the GM says whether the roll succeeds or fails. Each recorded number can only be used once. You lose any unused recorded numbers daily at dawn.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
 {"key":"feywood_ivy","name":"Feywood Ivy","rarity":"uncommon","type":"wondrous item","desc":"This tiny seed has a glowing rune on its shell. While holding the seed against a weapon or similar held object, you can speak its first command word as an action to cause the seed to sprout and cover the object with green and purple vines. The vines form a comfortable grip with which to hold the object and also create a protective cover for it, such as a sheath or carrying case, that automatically stows the object while it isn't being held, unless you decide for it not to. You can use an action to speak the first command word again to cause the vines to retreat from the object and return to the seed.\n\nWhile an object is covered by the vines, you can't be disarmed of that object unless you are incapacitated. In addition, the object can be used as a spellcasting focus for you.\n\nWhile the vine-covered object is on your person, you can use a bonus action to speak the vines' second command word to cause them to lash out at a Medium or smaller target that you can see within 5 feet of you. The target must succeed on a DC 13 Dexterity saving throw or be grappled for 1 minute. While grappled, the target is restrained and can use an action on each of its turns to make a DC 13 Strength or Dexterity check (its choice), freeing itself and ending the effect on a success. The effect ends early and frees the target if you move more than 5 feet away from it. Once this property has been used, it can't be used again until the next dawn.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","charges":{"max":1,"recovery":"dawn"}},
-{"key":"focus_breaker", "weight": "10 lb","name":"Focus Breaker","rarity":"rare","type":"weapon (maul)","desc":"Forged during the Upheaval, these brutish weapons were given to members of the guard to quell any arcanist uprising. You gain a +1 bonus to attack and damage rolls made with this magic weapon. When you hit a creature concentrating on a spell with this weapon, runes start to glow on the weapon's head, and that creature makes the resulting Constitution saving throw to maintain its concentration with disadvantage.\n\nAs an action, you can speak the weapon's command word and hold it aloft, causing the metal book adorning the head of the maul to wildly turn its pages and shatter. When it does, any spell or magical effect within 60 feet of you is dispelled, as if affected by the *dispel magic* spell (5th-level version). A spell or magical effect cast using a 6th-level spell slot or higher is unaffected in this way. Once this property has been used, it can't be used again and the book disappears from the head of the weapon.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":1},"source":"Homebrew","charges":{"max":1,"recovery":"none"}},
+{"key":"focus_breaker","weight":"10 lb","name":"Focus Breaker","rarity":"rare","type":"weapon (maul)","desc":"Forged during the Upheaval, these brutish weapons were given to members of the guard to quell any arcanist uprising. You gain a +1 bonus to attack and damage rolls made with this magic weapon. When you hit a creature concentrating on a spell with this weapon, runes start to glow on the weapon's head, and that creature makes the resulting Constitution saving throw to maintain its concentration with disadvantage.\n\nAs an action, you can speak the weapon's command word and hold it aloft, causing the metal book adorning the head of the maul to wildly turn its pages and shatter. When it does, any spell or magical effect within 60 feet of you is dispelled, as if affected by the *dispel magic* spell (5th-level version). A spell or magical effect cast using a 6th-level spell slot or higher is unaffected in this way. Once this property has been used, it can't be used again and the book disappears from the head of the weapon.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":1},"source":"Homebrew","charges":{"max":1,"recovery":"none"},"grantedSpells":[{"spellName":"Dispel Magic","grantType":"itemCharges","chargeCost":1}]},
 {"key":"dusk_dagger","weight":"1 lb","name":"Dusk Dagger","rarity":"rare","type":"weapon (dagger)","desc":"This delicately curved dagger is ornamented with several crescent moon designs. When you hit a creature who is completely in dim light or darkness with this magic weapon, that creature takes an extra 1d8 psychic damage.","attunement":false,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
 {"key":"amulet_of_the_watcher","name":"Amulet of the Watcher","rarity":"primeval vestige","type":"wondrous item","desc":"Gain +1 to spell attack rolls and to the saving throw DCs of your spells.\nGain proficiency in perception. If you already have proficiency, gain expertise instead.\n\nAdditionally, as an action, you can place up to two spectral eyes (only visible with a DC20 Perception or DC15 Arcana check) firmly on a solid surface-such as a wall, table, or boot-where it remains until destroyed. While you're within 5 feet of an eye, you can use a bonus action to speak the command word to cause its eye to open. The opening is about the size of a keyhole, and by peering through it, you can open and see through another eye's opening of your choice. You choose which eye to look through the first time you peer into the hole and can change it again using a bonus action. If another eye is placed when two are already active, the eye that was placed *first* dissapears in a non-harmful yet visible & audible explosion of blue light.\n\nThe eyes you can choose to see through in this way must be a part of the set, be placed on a solid surface, and be on the same plane of existence as the one you're looking through. You can only see through one eye at a time, which operates both ways, and nothing can pass through the hole. If another eye attempts to look through one you're already using, the connection between the first two ends and is replaced by the new one. An eye closes when it's no longer being looked through.\n\nEach eye has AC 10 and 5 hit points. If it drops to 0 hit points, the eye is destroyed. If a target or area is immune to divination magic or can't be perceived through scrying sensors, it doesn't appear through the hole.\n\nThird Eye. When you make a Wisdom (Perception) or Intelligence (Investigation) check involving sight, you can roll 1d4 and add the number rolled to the ability check.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":{"spellAtkBonus":1,"spellDCBonus":1},"source":"Dorenia"},
-{"key":"warp_anchor","name":"Warp Anchor","rarity":"rare","type":"rod","desc":"This pair of batons magically link together to form a complete rod, causing a purple mist to swirl between the two glass orbs on either of its ends. While holding the rod or its batons, you can use an action to speak the rod's first command word to split it into the batons or recombine them again.\n\nWhile holding one of the split batons, you can use an action to speak the rod's second command word to cast the *teleport* spell from it, teleporting only yourself to an unoccupied space within 5 feet of the other baton, even if it's on another plane of existence. Once this property has been used, it can't be used again until the batons have spent at least 12 hours recombined as the rod, at which point the swirling mist reappears within the orbs.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
-{"key":"wand_of_stars","name":"Wand of Stars","rarity":"rare","type":"wand","desc":"This antiquated dark blue wand is adorned with a glowing star at its tip. When it's swung, small specks of starlight drift from its end.\n\nThe wand has 7 charges for the following properties. It regains 1d6 + 1 expended charges daily at dawn. If you expend the wand's last charge, roll a d20. On a 1, the wand scatters into glittering dust and is destroyed.\n\n*Spells.* While holding the wand, you can use an action to expend some of its charges to cast one of the following spells (save DC 15) from it: *color spray* (1 charge per spell level, up to 3), *daylight* (3 charges), *hypnotic pattern* (3 charges), *light* (no charges), *magic missile* (1 charge per spell level, up to 3)\n\n*Starlight Wayfinder.* While you can see stars in the sky and are holding the wand, you can use an action to call out a cardinal direction and expend 1 of its charges. When you do, stars in that direction appear brighter to you for 1 hour or until you use the wand again to call out a new direction.\n\n*Timeless. Classic. True stars never fade.*","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"charges":{"max":7,"recovery":"dawn"},"grantedSpells":[{"spellName":"Daylight","grantType":"itemCharges","chargeCost":3,"fixedDC":15},{"spellName":"Hypnotic Pattern","grantType":"itemCharges","chargeCost":3,"fixedDC":15},{"spellName":"Light","grantType":"atWill"}],"source":"Homebrew"},
+{"key":"warp_anchor","name":"Warp Anchor","rarity":"rare","type":"rod","desc":"This pair of batons magically link together to form a complete rod, causing a purple mist to swirl between the two glass orbs on either of its ends. While holding the rod or its batons, you can use an action to speak the rod's first command word to split it into the batons or recombine them again.\n\nWhile holding one of the split batons, you can use an action to speak the rod's second command word to cast the *teleport* spell from it, teleporting only yourself to an unoccupied space within 5 feet of the other baton, even if it's on another plane of existence. Once this property has been used, it can't be used again until the batons have spent at least 12 hours recombined as the rod, at which point the swirling mist reappears within the orbs.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","charges":{"max":1,"recovery":"none","recoveryNote":"Regains its charge once the batons have spent at least 12 hours recombined as the rod."},"grantedSpells":[{"spellName":"Teleport","grantType":"itemCharges","chargeCost":1}]},
+{"key":"wand_of_stars","name":"Wand of Stars","rarity":"rare","type":"wand","desc":"This antiquated dark blue wand is adorned with a glowing star at its tip. When it's swung, small specks of starlight drift from its end.\n\nThe wand has 7 charges for the following properties. It regains 1d6 + 1 expended charges daily at dawn. If you expend the wand's last charge, roll a d20. On a 1, the wand scatters into glittering dust and is destroyed.\n\n*Spells.* While holding the wand, you can use an action to expend some of its charges to cast one of the following spells (save DC 15) from it: *color spray* (1 charge per spell level, up to 3), *daylight* (3 charges), *hypnotic pattern* (3 charges), *light* (no charges), *magic missile* (1 charge per spell level, up to 3)\n\n*Starlight Wayfinder.* While you can see stars in the sky and are holding the wand, you can use an action to call out a cardinal direction and expend 1 of its charges. When you do, stars in that direction appear brighter to you for 1 hour or until you use the wand again to call out a new direction.\n\n*Timeless. Classic. True stars never fade.*","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"charges":{"max":7,"recovery":"dawn"},"grantedSpells":[{"spellName":"Color Spray","grantType":"itemCharges","chargeCost":1,"fixedDC":15},{"spellName":"Daylight","grantType":"itemCharges","chargeCost":3,"fixedDC":15},{"spellName":"Hypnotic Pattern","grantType":"itemCharges","chargeCost":3,"fixedDC":15},{"spellName":"Light","grantType":"atWill"},{"spellName":"Magic Missile","grantType":"itemCharges","chargeCost":1,"fixedDC":15}],"source":"Homebrew"},
 {"key":"the_lucky_marksman","name":"The Lucky Marksman","rarity":"very rare","type":"weapon (revolver)","desc":"*Hitting headshots is very hard. So I shoot a target the size of a coin instead*\n\nThis magic revolver has 1d4 charges (maximum of 4) and regains 1d4 expended charges daily at dawn. While attuned to this weapon, you possess a number of golden coins equal to the number of charges currently available.\n\n*Ricochet.* When you take the Attack action and make a ranged attack with this weapon, rather than attacking a creature normally you can expend 1 charge to toss one of the golden coins into the air at a point you can see within 30 feet of you. The coin occupies that space until the attack is resolved. Instead of targeting a creature, you make the attack roll against the coin (AC 20). The coin is a Tiny object.\n\nIf you hit the coin, choose a creature you can see within 30 feet of the coin as the original target of the attack. After determining that the coin is hit, flip a coin:\n- Heads: The bullet ricochets off of the coin and deals an extra 2d8 radiant damage\n- Tails: The bullet splits into two & ricochets into a second creature within 30ft of the coin. Make a new attack roll against that creature.\n\nBoth the Heads & Tails properties ignore half cover and three-quarters cover if the coin has a clear line of sight to the target.\nIf you critically hit the coin, the attack gains the benefits of both Heads and Tails.\n\nThe coin falls harmlessly to the ground immediately after the attack is resolved, and disappears after 1 minute.\n\n*Magic Reload.* When you use a Bonus Action to reload this weapon, six magical bullets appear in its chamber. These bullets vanish if removed manually.\n\nThe weapon otherwise uses the statistics of a revolver.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":null,"charges":{"max":4,"recovery":"dawn"},"source":"Homebrew"},
 {"key":"tome_of_advanced_fighting_styles","name":"Tome of Advanced Fighting Styles","rarity":"very rare","type":"wondrous item","desc":"This book's magically charged pages are filled with detailed descriptions and illustrations that teach unique styles of combat. If you spend 48 hours over a period of 6 days or fewer studying the book's contents and practicing its guidelines, you gain one of the following Advanced Fighting Styles:\n\n*Advanced Simplicity.* Your attacks made with simple weapons score a critical hit on a roll of 19 or 20.\n\n*Crushing Blows.* When you score a critical hit using a melee weapon that has the heavy property, the target takes extra bludgeoning damage equal to 5 + the ability score modifier you used for your attack and damage rolls.\n\n*Net Mastery.* When you throw a net, its normal and long range is doubled. In addition, the first time that a creature attempts to escape from a net that you threw, the escape DC is equal to 8 + your proficiency bonus + your Strength or Dexterity modifier (your choice), unless it's already higher.\n\n*Quick Shot.* You gain a special reach with ranged weapons called a firing reach that's a number of feet equal to 5 + your normal reach. While you are wielding a ranged weapon, other creatures provoke an opportunity attack from you when they move out of your firing reach.\n\n*Readied Bulwark.* You gain a +2 bonus to AC against opportunity attacks while holding a shield.\n\n*Versatile Expert.* When you hit with an attack using a weapon that has the versatile property, you can use the two-handed damage die even if you're only wielding the weapon with one hand.\n\nYou can't take an Advanced Fighting Style option more than once, even if you later get to choose again. Once the book has been used to grant an Advanced Fighting Style, it loses its magic, but regains it in a century.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
 {"key": "thomas_s_dimensional_trousers", "name": "Thomas's Dimensional Trousers", "rarity": "uncommon", "type": "wondrous item", "desc": "This flashy set of pants has four pockets that each lead to a special, extradimensional space. Each pocket is six inches wide at the mouth and can hold up to 20 pounds of material, not exceeding a volume of 2 cubic feet. The pants always weigh 1 pound, regardless of their contents.\n\nPlacing an object in one of the pants' pockets follows the normal rules for interacting with objects. Retrieving an item from the pants requires an action as your hand rummages around inside for a few moments before finding the item it's looking for.\n\nIf the pants are overloaded, pierced, or torn, they rupture and tear, scattering their contents in a 300-foot radius around you. Casting the *mending* spell on the pants daily for 30 days restores the pants' connection to the extradimensional spaces. If one or more pockets are turned inside out, their contents spill forth, unharmed, but the pocket must be put right before it can be used again. Breathing creatures inside the pocket can survive up to a number of minutes equal to 10 divided by the number of creatures (minimum 1 minute), after which time they begin to suffocate.\n\nPlacing the pants inside an extradimensional space created by a bag of holding, portable hole, or similar item instantly destroys both items and opens a gate to the Astral Plane. The gate originates where the one item was placed inside the other. Any creature within 10 feet of the gate is sucked through it to a random location on the Astral Plane. The gate then closes. The gate is one-way only and can't be reopened.", "attunement": false, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "source": "Homebrew", "weight": "1 lb", "container": {"fixedWeight": 1, "capacityLb": 80, "capacityCuFt": 8}},
@@ -20660,15 +20666,25 @@ const DMG_MAGIC_ITEMS = [
 // elsewhere in the DM panel.
 let _dmItemOverrides = {}; // { catalogKey: fullItemObject }
 let _dmItemsSHA = null;
+let _dmItemsLoadedOnce = false; // becomes true after the first successful load this session
 
 async function loadDMItemOverrides() {
   try {
     const { content, sha } = await GH.getFile('_dm_items.json');
     _dmItemOverrides = content.items || {};
     _dmItemsSHA = sha;
-  } catch {
-    _dmItemOverrides = {};
-    _dmItemsSHA = null;
+    _dmItemsLoadedOnce = true;
+  } catch (e) {
+    // Don't reset _dmItemOverrides/_dmItemsSHA here — a transient failure
+    // (network blip, rate limit) used to silently wipe already-loaded
+    // catalog data and null out the sha, which then made every subsequent
+    // Save fail with a 422 "sha wasn't supplied" (the file already exists
+    // on GitHub, so a sha-less PUT is treated as a conflicting create).
+    // Only fall back to empty state if we've never successfully loaded at
+    // all this session — otherwise just keep the last-known-good copy and
+    // let the next periodic poll retry.
+    console.warn('[DM items] failed to load overrides, keeping previous state:', e.message);
+    if (!_dmItemsLoadedOnce) { _dmItemOverrides = {}; _dmItemsSHA = null; }
   }
   // Refresh anything currently visible that reads the catalog
   if (typeof renderMagicItemBrowser === 'function') renderMagicItemBrowser();
@@ -20676,7 +20692,21 @@ async function loadDMItemOverrides() {
 }
 
 async function saveDMItemOverrides() {
-  await GH.putFile('_dm_items.json', { items: _dmItemOverrides }, _dmItemsSHA);
+  try {
+    await GH.putFile('_dm_items.json', { items: _dmItemOverrides }, _dmItemsSHA);
+  } catch (e) {
+    // Stale/missing sha (either our local copy is out of date, or a prior
+    // transient load failure left it null) — refetch the current
+    // server-side copy, merge our in-memory changes on top of it (so we
+    // don't clobber edits made elsewhere since our last load), and retry
+    // once with the fresh sha instead of failing outright and leaving the
+    // DM stuck until a manual page refresh.
+    if (e.status !== 422 && e.status !== 409) throw e;
+    const { content, sha } = await GH.getFile('_dm_items.json');
+    _dmItemOverrides = Object.assign({}, content.items || {}, _dmItemOverrides);
+    _dmItemsSHA = sha;
+    await GH.putFile('_dm_items.json', { items: _dmItemOverrides }, _dmItemsSHA);
+  }
   const { sha } = await GH.getFile('_dm_items.json');
   _dmItemsSHA = sha;
 }
@@ -24189,9 +24219,13 @@ window.openGlossaryBrowser = openGlossaryBrowser;
 function renderGlossaryBrowser() {
   const list = document.getElementById('glossary-browser-list');
   if (!list || typeof RULES_GLOSSARY === 'undefined') return;
-  const q = (document.getElementById('glossary-browser-search')?.value || '').toLowerCase().trim();
+  const q = (document.getElementById('glossary-browser-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
+  // Search both the term name and its full rules text (html), so e.g.
+  // "unconscious" surfaces every glossary entry that mentions it, not just
+  // the entry named "Unconscious" — an "Oracle text" style search.
   const entries = Object.values(RULES_GLOSSARY)
-    .filter(g => !q || g.name.toLowerCase().includes(q))
+    .filter(g => !q || matchQ(g.name) || matchQ(g.html))
     .sort((a, b) => a.name.localeCompare(b.name));
   list.innerHTML = entries.map(g => `
     <div style="cursor:pointer;padding:6px 8px;border-radius:var(--radius);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'" onclick="openGlossaryTermModal('${g.name.toLowerCase().replace(/'/g,"\\'")}')">
@@ -27365,7 +27399,8 @@ function getMagicItemGrantedSpells() {
       const name  = phb?.name || gs.spellName || 'Unknown Spell';
       const level = phb?.level ?? 1;
       const grantType = gs.grantType === 'itemCharges' ? 'itemCharges'
-                       : gs.grantType === 'limited' ? 'itemLimited' : 'atWill';
+                       : gs.grantType === 'limited' ? 'itemLimited'
+                       : gs.grantType === 'alwaysPrepared' ? 'alwaysPrepared' : 'atWill';
       result.push({
         key, name, level,
         source: 'item', itemName: item.customName || item.name,
@@ -28054,11 +28089,12 @@ function renderSpellbookSearch() {
   const input   = document.getElementById('sp-spellbook-search');
   const results = document.getElementById('sp-spellbook-search-results');
   if (!results) return;
-  const q = input?.value?.toLowerCase().trim() || '';
+  const q = input?.value?.trim() || '';
   if (!q) { results.innerHTML = ''; return; }
+  const matchQ = buildSearchMatcher(q);
 
   const wizSpells = PHB_SPELL_LIST.filter(s => s.classes.includes('wizard') && s.level > 0);
-  const matched = wizSpells.filter(s => s.name.toLowerCase().includes(q)).slice(0, 20);
+  const matched = wizSpells.filter(s => matchQ(s.name)).slice(0, 20);
 
   results.innerHTML = '';
   matched.forEach(sp => {
@@ -28096,13 +28132,57 @@ function toggleSpellBrowser() {
   if (_browserOpen) renderSpellBrowser();
 }
 
+// ── Shared search matching (wildcards + multi-field "Oracle text" style search) ──
+// Used by every search bar in the sheet (spells, magic items, feats, glossary,
+// backgrounds, races, etc). Supports two query forms:
+//   - Plain text: simple case-insensitive substring match, same as before.
+//   - Wildcards: '*' matches any sequence of characters, '?' matches any
+//     single character — e.g. "fire*" matches Fireball/Fire Bolt, "wall of *"
+//     matches every Wall of X spell, "burn?ng" matches Burning. Detected
+//     automatically whenever the query contains either character, so no UI
+//     toggle is needed and plain searches behave exactly as before.
+// Returns a reusable matcher function so callers build it once per render
+// pass (outside their .filter() loop) rather than re-parsing the query for
+// every item — buildSearchMatcher('fire*') → matcher('Fireball') === true.
+function buildSearchMatcher(query) {
+  const q = (query || '').trim();
+  if (!q) return () => true;
+  if (/[*?]/.test(q)) {
+    // Escape regex metacharacters other than our two wildcard tokens, then
+    // translate the wildcards to their regex equivalents.
+    const pattern = q
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+    try {
+      const re = new RegExp(pattern, 'i');
+      return (text) => re.test(text || '');
+    } catch (e) {
+      // Malformed pattern (shouldn't happen given the escaping above, but
+      // fall back to a plain substring match rather than erroring the
+      // whole search bar out from under the user).
+    }
+  }
+  const qLower = q.toLowerCase();
+  return (text) => (text || '').toLowerCase().includes(qLower);
+}
+
+// Convenience for the common "does this query match ANY of these fields"
+// case — e.g. queryMatchesFields(matcher, sp.name, sp.description) to search
+// both a spell's name and its full rules text ("Oracle text" style search)
+// in one call.
+function queryMatchesFields(matcher, ...fields) {
+  return fields.some(f => matcher(f));
+}
+
 function renderSpellBrowser() {
   const list  = document.getElementById('sp-browser-list');
   const count = document.getElementById('sp-browser-count');
   if (!list || !currentChar) return;
   ensureSpellData();
 
-  const q           = (document.getElementById('sp-br-search')?.value||'').toLowerCase().trim();
+  const q           = (document.getElementById('sp-br-search')?.value||'').trim();
+  const matchQ      = buildSearchMatcher(q);
   const lvlF        = document.getElementById('sp-br-level')?.value || '';
   const schoolF     = document.getElementById('sp-br-school')?.value || '';
   const clsF        = (document.getElementById('sp-br-class')?.value||'').toLowerCase();
@@ -28149,7 +28229,9 @@ function renderSpellBrowser() {
     if (document.getElementById('sp-br-hide-known')?.checked) {
       if (isSpellKnownOrPrepared(sp.key) || getSubclassBonusSpells().some(s => s.key === sp.key)) return false;
     }
-    if (q && !sp.name.toLowerCase().includes(q)) return false;
+    // Searches both the spell's name and its full rules text ("Oracle
+    // text" style search) — supports '*'/'?' wildcards via buildSearchMatcher.
+    if (q && !queryMatchesFields(matchQ, sp.name, sp.descFull)) return false;
     if (lvlF !== '' && String(sp.level) !== lvlF) return false;
     if (schoolF && sp.school !== schoolF) return false;
     if (clsF && !sp.classes.includes(clsF)) return false;
@@ -28288,7 +28370,8 @@ function renderFullClassSpellList() {
   if (!sc) { list.innerHTML = ''; return; }
   const cls = sc.cls;
   const maxLv = _getLuMaxSpellLevel();
-  const q = (document.getElementById('sp-fullclasslist-search')?.value || '').toLowerCase().trim();
+  const q = (document.getElementById('sp-fullclasslist-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
   const lvlF = lvlSel?.value || '';
 
   if (countEl) {
@@ -28321,7 +28404,7 @@ function renderFullClassSpellList() {
     if (sp.level > maxLv) return false;
     if (!sp.classes?.includes(cls)) return false;
     if (lvlF && String(sp.level) !== lvlF) return false;
-    if (q && !sp.name.toLowerCase().includes(q)) return false;
+    if (q && !queryMatchesFields(matchQ, sp.name, sp.descFull)) return false;
     return true;
   });
   filtered.sort((a,b) => a.level-b.level || a.name.localeCompare(b.name));
@@ -34538,7 +34621,8 @@ function renderMSBrowser() {
   const list = document.getElementById('ms-browser-list');
   if (!list) return;
 
-  const q    = (document.getElementById('ms-search')?.value || '').toLowerCase().trim();
+  const q    = (document.getElementById('ms-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
   const lvlF = document.getElementById('ms-level-filter')?.value || '';
 
   // Filter to source lists
@@ -34558,7 +34642,7 @@ function renderMSBrowser() {
       if (_msRitualOnly  && (!sp.ritual || sp.level > 1)) return false;
       if (_msLevelFilter && !_msLevelFilter.includes(sp.level)) return false;
     }
-    if (q && !sp.name.toLowerCase().includes(q)) return false;
+    if (q && !queryMatchesFields(matchQ, sp.name, sp.descFull)) return false;
     if (lvlF !== '' && String(sp.level) !== lvlF) return false;
     return true;
   });
@@ -35772,7 +35856,8 @@ function renderMagicItemBrowser() {
   if (!list) return;
   ensureMagicItems();
 
-  const q      = (document.getElementById('mi-br-search')?.value||'').toLowerCase().trim();
+  const q      = (document.getElementById('mi-br-search')?.value||'').trim();
+  const matchQ = buildSearchMatcher(q);
   const rarF   = document.getElementById('mi-br-rarity')?.value || '';
   const typeF  = document.getElementById('mi-br-type')?.value || '';
   const attuneF = document.getElementById('mi-br-attune')?.value || '';
@@ -35780,7 +35865,9 @@ function renderMagicItemBrowser() {
   const ownedKeys = new Set(currentChar.magicItems.map(i => i.key));
 
   let filtered = getEffectiveMagicItemsCatalog().filter(item => {
-    if (q && !item.name.toLowerCase().includes(q) && !item.desc.toLowerCase().includes(q)) return false;
+    // Searches name and full item text ("Oracle text" style) — supports
+    // '*'/'?' wildcards via buildSearchMatcher.
+    if (q && !queryMatchesFields(matchQ, item.name, item.desc)) return false;
     if (rarF && item.rarity !== rarF) return false;
     if (typeF === 'weapon' && !item.isWeapon) return false;
     if (typeF === 'armour' && !item.isArmour) return false;
@@ -36197,12 +36284,13 @@ function renderScrollSpellPickerList() {
   const list = document.getElementById('ssp-list');
   const count = document.getElementById('ssp-count');
   if (!list) return;
-  const q = (document.getElementById('ssp-search')?.value || '').toLowerCase().trim();
+  const q = (document.getElementById('ssp-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
   const lvlF = document.getElementById('ssp-level')?.value || '';
   const schoolF = document.getElementById('ssp-school')?.value || '';
 
   const filtered = PHB_SPELL_LIST.filter(sp => {
-    if (q && !sp.name.toLowerCase().includes(q)) return false;
+    if (q && !queryMatchesFields(matchQ, sp.name, sp.descFull)) return false;
     if (lvlF !== '' && String(sp.level) !== lvlF) return false;
     if (schoolF && sp.school !== schoolF) return false;
     return true;
@@ -36472,12 +36560,16 @@ function renderCustomItemGrantedSpells() {
           <label class="field-label">Frequency</label>
           <select class="choice-select" onchange="updateCustomItemGrantedSpellField(${idx},'grantType',this.value)">
             <option value="atWill" ${gs.grantType==='atWill'?'selected':''}>At Will</option>
+            <option value="alwaysPrepared" ${gs.grantType==='alwaysPrepared'?'selected':''}>Always Prepared</option>
             <option value="limited" ${gs.grantType==='limited'?'selected':''}>Limited Uses</option>
             <option value="itemCharges" ${gs.grantType==='itemCharges'?'selected':''}>Item's Charges</option>
             <option value="spellbook" ${gs.grantType==='spellbook'?'selected':''}>Functions as Spellbook</option>
           </select>
         </div>
       </div>
+      ${gs.grantType === 'alwaysPrepared' ? `
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:6px">Always available to cast without taking up a normal prepared-spell slot — but casting it still costs a real spell slot, same as a subclass's always-prepared spells. Use "At Will" instead if it should cost no slot at all.</div>
+      ` : ''}
       ${gs.grantType === 'limited' ? `
         <div style="display:flex;gap:8px;margin-bottom:6px">
           <div style="flex:1">
@@ -36708,7 +36800,7 @@ async function saveCustomItemModal() {
         (PHB_SPELL_LIST.find(s => s.name.toLowerCase() === spellName.toLowerCase()));
       const out = {
         spellName, spellKey: phb?.key || null,
-        grantType: ['limited', 'itemCharges', 'spellbook'].includes(gs.grantType) ? gs.grantType : 'atWill',
+        grantType: ['limited', 'itemCharges', 'spellbook', 'alwaysPrepared'].includes(gs.grantType) ? gs.grantType : 'atWill',
         usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
         chargeCost: Math.max(1, parseInt(gs.chargeCost) || 1),
         fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
@@ -36944,7 +37036,7 @@ async function saveDMCatalogItem() {
     .filter(gs => (gs.spellName || '').trim())
     .map(gs => ({
       spellName: gs.spellName.trim(),
-      grantType: ['limited', 'itemCharges', 'spellbook'].includes(gs.grantType) ? gs.grantType : 'atWill',
+      grantType: ['limited', 'itemCharges', 'spellbook', 'alwaysPrepared'].includes(gs.grantType) ? gs.grantType : 'atWill',
       usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
       chargeCost: Math.max(1, parseInt(gs.chargeCost) || 1),
       fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null, ritual: !!gs.ritual,
@@ -37049,7 +37141,8 @@ function dmRenderItemsList() {
   if (!list) return;
 
   const type   = document.getElementById('dm-items-type')?.value || 'magic';
-  const q      = (document.getElementById('dm-items-search')?.value || '').toLowerCase().trim();
+  const q      = (document.getElementById('dm-items-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
   const rarF   = document.getElementById('dm-items-rarity')?.value || '';
   const srcF   = document.getElementById('dm-items-source')?.value || '';
 
@@ -37060,7 +37153,7 @@ function dmRenderItemsList() {
   // for the other types.
   if (type === 'weapon' || type === 'armor') {
     const catalog = type === 'weapon' ? PHB_WEAPONS : PHB_ARMOUR;
-    const filtered = catalog.filter(item => !q || item.name.toLowerCase().includes(q))
+    const filtered = catalog.filter(item => !q || matchQ(item.name))
       .sort((a,b) => a.name.localeCompare(b.name));
     if (count) count.textContent = `${filtered.length} item${filtered.length!==1?'s':''}`;
     list.innerHTML = filtered.map(item => `
@@ -37082,7 +37175,8 @@ function dmRenderItemsList() {
 
   if (type === 'valuable' || type === 'mount') {
     const catalog = type === 'valuable' ? VALUABLES_CATALOG : MOUNTS_VEHICLES_CATALOG;
-    const filtered = catalog.filter(item => !q || item.name.toLowerCase().includes(q))
+    // Searches name and full item text — supports '*'/'?' wildcards.
+    const filtered = catalog.filter(item => !q || queryMatchesFields(matchQ, item.name, item.desc))
       .sort((a,b) => a.name.localeCompare(b.name));
     if (count) count.textContent = `${filtered.length} item${filtered.length!==1?'s':''}`;
     list.innerHTML = filtered.map(item => `
@@ -37105,7 +37199,9 @@ function dmRenderItemsList() {
   const catalog = getEffectiveMagicItemsCatalog();
   const filtered = catalog.filter(item => {
     const isDM = !!_dmItemOverrides[item.key];
-    if (q && !item.name.toLowerCase().includes(q)) return false;
+    // Searches name and full item text ("Oracle text" style) — supports
+    // '*'/'?' wildcards via buildSearchMatcher.
+    if (q && !queryMatchesFields(matchQ, item.name, item.desc)) return false;
     if (rarF && item.rarity !== rarF) return false;
     if (srcF === 'dm' && !isDM) return false;
     if (srcF === 'official' && isDM) return false;
@@ -47894,9 +47990,10 @@ function renderQuickStartBackgroundGrid() {
   const grid = document.getElementById('qs-bg-grid');
   if (!grid) return;
   const currentKey = document.getElementById('bg-background')?.getAttribute('data-bgval') || '';
-  const q = (document.getElementById('qs-bg-search')?.value || '').toLowerCase().trim();
+  const q = (document.getElementById('qs-bg-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
   const entries = Object.entries(PHB_BACKGROUNDS)
-    .filter(([, bg]) => !q || bg.name.toLowerCase().includes(q))
+    .filter(([, bg]) => !q || matchQ(bg.name))
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
   grid.innerHTML = entries.length ? entries.map(([key, bg]) => `
@@ -48062,9 +48159,10 @@ function renderQuickStartRaceGrid() {
   const grid = document.getElementById('qs-race-grid');
   if (!grid) return;
   const currentRace = currentChar.race || '';
-  const q = (document.getElementById('qs-race-search')?.value || '').toLowerCase().trim();
+  const q = (document.getElementById('qs-race-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
   const raceEntries = Object.entries(PHB_RACES)
-    .filter(([, r]) => !q || r.name.toLowerCase().includes(q))
+    .filter(([, r]) => !q || matchQ(r.name))
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
   grid.innerHTML = raceEntries.length ? raceEntries.map(([key, r]) => `
