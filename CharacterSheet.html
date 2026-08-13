@@ -4603,6 +4603,7 @@ body.preview-readonly #mi-detail-edit-row * {
     <div id="mi-detail-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
     <div id="mi-detail-contents" style="display:none"></div>
+    <div id="mi-detail-spellbook-grants" style="display:none"></div>
     <div id="mi-detail-notes" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-body);font-size:12px;color:var(--text2);font-style:italic"></div>
     <div id="mi-detail-edit-row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:none">
       <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="editFromDetailModal()">✎ Edit Notes</button>
@@ -10364,8 +10365,9 @@ function openMagicItemDetailModal(keyOrItem) {
       tags.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">${res.max} charges · ${recLabel}</span>`);
     }
   }
-  if (item.grantedSpells?.length) {
-    const names = item.grantedSpells.map(gs => gs.grantType === 'itemCharges' ? `${gs.spellName} (${gs.chargeCost||1}c)` : gs.spellName);
+  const castableGrants = (item.grantedSpells || []).filter(gs => gs.grantType !== 'spellbook');
+  if (castableGrants.length) {
+    const names = castableGrants.map(gs => gs.grantType === 'itemCharges' ? `${gs.spellName} (${gs.chargeCost||1}c)` : gs.spellName);
     tags.push(`<span class="sp-tag" style="color:var(--purple);border-color:var(--purple)">✦ ${names.join(', ')}</span>`);
   }
   if (item.isWeapon) tags.push('<span class="sp-tag">Weapon</span>');
@@ -10410,6 +10412,8 @@ function openMagicItemDetailModal(keyOrItem) {
   notesEl.innerHTML = item.notes ? `Notes: ${item.notes}` : '';
   notesEl.style.display = item.notes ? '' : 'none';
 
+  renderMiDetailSpellbookGrants(item);
+
   // If this is an owned instance (not just a catalog lookup), surface a way
   // to edit personal notes from here too — view and edit no longer compete
   // for the same row icon, but editing should still be reachable.
@@ -10421,6 +10425,64 @@ function openMagicItemDetailModal(keyOrItem) {
   openModal('magic-item-detail-modal');
 }
 window.openMagicItemDetailModal = openMagicItemDetailModal;
+
+// Items like Protective Verses ("It functions as a spellbook for you")
+// grant access to a fixed list of spells as part of your permanent
+// spellbook, not as limited-use item-charge casting — a different
+// mechanic from the itemCharges/limited/atWill grants that
+// getMagicItemGrantedSpells() handles, so it's a separate section here
+// rather than mixed into the castable-spells tag pill. Only offered for
+// wizards, since "functions as a spellbook" specifically means the
+// wizard spellbook mechanic.
+function renderMiDetailSpellbookGrants(item) {
+  const el = document.getElementById('mi-detail-spellbook-grants');
+  if (!el) return;
+  const grants = (item.grantedSpells || []).filter(gs => gs.grantType === 'spellbook');
+  if (!grants.length || item.attunement && !item.attuned) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const isWiz = (typeof getSpellcastingClass === 'function' ? getSpellcastingClass() : '') === 'wizard';
+  if (!isWiz) { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+  const inBook = new Set((currentChar?.spells?.spellbook || []).map(s => s.key));
+  el.style.display = '';
+  el.innerHTML = `
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.5px;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Functions As Your Spellbook</div>
+      ${grants.map(gs => {
+        const phb = PHB_SPELL_LIST.find(s => s.key === gs.spellKey) || PHB_SPELL_LIST.find(s => s.name.toLowerCase() === (gs.spellName||'').toLowerCase());
+        const key = phb?.key || gs.spellKey;
+        const name = phb?.name || gs.spellName || 'Unknown Spell';
+        const already = key && inBook.has(key);
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0">
+            <span style="font-family:var(--font-body);font-size:12px;color:var(--text2)">${name}</span>
+            <button class="tbtn" style="font-size:9px;padding:3px 8px;${already?'opacity:0.5':''}" ${already||!key?'disabled':''}
+              onclick="addItemSpellToSpellbook('${key}')">${already ? '✓ In Spellbook' : '+ Add to Spellbook'}</button>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+window.renderMiDetailSpellbookGrants = renderMiDetailSpellbookGrants;
+
+function addItemSpellToSpellbook(spellKey) {
+  if (!currentChar || !spellKey) return;
+  if (!currentChar.spells) currentChar.spells = {};
+  if (!currentChar.spells.spellbook) currentChar.spells.spellbook = [];
+  if (currentChar.spells.spellbook.some(s => s.key === spellKey)) return;
+  const phb = PHB_SPELL_LIST.find(s => s.key === spellKey);
+  if (!phb) return;
+  currentChar.spells.spellbook.push({ key: spellKey, name: phb.name, level: phb.level });
+  if (typeof recalcAll === 'function') recalcAll();
+  debouncedSave();
+  toast(`Added ${phb.name} to your spellbook.`, 'ok');
+  // Re-render so the button flips to "In Spellbook" without closing the modal
+  if (_miDetailOwnedIdx !== null && currentChar.magicItems?.[_miDetailOwnedIdx]) {
+    renderMiDetailSpellbookGrants(currentChar.magicItems[_miDetailOwnedIdx]);
+  } else {
+    const cat = getEffectiveMagicItemsCatalog().find(i => (i.grantedSpells||[]).some(gs => gs.spellKey === spellKey || gs.spellName === phb.name));
+    if (cat) renderMiDetailSpellbookGrants(cat);
+  }
+}
+window.addItemSpellToSpellbook = addItemSpellToSpellbook;
 
 function editFromDetailModal() {
   if (_miDetailOwnedIdx === null) return;
@@ -19403,7 +19465,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"heart_weaver_s_primer","weight":"3 lb","name":"Heart Weaver's Primer","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this book as a wizard spellcasting focus and spellbook. It has 3 charges, regaining 1d3 at dawn. For 1 charge & 1 min of study, I can change a prepared spell to an enchantment spell in it. When I cast an enchantment spell, I can use 1 charge to grant disadv. on the first save one target makes against the spell.","effects":[],"source":"2014"},
 {"key":"libram_of_souls_and_flesh","weight":"3 lb","name":"Libram of Souls and Flesh","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This spellbook starts with 7 spells and is a wizard spellcasting focus. It has 3 charges, regaining 1d3 at dawn. For 1 charge & 1 min of study, I can change a prepared spell to a necromancy spell within. As an action, I can use 1 charge to appear undead for 10 min, causing undead I haven't damage to be indifferent.","effects":[],"source":"2014"},
 {"key":"planecaller_s_codex","weight":"3 lb","name":"Planecaller's Codex","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"This spellbook starts with 6 spells and is a wizard spellcasting focus. It has 3 charges, regaining 1d3 at dawn. For 1 charge & 1 min of study, I can change a prepared spell to a conjuration spell within. When I cast a conjuration spell to summon or create one creature, I can give it adv. on attacks for 1 min for 1 charge.","effects":[],"source":"2014"},
-{"key":"protective_verses","weight":"3 lb","name":"Protective Verses","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this book with an iron lock as a spellcasting focus and spellbook. As an action, I can use Arcane Lock it. It has 3 charges, regains 1d3 at dawn. For 1 charge & 1 min study, I can change a prepared spell to an abjuration within. I can use 1 charge when I cast an abjuration spell to give a creature in 30 ft 2d10 temp HP.","effects":[],"source":"2014"},
+{"key":"protective_verses","weight":"3 lb","name":"Protective Verses","rarity":"rare","type":"wondrous item","attunement":true,"attunementNote":"By a Wizard","attuned":false,"desc":"Spellcasting focus & spellbook (contains Arcane Lock, Dispel Magic, Globe of Invulnerability, Glyph of Warding, Mordenkainen's Private Sanctum, Protection from Evil and Good, Symbol). Action: cast Arcane Lock on the book's cover. 3 charges (regain 1d3 at dawn): 1 charge + 1 min study to swap a prepared spell for an abjuration spell in the book; 1 charge when I cast an abjuration spell to grant a creature within 30 ft 2d10 temp HP.","effects":[],"charges":{"max":3,"recovery":"dawn"},"grantedSpells":[{"spellKey":"arcane_lock","spellName":"Arcane Lock","grantType":"spellbook"},{"spellKey":"dispel_magic","spellName":"Dispel Magic","grantType":"spellbook"},{"spellKey":"globe_of_invulnerability","spellName":"Globe of Invulnerability","grantType":"spellbook"},{"spellKey":"glyph_of_warding","spellName":"Glyph of Warding","grantType":"spellbook"},{"spellKey":"mordenkainens_private_sanctum","spellName":"Mordenkainen's Private Sanctum","grantType":"spellbook"},{"spellKey":"protection_from_evil_and_good","spellName":"Protection from Evil and Good","grantType":"spellbook"},{"spellKey":"symbol","spellName":"Symbol","grantType":"spellbook"}],"source":"2014"},
 {"key":"astral_shard","weight":"1 lb","name":"Astral Shard","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this crystal swirling with silver mist as a spellcasting focus for my sorcerer spells while I hold or wear it. As an action, I can attach or detach it to a Tiny object. Immediately after I cast a spell with a metamagic option while I hold or wear this shard, I can teleport to an unoccupied space I can see within 30 ft.","effects":[],"source":"2014"},
 {"key":"elemental_essence_shard","weight":"1 lb","name":"Elemental Essence Shard","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"I can use this flickering crystal as a spellcasting focus for my sorcerer spells while I hold or wear it. As an action, I can attach or detach it to a Tiny object. It holds the essence of an Elemental Plane, which grants me additional benefits when I use a Metamagic option on a spell.","effects":[],"source":"2014"},
 {"key":"far_realm_shard","weight":"1 lb","name":"Far Realm Shard","rarity":"rare","type":"wondrous item","attunement":false,"attuned":false,"desc":"As an action, I can attach/detach this crystal to an object. While I hold or wear it, it works as a spellcasting focus for my sorcerer spells, and when I use a Metamagic option, I can have a creature I can see in 30 ft make a Cha save (my spell save DC) or take 3d6 psychic damage & be frightened of me until my next turn starts.","effects":[],"source":"2014"},
@@ -27296,6 +27358,7 @@ function getMagicItemGrantedSpells() {
     if (!item.grantedSpells?.length) return;
     if (item.attunement && !item.attuned) return;
     item.grantedSpells.forEach(gs => {
+      if (gs.grantType === 'spellbook') return; // handled separately — see renderMiDetailSpellbookGrants
       const phb = PHB_SPELL_LIST.find(s => s.key === gs.spellKey)
                || PHB_SPELL_LIST.find(s => s.name.toLowerCase() === (gs.spellName||'').toLowerCase());
       const key   = phb?.key  || gs.spellKey || (gs.spellName||'').toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
@@ -36411,6 +36474,7 @@ function renderCustomItemGrantedSpells() {
             <option value="atWill" ${gs.grantType==='atWill'?'selected':''}>At Will</option>
             <option value="limited" ${gs.grantType==='limited'?'selected':''}>Limited Uses</option>
             <option value="itemCharges" ${gs.grantType==='itemCharges'?'selected':''}>Item's Charges</option>
+            <option value="spellbook" ${gs.grantType==='spellbook'?'selected':''}>Functions as Spellbook</option>
           </select>
         </div>
       </div>
@@ -36644,7 +36708,7 @@ async function saveCustomItemModal() {
         (PHB_SPELL_LIST.find(s => s.name.toLowerCase() === spellName.toLowerCase()));
       const out = {
         spellName, spellKey: phb?.key || null,
-        grantType: gs.grantType === 'limited' ? 'limited' : gs.grantType === 'itemCharges' ? 'itemCharges' : 'atWill',
+        grantType: ['limited', 'itemCharges', 'spellbook'].includes(gs.grantType) ? gs.grantType : 'atWill',
         usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
         chargeCost: Math.max(1, parseInt(gs.chargeCost) || 1),
         fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
@@ -36880,7 +36944,7 @@ async function saveDMCatalogItem() {
     .filter(gs => (gs.spellName || '').trim())
     .map(gs => ({
       spellName: gs.spellName.trim(),
-      grantType: gs.grantType === 'limited' ? 'limited' : gs.grantType === 'itemCharges' ? 'itemCharges' : 'atWill',
+      grantType: ['limited', 'itemCharges', 'spellbook'].includes(gs.grantType) ? gs.grantType : 'atWill',
       usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
       chargeCost: Math.max(1, parseInt(gs.chargeCost) || 1),
       fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null, ritual: !!gs.ritual,
