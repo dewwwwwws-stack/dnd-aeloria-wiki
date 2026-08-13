@@ -16355,591 +16355,7 @@ function getEpicBoonFeats() {
 // ═══════════════════════════════════════════════════════════
 // PHB BACKGROUND + FEAT DATA
 // ═══════════════════════════════════════════════════════════
-const PHB_BACKGROUNDS = {
-  "acolyte": {
-    "name": "Acolyte",
-    "skills": [
-      "Insight",
-      "Religion"
-    ],
-    "skillKeys": [
-      "insight",
-      "religion"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma",
-    "tools": [],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 8,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma",
-      "Insight",
-      "Book (prayers)",
-      "Parchment, sheets of",
-      "Robes",
-      "Calligrapher's Supplies",
-      "Holy symbol",
-      "Belt pouch (with coins)"
-    ],
-    "originFeat": "Magic Initiate (Cleric) [Origin]",
-    "trait": "I devoted myself to service in a temple, either nestled in a town or secluded in a sacred grove. There I performed rites in honor of a god or pantheon. I served under a priest and studied religion. Thanks to my priest's instruction and my own devotion, I also learned how to channel a modicum of divine power in service to my place of worship and the people who prayed there."
-  },
-  "artisan": {
-    "name": "Artisan",
-    "skills": [
-      "Investigation",
-      "Persuasion"
-    ],
-    "skillKeys": [
-      "investigation",
-      "persuasion"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Intelligence",
-    "tools": ["Artisan's Tools (choice)"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 32,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Strength, Dexterity, and Intelligence",
-      "Investigation",
-      "Artisan's tools",
-      "Traveler's Clothes",
-      "Artisan's Tools",
-      "Belt pouch (with coins)"
-    ],
-    "originFeat": "Crafter [Origin]",
-    "trait": "I began mopping floors and scrubbing counters in an artisan's workshop for a few coppers per day as soon as I was strong enough to carry a bucket. When I was old enough to apprentice, I learned to create basic crafts of my own, as well as how to sweet talk the occasional demanding customer. My trade has also given me a keen eye for detail."
-  },
-  "charlatan": {
-    "name": "Charlatan",
-    "skills": [
-      "Deception",
-      "Sleight of Hand"
-    ],
-    "skillKeys": [
-      "deception",
-      "sleight_of_hand"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Charisma",
-    "tools": [
-      "Forgery Kit"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 15,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Charisma",
-      "Deception",
-      "Forgery Kit",
-      "Fine Clothes",
-      "Costume"
-    ],
-    "originFeat": "Skilled [Origin]",
-    "trait": "Once I was old enough to order an ale, I soon had a favorite stool in every tavern within ten miles of where I was born. As I traveled the circuit from public house to watering hole, I learned to prey on unfortunates who were in the market for a comforting lie or two - perhaps a sham potion or forged ancestry records."
-  },
-  "criminal": {
-    "name": "Criminal",
-    "skills": [
-      "Sleight of Hand",
-      "Stealth"
-    ],
-    "skillKeys": [
-      "sleight_of_hand",
-      "stealth"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence",
-    "tools": [
-      "Thieves' Tools"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 16,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence",
-      "Sleight of Hand",
-      "Thieves' Tools",
-      "Traveler's Clothes",
-      "Dagger",
-      "Belt pouch (with coins)",
-      "Crowbar"
-    ],
-    "originFeat": "Alert [Origin]",
-    "trait": "I eked out a living in dark alleyways, cutting purses or burgling shops. Perhaps I were part of a small gang of like-minded wrongdoers who looked out for each other. Or maybe I were a lone wolf, fending for myself against the local thieves' guild and more fearsome lawbreakers."
-  },
-  "entertainer": {
-    "name": "Entertainer",
-    "skills": [
-      "Acrobatics",
-      "Performance"
-    ],
-    "skillKeys": [
-      "acrobatics",
-      "performance"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Charisma",
-    "tools": ["Musical Instrument (choice)"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 11,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Strength, Dexterity, and Charisma",
-      "Acrobatics",
-      "Musical Instrument",
-      "Traveler's Clothes",
-      "Costumes",
-      "Belt pouch (with coins)",
-      "Mirror",
-      "Perfume"
-    ],
-    "originFeat": "Musician [Origin]",
-    "trait": "I spent much of my youth following roving fairs and carnivals, performing odd jobs for musicians and acrobats in exchange for lessons. I may have learned how to walk a tightrope, how to play a lute in a distinct style, or how to recite poetry with impeccable diction. To this day, I thrive on applause and long for the stage."
-  },
-  "farmer": {
-    "name": "Farmer",
-    "skills": [
-      "Animal Handling",
-      "Nature"
-    ],
-    "skillKeys": [
-      "animal_handling",
-      "nature"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom",
-    "tools": [
-      "Carpenter's Tools"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 30,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom",
-      "Animal Handling",
-      "Carpenter's Tools",
-      "Traveler's Clothes",
-      "Sickle",
-      "Belt pouch (with coins)",
-      "Iron Pot",
-      "Shovel",
-      "Healer's Kit"
-    ],
-    "originFeat": "Tough [Origin]",
-    "trait": "I grew up close to the land. Years tending animals and cultivating the earth rewarded me with patience and good health. I have a keen appreciation for nature's bounty alongside a healthy respect for nature's wrath."
-  },
-  "guard": {
-    "name": "Guard",
-    "skills": [
-      "Athletics",
-      "Perception"
-    ],
-    "skillKeys": [
-      "athletics",
-      "perception"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Wisdom",
-    "tools": ["Gaming Set (choice)"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 12,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Strength, Intelligence, and Wisdom",
-      "Athletics",
-      "Gaming Set",
-      "Traveler's Clothes",
-      "Spear",
-      "Light Crossbow",
-      "Bolt(s)",
-      "Case, Crossbow bolt",
-      "Belt pouch (with coins)"
-    ],
-    "originFeat": "Alert [Origin]",
-    "trait": "my feet ache when I remember the countless hours I spent at my post in the tower. I was trained to keep one eye looking outside the wall watching for marauders sweeping from the nearby forest, and my other eye looking inside the wall searching for cut purses and troublemakers."
-  },
-  "guide": {
-    "name": "Guide",
-    "skills": [
-      "Stealth",
-      "Survival"
-    ],
-    "skillKeys": [
-      "stealth",
-      "survival"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom",
-    "tools": [
-      "Cartographer's Tools"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 3,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom",
-      "Stealth",
-      "Cartographer's Tools",
-      "Traveler's Clothes",
-      "Shortbow",
-      "Arrow(s)",
-      "Quiver",
-      "Belt pouch (with coins)",
-      "Bedroll"
-    ],
-    "originFeat": "Magic Initiate (Druid) [Origin]",
-    "trait": "I came of age outdoors, far from settled lands. My home was anywhere I chose to spread my bedroll. There are wonders in the wilderness - strange monsters, pristine forests, streams, overgrown ruins of great halls once trod by giants - and I learned to fend for myself as I explored them. From time to time, I guided friendly nature priests who instructed me in the fundamentals of channeling the magi"
-  },
-  "hermit": {
-    "name": "Hermit",
-    "skills": [
-      "Medicine",
-      "Religion"
-    ],
-    "skillKeys": [
-      "medicine",
-      "religion"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma",
-    "tools": [
-      "Herbalism Kit"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 16,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma",
-      "Medicine",
-      "Herbalism Kit",
-      "Traveler's Clothes",
-      "Quarterstaff",
-      "Book (philosophy)",
-      "Belt pouch (with coins)",
-      "Bedroll",
-      "Lamp Oil"
-    ],
-    "originFeat": "Healer [Origin]",
-    "trait": "I spent my early years secluded in a hut or monastery located well beyond the outskirts of the nearest settlement. In those days, my only companions were the creatures of the forest and those who would occasionally visit to bring news of the outside world and supplies. The solitude allowed me to spend many hours pondering the mysteries of creation."
-  },
-  "merchant": {
-    "name": "Merchant",
-    "skills": [
-      "Animal Handling",
-      "Persuasion"
-    ],
-    "skillKeys": [
-      "animal_handling",
-      "persuasion"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma",
-    "tools": [
-      "Navigator's Tools"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 22,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma",
-      "Animal Handling",
-      "Navigator's Tools",
-      "Traveler's Clothes",
-      "Belt pouch (with coins)"
-    ],
-    "originFeat": "Lucky [Origin]",
-    "trait": "I was apprenticed to a trader, caravan master, or shopkeeper, learning the fundamentals of commerce. I traveled broadly, and I earned a living by buying and selling the raw materials artisans need to practice their craft or finished works from such crafters. I might have transported goods from one place to another (by ship, wagon, or caravan) or bought them from traveling traders and sold them in "
-  },
-  "noble": {
-    "name": "Noble",
-    "skills": [
-      "History",
-      "Persuasion"
-    ],
-    "skillKeys": [
-      "history",
-      "persuasion"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Charisma",
-    "tools": ["Gaming Set (choice)"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 29,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Strength, Intelligence, and Charisma",
-      "History",
-      "Gaming Set",
-      "Fine Clothes",
-      "Belt pouch (with coins)",
-      "Perfume"
-    ],
-    "originFeat": "Skilled [Origin]",
-    "trait": "I was raised in a castle, surrounded by wealth, power, and privilege. My family of minor aristocrats ensured that I received a first-class education, some of which I appreciated and some of which I resented. My time in the castle, especially the many hours I spent observing my family at court, also taught me a great deal about leadership."
-  },
-  "sage": {
-    "name": "Sage",
-    "skills": [
-      "Arcana",
-      "History"
-    ],
-    "skillKeys": [
-      "arcana",
-      "history"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Wisdom",
-    "tools": [
-      "Calligrapher's Supplies"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 8,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Wisdom",
-      "Arcana",
-      "Calligrapher's Supplies",
-      "Robes",
-      "Quarterstaff",
-      "Book (history)",
-      "Belt pouch (with coins)",
-      "Parchment, Sheets of"
-    ],
-    "originFeat": "Magic Initiate (Wizard) [Origin]",
-    "trait": "I spent my formative years traveling between manors and monasteries, performing various odd jobs and services in exchange for access to their libraries. I whiled away many a long evening studying books and scrolls, learning the lore of the multiverse - even the rudiments of magic - and my mind yearns for more."
-  },
-  "sailor": {
-    "name": "Sailor",
-    "skills": [
-      "Acrobatics",
-      "Perception"
-    ],
-    "skillKeys": [
-      "acrobatics",
-      "perception"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Wisdom",
-    "tools": [
-      "Navigator's Tools"
-    ],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 20,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Strength, Dexterity, and Wisdom",
-      "Acrobatics",
-      "Navigator's Tools",
-      "Traveler's Clothes",
-      "Belt pouch (with coins)",
-      "Dagger",
-      "Rope"
-    ],
-    "originFeat": "Tavern Brawler [Origin]",
-    "trait": "I lived as a seafarer, wind at my back and decks swaying beneath my feet. I've perched on bar stools in more ports of call than I can remember, faced mighty storms, and swapped stories with folk who live beneath the waves."
-  },
-  "scribe": {
-    "name": "Scribe",
-    "skills": [
-      "Investigation",
-      "Perception"
-    ],
-    "skillKeys": [
-      "investigation",
-      "perception"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom",
-    "tools": ["Calligrapher's Supplies"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 23,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom",
-      "Investigation",
-      "Calligrapher's Tools",
-      "Fine Clothes",
-      "Belt pouch (with coins)",
-      "Calligrapher's Supplies",
-      "Lamp Oil, Flasks of",
-      "Parchment, Sheets of"
-    ],
-    "originFeat": "Skilled [Origin]",
-    "trait": "I spent formative years in a scriptorium, a monastery dedicated to the preservation of knowledge, or a government agency, where I learned to write with a clear hand and produce finely written texts. Perhaps I scribed government documents or copied tomes of literature, I might have some skill as a writer of poetry, narrative, or scholarly research. Above all, I have a careful attention to detail, h"
-  },
-  "soldier": {
-    "name": "Soldier",
-    "skills": [
-      "Athletics",
-      "Intimidation"
-    ],
-    "skillKeys": [
-      "athletics",
-      "intimidation"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Constitution",
-    "tools": ["Gaming Set (choice)"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 14,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Strength, Dexterity, and Constitution",
-      "Athletics",
-      "Gaming Set",
-      "Traveler's Clothes",
-      "Belt pouch (with coins)",
-      "Spear",
-      "Shortbow",
-      "Arrow(s)",
-      "Quiver"
-    ],
-    "originFeat": "Savage Attacker [Origin]",
-    "trait": "I began training for war as soon as I reached adulthood and carry precious few memories of life before I took up arms. Battle is in my blood. Sometimes I catch myself reflexively performing the basic fighting exercises I learned first. Eventually, I put that training to use on the battlefield, protecting the realm by waging war."
-  },
-  "wayfarer": {
-    "name": "Wayfarer",
-    "skills": [
-      "Insight",
-      "Stealth"
-    ],
-    "skillKeys": [
-      "insight",
-      "stealth"
-    ],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma",
-    "tools": [
-      "Thieves' Tools"
-    ],
-    "languages": [
-      "Common"
-    ],
-    "langExtra": 2,
-    "gold": 16,
-    "equipment": [
-      "P24",
-      "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma",
-      "Insight",
-      "Thieves' Tools",
-      "Traveler's Clothes",
-      "Belt pouch (with coins)",
-      "Dagger",
-      "Gaming Set",
-      "Bedroll",
-      "magic initiate (cleric)"
-    ],
-    "originFeat": "Lucky [Origin]",
-    "trait": "I grew up on the streets surrounded by similarly ill-fated castoffs, a few of them friends and a few of them rivals. I slept where I could and did odd jobs for food. At times, when the hunger became unbearable, I resorted to theft Still, I never lost my pride and never abandoned hope. Fate is not finished with me."
-  },
-  "spellfire_initiate": {"name":"Spellfire Initiate","source":"FRHoF","skills":["Arcana","Perception"],"asi":[],"desc":"Spellfire Initiate","feat":"Spellfire Initiate","scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma","tools":[],"skillKeys":["arcana", "perception"],
-  "originFeat": "Spellfire Spark [Origin]"},
-  "chondathan_freebooter": {"name":"Chondathan Freebooter","source":"FRHoF","skills": ["Athletics", "Sleight of Hand"],"asi":[],"desc":"Chondathan Freebooter","feat":"Chondathan Freebooter","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Wisdom","tools": ["Weaver's Tools"],"skillKeys": ["athletics", "sleight_of_hand"],
-  "originFeat": "Skilled [Origin]"},
-  "dead_magic_dweller": {"name":"Dead Magic Dweller","source":"FRHoF","skills": ["Medicine", "Survival"],"asi":[],"desc":"Dead Magic Dweller","feat":"Dead Magic Dweller","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom","tools": ["Leatherworker's Tools"],"skillKeys": ["medicine", "survival"],
-  "originFeat": "Healer [Origin]"},
-  "flaming_fist_mercenary": {"name":"Flaming Fist Mercenary","source":"FRHoF","skills": ["Intimidation", "Perception"],"asi":[],"desc":"Flaming Fist Mercenary","feat":"Flaming Fist Mercenary","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma","tools": ["Smith's Tools"],"skillKeys": ["intimidation", "perception"],
-  "originFeat": "Tough [Origin]"},
-  "genie_touched": {"name":"Genie Touched","source":"FRHoF","skills":["Perception","Persuasion"],"asi":[],"desc":"Genie Touched","feat":"Genie Touched","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma","tools": ["Glassblower's Tools"],"skillKeys":["perception", "persuasion"],
-  "originFeat": "Magic Initiate (Wizard) [Origin]"},
-  "ice_fisher": {"name":"Ice Fisher","source":"FRHoF","skills": ["Animal Handling", "Athletics"],"asi":[],"desc":"Ice Fisher","feat":"Ice Fisher","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Constitution","tools": ["Woodcarver's Tools"],"skillKeys": ["animal_handling", "athletics"],
-  "originFeat": "Alert [Origin]"},
-  "moonwell_pilgrim": {"name":"Moonwell Pilgrim","source":"FRHoF","skills": ["Nature", "Performance"],"asi":[],"desc":"Moonwell Pilgrim","feat":"Moonwell Pilgrim","scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma","tools": ["Painter's Supplies"],"skillKeys": ["nature", "performance"],
-  "originFeat": "Magic Initiate (Druid) [Origin]"},
-  "mulhorandi_tomb_raider": {"name":"Mulhorandi Tomb Raider","source":"FRHoF","skills": ["Investigation", "Religion"],"asi":[],"desc":"Mulhorandi Tomb Raider","feat":"Mulhorandi Tomb Raider","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom","tools": ["Mason's Tools"],"skillKeys": ["investigation", "religion"],
-  "originFeat": "Lucky [Origin]"},
-  "mythalkeeper": {"name":"Mythalkeeper","source":"FRHoF","skills": ["Arcana", "History"],"asi":[],"desc":"Mythalkeeper","feat":"Mythalkeeper","scoresTxt": "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma","tools": ["Jeweler's Tools"],"skillKeys": ["arcana", "history"],
-  "originFeat": "Crafter [Origin]"},
-  "rashemi_wanderer": {"name":"Rashemi Wanderer","source":"FRHoF","skills": ["Intimidation", "Perception"],"asi":[],"desc":"Rashemi Wanderer","feat":"Rashemi Wanderer","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom","tools": ["Cartographer's Tools"],"skillKeys": ["intimidation", "perception"],
-  "originFeat": "Tough [Origin]"},
-  "shadowmasters_exile": {"name":"Shadowmasters Exile","source":"FRHoF","skills": ["Acrobatics", "Stealth"],"asi":[],"desc":"Shadowmasters Exile","feat":"Shadowmasters Exile","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence","tools": ["Thieves' Tools"],"skillKeys": ["acrobatics", "stealth"],
-  "originFeat": "Savage Attacker [Origin]"},
-  "dragon_cultist": {"name":"Dragon Cultist","source":"FRHoF","skills": ["Deception", "Stealth"],"asi":[],"desc":"Dragon Cultist","feat":"Dragon Cultist","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence","tools": ["Calligrapher's Supplies"],"skillKeys": ["deception", "stealth"],
-  "originFeat": "Cult of the Dragon Initiate [Origin]"},
-  "emerald_enclave_caretaker": {"name":"Emerald Enclave Caretaker","source":"FRHoF","skills": ["Nature", "Survival"],"asi":[],"desc":"Emerald Enclave Caretaker","feat":"Emerald Enclave Caretaker","scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma","tools": ["Herbalism Kit"],"skillKeys": ["nature", "survival"],
-  "originFeat": "Emerald Enclave Fledgling [Origin]"},
-  "harper": {"name":"Harper","source":"FRHoF","skills": ["Performance", "Sleight of Hand"],"asi":[],"desc":"Harper","feat":"Harper","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma","tools": ["Disguise Kit"],"skillKeys": ["performance", "sleight_of_hand"],
-  "originFeat": "Harper Agent [Origin]"},
-  "knight_of_the_gauntlet": {"name":"Knight of the Gauntlet","source":"FRHoF","skills": ["Athletics", "Medicine"],"asi":[],"desc":"Knight of the Gauntlet","feat":"Knight of the Gauntlet","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom","tools": ["Smith's Tools"],"skillKeys": ["athletics", "medicine"],
-  "originFeat": "Tyro of the Gauntlet [Origin]"},
-  "lords__alliance_vassal": {"name":"Lords' Alliance Vassal","source":"FRHoF","skills": ["Insight", "Persuasion"],"asi":[],"desc":"Lords' Alliance Vassal","feat":"Lords' Alliance Vassal","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Charisma","tools": ["Calligrapher's Supplies"],"skillKeys": ["insight", "persuasion"],
-  "originFeat": "Lords' Alliance Agent [Origin]"},
-  "purple_dragon_squire": {"name":"Purple Dragon Squire","source":"FRHoF","skills": ["Animal Handling", "Insight"],"asi":[],"desc":"Purple Dragon Squire","feat":"Purple Dragon Squire","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Wisdom, and Charisma","tools": ["Navigator's Tools"],"skillKeys": ["animal_handling", "insight"],
-  "originFeat": "Purple Dragon Rook [Origin]"},
-  "zhentarim_mercenary": {"name":"Zhentarm Mercenary","source":"FRHoF","skills": ["Intimidation", "Perception"],"asi":[],"desc":"Zhentarim Mercenary","feat":"Zhentarim Mercenary","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Constitution","tools": ["Forgery Kit"],"skillKeys": ["intimidation", "perception"],
-  "originFeat": "Zhentarim Ruffian [Origin]"},
-  "lorwyn_expert": {"name":"Lorwyn Expert","source":"LFL","skills":["Athletics","Nature"],"asi":[],"desc":"Lorwyn Expert","feat":"Lorwyn Expert","scoresTxt":"+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom","tools":[],"skillKeys":["athletics", "nature"],
-  "originFeat": "Skilled [Origin]"},
-  "shadowmoor_expert": {"name":"Shadowmoor Expert","source":"LFL","skills":["Acrobatics","Deception"],"asi":[],"desc":"Shadowmoor Expert","feat":"Shadowmoor Expert","scoresTxt":"+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma","tools":[],"skillKeys":["acrobatics", "deception"],
-  "originFeat": "Skilled [Origin]"},
-  "aberrant_heir": {"name":"Aberrant Heir","source":"EFotA","skills": ["History", "Intimidation"],"asi":[],"desc":"Aberrant Heir","feat":"Aberrant Heir","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma","tools": ["Disguise Kit"],"skillKeys": ["history", "intimidation"],
-  "originFeat": "Aberrant Dragonmark"},
-  "house_cannith_heir": {"name":"House Cannith Heir","source":"EFotA","skills": ["Investigation", "Sleight of Hand"],"asi":[],"desc":"House Cannith Heir","feat":"House Cannith Heir","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Intelligence","tools": ["Artisan's Tools (choice)"],"skillKeys": ["investigation", "sleight_of_hand"],
-  "originFeat": "Mark of Making"},
-  "house_deneith_heir": {"name":"House Deneith Heir","source":"EFotA","skills": ["Insight", "Perception"],"asi":[],"desc":"House Deneith Heir","feat":"House Deneith Heir","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom","tools": ["Gaming Set (choice)"],"skillKeys": ["insight", "perception"],
-  "originFeat": "Mark of Sentinel"},
-  "house_ghallanda_heir": {"name":"House Ghallanda Heir","source":"EFotA","skills": ["Insight", "Persuasion"],"asi":[],"desc":"House Ghallanda Heir","feat":"House Ghallanda Heir","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma","tools": ["Cook's Utensils"],"skillKeys": ["insight", "persuasion"],
-  "originFeat": "Mark of Hospitality"},
-  "house_jorasco_heir": {"name":"House Jorasco Heir","source":"EFotA","skills": ["Medicine", "Stealth"],"asi":[],"desc":"House Jorasco Heir","feat":"House Jorasco Heir","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom","tools": ["Herbalism Kit"],"skillKeys": ["medicine", "stealth"],
-  "originFeat": "Mark of Healing"},
-  "house_kundarak_heir": {"name":"House Kundarak Heir","source":"EFotA","skills": ["Arcana", "Investigation"],"asi":[],"desc":"House Kundarak Heir","feat":"House Kundarak Heir","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Intelligence","tools": ["Thieves' Tools"],"skillKeys": ["arcana", "investigation"],
-  "originFeat": "Mark of Warding"},
-  "house_lyrandar_heir": {"name":"House Lyrandar Heir","source":"EFotA","skills": ["Acrobatics", "Nature"],"asi":[],"desc":"House Lyrandar Heir","feat":"House Lyrandar Heir","scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Charisma","tools": ["Navigator's Tools"],"skillKeys": ["acrobatics", "nature"],
-  "originFeat": "Mark of Storm"},
-  "house_medani_heir": {"name":"House Medani Heir","source":"EFotA","skills": ["Insight", "Investigation"],"asi":[],"desc":"House Medani Heir","feat":"House Medani Heir","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom","tools": ["Disguise Kit"],"skillKeys": ["insight", "investigation"],
-  "originFeat": "Mark of Detection"},
-  "house_orien_heir": {"name":"House Orien Heir","source":"EFotA","skills": ["Acrobatics", "Athletics"],"asi":[],"desc":"House Orien Heir","feat":"House Orien Heir","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence","tools": ["Cartographer's Tools"],"skillKeys": ["acrobatics", "athletics"],
-  "originFeat": "Mark of Passage"},
-  "house_phiarlan_heir": {"name":"House Phiarlan Heir","source":"EFotA","skills": ["Deception", "Stealth"],"asi":[],"desc":"House Phiarlan Heir","feat":"House Phiarlan Heir","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma","tools": ["Disguise Kit"],"skillKeys": ["deception", "stealth"],
-  "originFeat": "Mark of Shadow"},
-  "house_sivis_heir": {"name":"House Sivis Heir","source":"EFotA","skills": ["History", "Perception"],"asi":[],"desc":"House Sivis Heir","feat":"House Sivis Heir","scoresTxt": "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma","tools": ["Calligrapher's Supplies"],"skillKeys": ["history", "perception"],
-  "originFeat": "Mark of Scribing"},
-  "house_tharashk_heir": {"name":"House Tharashk Heir","source":"EFotA","skills": ["Perception", "Survival"],"asi":[],"desc":"House Tharashk Heir","feat":"House Tharashk Heir","scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Wisdom","tools": ["Gaming Set (choice)"],"skillKeys": ["perception", "survival"],
-  "originFeat": "Mark of Finding"},
-  "house_thuranni_heir": {"name":"House Thuranni Heir","source":"EFotA","skills": ["Performance", "Stealth"],"asi":[],"desc":"House Thuranni Heir","feat":"House Thuranni Heir","scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma","tools": ["Musical Instrument (choice)"],"skillKeys": ["performance", "stealth"],
-  "originFeat": "Mark of Shadow"},
-  "house_vadalis_heir": {"name":"House Vadalis Heir","source":"EFotA","skills": ["Animal Handling", "Nature"],"asi":[],"desc":"House Vadalis Heir","feat":"House Vadalis Heir","scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma","tools": ["Herbalism Kit"],"skillKeys": ["animal_handling", "nature"],
-  "originFeat": "Mark of Handling"},
-  "archaeologist": {
-    "name": "Archaeologist",
-    "source": "EFotA",
-    "skills": ["History", "Survival"],
-    "skillKeys": ["history", "survival"],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom",
-    "tools": ["Cartographer's Tools"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 17,
-    "equipment": ["Map", "Cartographer's Tools", "Shovel", "Bullseye Lantern", "Traveler's Clothes", "Belt pouch (with coins)"],
-    "originFeat": "Skilled [Origin]",
-    "trait": "You've made a lifelong study of the lost and fallen cultures of the past, visiting their ruins, deciphering their written records, and examining their relics."
-  },
-  "house_agent": {
-    "name": "House Agent",
-    "source": "EFotA",
-    "skills": ["Investigation", "Persuasion"],
-    "skillKeys": ["investigation", "persuasion"],
-    "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Charisma",
-    "tools": ["Artisan's Tools (choice)"],
-    "languages": [],
-    "langExtra": 0,
-    "gold": 20,
-    "equipment": ["Artisan's Tools (same as proficiency)", "House Agent's Signet Ring", "Traveler's Clothes", "Belt pouch (with coins)"],
-    "originFeat": "Lucky [Origin]",
-    "trait": "You are connected to one of the dragonmarked houses, but you haven't yet manifested a dragonmark. You might be a member of the family by birth or an outsider who proved their worth to the organization."
-  },
-  "inquisitive": {"name":"Inquisitive","source":"EFotA","skills": ["Insight", "Investigation"],"asi":[],"desc":"Inquisitive","feat":"Inquisitive","scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma","tools": ["Thieves' Tools"],"skillKeys": ["insight", "investigation"],
-  "originFeat": "Alert [Origin]"}
-,
-  "carouser": {"name":"Carouser","source":"ABoH","skills":["Deception","Persuasion"],"skillKeys":["deception","persuasion"],"tools":["Gaming Set"],"scoresTxt":"+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma","feat":"","originFeat": "Lucky [Origin]","desc":"Carouser background from Book of Hungers.","scoresTxtFull":"+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma"},
-  "vampire_devotee": {"name":"Vampire Devotee","source":"ABoH","skills":["Persuasion","Stealth"],"skillKeys":["persuasion","stealth"],"tools":["Cook's Utensils"],"scoresTxt":"+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma","feat":"","originFeat": "Dark Gift","desc":"Vampire Devotee background from Book of Hungers.","scoresTxtFull":"+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma"},
-  "vampire_survivor": {"name":"Vampire Survivor","source":"ABoH","skills":["Insight","Religion"],"skillKeys":["insight","religion"],"tools":["Woodcarver's Tools"],"scoresTxt":"+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom","feat":"","originFeat": "Survivor or Dark Gift","desc":"Vampire Survivor background from Book of Hungers.","scoresTxtFull":"+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom"},
-  "haunted_one": {"name": "Haunted One", "source": "RtHW", "skills": ["Arcana", "Survival"], "skillKeys": ["arcana", "survival"], "tools": ["Gaming Set (one of your choice)"], "languages": [], "langExtra": 0, "gold": 14, "originFeat": "Survivor or Dark Gift", "scoresTxt": "+2 to one and +1 to another \u2014 or +1 to all three: Constitution, Wisdom, and Charisma", "trait": "You are haunted by the events of your past."},
-  "investigator": {"name": "Investigator", "source": "RtHW", "skills": ["Insight", "Investigation"], "skillKeys": ["insight", "investigation"], "tools": ["Disguise Kit"], "languages": [], "langExtra": 0, "gold": 16, "originFeat": "Sharp Eye or Dark Gift", "scoresTxt": "+2 to one and +1 to another \u2014 or +1 to all three: Intelligence, Wisdom, and Charisma", "trait": "You relentlessly seek the truth."},
-  "mist_wanderer": {"name": "Mist Wanderer", "source": "RtHW", "skills": ["Stealth", "Survival"], "skillKeys": ["stealth", "survival"], "tools": ["Artisan's Tools (one of your choice)"], "languages": [], "langExtra": 0, "gold": 30, "originFeat": "Dark Gift", "scoresTxt": "+2 to one and +1 to another \u2014 or +1 to all three: Dexterity, Constitution, and Wisdom", "trait": "You have wandered between domains of dread, braving the Mists."},
-  "spirit_medium": {"name": "Spirit Medium", "source": "RtHW", "skills": ["Insight", "Religion"], "skillKeys": ["insight", "religion"], "tools": ["Gaming Set (one of your choice)"], "languages": [], "langExtra": 0, "gold": 32, "originFeat": "Dark Gift", "scoresTxt": "+2 to one and +1 to another \u2014 or +1 to all three: Constitution, Intelligence, and Wisdom", "trait": "Your body is a conduit for spirits of the dead and damned."}};
+const PHB_BACKGROUNDS = {"aberrant_heir": {"name": "Aberrant Heir", "source": "EFA", "page": "25", "abilityScores": ["Strength", "Constitution", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma", "skills": ["History", "Intimidation"], "skillKeys": ["history", "intimidation"], "tools": ["Disguise Kit"], "languages": [], "langExtra": 0, "originFeat": "Aberrant Dragonmark", "equipmentA": [{"name": "Dagger", "qty": 1}, {"name": "Disguise Kit", "qty": 1}, {"name": "Costume", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 16, "goldB": 50, "trait": ""}, "acolyte": {"name": "Acolyte", "source": "PHB'24", "page": "178", "abilityScores": ["Intelligence", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma", "skills": ["Insight", "Religion"], "skillKeys": ["insight", "religion"], "tools": ["Calligrapher's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Magic Initiate (Cleric)", "equipmentA": [{"name": "Calligrapher's Supplies", "qty": 1}, {"name": "Book (prayers)", "qty": 1}, {"name": "Holy Symbol", "qty": 1}, {"name": "Parchment (10 sheets)", "qty": 1}, {"name": "Robe", "qty": 1}], "goldA": 8, "goldB": 50, "trait": "I devoted myself to service in a temple, either nestled in a town or secluded in a sacred grove. There I performed rites in honor of a god or pantheon. I served under a priest and studied religion. Thanks to my priest's instruction and my own devotion, I also learned how to channel a modicum of divine power in service to my place of worship and the people who prayed there."}, "archaeologist": {"name": "Archaeologist", "source": "EFA", "page": "26", "abilityScores": ["Dexterity", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom", "skills": ["History", "Survival"], "skillKeys": ["history", "survival"], "tools": ["Cartographer's Tools"], "languages": [], "langExtra": 0, "originFeat": "Skilled", "equipmentA": [{"name": "Cartographer's Tools", "qty": 1}, {"name": "Bullseye Lantern", "qty": 1}, {"name": "Map", "qty": 1}, {"name": "Map or Scroll Case", "qty": 1}, {"name": "Shovel", "qty": 1}, {"name": "Tent", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 17, "goldB": 50, "trait": "You've made a lifelong study of the lost and fallen cultures of the past, visiting their ruins, deciphering their written records, and examining their relics."}, "artisan": {"name": "Artisan", "source": "PHB'24", "page": "179", "abilityScores": ["Strength", "Dexterity", "Intelligence"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Intelligence", "skills": ["Investigation", "Persuasion"], "skillKeys": ["investigation", "persuasion"], "tools": ["Artisan's Tools (choice)"], "languages": [], "langExtra": 0, "originFeat": "Crafter", "equipmentA": [{"name": "Artisan's Tools (same as above)", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 32, "goldB": 50, "trait": "I began mopping floors and scrubbing counters in an artisan's workshop for a few coppers per day as soon as I was strong enough to carry a bucket. When I was old enough to apprentice, I learned to create basic crafts of my own, as well as how to sweet talk the occasional demanding customer. My trade has also given me a keen eye for detail."}, "carouser": {"name": "Carouser", "source": "ABH", "page": "6", "abilityScores": ["Dexterity", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma", "skills": ["Deception", "Persuasion"], "skillKeys": ["deception", "persuasion"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Tireless Reveler", "equipmentA": [{"name": "Dagger", "qty": 1}, {"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Glass Bottle", "qty": 1}, {"name": "Mirror", "qty": 1}, {"name": "Perfume", "qty": 1}, {"name": "Pouch", "qty": 1}, {"name": "Tinderbox", "qty": 1}], "goldA": 19, "goldB": 50, "trait": ""}, "charlatan": {"name": "Charlatan", "source": "PHB'24", "page": "180", "abilityScores": ["Dexterity", "Constitution", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Charisma", "skills": ["Deception", "Sleight of Hand"], "skillKeys": ["deception", "sleight_of_hand"], "tools": ["Forgery Kit"], "languages": [], "langExtra": 0, "originFeat": "Skilled", "equipmentA": [{"name": "Forgery Kit", "qty": 1}, {"name": "Costume", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 15, "goldB": 50, "trait": "Once I was old enough to order an ale, I soon had a favorite stool in every tavern within ten miles of where I was born. As I traveled the circuit from public house to watering hole, I learned to prey on unfortunates who were in the market for a comforting lie or two - perhaps a sham potion or forged ancestry records."}, "chondathan_freebooter": {"name": "Chondathan Freebooter", "source": "FRHoF", "page": "28", "abilityScores": ["Strength", "Dexterity", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Wisdom", "skills": ["Athletics", "Sleight of Hand"], "skillKeys": ["athletics", "sleight_of_hand"], "tools": ["Weaver's Tools"], "languages": [], "langExtra": 0, "originFeat": "Skilled", "equipmentA": [{"name": "Dagger", "qty": 1}, {"name": "Weaver's Tools", "qty": 1}, {"name": "Backpack", "qty": 1}, {"name": "Ball Bearings", "qty": 1}, {"name": "Basket", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Bucket", "qty": 1}, {"name": "Rations (3 days' worth)", "qty": 1}, {"name": "Rope", "qty": 1}, {"name": "Signal Whistle", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 38, "goldB": 50, "trait": ""}, "criminal": {"name": "Criminal", "source": "PHB'24", "page": "180", "abilityScores": ["Dexterity", "Constitution", "Intelligence"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence", "skills": ["Sleight of Hand", "Stealth"], "skillKeys": ["sleight_of_hand", "stealth"], "tools": ["Thieves' Tools"], "languages": [], "langExtra": 0, "originFeat": "Alert", "equipmentA": [{"name": "Dagger", "qty": 2}, {"name": "Thieves' Tools", "qty": 1}, {"name": "Crowbar", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 16, "goldB": 50, "trait": "I eked out a living in dark alleyways, cutting purses or burgling shops. Perhaps I were part of a small gang of like-minded wrongdoers who looked out for each other. Or maybe I were a lone wolf, fending for myself against the local thieves' guild and more fearsome lawbreakers."}, "dead_magic_dweller": {"name": "Dead Magic Dweller", "source": "FRHoF", "page": "28", "abilityScores": ["Strength", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom", "skills": ["Medicine", "Survival"], "skillKeys": ["medicine", "survival"], "tools": ["Leatherworker's Tools"], "languages": [], "langExtra": 0, "originFeat": "Healer", "equipmentA": [{"name": "Greatclub", "qty": 1}, {"name": "Leatherworker's Tools", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Blanket", "qty": 1}, {"name": "Healer's Kit", "qty": 1}, {"name": "Pole", "qty": 1}, {"name": "Rations (3 days' worth)", "qty": 1}, {"name": "Tent", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Torch", "qty": 5}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 32, "goldB": 50, "trait": ""}, "dragon_cultist": {"name": "Dragon Cultist", "source": "FRHoF", "page": "29", "abilityScores": ["Dexterity", "Constitution", "Intelligence"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence", "skills": ["Deception", "Stealth"], "skillKeys": ["deception", "stealth"], "tools": ["Calligrapher's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Cult of the Dragon Initiate", "equipmentA": [{"name": "Calligrapher's Supplies", "qty": 1}, {"name": "Dagger", "qty": 1}, {"name": "Glass Bottle", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Manacles", "qty": 1}, {"name": "Oil (5 flasks)", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Robe", "qty": 1}, {"name": "Rope", "qty": 1}], "goldA": 30, "goldB": 50, "trait": ""}, "emerald_enclave_caretaker": {"name": "Emerald Enclave Caretaker", "source": "FRHoF", "page": "29", "abilityScores": ["Constitution", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Wisdom", "skills": ["Nature", "Survival"], "skillKeys": ["nature", "survival"], "tools": ["Herbalism Kit"], "languages": [], "langExtra": 0, "originFeat": "Emerald Enclave Fledgling", "equipmentA": [{"name": "Shortbow", "qty": 1}, {"name": "Arrow", "qty": 20}, {"name": "Herbalism Kit", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Blanket", "qty": 1}, {"name": "Pouch", "qty": 1}, {"name": "Tent", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 13, "goldB": 50, "trait": ""}, "entertainer": {"name": "Entertainer", "source": "PHB'24", "page": "180", "abilityScores": ["Strength", "Dexterity", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Charisma", "skills": ["Acrobatics", "Performance"], "skillKeys": ["acrobatics", "performance"], "tools": ["Musical Instrument (choice)"], "languages": [], "langExtra": 0, "originFeat": "Musician", "equipmentA": [{"name": "Musical Instrument (same as above)", "qty": 1}, {"name": "Costumes", "qty": 2}, {"name": "Mirror", "qty": 1}, {"name": "Perfume", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 11, "goldB": 50, "trait": "I spent much of my youth following roving fairs and carnivals, performing odd jobs for musicians and acrobats in exchange for lessons. I may have learned how to walk a tightrope, how to play a lute in a distinct style, or how to recite poetry with impeccable diction. To this day, I thrive on applause and long for the stage."}, "farmer": {"name": "Farmer", "source": "PHB'24", "page": "180", "abilityScores": ["Strength", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom", "skills": ["Animal Handling", "Nature"], "skillKeys": ["animal_handling", "nature"], "tools": ["Carpenter's Tools"], "languages": [], "langExtra": 0, "originFeat": "Tough", "equipmentA": [{"name": "Sickle", "qty": 1}, {"name": "Carpenter's Tools", "qty": 1}, {"name": "Healer's Kit", "qty": 1}, {"name": "Iron Pot", "qty": 1}, {"name": "Shovel", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 30, "goldB": 50, "trait": "I grew up close to the land. Years tending animals and cultivating the earth rewarded me with patience and good health. I have a keen appreciation for nature's bounty alongside a healthy respect for nature's wrath."}, "flaming_fist_mercenary": {"name": "Flaming Fist Mercenary", "source": "FRHoF", "page": "30", "abilityScores": ["Strength", "Constitution", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma", "skills": ["Intimidation", "Perception"], "skillKeys": ["intimidation", "perception"], "tools": ["Smith's Tools"], "languages": [], "langExtra": 0, "originFeat": "Tough", "equipmentA": [{"name": "Mace", "qty": 1}, {"name": "Smith's Tools", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Manacles", "qty": 1}, {"name": "Portable Ram", "qty": 1}], "goldA": 4, "goldB": 50, "trait": ""}, "genie_touched": {"name": "Genie Touched", "source": "FRHoF", "page": "30", "abilityScores": ["Dexterity", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma", "skills": ["Perception", "Persuasion"], "skillKeys": ["perception", "persuasion"], "tools": ["Glassblower's Tools"], "languages": [], "langExtra": 0, "originFeat": "Magic Initiate (Wizard)", "equipmentA": [{"name": "Light Hammer", "qty": 1}, {"name": "Glassblower's Tools", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 2, "goldB": 50, "trait": ""}, "guard": {"name": "Guard", "source": "PHB'24", "page": "181", "abilityScores": ["Strength", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Wisdom", "skills": ["Athletics", "Perception"], "skillKeys": ["athletics", "perception"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Alert", "equipmentA": [{"name": "Spear", "qty": 1}, {"name": "Light Crossbow", "qty": 1}, {"name": "Bolt", "qty": 20}, {"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Hooded Lantern", "qty": 1}, {"name": "Manacles", "qty": 1}, {"name": "Quiver", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 12, "goldB": 50, "trait": "my feet ache when I remember the countless hours I spent at my post in the tower. I was trained to keep one eye looking outside the wall watching for marauders sweeping from the nearby forest, and my other eye looking inside the wall searching for cut purses and troublemakers."}, "guide": {"name": "Guide", "source": "PHB'24", "page": "181", "abilityScores": ["Dexterity", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom", "skills": ["Stealth", "Survival"], "skillKeys": ["stealth", "survival"], "tools": ["Cartographer's Tools"], "languages": [], "langExtra": 0, "originFeat": "Magic Initiate (Druid)", "equipmentA": [{"name": "Shortbow", "qty": 1}, {"name": "Arrow", "qty": 20}, {"name": "Cartographer's Tools", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Quiver", "qty": 1}, {"name": "Tent", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 3, "goldB": 50, "trait": "I came of age outdoors, far from settled lands. My home was anywhere I chose to spread my bedroll. There are wonders in the wilderness - strange monsters, pristine forests, streams, overgrown ruins of great halls once trod by giants - and I learned to fend for myself as I explored them. From time to time, I guided friendly nature priests who instructed me in the fundamentals of channeling the magi"}, "harper": {"name": "Harper", "source": "FRHoF", "page": "31", "abilityScores": ["Dexterity", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma", "skills": ["Performance", "Sleight of Hand"], "skillKeys": ["performance", "sleight_of_hand"], "tools": ["Disguise Kit"], "languages": [], "langExtra": 0, "originFeat": "Harper Agent", "equipmentA": [{"name": "Disguise Kit", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Costume", "qty": 1}, {"name": "Grappling Hook", "qty": 1}, {"name": "Rope", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 14, "goldB": 50, "trait": ""}, "haunted_one": {"name": "Haunted One", "source": "RHW", "page": "", "abilityScores": ["Constitution", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma", "skills": ["Arcana", "Survival"], "skillKeys": ["arcana", "survival"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Survivor or a Dark Gift feat of your choice", "equipmentA": [{"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Crowbar", "qty": 1}, {"name": "Holy Water (1 flask)", "qty": 1}, {"name": "Mirror", "qty": 1}, {"name": "Oil (2 flasks)", "qty": 1}, {"name": "Signal Whistle", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Torch", "qty": 5}, {"name": "Waterskin", "qty": 1}], "goldA": 14, "goldB": 50, "trait": "You are haunted by the events of your past."}, "hermit": {"name": "Hermit", "source": "PHB'24", "page": "182", "abilityScores": ["Constitution", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma", "skills": ["Medicine", "Religion"], "skillKeys": ["medicine", "religion"], "tools": ["Herbalism Kit"], "languages": [], "langExtra": 0, "originFeat": "Healer", "equipmentA": [{"name": "Quarterstaff", "qty": 1}, {"name": "Herbalism Kit", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Book (philosophy)", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 16, "goldB": 50, "trait": "I spent my early years secluded in a hut or monastery located well beyond the outskirts of the nearest settlement. In those days, my only companions were the creatures of the forest and those who would occasionally visit to bring news of the outside world and supplies. The solitude allowed me to spend many hours pondering the mysteries of creation."}, "house_agent": {"name": "House Agent", "source": "EFA", "page": "26", "abilityScores": ["Strength", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Charisma", "skills": ["Investigation", "Persuasion"], "skillKeys": ["investigation", "persuasion"], "tools": ["Artisan's Tools (choice)"], "languages": [], "langExtra": 0, "originFeat": "Lucky", "equipmentA": [{"name": "Artisan's Tools (same as above)", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 20, "goldB": 50, "trait": "You are connected to one of the dragonmarked houses, but you haven't yet manifested a dragonmark. You might be a member of the family by birth or an outsider who proved their worth to the organization."}, "house_cannith_heir": {"name": "House Cannith Heir", "source": "EFA", "page": "27", "abilityScores": ["Strength", "Dexterity", "Intelligence"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Intelligence", "skills": ["Investigation", "Sleight of Hand"], "skillKeys": ["investigation", "sleight_of_hand"], "tools": ["Artisan's Tools (choice)"], "languages": [], "langExtra": 0, "originFeat": "Mark of Making", "equipmentA": [{"name": "Artisan's Tools (same as above)", "qty": 1}, {"name": "Crowbar", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Pouch", "qty": 2}], "goldA": 17, "goldB": 50, "trait": ""}, "house_deneith_heir": {"name": "House Deneith Heir", "source": "EFA", "page": "27", "abilityScores": ["Strength", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom", "skills": ["Insight", "Perception"], "skillKeys": ["insight", "perception"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Mark of Sentinel", "equipmentA": [{"name": "Spear", "qty": 1}, {"name": "Shortbow", "qty": 1}, {"name": "Arrow", "qty": 20}, {"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Healer's Kit", "qty": 1}, {"name": "Quiver", "qty": 1}], "goldA": 1, "goldB": 50, "trait": ""}, "house_ghallanda_heir": {"name": "House Ghallanda Heir", "source": "EFA", "page": "28", "abilityScores": ["Dexterity", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma", "skills": ["Insight", "Persuasion"], "skillKeys": ["insight", "persuasion"], "tools": ["Cook's Utensils"], "languages": [], "langExtra": 0, "originFeat": "Mark of Hospitality", "equipmentA": [{"name": "Cook's Utensils", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Iron Pot", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Oil (5 flasks)", "qty": 1}, {"name": "Perfume", "qty": 1}], "goldA": 26, "goldB": 50, "trait": ""}, "house_jorasco_heir": {"name": "House Jorasco Heir", "source": "EFA", "page": "28", "abilityScores": ["Dexterity", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom", "skills": ["Medicine", "Stealth"], "skillKeys": ["medicine", "stealth"], "tools": ["Herbalism Kit"], "languages": [], "langExtra": 0, "originFeat": "Mark of Healing", "equipmentA": [{"name": "Herbalism Kit", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Healer's Kit", "qty": 1}], "goldA": 25, "goldB": 50, "trait": ""}, "house_kundarak_heir": {"name": "House Kundarak Heir", "source": "EFA", "page": "29", "abilityScores": ["Strength", "Constitution", "Intelligence"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Intelligence", "skills": ["Arcana", "Investigation"], "skillKeys": ["arcana", "investigation"], "tools": ["Thieves' Tools"], "languages": [], "langExtra": 0, "originFeat": "Mark of Warding", "equipmentA": [{"name": "Thieves' Tools", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 10, "goldB": 50, "trait": ""}, "house_lyrandar_heir": {"name": "House Lyrandar Heir", "source": "EFA", "page": "29", "abilityScores": ["Strength", "Dexterity", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Charisma", "skills": ["Acrobatics", "Nature"], "skillKeys": ["acrobatics", "nature"], "tools": ["Navigator's Tools"], "languages": [], "langExtra": 0, "originFeat": "Mark of Storm", "equipmentA": [{"name": "Navigator's Tools", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 10, "goldB": 50, "trait": ""}, "house_medani_heir": {"name": "House Medani Heir", "source": "EFA", "page": "30", "abilityScores": ["Dexterity", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom", "skills": ["Insight", "Investigation"], "skillKeys": ["insight", "investigation"], "tools": ["Disguise Kit"], "languages": [], "langExtra": 0, "originFeat": "Mark of Detection", "equipmentA": [{"name": "Disguise Kit", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 10, "goldB": 50, "trait": ""}, "house_orien_heir": {"name": "House Orien Heir", "source": "EFA", "page": "30", "abilityScores": ["Dexterity", "Constitution", "Intelligence"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence", "skills": ["Acrobatics", "Athletics"], "skillKeys": ["acrobatics", "athletics"], "tools": ["Cartographer's Tools"], "languages": [], "langExtra": 0, "originFeat": "Mark of Passage", "equipmentA": [{"name": "Cartographer's Tools", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Map", "qty": 1}, {"name": "Map or Scroll Case", "qty": 1}], "goldA": 18, "goldB": 50, "trait": ""}, "house_phiarlan_heir": {"name": "House Phiarlan Heir", "source": "EFA", "page": "31", "abilityScores": ["Dexterity", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma", "skills": ["Deception", "Stealth"], "skillKeys": ["deception", "stealth"], "tools": ["Disguise Kit"], "languages": [], "langExtra": 0, "originFeat": "Mark of Shadow", "equipmentA": [{"name": "Disguise Kit", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 10, "goldB": 50, "trait": ""}, "house_sivis_heir": {"name": "House Sivis Heir", "source": "EFA", "page": "31", "abilityScores": ["Intelligence", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma", "skills": ["History", "Perception"], "skillKeys": ["history", "perception"], "tools": ["Calligrapher's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Mark of Scribing", "equipmentA": [{"name": "Calligrapher's Supplies", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Ink", "qty": 1}, {"name": "Ink Pen", "qty": 5}, {"name": "Paper (30 sheets)", "qty": 1}, {"name": "Parchment (9 sheets)", "qty": 1}], "goldA": 8, "goldB": 50, "trait": ""}, "house_tharashk_heir": {"name": "House Tharashk Heir", "source": "EFA", "page": "32", "abilityScores": ["Constitution", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Wisdom", "skills": ["Perception", "Survival"], "skillKeys": ["perception", "survival"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Mark of Finding", "equipmentA": [{"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Climber's Kit", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Hunting Trap", "qty": 1}, {"name": "Manacles", "qty": 1}], "goldA": 2, "goldB": 50, "trait": ""}, "house_thuranni_heir": {"name": "House Thuranni Heir", "source": "EFA", "page": "32", "abilityScores": ["Dexterity", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma", "skills": ["Performance", "Stealth"], "skillKeys": ["performance", "stealth"], "tools": ["Musical Instrument (choice)"], "languages": [], "langExtra": 0, "originFeat": "Mark of Shadow", "equipmentA": [{"name": "Musical Instrument (same as above)", "qty": 1}, {"name": "Costume", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 13, "goldB": 50, "trait": ""}, "house_vadalis_heir": {"name": "House Vadalis Heir", "source": "EFA", "page": "33", "abilityScores": ["Constitution", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma", "skills": ["Animal Handling", "Nature"], "skillKeys": ["animal_handling", "nature"], "tools": ["Herbalism Kit"], "languages": [], "langExtra": 0, "originFeat": "Mark of Handling", "equipmentA": [{"name": "Herbalism Kit", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Net", "qty": 1}], "goldA": 29, "goldB": 50, "trait": ""}, "ice_fisher": {"name": "Ice Fisher", "source": "FRHoF", "page": "31", "abilityScores": ["Strength", "Dexterity", "Constitution"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Constitution", "skills": ["Animal Handling", "Athletics"], "skillKeys": ["animal_handling", "athletics"], "tools": ["Woodcarver's Tools"], "languages": [], "langExtra": 0, "originFeat": "Alert", "equipmentA": [{"name": "Woodcarver's Tools", "qty": 1}, {"name": "Basket", "qty": 1}, {"name": "Block and Tackle", "qty": 1}, {"name": "Chain", "qty": 1}, {"name": "Hunting Trap", "qty": 1}, {"name": "Net", "qty": 1}, {"name": "Pole", "qty": 1}, {"name": "Rations (3 days' worth)", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 32, "goldB": 50, "trait": ""}, "inquisitive": {"name": "Inquisitive", "source": "EFA", "page": "33", "abilityScores": ["Constitution", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma", "skills": ["Insight", "Investigation"], "skillKeys": ["insight", "investigation"], "tools": ["Thieves' Tools"], "languages": [], "langExtra": 0, "originFeat": "Alert", "equipmentA": [{"name": "Thieves' Tools", "qty": 1}, {"name": "Bullseye Lantern", "qty": 1}, {"name": "Crowbar", "qty": 1}, {"name": "Oil (10 flasks)", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 10, "goldB": 50, "trait": ""}, "investigator": {"name": "Investigator", "source": "RHW", "page": "", "abilityScores": ["Intelligence", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma", "skills": ["Insight", "Investigation"], "skillKeys": ["insight", "investigation"], "tools": ["Disguise Kit"], "languages": [], "langExtra": 0, "originFeat": "Sharp Eye or a Dark Gift feat of your choice", "equipmentA": [{"name": "Disguise Kit", "qty": 1}, {"name": "Manacles", "qty": 1}, {"name": "Shovel", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Vial", "qty": 3}], "goldA": 16, "goldB": 50, "trait": "You relentlessly seek the truth."}, "knight_of_the_gauntlet": {"name": "Knight of the Gauntlet", "source": "FRHoF", "page": "32", "abilityScores": ["Strength", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Wisdom", "skills": ["Athletics", "Medicine"], "skillKeys": ["athletics", "medicine"], "tools": ["Smith's Tools"], "languages": [], "langExtra": 0, "originFeat": "Tyro of the Gauntlet", "equipmentA": [{"name": "Spear", "qty": 1}, {"name": "Smith's Tools", "qty": 1}, {"name": "Bullseye Lantern", "qty": 1}, {"name": "Holy Symbol", "qty": 1}, {"name": "Manacles", "qty": 1}, {"name": "Oil (5 flasks)", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 9, "goldB": 50, "trait": ""}, "lords_alliance_vassal": {"name": "Lords' Alliance Vassal", "source": "FRHoF", "page": "32", "abilityScores": ["Strength", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Charisma", "skills": ["Insight", "Persuasion"], "skillKeys": ["insight", "persuasion"], "tools": ["Calligrapher's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Lords' Alliance Agent", "equipmentA": [{"name": "Javelin", "qty": 2}, {"name": "Calligrapher's Supplies", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Ink", "qty": 1}, {"name": "Ink Pen", "qty": 5}, {"name": "Parchment (9 sheets)", "qty": 1}], "goldA": 13, "goldB": 50, "trait": ""}, "lorwyn_expert": {"name": "Lorwyn Expert", "source": "LFL", "page": "", "abilityScores": ["Strength", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Wisdom", "skills": ["Athletics", "Nature"], "skillKeys": ["athletics", "nature"], "tools": ["Cartographer's Tools"], "languages": [], "langExtra": 0, "originFeat": "Child of the Sun", "equipmentA": [{"name": "Quarterstaff", "qty": 1}, {"name": "Cartographer's Tools", "qty": 1}, {"name": "Backpack", "qty": 1}, {"name": "Basket", "qty": 1}, {"name": "Parchment (4 sheets)", "qty": 1}, {"name": "Rope", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 29, "goldB": 50, "trait": ""}, "merchant": {"name": "Merchant", "source": "PHB'24", "page": "182", "abilityScores": ["Constitution", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma", "skills": ["Animal Handling", "Persuasion"], "skillKeys": ["animal_handling", "persuasion"], "tools": ["Navigator's Tools"], "languages": [], "langExtra": 0, "originFeat": "Lucky", "equipmentA": [{"name": "Navigator's Tools", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 22, "goldB": 50, "trait": "I was apprenticed to a trader, caravan master, or shopkeeper, learning the fundamentals of commerce. I traveled broadly, and I earned a living by buying and selling the raw materials artisans need to practice their craft or finished works from such crafters. I might have transported goods from one place to another (by ship, wagon, or caravan) or bought them from traveling traders and sold them in "}, "mist_wanderer": {"name": "Mist Wanderer", "source": "RHW", "page": "", "abilityScores": ["Dexterity", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom", "skills": ["Survival", "Stealth"], "skillKeys": ["survival", "stealth"], "tools": ["Artisan's Tools (choice)"], "languages": [], "langExtra": 0, "originFeat": "A Dark Gift feat of your choice (Mist Walker is recommended)", "equipmentA": [{"name": "Artisan's Tools (same as above)", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Oil (5 flasks)", "qty": 1}, {"name": "Pouch", "qty": 1}, {"name": "Rope", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 30, "goldB": 50, "trait": "You have wandered between domains of dread, braving the Mists."}, "moonwell_pilgrim": {"name": "Moonwell Pilgrim", "source": "FRHoF", "page": "33", "abilityScores": ["Constitution", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Wisdom, and Charisma", "skills": ["Nature", "Performance"], "skillKeys": ["nature", "performance"], "tools": ["Painter's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Magic Initiate (Druid)", "equipmentA": [{"name": "Quarterstaff", "qty": 1}, {"name": "Painter's Supplies", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Bell", "qty": 1}, {"name": "Pouch", "qty": 1}, {"name": "Robe", "qty": 1}, {"name": "String", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 38, "goldB": 50, "trait": ""}, "mulhorandi_tomb_raider": {"name": "Mulhorandi Tomb Raider", "source": "FRHoF", "page": "33", "abilityScores": ["Dexterity", "Constitution", "Intelligence"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Intelligence", "skills": ["Investigation", "Religion"], "skillKeys": ["investigation", "religion"], "tools": ["Mason's Tools"], "languages": [], "langExtra": 0, "originFeat": "Lucky", "equipmentA": [{"name": "Dagger", "qty": 1}, {"name": "Light Hammer", "qty": 1}, {"name": "Mason's Tools", "qty": 1}, {"name": "Backpack", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Crowbar", "qty": 1}, {"name": "Ladder", "qty": 1}, {"name": "Pole", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Rope", "qty": 1}, {"name": "String", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Torch", "qty": 5}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 26, "goldB": 50, "trait": ""}, "mythalkeeper": {"name": "Mythalkeeper", "source": "FRHoF", "page": "34", "abilityScores": ["Intelligence", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Intelligence, Wisdom, and Charisma", "skills": ["Arcana", "History"], "skillKeys": ["arcana", "history"], "tools": ["Jeweler's Tools"], "languages": [], "langExtra": 0, "originFeat": "Crafter", "equipmentA": [{"name": "Quarterstaff", "qty": 1}, {"name": "Jeweler's Tools", "qty": 1}, {"name": "Perfume", "qty": 1}, {"name": "Pouch", "qty": 1}, {"name": "Robe", "qty": 1}, {"name": "Shovel", "qty": 1}, {"name": "String", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 16, "goldB": 50, "trait": ""}, "noble": {"name": "Noble", "source": "PHB'24", "page": "183", "abilityScores": ["Strength", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Intelligence, and Charisma", "skills": ["History", "Persuasion"], "skillKeys": ["history", "persuasion"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Skilled", "equipmentA": [{"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Perfume", "qty": 1}], "goldA": 29, "goldB": 50, "trait": "I was raised in a castle, surrounded by wealth, power, and privilege. My family of minor aristocrats ensured that I received a first-class education, some of which I appreciated and some of which I resented. My time in the castle, especially the many hours I spent observing my family at court, also taught me a great deal about leadership."}, "pact_seeker": {"name": "Pact Seeker", "source": "BndD", "page": "", "abilityScores": ["Constitution", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma", "skills": ["Arcana", "Persuasion"], "skillKeys": ["arcana", "persuasion"], "tools": ["Calligrapher's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Choose one Planar Pact feat", "equipmentA": [{"name": "Book", "qty": 1}, {"name": "Calligrapher's Supplies", "qty": 1}, {"name": "Ink", "qty": 1}, {"name": "Ink Pen", "qty": 1}, {"name": "Parchment (10 sheets)", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 2, "goldB": 50, "trait": ""}, "purple_dragon_squire": {"name": "Purple Dragon Squire", "source": "FRHoF", "page": "34", "abilityScores": ["Strength", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Wisdom, and Charisma", "skills": ["Animal Handling", "Insight"], "skillKeys": ["animal_handling", "insight"], "tools": ["Navigator's Tools"], "languages": [], "langExtra": 0, "originFeat": "Purple Dragon Rook", "equipmentA": [{"name": "Spear", "qty": 1}, {"name": "Navigator's Tools", "qty": 1}, {"name": "Fine Clothes", "qty": 1}], "goldA": 9, "goldB": 50, "trait": ""}, "rashemi_wanderer": {"name": "Rashemi Wanderer", "source": "FRHoF", "page": "35", "abilityScores": ["Strength", "Constitution", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma", "skills": ["Intimidation", "Perception"], "skillKeys": ["intimidation", "perception"], "tools": ["Cartographer's Tools"], "languages": [], "langExtra": 0, "originFeat": "Tough", "equipmentA": [{"name": "Cartographer's Tools", "qty": 1}, {"name": "Backpack", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Hooded Lantern", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Rope", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 23, "goldB": 50, "trait": ""}, "sage": {"name": "Sage", "source": "PHB'24", "page": "183", "abilityScores": ["Constitution", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Wisdom", "skills": ["Arcana", "History"], "skillKeys": ["arcana", "history"], "tools": ["Calligrapher's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Magic Initiate (Wizard)", "equipmentA": [{"name": "Quarterstaff", "qty": 1}, {"name": "Calligrapher's Supplies", "qty": 1}, {"name": "Book (history)", "qty": 1}, {"name": "Parchment (8 sheets)", "qty": 1}, {"name": "Robe", "qty": 1}], "goldA": 8, "goldB": 50, "trait": "I spent my formative years traveling between manors and monasteries, performing various odd jobs and services in exchange for access to their libraries. I whiled away many a long evening studying books and scrolls, learning the lore of the multiverse - even the rudiments of magic - and my mind yearns for more."}, "sailor": {"name": "Sailor", "source": "PHB'24", "page": "184", "abilityScores": ["Strength", "Dexterity", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Wisdom", "skills": ["Acrobatics", "Perception"], "skillKeys": ["acrobatics", "perception"], "tools": ["Navigator's Tools"], "languages": [], "langExtra": 0, "originFeat": "Tavern Brawler", "equipmentA": [{"name": "Dagger", "qty": 1}, {"name": "Navigator's Tools", "qty": 1}, {"name": "Rope", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 20, "goldB": 50, "trait": "I lived as a seafarer, wind at my back and decks swaying beneath my feet. I've perched on bar stools in more ports of call than I can remember, faced mighty storms, and swapped stories with folk who live beneath the waves."}, "scribe": {"name": "Scribe", "source": "PHB'24", "page": "184", "abilityScores": ["Dexterity", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Wisdom", "skills": ["Investigation", "Perception"], "skillKeys": ["investigation", "perception"], "tools": ["Calligrapher's Supplies"], "languages": [], "langExtra": 0, "originFeat": "Skilled", "equipmentA": [{"name": "Calligrapher's Supplies", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Parchment (12 sheets)", "qty": 1}], "goldA": 23, "goldB": 50, "trait": "I spent formative years in a scriptorium, a monastery dedicated to the preservation of knowledge, or a government agency, where I learned to write with a clear hand and produce finely written texts. Perhaps I scribed government documents or copied tomes of literature, I might have some skill as a writer of poetry, narrative, or scholarly research. Above all, I have a careful attention to detail, h"}, "shadowmasters_exile": {"name": "Shadowmasters Exile", "source": "FRHoF", "page": "35", "abilityScores": ["Dexterity", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma", "skills": ["Acrobatics", "Stealth"], "skillKeys": ["acrobatics", "stealth"], "tools": ["Thieves' Tools"], "languages": [], "langExtra": 0, "originFeat": "Savage Attacker", "equipmentA": [{"name": "Dagger", "qty": 2}, {"name": "Thieves' Tools", "qty": 1}, {"name": "Caltrops", "qty": 1}, {"name": "Costume", "qty": 1}, {"name": "Grappling Hook", "qty": 1}, {"name": "Iron Spikes", "qty": 1}, {"name": "Mirror", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Rope", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 3, "goldB": 50, "trait": ""}, "shadowmoor_expert": {"name": "Shadowmoor Expert", "source": "LFL", "page": "", "abilityScores": ["Dexterity", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Intelligence, and Charisma", "skills": ["Acrobatics", "Deception"], "skillKeys": ["acrobatics", "deception"], "tools": ["Glassblower's Tools"], "languages": [], "langExtra": 0, "originFeat": "Shadowmoor Hexer", "equipmentA": [{"name": "Dagger", "qty": 1}, {"name": "Glassblower's Tools", "qty": 1}, {"name": "Backpack", "qty": 1}, {"name": "Hunting Trap", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 8, "goldB": 50, "trait": ""}, "soldier": {"name": "Soldier", "source": "PHB'24", "page": "185", "abilityScores": ["Strength", "Dexterity", "Constitution"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Constitution", "skills": ["Athletics", "Intimidation"], "skillKeys": ["athletics", "intimidation"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Savage Attacker", "equipmentA": [{"name": "Spear", "qty": 1}, {"name": "Shortbow", "qty": 1}, {"name": "Arrow", "qty": 20}, {"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Healer's Kit", "qty": 1}, {"name": "Quiver", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 14, "goldB": 50, "trait": "I began training for war as soon as I reached adulthood and carry precious few memories of life before I took up arms. Battle is in my blood. Sometimes I catch myself reflexively performing the basic fighting exercises I learned first. Eventually, I put that training to use on the battlefield, protecting the realm by waging war."}, "spellfire_initiate": {"name": "Spellfire Initiate", "source": "FRHoF", "page": "36", "abilityScores": ["Constitution", "Intelligence", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Charisma", "skills": ["Arcana", "Perception"], "skillKeys": ["arcana", "perception"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "Spellfire Spark", "equipmentA": [{"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Arcane Focus (Crystal or Wand)", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 36, "goldB": 50, "trait": ""}, "spirit_medium": {"name": "Spirit Medium", "source": "RHW", "page": "", "abilityScores": ["Constitution", "Intelligence", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Constitution, Intelligence, and Wisdom", "skills": ["Insight", "Religion"], "skillKeys": ["insight", "religion"], "tools": ["Gaming Set (choice)"], "languages": [], "langExtra": 0, "originFeat": "A Dark Gift feat of your choice (Gathered Whispers is recommended)", "equipmentA": [{"name": "Dagger", "qty": 1}, {"name": "Gaming Set (same as above)", "qty": 1}, {"name": "Basket", "qty": 1}, {"name": "Bell", "qty": 1}, {"name": "Candles", "qty": 8}, {"name": "Ink", "qty": 1}, {"name": "Ink Pen", "qty": 1}, {"name": "Paper (5 sheets)", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 32, "goldB": 50, "trait": "Your body is a conduit for spirits of the dead and damned."}, "vampire_devotee": {"name": "Vampire Devotee", "source": "ABH", "page": "6", "abilityScores": ["Strength", "Constitution", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Constitution, and Charisma", "skills": ["Persuasion", "Stealth"], "skillKeys": ["persuasion", "stealth"], "tools": ["Cook's Utensils"], "languages": [], "langExtra": 0, "originFeat": "Vampire's Plaything", "equipmentA": [{"name": "Cook's Utensils", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Glass Bottles", "qty": 2}, {"name": "Healer's Kit", "qty": 1}, {"name": "Perfume", "qty": 1}, {"name": "Lamp", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 19, "goldB": 50, "trait": ""}, "vampire_survivor": {"name": "Vampire Survivor", "source": "ABH", "page": "7", "abilityScores": ["Dexterity", "Constitution", "Wisdom"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Constitution, and Wisdom", "skills": ["Insight", "Religion"], "skillKeys": ["insight", "religion"], "tools": ["Woodcarver's Tools"], "languages": [], "langExtra": 0, "originFeat": "Vampire Hunter", "equipmentA": [{"name": "Woodcarver's Tools", "qty": 1}, {"name": "Crowbar", "qty": 1}, {"name": "Hooded Lantern", "qty": 1}, {"name": "Holy Symbol (reliquary)", "qty": 1}, {"name": "Holy Water", "qty": 1}, {"name": "Mirror", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Tinderbox", "qty": 1}, {"name": "Traveler's Clothes", "qty": 1}, {"name": "Waterskin", "qty": 1}], "goldA": 4, "goldB": 50, "trait": ""}, "wayfarer": {"name": "Wayfarer", "source": "PHB'24", "page": "185", "abilityScores": ["Dexterity", "Wisdom", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Dexterity, Wisdom, and Charisma", "skills": ["Insight", "Stealth"], "skillKeys": ["insight", "stealth"], "tools": ["Thieves' Tools"], "languages": [], "langExtra": 0, "originFeat": "Lucky", "equipmentA": [{"name": "Dagger", "qty": 2}, {"name": "Thieves' Tools", "qty": 1}, {"name": "Gaming Set (any)", "qty": 1}, {"name": "Bedroll", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "Traveler's Clothes", "qty": 1}], "goldA": 16, "goldB": 50, "trait": "I grew up on the streets surrounded by similarly ill-fated castoffs, a few of them friends and a few of them rivals. I slept where I could and did odd jobs for food. At times, when the hunger became unbearable, I resorted to theft Still, I never lost my pride and never abandoned hope. Fate is not finished with me."}, "zhentarim_mercenary": {"name": "Zhentarim Mercenary", "source": "FRHoF", "page": "36", "abilityScores": ["Strength", "Dexterity", "Charisma"], "scoresTxt": "+2 and +1 -or- +1 to each from Strength, Dexterity, and Charisma", "skills": ["Intimidation", "Perception"], "skillKeys": ["intimidation", "perception"], "tools": ["Forgery Kit"], "languages": [], "langExtra": 0, "originFeat": "Zhentarim Ruffian", "equipmentA": [{"name": "Club", "qty": 1}, {"name": "Dagger", "qty": 1}, {"name": "Forgery Kit", "qty": 1}, {"name": "Fine Clothes", "qty": 1}, {"name": "Hooded Lantern", "qty": 1}, {"name": "Oil (3 flasks)", "qty": 1}, {"name": "Pouch", "qty": 2}, {"name": "String", "qty": 1}, {"name": "Tinderbox", "qty": 1}], "goldA": 11, "goldB": 50, "trait": ""}};
 const PHB_FEATS = {
   "alert": {
     "name": "Alert [Origin]",
@@ -42773,6 +42189,14 @@ function onBackgroundChange() {
   if (!currentChar) return;
   const el = document.getElementById('bg-background');
   const newBgKey = el?.getAttribute('data-bgval') || el?.value || '';
+  // Forget which equipment option was picked if this is genuinely a
+  // different background — but don't remove the items/gold it already
+  // granted. Auto-deleting inventory rows the player may have since
+  // edited would be a far more surprising loss than just letting the
+  // tracker re-offer a fresh A/B choice for the new background.
+  if (currentChar._bgEquipChoice && currentChar._bgEquipChoice.bgKey !== newBgKey) {
+    currentChar._bgEquipChoice = null;
+  }
   currentChar.background = newBgKey;
   // Clear previous background skills/feats before applying new ones
   if (currentChar._bgSkills) {
@@ -42878,6 +42302,106 @@ function applyBackgroundDefaults(bgKey) {
   recalcQuickStats();
 }
 
+// ── Background starting equipment (Choose A or B) ──────────────────
+// Shared between the Background Tab and Quick Start Guide. Each
+// background now stores its Choice A as a real {name, qty} equipment
+// list plus a gold amount, and Choice B as a flat gold amount (see
+// PHB_BACKGROUNDS) — this renders the two options and, on pick, adds the
+// right items (with real quantities, not just qty:1 for everything) and
+// gold to the character.
+function renderBackgroundEquipmentChoice(bgKey, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const bg = PHB_BACKGROUNDS[bgKey] || PHB_BACKGROUNDS[bgKey?.toLowerCase?.()]
+          || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === bgKey?.toLowerCase());
+  if (!bg) { container.innerHTML = ''; return; }
+  const normKey = Object.keys(PHB_BACKGROUNDS).find(k => PHB_BACKGROUNDS[k] === bg) || bgKey;
+  const applied = (currentChar?._bgEquipChoice?.bgKey === normKey) ? currentChar._bgEquipChoice.choice : null;
+
+  const itemsListA = (bg.equipmentA || []).map(it => it.qty > 1 ? `${it.qty}× ${it.name}` : it.name).join(', ');
+
+  const optionRow = (choice, label, disabled) => `
+    <div class="tbtn" style="text-align:left;justify-content:flex-start;padding:8px 10px;cursor:${disabled?'default':'pointer'};${applied===choice?'border-color:var(--accent);color:var(--accent)':''}"
+      ${disabled ? '' : `onclick="applyBackgroundEquipmentChoice('${normKey}','${choice}','${containerId}')"`}>
+      <span style="font-family:var(--font-ui);font-size:10px;line-height:1.5">
+        <strong>(${choice})</strong> ${label}
+      </span>
+      ${applied===choice ? '<span style="color:var(--accent);margin-left:6px">✓</span>' : ''}
+    </div>`;
+
+  container.innerHTML = `
+    <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;margin-bottom:6px">STARTING EQUIPMENT — CHOOSE A OR B</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${optionRow('A', `${itemsListA}${bg.goldA ? `, ${bg.goldA} GP` : ''}`)}
+      ${optionRow('B', `${bg.goldB || 50} GP`)}
+    </div>
+    ${applied ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:6px">Option ${applied} is in your inventory/gold. Picking the other option swaps it out.</div>` : ''}
+  `;
+}
+window.renderBackgroundEquipmentChoice = renderBackgroundEquipmentChoice;
+
+function applyBackgroundEquipmentChoice(bgKey, choice, containerId) {
+  const bg = PHB_BACKGROUNDS[bgKey];
+  if (!bg || !currentChar) return;
+  const already = currentChar._bgEquipChoice;
+  if (already && already.bgKey === bgKey && already.choice === choice) return;
+  // Switching between A/B for the SAME background: undo the previous
+  // choice's items/gold first so they're not double-counted. Switching to
+  // a DIFFERENT background (handled in onBackgroundChange) just forgets
+  // the tracking instead — silently deleting inventory rows the player
+  // may have since edited would be far more surprising than leaving them.
+  if (already && already.bgKey === bgKey) undoBackgroundEquipmentChoice();
+
+  if (!currentChar.currency) currentChar.currency = {};
+  if (!currentChar.equipment) currentChar.equipment = [];
+
+  if (choice === 'A') {
+    (bg.equipmentA || []).forEach(it => {
+      currentChar.equipment.push({ name: it.name, qty: it.qty, weight: '', desc: '', _bgGranted: true });
+    });
+    currentChar.currency.gp = (currentChar.currency.gp || 0) + (bg.goldA || 0);
+  } else {
+    currentChar.currency.gp = (currentChar.currency.gp || 0) + (bg.goldB || 50);
+  }
+  currentChar._bgEquipChoice = { bgKey, choice };
+
+  // updateCurrencyTotal() reads FROM the gp input field into currentChar,
+  // not the other way round — since we just changed currentChar directly,
+  // the input has to be caught up first or that call would immediately
+  // overwrite what we just set with the field's stale old value.
+  const gpEl = document.getElementById('cur-gp');
+  if (gpEl) gpEl.value = currentChar.currency.gp;
+  if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal();
+  if (typeof renderEquipList === 'function') renderEquipList();
+  debouncedSave();
+  toast(`Applied Option ${choice} from ${bg.name}.`, 'ok');
+  renderBackgroundEquipmentChoice(bgKey, containerId);
+}
+window.applyBackgroundEquipmentChoice = applyBackgroundEquipmentChoice;
+
+function undoBackgroundEquipmentChoice() {
+  if (!currentChar?._bgEquipChoice) return;
+  const { bgKey, choice } = currentChar._bgEquipChoice;
+  const bg = PHB_BACKGROUNDS[bgKey];
+  if (!bg) { currentChar._bgEquipChoice = null; return; }
+  if (!currentChar.currency) currentChar.currency = {};
+  if (choice === 'A') {
+    // Remove exactly the rows this choice added (matched by the
+    // _bgGranted flag plus name+qty), not just anything with a matching
+    // name — the player may separately own an item that happens to share
+    // a name with something their background granted.
+    (bg.equipmentA || []).forEach(it => {
+      const idx = (currentChar.equipment || []).findIndex(e => e._bgGranted && e.name === it.name && e.qty === it.qty);
+      if (idx !== -1) currentChar.equipment.splice(idx, 1);
+    });
+    currentChar.currency.gp = Math.max(0, (currentChar.currency.gp || 0) - (bg.goldA || 0));
+  } else {
+    currentChar.currency.gp = Math.max(0, (currentChar.currency.gp || 0) - (bg.goldB || 50));
+  }
+  currentChar._bgEquipChoice = null;
+}
+window.undoBackgroundEquipmentChoice = undoBackgroundEquipmentChoice;
+
 function renderBackgroundInfo(_bgParam) {
   // Always resolve from current state — ignore passed param to avoid stale closure issues
   const _bgKey = document.getElementById('bg-background')?.getAttribute('data-bgval')
@@ -42953,15 +42477,12 @@ function renderBackgroundInfo(_bgParam) {
     </div>`;
   }
 
-  // Starting gold
-  if (bg.gold) {
-    html += `<div>
-      <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;margin-bottom:3px">STARTING GOLD</div>
-      <div style="font-family:var(--font-body);font-size:13px;color:var(--coin-gold)">${bg.gold} gp</div>
-    </div>`;
-  }
+  // Starting gold — superseded by the equipment choice section below,
+  // which covers both gold and items together (each option has its own
+  // gold amount, so a single flat "starting gold" line doesn't fit).
 
   html += '</div>';
+  html += '<div id="bg-equip-choice" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"></div>';
 
   // Flavour trait
   if (bg.trait) {
@@ -42969,6 +42490,7 @@ function renderBackgroundInfo(_bgParam) {
   }
 
   infoEl.innerHTML = html;
+  renderBackgroundEquipmentChoice(_bgKey, 'bg-equip-choice');
 }
 
 function initBackgroundDropdown() {
@@ -47726,7 +47248,16 @@ function renderLevelPlanGrid() {
   if (!grid || !currentChar) return;
   grid.innerHTML = '';
 
-  const totalLv = getLevel();
+  // getLevel() reads off currentChar.classes, which is empty (or holds
+  // only the {class:'',levels:[1]} placeholder migrateToMulticlass()
+  // creates) the first time a Quick Start character reaches this modal
+  // without having picked a class yet — giving a total of 0 or 1 rather
+  // than the level the player already chose earlier in Quick Start. Use
+  // whichever is higher so the full run of levels always renders here,
+  // without changing anything for the main sheet's own (non-Quick-Start)
+  // multiclass editing, where _qsTargetLevel is irrelevant.
+  const qsLevel = (typeof _qsActive !== 'undefined' && _qsActive && typeof _qsTargetLevel !== 'undefined') ? _qsTargetLevel : 0;
+  const totalLv = Math.max(getLevel(), qsLevel);
   const classes = currentChar.classes || [];
   const classNames = classes.map(c => c.class).filter(Boolean);
 
@@ -47758,7 +47289,12 @@ function renderLevelPlanGrid() {
     // Class select
     const clsSel = document.createElement('select');
     clsSel.className = 'level-plan-select';
-    if (lv === 1) {
+    // Level 1 only locks once a real primary class actually exists — a
+    // brand-new Quick Start character reaching this modal with nothing
+    // chosen yet has classNames[0] === '' (the empty placeholder), and
+    // should be able to pick their primary class right here rather than
+    // being shown a disabled "-" with no way forward.
+    if (lv === 1 && classNames[0]) {
       // Level 1 locked to primary
       const opt = document.createElement('option');
       opt.value = classNames[0] || '';
@@ -47771,8 +47307,10 @@ function renderLevelPlanGrid() {
         const opt = document.createElement('option');
         opt.value = c;
         opt.textContent = c.charAt(0).toUpperCase() + c.slice(1);
-        // Primary class is always allowed (already in it)
-        if (c !== classNames[0]) {
+        // Primary class is always allowed (already in it, or about to
+        // become it) — level 1 never has multiclass ability-score
+        // prerequisites regardless of whether a primary class exists yet.
+        if (lv !== 1 && c !== classNames[0]) {
           const req = meetsMulticlassReq(c);
           if (!req.ok) {
             opt.disabled = true;
@@ -47788,10 +47326,24 @@ function renderLevelPlanGrid() {
     clsSel.addEventListener('change', () => {
       const newCls = clsSel.value;
       _levelPlanDraft[lv] = newCls;
-      // Auto-add class to classes array if not present
-      const exists = currentChar.classes.some(c => c.class === newCls);
-      if (!exists && newCls) {
-        currentChar.classes.push({ class: newCls, subclass: '', levels: [] });
+      if (lv === 1) {
+        // This is the primary-class slot. If classes[0] is still the
+        // empty placeholder (or missing outright), set its class directly
+        // rather than pushing a second entry — otherwise the placeholder
+        // and the real choice both end up in currentChar.classes.
+        if (currentChar.classes?.[0] && !currentChar.classes[0].class) {
+          currentChar.classes[0].class = newCls;
+        } else if (!currentChar.classes?.length) {
+          currentChar.classes = [{ class: newCls, subclass: '', levels: [] }];
+        } else if (!currentChar.classes.some(c => c.class === newCls)) {
+          currentChar.classes.unshift({ class: newCls, subclass: '', levels: [] });
+        }
+      } else {
+        // Auto-add class to classes array if not present
+        const exists = currentChar.classes.some(c => c.class === newCls);
+        if (!exists && newCls) {
+          currentChar.classes.push({ class: newCls, subclass: '', levels: [] });
+        }
       }
       renderLevelPlanGrid();
     });
@@ -48116,25 +47668,17 @@ function renderQuickStartItemsStep(body) {
 
   body.innerHTML = `
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5">
-      This sheet doesn't guess which specific starting-equipment options you'd pick (a rapier vs. a longsword, etc.) - set your gold here, then use these to add whatever your class and background actually grant.
+      Pick your background's starting equipment below, then use these to add whatever your class also grants (a rapier vs. a longsword, etc.).
     </div>
+
+    ${bg ? `<div id="qs-bg-equip-choice" style="margin-bottom:16px;padding:10px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)"></div>` : ''}
 
     <div style="margin-bottom:16px">
-      <label class="field-label">Starting Gold (gp)</label>
+      <label class="field-label">Gold (gp) — adjust freely</label>
       <input type="number" min="0" class="info-input" id="qs-gold-input" value="${currentGP}"
         onchange="setQuickStartGold(this.value)" style="width:120px"/>
-      ${bg?.gold ? `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-left:8px">${bg.name} background typically starts with ${bg.gold} gp</span>` : ''}
+      <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px">Reflects the equipment choice above plus anything else you add — edit directly if your table uses different starting-wealth rules.</div>
     </div>
-
-    ${bg?.equipment?.length ? `
-      <div style="margin-bottom:16px;padding:10px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)">
-        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-bottom:6px">${bg.name.toUpperCase()} STARTING EQUIPMENT</div>
-        <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px">${bg.equipment.filter(e => e !== 'P24').join(', ')}</div>
-        <button class="tbtn" id="qs-bg-equip-btn" style="width:100%;justify-content:center" ${currentChar._qsBgEquipAdded === bgNormKey ? 'disabled' : ''}
-          onclick="quickStartAddBackgroundEquipment('${bgNormKey}')">
-          ${currentChar._qsBgEquipAdded === bgNormKey ? '✓ Added to Inventory' : '+ Add This Equipment to Inventory'}
-        </button>
-      </div>` : ''}
 
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="tbtn" style="justify-content:flex-start" onclick="quickStartOpenItemModal('openAddWeapon')">+ Add Weapon</button>
@@ -48143,6 +47687,7 @@ function renderQuickStartItemsStep(body) {
       <button class="tbtn" style="justify-content:flex-start" onclick="quickStartPauseForInlineTask('magic')">+ Add Magic Item</button>
     </div>
   `;
+  if (bg) renderBackgroundEquipmentChoice(bgNormKey, 'qs-bg-equip-choice');
 }
 
 // Pause the wizard to open one of the real add-item modals — resumed via
@@ -48319,7 +47864,7 @@ function renderQuickStartBackgroundDetail(key) {
   const bg = PHB_BACKGROUNDS[key];
   if (!bg) { el.innerHTML = ''; return; }
 
-  const equipList = (bg.equipment || []).filter(e => e !== 'P24' && e !== bg.scoresTxt && !bg.skills?.includes(e));
+  const itemsListA = (bg.equipmentA || []).map(it => it.qty > 1 ? `${it.qty}× ${it.name}` : it.name).join(', ');
   el.innerHTML = `
     <div style="padding:10px;background:var(--bg3);border:1px solid var(--accent3);border-radius:var(--radius)">
       <div style="font-family:var(--font-ui);font-size:10px;color:var(--accent3);letter-spacing:.5px;margin-bottom:8px">${bg.name.toUpperCase()} GRANTS</div>
@@ -48329,39 +47874,13 @@ function renderQuickStartBackgroundDetail(key) {
         ${bg.tools?.length ? `<div><strong style="color:var(--text)">Tools:</strong> ${bg.tools.join(', ')}</div>` : ''}
         ${bg.languages?.length || bg.langExtra ? `<div><strong style="color:var(--text)">Languages:</strong> ${(bg.languages||[]).join(', ')}${bg.langExtra ? ` + ${bg.langExtra} of your choice` : ''}</div>` : ''}
         ${(bg.originFeat || bg.feat) ? `<div><strong style="color:var(--text)">Origin Feat:</strong> <span onclick="event.stopPropagation();openFeatInfoModal('${(bg.originFeat || bg.feat).replace(/'/g,"\\'")}')" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;color:var(--accent)" title="View ${(bg.originFeat || bg.feat).replace(/"/g,'&quot;')}">${bg.originFeat || bg.feat}</span></div>` : ''}
-        <div><strong style="color:var(--text)">Starting Gold:</strong> ${bg.gold || 0} gp</div>
-        ${equipList.length ? `<div><strong style="color:var(--text)">Equipment:</strong> ${equipList.join(', ')} <span style="color:var(--text3)">(add these on the Starting Items step)</span></div>` : ''}
+        <div><strong style="color:var(--text)">Equipment (A):</strong> ${itemsListA}${bg.goldA ? `, ${bg.goldA} GP` : ''}</div>
+        <div><strong style="color:var(--text)">Equipment (B):</strong> ${bg.goldB || 50} GP</div>
+        <div style="color:var(--text3);margin-top:2px">Choose between these on the Starting Items step.</div>
       </div>
     </div>
   `;
 }
-
-// Adds the background's listed starting equipment directly as general
-// gear rows — most background equipment entries are plain items rather
-// than weapons/armor needing their own dedicated stat-tracking modal.
-function quickStartAddBackgroundEquipment(key) {
-  const bg = PHB_BACKGROUNDS[key]
-          || PHB_BACKGROUNDS[key?.toLowerCase()]
-          || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === key?.toLowerCase());
-  // Always resolve the actual storage key from the found object, rather
-  // than trusting whatever form was passed in — this is what gets
-  // compared against later to decide whether the button should be
-  // disabled, so it has to be consistent every time regardless of
-  // whether this call arrived with a key or a display name.
-  const normKey = bg ? (Object.keys(PHB_BACKGROUNDS).find(k => PHB_BACKGROUNDS[k] === bg) || key) : key;
-  if (!bg || !currentChar || currentChar._qsBgEquipAdded === normKey) return;
-  if (!currentChar.equipment) currentChar.equipment = [];
-  const equipList = (bg.equipment || []).filter(e => e !== 'P24' && e !== bg.scoresTxt && !bg.skills?.includes(e));
-  equipList.forEach(name => {
-    currentChar.equipment.push({ name, qty: 1, weight: '', desc: '' });
-  });
-  currentChar._qsBgEquipAdded = normKey;
-  if (typeof renderEquipList === 'function') renderEquipList();
-  debouncedSave();
-  toast(`Added ${equipList.length} item(s) from ${bg.name}.`, 'ok');
-  renderQuickStartItemsStep(document.getElementById('qs-step-body'));
-}
-window.quickStartAddBackgroundEquipment = quickStartAddBackgroundEquipment;
 
 function renderQuickStartClassStep(body) {
   const primary = currentChar.classes?.[0];
