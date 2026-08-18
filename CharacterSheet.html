@@ -47244,15 +47244,20 @@ function populateFeaturesTab() {
     // Route displayed text through any DM override, keyed by the entry's
     // actual identity (class/subclass/race/feat + feature name) rather than
     // the synthetic per-render e.id, so an override survives across
-    // sessions and re-renders. Falls back to null (no override key, so the
-    // baked-in text is used as-is) for entry types not yet covered — e.g.
-    // the combined Invocations/Book of Shadows/Arcanum cards, which are
-    // synthesized from several spells rather than a single RAW passage.
+    // sessions and re-renders. Excludes isHtml entries (e.g. the combined
+    // Invocations/Book of Shadows/Arcanum cards) — those are synthesized
+    // from several spells with their own nested clickable links baked in,
+    // not a single RAW passage, and embedding that much pre-existing
+    // markup (each with its own onclick="..." attributes) into the edit
+    // pencil's onclick string breaks the HTML attribute escaping. Plain-
+    // text RAW entries are unaffected.
     let overrideKey = null;
-    if (e.sourceType === 'Class') overrideKey = `class:${cls}:${e.name}`;
-    else if (e.sourceType === 'Subclass' && subKey) overrideKey = `subclass:${subKey}:${e.name}`;
-    else if (e.sourceType === 'Race') overrideKey = `race:${race}:${e.name}`;
-    else if (e.sourceType === 'Feat' || e.sourceType === 'Background Feat') overrideKey = `feat:${e.name}`;
+    if (!e.isHtml) {
+      if (e.sourceType === 'Class') overrideKey = `class:${cls}:${e.name}`;
+      else if (e.sourceType === 'Subclass' && subKey) overrideKey = `subclass:${subKey}:${e.name}`;
+      else if (e.sourceType === 'Race') overrideKey = `race:${race}:${e.name}`;
+      else if (e.sourceType === 'Feat' || e.sourceType === 'Background Feat') overrideKey = `feat:${e.name}`;
+    }
 
     let _descForRender = getEffectiveText(overrideKey, e.desc);
     if (e.name === 'Expanded Spell List' && (e.source || '').toLowerCase() === 'the genie' && _descForRender) {
