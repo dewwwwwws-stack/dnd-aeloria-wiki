@@ -46,6 +46,9 @@
      wrong for actual currency: a GP amount should look like gold coins
      regardless of which theme is active. This is that fixed color. */
   --coin-gold:  #d4af37;
+  --coin-silver: #b8b8b8;
+  --coin-copper: #b5651d;
+  --coin-platinum: #c0d0e0;
   --gold-dim:   #5d3699;
   --gold-faint: #f0e8fa;
   --gold-glow:  rgba(124,77,196,0.15);
@@ -1853,6 +1856,9 @@ body.preview-readonly #mi-detail-edit-row * {
 .currency-input::-webkit-outer-spin-button,
 .currency-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .currency-input:focus { border-color: var(--coin-gold); }
+#cur-cp:focus { border-color: var(--coin-copper); }
+#cur-sp:focus { border-color: var(--coin-silver); }
+#cur-pp:focus { border-color: var(--coin-platinum); }
 .currency-sub {
   font-family: var(--font-ui); font-size: 9px;
   color: var(--text3); letter-spacing: .8px; text-transform: uppercase;
@@ -2665,21 +2671,19 @@ body.preview-readonly #mi-detail-edit-row * {
           <!-- Character Info -->
           <div class="panel">
             <div class="panel-title">Character</div>
-            <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">
-              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0">
-                <div id="char-token-preview" style="width:110px;height:110px;border-radius:14px;border:2px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
-                  <span style="font-size:36px;color:var(--text3)">⚔</span>
+            <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:10px">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:40%;max-width:170px">
+                <div id="char-token-preview" style="width:100%;aspect-ratio:1;border-radius:14px;border:2px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
+                  <span style="font-size:clamp(24px, 15vw, 56px);color:var(--text3)">⚔</span>
                 </div>
                 <input type="file" id="ci-token-file" accept="image/*" style="display:none" onchange="handleTokenFileUpload(this.files[0])"/>
-                <button class="tbtn" style="font-size:9px;padding:4px 8px" onclick="document.getElementById('ci-token-file').click()">📤 Upload</button>
+                <button class="tbtn" style="font-size:9px;padding:4px 8px;width:100%" onclick="document.getElementById('ci-token-file').click()">📤 Upload</button>
                 <span id="ci-token-status" style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-align:center"></span>
               </div>
-              <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
                 <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="name" placeholder="Character name" oninput="onCharNameChange(this.value)" style="width:100%;box-sizing:border-box"/></div>
-                <div style="display:grid;grid-template-columns:1fr 100px;gap:10px">
-                  <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off" style="width:100%;box-sizing:border-box"/></div>
-                  <div><label class="field-label">XP</label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0" style="width:100%;box-sizing:border-box"/></div>
-                </div>
+                <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off" style="width:100%;box-sizing:border-box"/></div>
+                <div><label class="field-label">XP <span id="xp-milestone-badge" style="display:none;font-size:8px;color:var(--gold);border:1px solid var(--gold);border-radius:3px;padding:0 4px;margin-left:4px;letter-spacing:.3px" title="This campaign uses Milestone leveling — the DM levels the party up directly rather than tracking XP totals">MILESTONE</span></label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0" style="width:100%;box-sizing:border-box"/></div>
               </div>
             </div>
             <div id="ci-subrace-row" style="display:none;margin-bottom:10px">
@@ -3230,7 +3234,7 @@ body.preview-readonly #mi-detail-edit-row * {
               </div>
             </div>
 
-            <div id="inv-unified-list" style="display:flex;flex-direction:column;gap:4px;max-height:640px;overflow-y:auto"></div>
+            <div id="inv-unified-list" style="display:flex;flex-direction:column;gap:4px"></div>
           </div>
 
           <div class="panel">
@@ -3250,22 +3254,22 @@ body.preview-readonly #mi-detail-edit-row * {
             <div class="panel-title">Currency &amp; Valuables</div>
             <div class="currency-grid">
               <div class="currency-cell">
-                <div class="currency-label">CP</div>
+                <div class="currency-label" style="color:var(--coin-copper)">CP</div>
                 <input class="currency-input" type="number" id="cur-cp" data-key="currency.cp" min="0" value="0"/>
                 <div class="currency-sub">Copper</div>
               </div>
               <div class="currency-cell">
-                <div class="currency-label">SP</div>
+                <div class="currency-label" style="color:var(--coin-silver)">SP</div>
                 <input class="currency-input" type="number" id="cur-sp" data-key="currency.sp" min="0" value="0"/>
                 <div class="currency-sub">Silver</div>
               </div>
 <div class="currency-cell">
-                <div class="currency-label">GP</div>
+                <div class="currency-label" style="color:var(--coin-gold)">GP</div>
                 <input class="currency-input" type="number" id="cur-gp" data-key="currency.gp" min="0" value="0"/>
                 <div class="currency-sub">Gold</div>
               </div>
               <div class="currency-cell">
-                <div class="currency-label">PP</div>
+                <div class="currency-label" style="color:var(--coin-platinum)">PP</div>
                 <input class="currency-input" type="number" id="cur-pp" data-key="currency.pp" min="0" value="0"/>
                 <div class="currency-sub">Platinum</div>
               </div>
@@ -7706,11 +7710,32 @@ async function loadDMCustomLanguages() {
     _dmCustomLanguagesLoaded = true; // only mark loaded on success, same
     // reasoning as the glyph-defaults loader above — a transient failure
     // shouldn't permanently stop retrying for the rest of the session
+    // Campaign leveling mode (XP vs Milestone) lives in this same file —
+    // piggybacking here avoids a second fetch, and unlike the glyph
+    // defaults loader (only fires lazily on spell-modal-open), this one
+    // runs at session init for every character load, spellcaster or not.
+    _charCampaignsCache = f.content.campaigns || DEFAULT_CAMPAIGNS;
+    if (typeof updateXpMilestoneIndicator === 'function') updateXpMilestoneIndicator();
   } catch { /* no _dm.json yet, or no read access — fall back silently */ }
   if (typeof renderToolLanguageProfsBlock === 'function' && document.getElementById('lang-profs-block')) renderToolLanguageProfsBlock();
   if (typeof renderDMCustomLanguagesList === 'function' && document.getElementById('dm-custom-langs-list')) renderDMCustomLanguagesList();
 }
 window.loadDMCustomLanguages = loadDMCustomLanguages;
+let _charCampaignsCache = null;
+
+// Shows/hides the "MILESTONE" badge next to the XP field based on the
+// character's assigned campaign. The XP input itself stays functional
+// either way — some DMs still want a rough number tracked even under
+// Milestone leveling — this is purely an informational label so the
+// player knows which system their table actually uses.
+function updateXpMilestoneIndicator() {
+  const badge = document.getElementById('xp-milestone-badge');
+  if (!badge) return;
+  const campaigns = _charCampaignsCache || DEFAULT_CAMPAIGNS;
+  const camp = campaigns.find(c => c.id === currentChar?._campaign);
+  badge.style.display = camp?.levelingMode === 'milestone' ? '' : 'none';
+}
+window.updateXpMilestoneIndicator = updateXpMilestoneIndicator;
 
 async function saveDMCustomLanguages() {
   _dmCustomLanguagesLoadGen++; // invalidate any in-flight load — this
@@ -7953,6 +7978,11 @@ function dmRenderCampaigns() {
       <input type="color" value="${camp.color}" title="Campaign colour"
         style="width:24px;height:24px;padding:1px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer"
         onchange="dmUpdateCampaignColor(${ci}, this.value)"/>
+      <select class="choice-select" title="How characters in this campaign level up" style="font-size:10px;padding:2px 6px;max-width:110px"
+        onchange="dmUpdateCampaignLevelingMode(${ci}, this.value)">
+        <option value="xp" ${(camp.levelingMode||'xp')==='xp'?'selected':''}>XP</option>
+        <option value="milestone" ${camp.levelingMode==='milestone'?'selected':''}>Milestone</option>
+      </select>
       <button class="tbtn" onclick="dmDeleteCampaign(${ci})"
         style="font-size:9px;padding:2px 7px;border-color:var(--red);color:var(--red)" title="Delete campaign">✕</button>
     `;
@@ -8010,6 +8040,9 @@ function dmUpdateCampaignName(idx, name) {
 }
 function dmUpdateCampaignColor(idx, color) {
   if (_dmCampaigns[idx]) { _dmCampaigns[idx].color = color; dmSaveCampaigns(); dmRenderCampaigns(); }
+}
+function dmUpdateCampaignLevelingMode(idx, mode) {
+  if (_dmCampaigns[idx]) { _dmCampaigns[idx].levelingMode = mode; dmSaveCampaigns(); dmRenderCampaigns(); }
 }
 function dmDeleteCampaign(idx) {
   if (!confirm('Delete this campaign? Characters will become unassigned.')) return;
@@ -10581,7 +10614,13 @@ function openToolDetailModal(name) {
     document.getElementById('td-detail-meta').textContent = 'Custom';
     document.getElementById('td-detail-body').innerHTML = '<p style="color:var(--text3)">No catalog entry for this custom proficiency.</p>';
   }
-  openModal('treasure-detail-modal');
+  // keepOthersOpen=true — this gets triggered from inside the Gear
+  // Browser modal (clicking a row to preview its description) as well as
+  // the standalone Tool Proficiencies panel. Without this, opening the
+  // detail view would silently close the Gear Browser underneath it,
+  // losing the player's place in whatever search/scroll position they
+  // were at.
+  openModal('treasure-detail-modal', true);
 }
 window.openToolDetailModal = openToolDetailModal;
 
@@ -10680,11 +10719,14 @@ function openMagicItemDetailModal(keyOrItem) {
   if (item.key === 'rod_of_the_pact_keeper___1___2__or__3' && item._uid) {
     const ownedIdx = (currentChar.magicItems || []).indexOf(item);
     if (ownedIdx !== -1) {
+      const notAttuned = item.attunement && !item.attuned;
       const used = !!item._rodPactSlotUsedThisRest;
+      const disabled = notAttuned || used;
+      const label = notAttuned ? 'Not attuned' : used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot';
       bodyEl.innerHTML += `
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-          <button class="tbtn" ${used ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeper(${ownedIdx})">
-            ${used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot'}
+          <button class="tbtn" ${disabled ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeper(${ownedIdx})">
+            ${label}
           </button>
         </div>`;
     }
@@ -26305,6 +26347,7 @@ function recalcAll() {
   renderSkillsBlock();
   if (typeof renderToolLanguageProfsBlock === 'function') renderToolLanguageProfsBlock();
   if (typeof renderWeaponArmorProfsBlock === 'function') renderWeaponArmorProfsBlock();
+  if (typeof updateXpMilestoneIndicator === 'function') updateXpMilestoneIndicator();
   recalcQuickStats();
   if (typeof renderKnownSpells === 'function') renderKnownSpells(); // refresh item-granted spells etc.
   renderAttacksPanel();
@@ -26762,13 +26805,14 @@ function renderGearBrowser() {
 
   const clickFn = _gearBrowserReplaceRowIdx !== null ? 'replaceGearRowFromCatalog' : 'addGearFromCatalog';
   const icon = _gearBrowserReplaceRowIdx !== null ? '↺' : '+';
+  const iconTitle = _gearBrowserReplaceRowIdx !== null ? 'Replace with this item' : 'Add to inventory';
   list.innerHTML = filtered.slice(0, 200).map(g => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer" onclick="${clickFn}('${g.key}')">
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer" onclick="openToolDetailModal('${g.name.replace(/'/g,"\\'")}')">
       <div style="flex:1;min-width:0">
         <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:var(--text)">${g.name}</div>
         <div style="font-family:var(--font-ui);font-size:8px;color:var(--text3);margin-top:1px">${g.category}${g.weight?' · '+g.weight:''}${g.value?' · '+g.value:''}</div>
       </div>
-      <span style="font-family:var(--font-ui);font-size:16px;color:var(--accent);flex-shrink:0">${icon}</span>
+      <span style="font-family:var(--font-ui);font-size:16px;color:var(--accent);flex-shrink:0;cursor:pointer;padding:2px 8px" onclick="event.stopPropagation();${clickFn}('${g.key}')" title="${iconTitle}">${icon}</span>
     </div>
   `).join('');
 }
@@ -27907,6 +27951,14 @@ function makeSlotBlock(slotLevel, total, ORDINALS, isPact) {
 function useRodOfPactKeeper(ownedIdx) {
   const item = currentChar?.magicItems?.[ownedIdx];
   if (!item) return;
+  // The rod requires attunement (item.attunement === true) — all of its
+  // properties, including this one, only function while attuned, same as
+  // any other attunement-requiring item. Previously this only checked
+  // ownership, so an owned-but-unattuned rod could still restore a slot.
+  if (item.attunement && !item.attuned) {
+    toast('You must be attuned to the rod to use this.', 'warn');
+    return;
+  }
   if (item._rodPactSlotUsedThisRest) {
     toast('Already used this long rest.', 'warn');
     return;
@@ -29828,6 +29880,38 @@ function getMonkDieForChar(c) {
 }
 
 // ── Calculate attack for a weapon entry ──────────────────
+// Plain-English breakdown of a weapon's to-hit/damage numbers, for a hover
+// tooltip so the underlying math is checkable at a glance rather than
+// having to trust the final number. Reuses the values calcWeaponAttack
+// already computed and exposed on its return object — recomputing the
+// exhaustion/drunkenness/fighting-style pieces here is cheap (they're just
+// function calls, not a second pass over the weapon), so this doesn't
+// duplicate the actual calculation logic itself.
+function buildWeaponAttackBreakdown(entry, calc) {
+  if (!calc.isProficient) {
+    return `${calc.abilityKey.toUpperCase()} mod (${calc.abilMod>=0?'+':''}${calc.abilMod}) — not proficient, no Proficiency Bonus added = ${calc.atkBonus>=0?'+':''}${calc.atkBonus} to hit`;
+  }
+  const parts = [`${calc.abilityKey.toUpperCase()} mod (${calc.abilMod>=0?'+':''}${calc.abilMod})`, `Proficiency (+${calc.profBonus})`];
+  if (calc.isRanged && typeof hasFightingStyle === 'function' && hasFightingStyle('archery')) parts.push('Archery style (+2)');
+  if (entry.attackBonus) parts.push(`Magic weapon (${entry.attackBonus>=0?'+':''}${entry.attackBonus})`);
+  if (calc.ammoBonus) parts.push(`Magic ammo (+${calc.ammoBonus})`);
+  const exPen = exhaustionD20Penalty();
+  if (exPen) parts.push(`Exhaustion (\u2212${exPen})`);
+  const drunkPen = getDrunkennessAttackPenalty();
+  if (drunkPen) parts.push(`Drunk (\u2212${drunkPen})`);
+  return `${parts.join(' + ')} = ${calc.atkBonus>=0?'+':''}${calc.atkBonus} to hit`;
+}
+
+// Same idea for the damage modifier — the dice themselves (1d8, 2d6, etc.)
+// come straight from the weapon, so this focuses on explaining the flat
+// bonus added to those dice, which is the part that's easy to get wrong.
+function buildWeaponDamageBreakdown(entry, calc) {
+  const parts = [`${calc.abilityKey.toUpperCase()} mod (${calc.abilMod>=0?'+':''}${calc.abilMod})`];
+  if (entry.attackBonus) parts.push(`Magic weapon (${entry.attackBonus>=0?'+':''}${entry.attackBonus})`);
+  if (entry.damageBonus) parts.push(`Item bonus (${entry.damageBonus>=0?'+':''}${entry.damageBonus})`);
+  return `Dice from the weapon itself, plus ${parts.join(' + ')} added to the total`;
+}
+
 function calcWeaponAttack(entry) {
   // entry = { weaponKey, name, attackBonus, damageBonus, versatileMode,
   //           offhand, customDamage, proficient, equipped }
@@ -33549,6 +33633,23 @@ function renderAttacksPanel() {
   const spellDC  = ability ? (8 + abilMod_spell + prof + getSpellDCBonus()) : null;
   const scaleIdx = getCantripScaleIdx(level);
 
+  // Breakdown tooltips for the spell attack/DC stats — same for every
+  // spell row since they all use the same spellcasting ability, so this
+  // is built once rather than recomputed per row.
+  let spellAtkBreakdown = '', spellDCBreakdown = '';
+  if (ability) {
+    const exPen = exhaustionD20Penalty(), drunkPen = getDrunkennessAttackPenalty();
+    const itemAtkBonus = getSpellAtkBonus(), itemDCBonus = getSpellDCBonus();
+    const atkParts = [`${ability.toUpperCase()} mod (${abilMod_spell>=0?'+':''}${abilMod_spell})`, `Proficiency (+${prof})`];
+    if (itemAtkBonus) atkParts.push(`Item bonus (${itemAtkBonus>=0?'+':''}${itemAtkBonus})`);
+    if (exPen) atkParts.push(`Exhaustion (\u2212${exPen})`);
+    if (drunkPen) atkParts.push(`Drunk (\u2212${drunkPen})`);
+    spellAtkBreakdown = `${atkParts.join(' + ')} = ${spellAtk>=0?'+':''}${spellAtk} to hit`;
+    const dcParts = [`8 (base)`, `${ability.toUpperCase()} mod (${abilMod_spell>=0?'+':''}${abilMod_spell})`, `Proficiency (+${prof})`];
+    if (itemDCBonus) dcParts.push(`Item bonus (${itemDCBonus>=0?'+':''}${itemDCBonus})`);
+    spellDCBreakdown = `${dcParts.join(' + ')} = DC ${spellDC}`;
+  }
+
   let hasAnyAttack = false;
 
   // ── Weapon attacks ─────────────────────────────────────
@@ -33593,13 +33694,15 @@ function renderAttacksPanel() {
       <div class="attack-sub">${calc.isRanged ? 'Ranged' : 'Melee'} · ${calc.abilityKey.toUpperCase()}${entry.attackBonus ? ' · +'+entry.attackBonus+(linkedSource ? ' ('+(linkedSource.customName||linkedSource.name)+')' : ' magic') : ''}${calc.ammoBonus ? ' · +'+calc.ammoBonus+' magic ammo' : ''}${calc.notes.length ? ' · '+calc.notes.slice(0,2).join(', ') : ''}${masteryNote}</div>
     </div>`;
 
-    const atkDiv = `<div style="text-align:center">
-      <div class="attack-stat">${atkStr}</div>
+    const atkBreakdown = buildWeaponAttackBreakdown(entry, calc);
+    const dmgBreakdown = buildWeaponDamageBreakdown(entry, calc);
+    const atkDiv = `<div style="text-align:center" title="${atkBreakdown.replace(/"/g,'&quot;')}">
+      <div class="attack-stat" style="cursor:help">${atkStr}</div>
       <div class="attack-stat-label">To Hit</div>
     </div>`;
 
-    const dmgDiv = `<div style="text-align:center">
-      <div class="attack-stat" style="font-size:11px">${calc.dmgStr}</div>
+    const dmgDiv = `<div style="text-align:center" title="${dmgBreakdown.replace(/"/g,'&quot;')}">
+      <div class="attack-stat" style="font-size:11px;cursor:help">${calc.dmgStr}</div>
       <div class="attack-stat-label">Damage</div>
     </div>`;
 
@@ -33904,8 +34007,8 @@ function renderAttacksPanel() {
           <div class="attack-sub">${data.atkType==='melee'?'Melee Spell Attack':data.atkType==='spell'?'Ranged Spell Attack':saveLabel}</div>
         </div>
         <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 12px;line-height:1.4;align-self:center">${(()=>{const p=PHB_SPELL_LIST.find(s=>s.key===key);return p?.desc?p.desc.slice(0,110)+(p.desc.length>110?'…':''):'';})()}${invocBadges ? `<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${invocBadges}</div>` : ''}</div>
-        <div style="text-align:center">
-          <div class="attack-stat">${isAtkRoll?atkStr:dcStr}</div>
+        <div style="text-align:center" title="${(isAtkRoll?spellAtkBreakdown:spellDCBreakdown).replace(/"/g,'&quot;')}">
+          <div class="attack-stat" style="cursor:help">${isAtkRoll?atkStr:dcStr}</div>
           <div class="attack-stat-label">${isAtkRoll?'To Hit':'DC'}</div>
         </div>
         <div style="text-align:center">
@@ -33969,6 +34072,7 @@ function renderAttacksPanel() {
     const wisMod = abilityMod(getAbilities().wis);
     const dmgStr = upgraded ? `2d8${wisMod!==0?(wisMod>=0?' + '+wisMod:' - '+Math.abs(wisMod)):''} Radiant` : `1d8${wisMod!==0?(wisMod>=0?' + '+wisMod:' - '+Math.abs(wisMod)):''} Radiant`;
     const atkStr = spellAtk!==null ? (spellAtk>=0?'+':'')+spellAtk+(hasSpellAtkAdvantage()?' (Adv)':'') : '-';
+    const dmgBreakdown = `${upgraded?'2d8':'1d8'}${wisMod!==0?` + WIS mod (${wisMod>=0?'+':''}${wisMod})`:''} Radiant`;
 
     const archerRow = document.createElement('div');
     archerRow.className = 'attack-row';
@@ -33979,12 +34083,12 @@ function renderAttacksPanel() {
         <div class="attack-sub">Ranged Spell Attack · 60 ft · Bonus Action</div>
       </div>
       <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 12px;line-height:1.4;align-self:center">Archer constellation - hurl a luminous arrow of starlight.</div>
-      <div style="text-align:center">
-        <div class="attack-stat">${atkStr}</div>
+      <div style="text-align:center" title="${spellAtkBreakdown.replace(/"/g,'&quot;')}">
+        <div class="attack-stat" style="cursor:help">${atkStr}</div>
         <div class="attack-stat-label">To Hit</div>
       </div>
-      <div style="text-align:center">
-        <div class="attack-stat" style="font-size:11px">${dmgStr}</div>
+      <div style="text-align:center" title="${dmgBreakdown.replace(/"/g,'&quot;')}">
+        <div class="attack-stat" style="font-size:11px;cursor:help">${dmgStr}</div>
         <div class="attack-stat-label">Damage</div>
       </div>
       <div><span class="attack-type-badge cantrip" style="background:var(--accent);color:#000">STARRY</span></div>`;
@@ -35123,12 +35227,12 @@ function renderUnifiedInventory() {
   }
 
   const groups = [
-    { label: 'Weapons', rows: weaponRows },
-    { label: 'Armor',   rows: armorRows },
-    { label: 'Magic Items', rows: magicRows },
-    { label: 'Gear',    rows: gearRows },
-    { label: 'Valuables', rows: valuableRows },
-    { label: 'Mounts & Vehicles', rows: mountRows },
+    { label: 'Weapons', rows: weaponRows, kind: 'weapon' },
+    { label: 'Armor',   rows: armorRows, kind: 'armor' },
+    { label: 'Magic Items', rows: magicRows, kind: 'magic' },
+    { label: 'Gear',    rows: gearRows, kind: 'gear' },
+    { label: 'Valuables', rows: valuableRows, kind: 'valuable' },
+    { label: 'Mounts & Vehicles', rows: mountRows, kind: 'mount' },
   ].filter(g => g.rows.length);
 
   const totalCount = weaponRows.length + armorRows.length + magicRows.length + gearRows.length + valuableRows.length + mountRows.length;
@@ -35155,10 +35259,29 @@ function renderUnifiedInventory() {
   // stopPropagation, so removing an item doesn't also trigger its view/edit.
   // Gear rows are the one exception — real inputs instead of a click target.
   list.innerHTML = groups.map((group, gi) => `
-    <div style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);margin-top:${gi>0?'8px':'0'};padding:0 2px">${group.label}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:${gi>0?'8px':'0'};padding:0 2px">
+      <span style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)">${group.label}</span>
+      ${group.rows.length > 1 ? `
+      <select class="choice-select" style="font-size:9px;padding:1px 4px;max-width:120px" title="Sort ${group.label}"
+        onchange="if(this.value)sortInventoryGroup('${group.kind}',this.value);this.value=''">
+        <option value="">Sort…</option>
+        <option value="name">Name (A→Z)</option>
+        <option value="name_desc">Name (Z→A)</option>
+        ${group.kind !== 'mount' ? `
+        <option value="weight">Weight (Low→High)</option>
+        <option value="weight_desc">Weight (High→Low)</option>` : ''}
+        ${!['mount'].includes(group.kind) ? `
+        <option value="qty">Qty (Low→High)</option>
+        <option value="qty_desc">Qty (High→Low)</option>` : ''}
+        ${group.kind === 'magic' ? `
+        <option value="rarity">Rarity (Low→High)</option>
+        <option value="rarity_desc">Rarity (High→Low)</option>` : ''}
+      </select>` : ''}
+    </div>
     ${group.rows.map(r => r.isGear ? `
-    <div class="inv-row" style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer"
+    <div class="inv-row" data-kind="gear" data-idx="${r.idx}" style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer"
       onclick="openGearEditModal(${r.idx})" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
+      <span onpointerdown="startInventoryDrag(event,'gear',${r.idx})" onclick="event.stopPropagation()" style="cursor:grab;color:var(--text3);font-size:14px;flex-shrink:0;padding:0 2px;touch-action:none" title="Drag to reorder">⠿</span>
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:var(--text3);border:1px solid var(--text3);border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">GEAR</span>
       <input type="number" min="1" value="${r.item.qty||1}" onclick="event.stopPropagation()" style="width:34px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:2px;color:var(--text);font-size:11px;flex-shrink:0"
         oninput="currentChar.equipment[${r.idx}].qty=parseInt(this.value)||1;debouncedSave()" onchange="renderUnifiedInventory()"/>
@@ -35176,8 +35299,9 @@ function renderUnifiedInventory() {
       <button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="event.stopPropagation();openGiveItemModal('equipment',${r.idx})" title="Give to a party member">🎁</button>
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="event.stopPropagation();removeEquipItem(${r.idx})">✕</button>
     </div>` : `
-    <div class="inv-row" style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:${r.onClick ? 'pointer' : 'default'}"
+    <div class="inv-row" data-kind="${r.kind}" data-idx="${r.rowIdx}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:${r.onClick ? 'pointer' : 'default'}"
       onclick="${r.onClick}" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
+      <span onpointerdown="startInventoryDrag(event,'${r.kind}',${r.rowIdx})" onclick="event.stopPropagation()" style="cursor:grab;color:var(--text3);font-size:14px;flex-shrink:0;padding:0 2px;touch-action:none" title="Drag to reorder">⠿</span>
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
       ${r.equipToggle ? `<input type="checkbox" ${r.equipped?'checked':''} onclick="event.stopPropagation()" onchange="${r.equipToggle}" title="${r.equipLabel}" style="accent-color:${r.badgeColor};flex-shrink:0;cursor:pointer"/>` : ''}
       <div class="inv-row-name" style="flex:1;min-width:0;overflow:hidden">
@@ -35617,6 +35741,145 @@ window.renderMountsOwnedList = renderMountsOwnedList;
 // magic weapon/armor item with a linked catalog base type, e.g. a Frost
 // Brand set to Longsword, gets its weight from that base type instead and
 // is never wired to this).
+// Maps a row's `kind` to its real backing array — shared by the quantity
+// stepper, weight editor, and the drag-reorder system below, so there's
+// one place that knows this mapping rather than three copies drifting
+// apart from each other.
+const INVENTORY_RARITY_ORDER = ['common','uncommon','rare','very rare','legendary','artifact','primeval vestige','priceless','unknown'];
+
+// Resolves the value to sort by for one raw source-array entry, mirroring
+// the same name/weight/qty fallback chains renderUnifiedInventory already
+// uses when building display rows — this operates on the underlying data
+// directly (so the sort can actually persist by reordering the real
+// array), not the ephemeral row objects rebuilt fresh every render.
+function getInventorySortKey(kind, entry, criteria) {
+  if (criteria === 'name') {
+    let name = entry.name || entry.customName || '';
+    if (!name && kind === 'weapon') name = PHB_WEAPONS.find(w => w.key === entry.weaponKey)?.name || '';
+    if (!name && kind === 'armor') name = PHB_ARMOUR.find(a => a.key === entry.key)?.name || '';
+    if (!name && kind === 'valuable') name = VALUABLES_CATALOG.find(c => c.key === entry.key)?.name || '';
+    if (!name && kind === 'mount') name = MOUNTS_VEHICLES_CATALOG.find(c => c.key === entry.key)?.name || '';
+    return name.toLowerCase();
+  }
+  if (criteria === 'weight') {
+    let w = entry.weight;
+    if (!w && kind === 'valuable') w = VALUABLES_CATALOG.find(c => c.key === entry.key)?.weight;
+    if (!w && kind === 'magic' && typeof getEffectiveItemWeight === 'function') w = getEffectiveItemWeight(entry);
+    return parseWeightLb(w || '');
+  }
+  if (criteria === 'qty') return entry.qty ?? entry.quantity ?? 1;
+  if (criteria === 'rarity') {
+    if (kind !== 'magic') return 0; // only magic items have a meaningful rarity
+    const r = (typeof getEffectiveItemRarity === 'function' ? getEffectiveItemRarity(entry) : entry.rarity) || 'unknown';
+    const idx = INVENTORY_RARITY_ORDER.indexOf(r.toLowerCase());
+    return idx === -1 ? INVENTORY_RARITY_ORDER.length : idx;
+  }
+  return 0;
+}
+
+// Sorts a section's underlying array in place — this is a one-time
+// re-order the player triggers on demand (via the dropdown next to each
+// section header), not a live/persistent sort mode; afterward the list
+// behaves exactly like manually drag-reordered items until sorted again.
+function sortInventoryGroup(kind, criteria) {
+  if (!criteria) return;
+  const arr = inventoryArrayForKind(kind);
+  if (!arr || arr.length < 2) return;
+  const desc = criteria.endsWith('_desc');
+  const key = criteria.replace('_desc', '');
+  arr.sort((a, b) => {
+    const av = getInventorySortKey(kind, a, key);
+    const bv = getInventorySortKey(kind, b, key);
+    if (typeof av === 'string') return desc ? bv.localeCompare(av) : av.localeCompare(bv);
+    return desc ? bv - av : av - bv;
+  });
+  renderUnifiedInventory();
+  debouncedSave();
+}
+window.sortInventoryGroup = sortInventoryGroup;
+
+function inventoryArrayForKind(kind) {
+  if (!currentChar) return null;
+  switch (kind) {
+    case 'weapon':   return currentChar.weapons;
+    case 'armor':    return currentChar.armorOwned;
+    case 'magic':    return currentChar.magicItems;
+    case 'gear':     return currentChar.equipment;
+    case 'valuable': return currentChar.valuables;
+    case 'mount':    return currentChar.mountsVehicles;
+    default: return null;
+  }
+}
+
+// ── Drag-to-reorder ───────────────────────────────────────────────────
+// Native HTML5 drag-and-drop (draggable="true") doesn't fire at all on
+// touch devices — it's a desktop/mouse-only API — which matters a lot
+// here since this sheet is primarily used on mobile. Pointer Events
+// (pointerdown/move/up) fire consistently for both mouse and touch, so
+// the whole thing is built on those instead. Reordering only happens
+// within a row's own group (Weapons stay with Weapons, Gear with Gear,
+// etc.) — dragging a weapon into the Valuables list wouldn't actually
+// change what it is, so that's not offered as an option.
+let _invDrag = null;
+
+function startInventoryDrag(ev, kind, idx) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const rowEl = ev.currentTarget.closest('.inv-row');
+  if (!rowEl) return;
+  const groupRows = [...document.querySelectorAll(`.inv-row[data-kind="${kind}"]`)];
+  _invDrag = { kind, fromIdx: idx, rowEl, groupRows, targetIdx: idx };
+  rowEl.style.opacity = '0.4';
+  try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch {}
+  document.addEventListener('pointermove', onInventoryDragMove);
+  document.addEventListener('pointerup', endInventoryDrag);
+  document.addEventListener('pointercancel', endInventoryDrag);
+}
+window.startInventoryDrag = startInventoryDrag;
+
+function onInventoryDragMove(ev) {
+  if (!_invDrag) return;
+  const overEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(`.inv-row[data-kind="${_invDrag.kind}"]`);
+  _invDrag.groupRows.forEach(r => { r.style.borderTop = ''; r.style.borderBottom = ''; });
+  if (!overEl || overEl === _invDrag.rowEl) return;
+  const rect = overEl.getBoundingClientRect();
+  const before = ev.clientY < rect.top + rect.height / 2;
+  overEl.style[before ? 'borderTop' : 'borderBottom'] = '2px solid var(--accent)';
+  const overIdx = parseInt(overEl.dataset.idx);
+  _invDrag.targetIdx = before ? overIdx : overIdx + 1;
+}
+
+function endInventoryDrag() {
+  if (!_invDrag) return;
+  const { kind, fromIdx, rowEl, groupRows, targetIdx } = _invDrag;
+  groupRows.forEach(r => { r.style.borderTop = ''; r.style.borderBottom = ''; });
+  rowEl.style.opacity = '';
+  document.removeEventListener('pointermove', onInventoryDragMove);
+  document.removeEventListener('pointerup', endInventoryDrag);
+  document.removeEventListener('pointercancel', endInventoryDrag);
+  _invDrag = null;
+  if (targetIdx !== fromIdx && targetIdx !== fromIdx + 1) {
+    reorderInventoryArray(kind, fromIdx, targetIdx);
+  }
+}
+
+// Moves one entry within its own array from fromIdx to a target position,
+// expressed as "insert before this index in the array as it currently
+// stands" — the standard remove-then-reinsert dance, careful about the
+// off-by-one that shows up when moving an item further down its own list
+// (removing it first shifts everything after it back by one).
+function reorderInventoryArray(kind, fromIdx, toIdx) {
+  const arr = inventoryArrayForKind(kind);
+  if (!arr || fromIdx < 0 || fromIdx >= arr.length) return;
+  const [moved] = arr.splice(fromIdx, 1);
+  let insertAt = toIdx > fromIdx ? toIdx - 1 : toIdx;
+  insertAt = Math.max(0, Math.min(arr.length, insertAt));
+  arr.splice(insertAt, 0, moved);
+  renderUnifiedInventory();
+  debouncedSave();
+}
+window.reorderInventoryArray = reorderInventoryArray;
+
 function updateRowWeight(kind, idx, value) {
   if (!currentChar) return;
   let arr;
@@ -37493,11 +37756,14 @@ function populateMagicItemEditForm(item, resetPending = true) {
     if (item.key === 'rod_of_the_pact_keeper___1___2__or__3' && item._uid) {
       const ownedIdx = (currentChar.magicItems || []).indexOf(item);
       if (ownedIdx !== -1) {
+        const notAttuned = item.attunement && !item.attuned;
         const used = !!item._rodPactSlotUsedThisRest;
+        const disabled = notAttuned || used;
+        const label = notAttuned ? 'Not attuned' : used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot';
         desc.innerHTML += `
           <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-            <button class="tbtn" ${used ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeper(${ownedIdx})">
-              ${used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot'}
+            <button class="tbtn" ${disabled ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeper(${ownedIdx})">
+              ${label}
             </button>
           </div>`;
       }
@@ -42205,14 +42471,17 @@ function renderResourceEntry(def, level, prof) {
   if (isModalBtn) {
     if (def.id === 'rod_of_pact_keeper_resource') {
       const rod = (currentChar.magicItems || []).find(i => i.key === 'rod_of_the_pact_keeper___1___2__or__3');
+      const notAttuned = rod?.attunement && !rod?.attuned;
       const used = !!rod?._rodPactSlotUsedThisRest;
+      const disabled = notAttuned || used;
+      const label = notAttuned ? 'Not attuned' : used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot';
       html += `<div style="display:flex;flex-direction:column;gap:6px">
         <div style="display:flex;align-items:center;gap:8px">
-          <button class="tbtn" style="font-size:10px;padding:5px 12px" ${used ? 'disabled style="opacity:.4;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeperFromResource()">
-            ${used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot'}
+          <button class="tbtn" style="font-size:10px;padding:5px 12px" ${disabled ? 'disabled style="opacity:.4;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeperFromResource()">
+            ${label}
           </button>
         </div>
-        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">As an action, once per long rest while holding the rod.</div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">As an action, once per long rest while attuned to and holding the rod.</div>
       </div>`;
     } else if (def.id === 'mutable_form_config') {
       // Mutable Form specific summary
