@@ -2576,6 +2576,18 @@ body.preview-readonly #mi-detail-edit-row * {
             <div class="qs-row"><span class="qs-label" data-glossary-term="passive perception">Passive Perception</span><span class="qs-val" id="qs-pp">10</span><span class="qs-sub" id="qs-pp-sub"></span></div>
             <div class="qs-row"><span class="qs-label" data-glossary-term="carrying capacity">Carry Capacity</span><span class="qs-val" id="qs-carry">- lb</span></div>
             <div class="qs-row" id="qs-extra-attacks-row" style="display:none"><span class="qs-label">Extra Attacks</span><span class="qs-val" id="qs-extra-attacks">-</span></div>
+            <div class="qs-row" style="cursor:pointer" onclick="toggleProfPanelExpanded('wa')">
+              <span class="qs-label">Weapon/Armor Profs</span>
+              <span class="qs-val" id="wa-profs-summary" style="font-size:10px;font-weight:400;text-align:right;max-width:140px">None set</span>
+              <span id="wa-profs-arrow" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:4px">▸</span>
+            </div>
+            <div id="wa-profs-expanded" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+              <div id="wa-profs-block"></div>
+              <div style="display:flex;gap:6px;margin-top:8px">
+                <input class="info-input" id="wa-profs-custom-input" placeholder="Add a specific weapon (e.g. Shortswords)…" style="flex:1;font-size:11px" onkeydown="if(event.key==='Enter')addCustomWeaponArmorProf()"/>
+                <button class="tbtn" style="font-size:10px" onclick="addCustomWeaponArmorProf()">Add</button>
+              </div>
+            </div>
           </div>
           <div class="panel" style="margin-top:10px">
             <div class="panel-title" data-glossary-term="difficulty class">DC Calculator</div>
@@ -2953,20 +2965,6 @@ body.preview-readonly #mi-detail-edit-row * {
               <div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
                 <input class="info-input" id="tool-profs-custom-input" placeholder="Add a custom tool/proficiency…" style="flex:1" onkeydown="if(event.key==='Enter')addCustomToolProf()"/>
                 <button class="tbtn" onclick="addCustomToolProf()">Add</button>
-              </div>
-            </div>
-          </div>
-          <div class="panel" style="margin-top:10px">
-            <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleProfPanelExpanded('wa')">
-              <span>Weapon &amp; Armor Proficiencies</span>
-              <span id="wa-profs-arrow" style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">▸</span>
-            </div>
-            <div id="wa-profs-summary" style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.6;cursor:pointer" onclick="toggleProfPanelExpanded('wa')"></div>
-            <div id="wa-profs-expanded" style="display:none;margin-top:6px">
-              <div id="wa-profs-block"></div>
-              <div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-                <input class="info-input" id="wa-profs-custom-input" placeholder="Add a specific weapon (e.g. Shortswords)…" style="flex:1" onkeydown="if(event.key==='Enter')addCustomWeaponArmorProf()"/>
-                <button class="tbtn" onclick="addCustomWeaponArmorProf()">Add</button>
               </div>
             </div>
           </div>
@@ -22818,9 +22816,8 @@ function renderWeaponArmorProfsBlock() {
   if (summary) {
     const allNames = Object.values(WEAPON_ARMOR_PROF_CATEGORIES).flat().concat(currentChar.customWeaponArmorProfs);
     const active = allNames.filter(n => currentChar.weaponArmorProfs[toolProfKey(n)]);
-    summary.innerHTML = active.length
-      ? active.sort().map(n => `<div class="skill-row"><span class="skill-name" style="padding-left:16px">${n}</span></div>`).join('')
-      : '<div style="color:var(--text3);font-family:var(--font-body);font-size:11px;padding:4px 0">None selected — tap to choose</div>';
+    summary.textContent = active.length ? active.sort().join(', ') : 'None set';
+    summary.title = active.length ? active.sort().join(', ') : '';
   }
 }
 window.renderWeaponArmorProfsBlock = renderWeaponArmorProfsBlock;
