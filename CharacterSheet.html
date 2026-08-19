@@ -2913,6 +2913,18 @@ body.preview-readonly #mi-detail-edit-row * {
                empty/dashed-out block taking up space. -->
           <div id="ms-spellcasting-wrap" style="display:none">
             <div class="panel" style="margin-top:10px">
+              <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
+                <span>Spell Slots</span>
+                <div style="display:flex;gap:5px;align-items:center">
+                  <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-short-rest);color:var(--action-short-rest)" onclick="doShortRest()">☽ Short Rest</button>
+                  <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-long-rest);color:var(--action-long-rest)" onclick="doLongRest()">★ Long Rest</button>
+                  <button class="tbtn" style="font-size:9px;padding:2px 6px" onclick="openSlotOverrideModal()" title="Override slot counts">⚙</button>
+                </div>
+              </div>
+              <div id="ms-spell-slots-container"></div>
+            </div>
+
+            <div class="panel" style="margin-top:10px">
               <div class="panel-title">Spellcasting</div>
               <div class="spell-stats-row">
                 <div class="spell-stat-box"><div class="spell-stat-label">Ability</div><div class="spell-stat-val" id="ms-sp-ability">-</div></div>
@@ -2942,18 +2954,6 @@ body.preview-readonly #mi-detail-edit-row * {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div class="panel" style="margin-top:10px">
-              <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
-                <span>Spell Slots</span>
-                <div style="display:flex;gap:5px;align-items:center">
-                  <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-short-rest);color:var(--action-short-rest)" onclick="doShortRest()">☽ Short Rest</button>
-                  <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-long-rest);color:var(--action-long-rest)" onclick="doLongRest()">★ Long Rest</button>
-                  <button class="tbtn" style="font-size:9px;padding:2px 6px" onclick="openSlotOverrideModal()" title="Override slot counts">⚙</button>
-                </div>
-              </div>
-              <div id="ms-spell-slots-container"></div>
             </div>
           </div>
 
@@ -3332,6 +3332,19 @@ body.preview-readonly #mi-detail-edit-row * {
     <!-- LEFT: Spellcasting info + Browse Spells -->
     <div style="position:sticky;top:0;display:flex;flex-direction:column;gap:12px">
 
+      <!-- Spell Slots -->
+      <div class="panel">
+        <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Spell Slots</span>
+          <div style="display:flex;gap:5px;align-items:center">
+            <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-short-rest);color:var(--action-short-rest)" onclick="doShortRest()">☽ Short Rest</button>
+            <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-long-rest);color:var(--action-long-rest)" onclick="doLongRest()">★ Long Rest</button>
+            <button class="tbtn" style="font-size:9px;padding:2px 6px" onclick="openSlotOverrideModal()" title="Override slot counts">⚙</button>
+          </div>
+        </div>
+        <div id="spell-slots-container"></div>
+      </div>
+
       <!-- Spellcasting Stats -->
       <div class="panel">
         <div class="panel-title">Spellcasting</div>
@@ -3365,19 +3378,6 @@ body.preview-readonly #mi-detail-edit-row * {
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Spell Slots -->
-      <div class="panel">
-        <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between">
-          <span>Spell Slots</span>
-          <div style="display:flex;gap:5px;align-items:center">
-            <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-short-rest);color:var(--action-short-rest)" onclick="doShortRest()">☽ Short Rest</button>
-            <button class="tbtn" style="font-size:9px;padding:2px 7px;border-color:var(--action-long-rest);color:var(--action-long-rest)" onclick="doLongRest()">★ Long Rest</button>
-            <button class="tbtn" style="font-size:9px;padding:2px 6px" onclick="openSlotOverrideModal()" title="Override slot counts">⚙</button>
-          </div>
-        </div>
-        <div id="spell-slots-container"></div>
       </div>
 
       <!-- Spellcasting Notes -->
@@ -23656,6 +23656,14 @@ function calcSpeed() {
   // Bladesong speed bonus: +10 ft
   if (isEffectActive('bladesong')) final = Math.max(0, final + 10);
 
+  // currentChar.speed was set to the un-penalized base value earlier and
+  // never actually updated to the real, fully-adjusted speed — only the
+  // DOM display got the correct number. Any future feature reading
+  // currentChar.speed directly (rather than the DOM) would silently get
+  // the wrong value, same class of bug as the missing calcSpeed() call in
+  // recalcAll() above.
+  currentChar.speed = final;
+
   // Fly speed, with an independent Hover flag (Hover isn't its own speed —
   // it's a boolean trait on a creature's Fly speed)
   // Aarakocra's fly speed must always equal its current walk speed exactly
@@ -26341,6 +26349,13 @@ function recalcAll() {
   syncMagicArmorToInventory();   // keep ac_armor_key in sync with equipped magic armor
   syncMagicAmmoToInventory();    // keep ammoBonus in sync with assigned magic ammunition
   applyFeatSlotEffects();   // ensure feat bonuses (speed, HP, etc.) are up to date
+  // calcSpeed() was never actually called here — it correctly factors in
+  // Exhaustion's −5 ft/level penalty (and everything else: Unarmored
+  // Movement, Fast Movement, Bladesong, etc.), but nothing ever re-ran it
+  // when those things changed. Clicking an exhaustion pip updated the
+  // level and called this function, which touched every other stat except
+  // the speed display, leaving it stuck at whatever it showed before.
+  calcSpeed();
   autoSetACMethod();
   renderSavesBlock();
   updateDCCalc();
@@ -33949,6 +33964,14 @@ function renderAttacksPanel() {
     const _isSorcerer = hasClass('sorcerer');
     const elemAffinity = _isSorcerer ? (currentChar.class_choices?.draconic_affinity || currentChar.class_choices?.elemental_affinity || '').toLowerCase() : '';
     const chaMod = abilityMod(getAbilities().cha);
+    // Empowered Evocation (Evoker Wizard, level 10): "add your Intelligence
+    // modifier to one damage roll" of any Wizard Evocation-school spell —
+    // was entirely missing before, not just from the tooltip but from the
+    // damage number itself. Checked against the school actually recorded
+    // in PHB_SPELL_LIST rather than assuming which cantrips count.
+    const evokerLv = (getAllClasses().find(e => (e.class||'').toLowerCase()==='wizard' && (e.subclass||'').toLowerCase()==='evoker')?.levels?.length) || 0;
+    const hasEmpoweredEvocation = evokerLv >= 10;
+    const intMod = abilityMod(getAbilities().int);
 
     // Agonizing / Repelling / Eldritch Spear invocation maps: cantripKey → [invNames]
     const _parsedInvocs = typeof parseInvocations === 'function' ? parseInvocations() : [];
@@ -33974,14 +33997,28 @@ function renderAttacksPanel() {
       // Elemental Affinity bonus: +CHA mod if damage type matches chosen element
       const elemMatch = elemAffinity && data.type?.toLowerCase() === elemAffinity;
       const elemBonus = elemMatch ? chaMod : 0;
+      // Empowered Evocation only applies to Evocation-school Wizard spells
+      const empoweredEvocationBonus = (hasEmpoweredEvocation && phb?.school === 'Evocation') ? intMod : 0;
 
-      const totalBonus = agonizingBonus + elemBonus;
+      const totalBonus = agonizingBonus + elemBonus + empoweredEvocationBonus;
       const bonusStr   = totalBonus ? ` + ${totalBonus}` : '';
       const dmgStr = data.beams
         ? `${data.count[scaleIdx]}× 1${data.die}${bonusStr} ${data.type}`
         : cnt === 0 && data.type === 'Radiant+weapon'
           ? `Weapon deals Radiant`
           : `${cnt}${data.die}${bonusStr} ${data.type}`;
+
+      // Cantrip damage breakdown — the dice themselves scale with
+      // character level (baked into data.count/cnt already), so this
+      // focuses on explaining the flat bonus, which only comes from one
+      // of a few sources and is easy to mistake for "just missing."
+      const dmgBonusParts = [];
+      if (agonizingBonus) dmgBonusParts.push(`Agonizing Blast: CHA mod (${chaMod>=0?'+':''}${chaMod})`);
+      if (elemBonus) dmgBonusParts.push(`Elemental Affinity (matching damage type): CHA mod (${chaMod>=0?'+':''}${chaMod})`);
+      if (empoweredEvocationBonus) dmgBonusParts.push(`Empowered Evocation: INT mod (${intMod>=0?'+':''}${intMod})`);
+      const dmgBreakdown = dmgBonusParts.length
+        ? `Dice scale with level, plus ${dmgBonusParts.join(' + ')} added to the total`
+        : `Dice scale with character level — no flat bonus applies to this cantrip`;
 
       // Build invocation badges
       const invocBadges = [
@@ -34011,8 +34048,8 @@ function renderAttacksPanel() {
           <div class="attack-stat" style="cursor:help">${isAtkRoll?atkStr:dcStr}</div>
           <div class="attack-stat-label">${isAtkRoll?'To Hit':'DC'}</div>
         </div>
-        <div style="text-align:center">
-          <div class="attack-stat" style="font-size:11px">${dmgStr}</div>
+        <div style="text-align:center" title="${dmgBreakdown.replace(/"/g,'&quot;')}">
+          <div class="attack-stat" style="font-size:11px;cursor:help">${dmgStr}</div>
           <div class="attack-stat-label">Damage</div>
         </div>
         <div><span class="attack-type-badge cantrip">CANTRIP</span></div>`;
