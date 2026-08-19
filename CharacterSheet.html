@@ -2665,23 +2665,22 @@ body.preview-readonly #mi-detail-edit-row * {
           <!-- Character Info -->
           <div class="panel">
             <div class="panel-title">Character</div>
-            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-              <div id="char-token-preview" style="width:52px;height:52px;border-radius:50%;border:2px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
-                <span style="font-size:20px;color:var(--text3)">⚔</span>
+            <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0">
+                <div id="char-token-preview" style="width:110px;height:110px;border-radius:14px;border:2px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
+                  <span style="font-size:36px;color:var(--text3)">⚔</span>
+                </div>
+                <input type="file" id="ci-token-file" accept="image/*" style="display:none" onchange="handleTokenFileUpload(this.files[0])"/>
+                <button class="tbtn" style="font-size:9px;padding:4px 8px" onclick="document.getElementById('ci-token-file').click()">📤 Upload</button>
+                <span id="ci-token-status" style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-align:center"></span>
               </div>
-              <div style="flex:1">
-                <label class="field-label">Token Image</label>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <input type="file" id="ci-token-file" accept="image/*" style="display:none" onchange="handleTokenFileUpload(this.files[0])"/>
-                  <button class="tbtn" style="font-size:10px;padding:6px 12px" onclick="document.getElementById('ci-token-file').click()">📤 Upload Token</button>
-                  <span id="ci-token-status" style="font-family:var(--font-ui);font-size:9px;color:var(--text3)"></span>
+              <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px">
+                <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="name" placeholder="Character name" oninput="onCharNameChange(this.value)" style="width:100%;box-sizing:border-box"/></div>
+                <div style="display:grid;grid-template-columns:1fr 100px;gap:10px">
+                  <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off" style="width:100%;box-sizing:border-box"/></div>
+                  <div><label class="field-label">XP</label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0" style="width:100%;box-sizing:border-box"/></div>
                 </div>
               </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 120px;gap:10px;margin-bottom:10px">
-              <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="name" placeholder="Character name" oninput="onCharNameChange(this.value)"/></div>
-              <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off"/></div>
-              <div><label class="field-label">XP</label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0"/></div>
             </div>
             <div id="ci-subrace-row" style="display:none;margin-bottom:10px">
               <label class="field-label">Subrace</label>
@@ -22749,8 +22748,10 @@ const WEAPON_ARMOR_PROF_CATEGORIES = {
 function toggleWeaponArmorProf(name) {
   if (!currentChar) return;
   if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
+  if (!currentChar._manualWeaponArmorProfs) currentChar._manualWeaponArmorProfs = {};
   const key = toolProfKey(name);
   currentChar.weaponArmorProfs[key] = !currentChar.weaponArmorProfs[key];
+  currentChar._manualWeaponArmorProfs[key] = true;
   renderWeaponArmorProfsBlock();
   debouncedSave();
 }
@@ -22764,7 +22765,10 @@ function addCustomWeaponArmorProf() {
   if (currentChar.customWeaponArmorProfs.some(n => n.toLowerCase() === name.toLowerCase())) { input.value = ''; return; }
   currentChar.customWeaponArmorProfs.push(name);
   if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
-  currentChar.weaponArmorProfs[toolProfKey(name)] = true;
+  if (!currentChar._manualWeaponArmorProfs) currentChar._manualWeaponArmorProfs = {};
+  const key = toolProfKey(name);
+  currentChar.weaponArmorProfs[key] = true;
+  currentChar._manualWeaponArmorProfs[key] = true;
   input.value = '';
   renderWeaponArmorProfsBlock();
   debouncedSave();
@@ -22774,16 +22778,99 @@ window.addCustomWeaponArmorProf = addCustomWeaponArmorProf;
 function removeCustomWeaponArmorProf(name) {
   if (!currentChar?.customWeaponArmorProfs) return;
   currentChar.customWeaponArmorProfs = currentChar.customWeaponArmorProfs.filter(n => n !== name);
-  delete currentChar.weaponArmorProfs[toolProfKey(name)];
+  const key = toolProfKey(name);
+  delete currentChar.weaponArmorProfs[key];
+  // Mark it manual even on removal — otherwise removing a class-granted
+  // named weapon (e.g. a Rogue unchecking "Shortswords") would just get
+  // silently re-added the next time this re-evaluates, since nothing
+  // would record that the removal was deliberate.
+  if (!currentChar._manualWeaponArmorProfs) currentChar._manualWeaponArmorProfs = {};
+  currentChar._manualWeaponArmorProfs[key] = true;
   renderWeaponArmorProfsBlock();
   debouncedSave();
 }
 window.removeCustomWeaponArmorProf = removeCustomWeaponArmorProf;
 
+// Class weapon/armor proficiency grants — standard 2024 PHB rules, from
+// general knowledge rather than found in this app's own data the way the
+// tool/language grants were (there's no armor/weapons field on PHB_CLASSES
+// to search, unlike feature text). Flagged here as the one auto-grant in
+// this whole system NOT cross-checked against your actual source files —
+// worth a second look if something seems off for a specific class.
+// Classes with the full broad category use the fixed Weapons/Armor toggle
+// names; classes restricted to a handful of named weapons (Wizard,
+// Sorcerer, Rogue, Bard, Monk) list those specific weapons instead, which
+// get auto-added as Custom entries rather than toggling the whole category
+// they don't actually have full access to.
+const CLASS_WEAPON_ARMOR_GRANTS = {
+  'barbarian': { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
+  'bard':      { armor: ['Light Armor'], weapons: ['Simple Weapons','Hand Crossbows','Longswords','Rapiers','Shortswords'] },
+  'cleric':    { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons'] },
+  'druid':     { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons'] },
+  'fighter':   { armor: ['Light Armor','Medium Armor','Heavy Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
+  'monk':      { armor: [], weapons: ['Simple Weapons','Shortswords'] },
+  'paladin':   { armor: ['Light Armor','Medium Armor','Heavy Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
+  'ranger':    { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
+  'rogue':     { armor: ['Light Armor'], weapons: ['Simple Weapons','Hand Crossbows','Longswords','Rapiers','Shortswords'] },
+  'sorcerer':  { armor: [], weapons: ['Daggers','Darts','Slings','Quarterstaffs','Light Crossbows'] },
+  'warlock':   { armor: ['Light Armor'], weapons: ['Simple Weapons'] },
+  'wizard':    { armor: [], weapons: ['Daggers','Darts','Slings','Quarterstaffs','Light Crossbows'] },
+  'artificer': { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons'] },
+};
+
+// Re-evaluates class-granted weapon/armor proficiencies every render, same
+// manual-override protection as the tool/language grants — a manual
+// check or uncheck sticks even if this re-evaluates (switching classes,
+// leveling, etc.), and any class-specific named weapon that isn't one of
+// the four fixed categories is tracked as a Custom entry.
+function applyClassWeaponArmorGrants() {
+  if (!currentChar) return;
+  if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
+  if (!currentChar.customWeaponArmorProfs) currentChar.customWeaponArmorProfs = [];
+  if (!currentChar._clsWeaponArmorProfs) currentChar._clsWeaponArmorProfs = [];
+  if (!currentChar._clsCustomWeaponArmorProfs) currentChar._clsCustomWeaponArmorProfs = [];
+  if (!currentChar._manualWeaponArmorProfs) currentChar._manualWeaponArmorProfs = {};
+
+  currentChar._clsWeaponArmorProfs.forEach(k => {
+    if (!currentChar._manualWeaponArmorProfs[k]) delete currentChar.weaponArmorProfs[k];
+  });
+  currentChar._clsWeaponArmorProfs = [];
+  currentChar._clsCustomWeaponArmorProfs.forEach(n => {
+    const k = toolProfKey(n);
+    if (!currentChar._manualWeaponArmorProfs[k]) {
+      currentChar.customWeaponArmorProfs = currentChar.customWeaponArmorProfs.filter(x => x !== n);
+      delete currentChar.weaponArmorProfs[k];
+    }
+  });
+  currentChar._clsCustomWeaponArmorProfs = [];
+
+  const entries = typeof getAllClasses === 'function' ? getAllClasses() : [];
+  const fixedNames = new Set(Object.values(WEAPON_ARMOR_PROF_CATEGORIES).flat());
+  entries.forEach(e => {
+    const grant = CLASS_WEAPON_ARMOR_GRANTS[(e.class||'').toLowerCase()];
+    if (!grant) return;
+    [...(grant.armor||[]), ...(grant.weapons||[])].forEach(name => {
+      const key = toolProfKey(name);
+      if (currentChar._manualWeaponArmorProfs[key]) return; // player has
+      // explicitly touched this one (checked, unchecked, or removed) —
+      // hands off entirely, don't re-add the name or re-check it
+      if (fixedNames.has(name)) {
+        currentChar._clsWeaponArmorProfs.push(key);
+      } else {
+        currentChar._clsCustomWeaponArmorProfs.push(name);
+        if (!currentChar.customWeaponArmorProfs.includes(name)) currentChar.customWeaponArmorProfs.push(name);
+      }
+      currentChar.weaponArmorProfs[key] = true;
+    });
+  });
+}
+window.applyClassWeaponArmorGrants = applyClassWeaponArmorGrants;
+
 function renderWeaponArmorProfsBlock() {
   if (!currentChar) return;
   if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
   if (!currentChar.customWeaponArmorProfs) currentChar.customWeaponArmorProfs = [];
+  applyClassWeaponArmorGrants();
 
   const cats = { ...WEAPON_ARMOR_PROF_CATEGORIES };
   if (currentChar.customWeaponArmorProfs.length) cats['Custom'] = currentChar.customWeaponArmorProfs;
@@ -26233,7 +26320,7 @@ function refreshCharTokenPreview() {
     el.innerHTML = '';
   } else {
     el.style.backgroundImage = 'none';
-    el.innerHTML = '<span style="font-size:20px;color:var(--text3)">⚔</span>';
+    el.innerHTML = '<span style="font-size:36px;color:var(--text3)">⚔</span>';
   }
 }
 window.refreshCharTokenPreview = refreshCharTokenPreview;
@@ -27828,11 +27915,28 @@ function useRodOfPactKeeper(ownedIdx) {
   currentChar.spell_slots_used[`slot_${slotLevel}_${restoredIdx}`] = false;
   item._rodPactSlotUsedThisRest = true;
   if (typeof renderSpellSlots === 'function') renderSpellSlots();
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
+  // Close whichever modal this was actually triggered from (detail view
+  // or edit form — the button lives in both) rather than hardcoding one,
+  // and re-render the other's button state too so it doesn't show stale
+  // "still usable" if the player reopens it later this session.
   closeModal('mi-detail-modal');
+  closeModal('mi-edit-modal');
   toast('Regained a Pact Magic slot.', 'ok');
   debouncedSave();
 }
 window.useRodOfPactKeeper = useRodOfPactKeeper;
+
+// Wrapper for the Resource Tracker's button, which doesn't have a specific
+// owned-item index handy the way the item's own detail/edit modal does —
+// finds the owned rod itself, then reuses the same core logic either way.
+function useRodOfPactKeeperFromResource() {
+  const idx = (currentChar?.magicItems || []).findIndex(i => i.key === 'rod_of_the_pact_keeper___1___2__or__3');
+  if (idx === -1) return;
+  useRodOfPactKeeper(idx);
+  if (typeof renderResourceTracker === 'function') renderResourceTracker();
+}
+window.useRodOfPactKeeperFromResource = useRodOfPactKeeperFromResource;
 
 function toggleSlotPipIndividual(slotLevel, pipIdx) {
   if (!currentChar) return;
@@ -37361,7 +37465,28 @@ function populateMagicItemEditForm(item, resetPending = true) {
   }
 
   const desc = document.getElementById('mi-edit-desc');
-  if (desc) { const effDesc = getEffectiveItemDesc(item); desc.innerHTML = effDesc ? renderItemMarkdown(effDesc) : '<em style="color:var(--text3)">No description available.</em>'; }
+  if (desc) {
+    const effDesc = getEffectiveItemDesc(item);
+    desc.innerHTML = effDesc ? renderItemMarkdown(effDesc) : '<em style="color:var(--text3)">No description available.</em>';
+    // Rod of the Pact Keeper's slot-recovery action, also surfaced here —
+    // a freshly-added variable-tier item opens straight into this Edit
+    // form rather than the detail view (correctly, since the tier isn't
+    // picked yet), so this is often the first place a player actually
+    // sees the item at all. Only showing it in the detail view meant it
+    // was easy to never notice.
+    if (item.key === 'rod_of_the_pact_keeper___1___2__or__3' && item._uid) {
+      const ownedIdx = (currentChar.magicItems || []).indexOf(item);
+      if (ownedIdx !== -1) {
+        const used = !!item._rodPactSlotUsedThisRest;
+        desc.innerHTML += `
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+            <button class="tbtn" ${used ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeper(${ownedIdx})">
+              ${used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot'}
+            </button>
+          </div>`;
+      }
+    }
+  }
 
   const restypeRow = document.getElementById('mi-edit-restype-row');
   const restypeSel = document.getElementById('mi-edit-restype');
@@ -40379,10 +40504,19 @@ window.openInvocationsModal = openInvocationsModal;
 
 // ── Psionic Disciplines Modal ────────────────────────────
 function openDisciplinesModal() {
+  _disciplinesSearchQuery = '';
   renderDisciplinesModal();
   openModal('disciplines-modal');
 }
 window.openDisciplinesModal = openDisciplinesModal;
+
+let _disciplinesSearchQuery = '';
+
+function filterDisciplinesModal(query) {
+  _disciplinesSearchQuery = query;
+  renderDisciplinesModal();
+}
+window.filterDisciplinesModal = filterDisciplinesModal;
 
 function renderDisciplinesModal() {
   if (!currentChar) return;
@@ -40403,35 +40537,58 @@ function renderDisciplinesModal() {
 
   // Options are now clean names
   const allNames = def.options || [];
+  const q = (_disciplinesSearchQuery || '').trim().toLowerCase();
+  const visibleNames = q ? allNames.filter(n => n.toLowerCase().includes(q) || (DISCIPLINE_DESCS[n]||'').toLowerCase().includes(q)) : allNames;
+
+  const searchBar = `
+    <input class="spell-search-input" placeholder="Search disciplines…" value="${(_disciplinesSearchQuery||'').replace(/"/g,'&quot;')}"
+      oninput="filterDisciplinesModal(this.value)" style="width:100%;box-sizing:border-box;margin-bottom:14px"/>`;
+
+  if (!visibleNames.length) {
+    body.innerHTML = `
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.5">
+        ${def.desc || 'Choose your Psionic Disciplines. You can select one per turn.'}
+      </div>
+      ${searchBar}
+      <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);text-align:center;padding:16px">No disciplines match "${_disciplinesSearchQuery}".</div>`;
+    return;
+  }
 
   body.innerHTML = `
-    <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5">
+    <div style="font-family:var(--font-body);font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.5">
       ${def.desc || 'Choose your Psionic Disciplines. You can select one per turn.'}
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      ${allNames.map(name => {
+    ${searchBar}
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${visibleNames.map(name => {
         const isSelected = chosen.has(name);
         const fullDesc   = DISCIPLINE_DESCS[name] || '';
+        // Pipe-delimited descriptions (like Sharpened Mind's "Bypassing
+        // Psionics." / "Attack Mode." sub-options) run through the same
+        // formatter class feature cards already use, turning them into a
+        // real bulleted list with each part's own line, instead of one
+        // dense run-on paragraph with " | " barely visible as a separator.
+        const descHtml = formatFeatureDescHtml(fullDesc);
         return `
           <div onclick="toggleDiscipline('${name.replace(/'/g,"\\'")}',${maxCount})"
             style="border:1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'};
               background:${isSelected ? 'rgba(45,168,109,.08)' : 'var(--bg3)'};
-              border-radius:var(--radius);padding:10px 14px;cursor:pointer;
+              border-radius:var(--radius);padding:14px 16px;cursor:pointer;
               transition:border-color .15s,background .15s">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:${fullDesc?'5px':'0'}">
-              <div style="width:14px;height:14px;border-radius:50%;flex-shrink:0;
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:${fullDesc?'8px':'0'}">
+              <div style="width:16px;height:16px;border-radius:50%;flex-shrink:0;
                 border:2px solid ${isSelected ? 'var(--accent)' : 'var(--border2)'};
                 background:${isSelected ? 'var(--accent)' : 'transparent'};
                 display:flex;align-items:center;justify-content:center">
-                ${isSelected ? '<div style="width:6px;height:6px;border-radius:50%;background:#000"></div>' : ''}
+                ${isSelected ? '<div style="width:7px;height:7px;border-radius:50%;background:#000"></div>' : ''}
               </div>
-              <span style="font-family:var(--font-ui);font-size:12px;font-weight:600;
+              <span style="font-family:var(--font-ui);font-size:14px;font-weight:600;
                 color:${isSelected ? 'var(--accent)' : 'var(--text)'}">
                 ${name}
               </span>
             </div>
-            ${fullDesc ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);
-              line-height:1.5;padding-left:24px">${fullDesc}</div>` : ''}
+            ${fullDesc ? `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);
+              line-height:1.6;padding-left:28px">${descHtml}</div>` : ''}
           </div>`;
       }).join('')}
     </div>`;
@@ -41698,6 +41855,15 @@ function renderResourceTracker() {
   // always reflects the character's current race, even if this render
   // pass happens to fire before those other call sites do.
   if (typeof syncHeroicInspirationResource === 'function') syncHeroicInspirationResource();
+
+  // Rod of the Pact Keeper's slot-recovery action — surfaced as a real
+  // resource entry on the main sheet, not just a button buried inside the
+  // item's own detail/edit modal. All three +1/+2/+3 variants share the
+  // same key and the same ability, so this only needs to check for one.
+  if ((currentChar.magicItems || []).some(i => i.key === 'rod_of_the_pact_keeper___1___2__or__3')) {
+    allDefs.push({ id: 'rod_of_pact_keeper_resource', name: 'Rod of the Pact Keeper', type: 'modal-button', recovery: 'long' });
+  }
+
   (currentChar.customResources || []).forEach(cr => {
     allDefs.push({
       id: cr.id, name: cr.name, desc: cr.desc || '',
@@ -42021,7 +42187,18 @@ function renderResourceEntry(def, level, prof) {
   }
 
   if (isModalBtn) {
-    if (def.id === 'mutable_form_config') {
+    if (def.id === 'rod_of_pact_keeper_resource') {
+      const rod = (currentChar.magicItems || []).find(i => i.key === 'rod_of_the_pact_keeper___1___2__or__3');
+      const used = !!rod?._rodPactSlotUsedThisRest;
+      html += `<div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="tbtn" style="font-size:10px;padding:5px 12px" ${used ? 'disabled style="opacity:.4;cursor:not-allowed"' : ''} onclick="useRodOfPactKeeperFromResource()">
+            ${used ? 'Already used this rest' : '✦ Regain a Pact Magic Slot'}
+          </button>
+        </div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">As an action, once per long rest while holding the rod.</div>
+      </div>`;
+    } else if (def.id === 'mutable_form_config') {
       // Mutable Form specific summary
       const _mfState = currentChar._mutableForm || {};
       const _isMFActive = !!_mfState.active;
@@ -49679,6 +49856,23 @@ function openDMPanelDirect() {
     if (dmcon)  dmcon.style.display = 'block';
     switchDMTab('party');
     loadDMCharList();
+    // loadDMCustomLanguages() (and the class glyph defaults it shares
+    // _dm.json with) previously only ran as part of loading an actual
+    // character — a DM landing here directly, without opening a
+    // character first, never triggered it. The panel would then show an
+    // empty homebrew-languages list even though the data was correctly
+    // saved on the server the whole time, since nothing had fetched it
+    // into this session yet. Also re-renders in case this fires after
+    // the panel's own DOM already exists (the function's own render call
+    // only helps if the element wasn't there yet when it started).
+    if (typeof loadDMCustomLanguages === 'function') {
+      loadDMCustomLanguages().then(() => {
+        if (typeof renderDMCustomLanguagesList === 'function') renderDMCustomLanguagesList();
+      });
+    }
+    if (typeof dmLoadGlyphDefaults === 'function') {
+      dmLoadGlyphDefaults();
+    }
   }
 }
 window.openDMPanelDirect = openDMPanelDirect;
