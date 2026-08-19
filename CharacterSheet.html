@@ -2957,6 +2957,20 @@ body.preview-readonly #mi-detail-edit-row * {
             </div>
           </div>
           <div class="panel" style="margin-top:10px">
+            <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleProfPanelExpanded('wa')">
+              <span>Weapon &amp; Armor Proficiencies</span>
+              <span id="wa-profs-arrow" style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">▸</span>
+            </div>
+            <div id="wa-profs-summary" style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.6;cursor:pointer" onclick="toggleProfPanelExpanded('wa')"></div>
+            <div id="wa-profs-expanded" style="display:none;margin-top:6px">
+              <div id="wa-profs-block"></div>
+              <div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+                <input class="info-input" id="wa-profs-custom-input" placeholder="Add a specific weapon (e.g. Shortswords)…" style="flex:1" onkeydown="if(event.key==='Enter')addCustomWeaponArmorProf()"/>
+                <button class="tbtn" onclick="addCustomWeaponArmorProf()">Add</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel" style="margin-top:10px">
             <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleProfPanelExpanded('lang')">
               <span>Languages</span>
               <span id="lang-profs-arrow" style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">▸</span>
@@ -22721,6 +22735,96 @@ function toolProfKey(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
+// ── Weapon & Armor proficiency overrides ─────────────────────────────
+// Unlike tools, these don't have a check modifier — proficiency here is
+// purely binary (attack rolls/AC-relevant checks/spellcasting are only
+// penalized when you use something you're NOT proficient with), so there's
+// no equivalent of the tool checklist's ability-mod column. A manual
+// override menu, not an auto-granted one — class/background text for
+// these is far less consistently structured than tool/language grants
+// were, so this stays player/DM-driven rather than guessed at.
+const WEAPON_ARMOR_PROF_CATEGORIES = {
+  'Weapons': ['Simple Weapons', 'Martial Weapons'],
+  'Armor': ['Light Armor', 'Medium Armor', 'Heavy Armor', 'Shields'],
+};
+
+function toggleWeaponArmorProf(name) {
+  if (!currentChar) return;
+  if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
+  const key = toolProfKey(name);
+  currentChar.weaponArmorProfs[key] = !currentChar.weaponArmorProfs[key];
+  renderWeaponArmorProfsBlock();
+  debouncedSave();
+}
+window.toggleWeaponArmorProf = toggleWeaponArmorProf;
+
+function addCustomWeaponArmorProf() {
+  const input = document.getElementById('wa-profs-custom-input');
+  const name = (input?.value || '').trim();
+  if (!name || !currentChar) return;
+  if (!currentChar.customWeaponArmorProfs) currentChar.customWeaponArmorProfs = [];
+  if (currentChar.customWeaponArmorProfs.some(n => n.toLowerCase() === name.toLowerCase())) { input.value = ''; return; }
+  currentChar.customWeaponArmorProfs.push(name);
+  if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
+  currentChar.weaponArmorProfs[toolProfKey(name)] = true;
+  input.value = '';
+  renderWeaponArmorProfsBlock();
+  debouncedSave();
+}
+window.addCustomWeaponArmorProf = addCustomWeaponArmorProf;
+
+function removeCustomWeaponArmorProf(name) {
+  if (!currentChar?.customWeaponArmorProfs) return;
+  currentChar.customWeaponArmorProfs = currentChar.customWeaponArmorProfs.filter(n => n !== name);
+  delete currentChar.weaponArmorProfs[toolProfKey(name)];
+  renderWeaponArmorProfsBlock();
+  debouncedSave();
+}
+window.removeCustomWeaponArmorProf = removeCustomWeaponArmorProf;
+
+function renderWeaponArmorProfsBlock() {
+  if (!currentChar) return;
+  if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
+  if (!currentChar.customWeaponArmorProfs) currentChar.customWeaponArmorProfs = [];
+
+  const cats = { ...WEAPON_ARMOR_PROF_CATEGORIES };
+  if (currentChar.customWeaponArmorProfs.length) cats['Custom'] = currentChar.customWeaponArmorProfs;
+
+  const rowsFor = names => names.map(name => {
+    const key = toolProfKey(name);
+    const active = !!currentChar.weaponArmorProfs[key];
+    const isCustom = !WEAPON_ARMOR_PROF_CATEGORIES['Weapons'].includes(name) && !WEAPON_ARMOR_PROF_CATEGORIES['Armor'].includes(name);
+    const removeBtn = isCustom ? `<span onclick="event.stopPropagation();removeCustomWeaponArmorProf('${name.replace(/'/g,"\\'")}')" style="margin-left:6px;color:var(--red);cursor:pointer" title="Remove">×</span>` : '';
+    return `
+      <div class="skill-row">
+        <div class="skill-dots">
+          <div class="prof-dot ${active?'prof':''}" onclick="toggleWeaponArmorProf('${name.replace(/'/g,"\\'")}')" title="${active?'Proficient':'Not proficient'}"></div>
+        </div>
+        <span class="skill-name">${name}${removeBtn}</span>
+      </div>`;
+  }).join('');
+
+  const block = document.getElementById('wa-profs-block');
+  if (block) {
+    block.innerHTML = Object.entries(cats).map(([cat, names]) => `
+      <div style="margin-bottom:4px">
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-top:6px">${cat}</div>
+        ${rowsFor(names)}
+      </div>
+    `).join('');
+  }
+
+  const summary = document.getElementById('wa-profs-summary');
+  if (summary) {
+    const allNames = Object.values(WEAPON_ARMOR_PROF_CATEGORIES).flat().concat(currentChar.customWeaponArmorProfs);
+    const active = allNames.filter(n => currentChar.weaponArmorProfs[toolProfKey(n)]);
+    summary.innerHTML = active.length
+      ? active.sort().map(n => `<div class="skill-row"><span class="skill-name" style="padding-left:16px">${n}</span></div>`).join('')
+      : '<div style="color:var(--text3);font-family:var(--font-body);font-size:11px;padding:4px 0">None selected — tap to choose</div>';
+  }
+}
+window.renderWeaponArmorProfsBlock = renderWeaponArmorProfsBlock;
+
 // Pulls the tool's default ability score straight from its real PHB_GEAR
 // description ("Ability: Dexterity" etc.) — the 2024 rules pin one down
 // per tool, it's not actually freeform like the 2014 rules were. A few
@@ -26100,6 +26204,7 @@ function recalcAll() {
   updateDCCalc();
   renderSkillsBlock();
   if (typeof renderToolLanguageProfsBlock === 'function') renderToolLanguageProfsBlock();
+  if (typeof renderWeaponArmorProfsBlock === 'function') renderWeaponArmorProfsBlock();
   recalcQuickStats();
   if (typeof renderKnownSpells === 'function') renderKnownSpells(); // refresh item-granted spells etc.
   renderAttacksPanel();
