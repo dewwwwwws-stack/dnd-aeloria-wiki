@@ -3169,7 +3169,7 @@ body.preview-readonly #mi-detail-edit-row * {
               <div id="mi-browser-body" style="display:none;margin-top:8px">
                 <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
                   <input class="spell-search-input" id="mi-br-search" placeholder="Search items…" title="Searches item names and full text. Supports * (any characters) and ? (single character) wildcards."
-                    oninput="renderMagicItemBrowser()" style="flex:1;min-width:120px"/>
+                    oninput="debouncedRenderMagicItemBrowser()" style="flex:1;min-width:120px"/>
                   <select class="spell-filter-sel" id="mi-br-rarity" onchange="renderMagicItemBrowser()">
                     <option value="">All Rarities</option>
                     <option value="common">Common</option>
@@ -3675,7 +3675,7 @@ body.preview-readonly #mi-detail-edit-row * {
             <option value="mount">🐴 Mounts & Vehicles</option>
           </select>
           <input class="spell-search-input" id="dm-items-search" placeholder="Search catalog…" title="Searches names and full item text. Supports * and ? wildcards."
-            oninput="dmRenderItemsList()" style="flex:1;min-width:120px"/>
+            oninput="debouncedDmRenderItemsList()" style="flex:1;min-width:120px"/>
           <select class="spell-filter-sel" id="dm-items-rarity" onchange="dmRenderItemsList()">
             <option value="">All Rarities</option>
             <option value="common">Common</option>
@@ -7576,7 +7576,22 @@ async function saveDMGlyphDefaults() {
     let existing = {};
     try { const f = await GH.getFile('_dm.json'); sha = f.sha; existing = f.content || {}; } catch {}
     existing.classGlyphDefaults = newDefaults;
-    await GH.putFile('_dm.json', existing, sha);
+    try {
+      await GH.putFile('_dm.json', existing, sha);
+    } catch (e) {
+      // Same stale/missing-sha failure mode as the item and text override
+      // saves — _dm.json already exists on GitHub, so a null/outdated sha
+      // (e.g. from a load that happened before another DM setting was
+      // saved) gets rejected outright instead of just failing to apply.
+      // Refetch the live file, merge our glyph defaults on top of whatever
+      // else lives in _dm.json (campaigns, pinHash, etc.), and retry once
+      // with the fresh sha rather than silently losing this save.
+      if (e.status !== 422 && e.status !== 409) throw e;
+      const fresh = await GH.getFile('_dm.json');
+      existing = Object.assign({}, fresh.content || {}, { classGlyphDefaults: newDefaults });
+      sha = fresh.sha;
+      await GH.putFile('_dm.json', existing, sha);
+    }
     _dmGlyphDefaults = newDefaults;
     if (statusEl) { statusEl.textContent = '✓ Saved'; statusEl.style.color = 'var(--accent)'; }
   } catch (e) {
@@ -7607,11 +7622,15 @@ function resolveSpellGlyphPrefs() {
 // to fall back on even for players who never open the DM panel themselves.
 async function ensureDMGlyphDefaultsLoaded() {
   if (_dmGlyphDefaultsLoadedForChar) return;
-  _dmGlyphDefaultsLoadedForChar = true;
   try {
     const f = await GH.getFile('_dm.json');
     _dmGlyphDefaults = f.content.classGlyphDefaults || {};
-  } catch { /* no _dm.json yet, or no read access — fall back silently */ }
+    _dmGlyphDefaultsLoadedForChar = true; // only mark loaded on success — a
+    // transient failure (network blip, rate limit) used to set this flag
+    // regardless, permanently skipping every retry for the rest of the
+    // session and leaving every spell modal stuck on the hardcoded
+    // fallback instead of the DM's actual class defaults.
+  } catch { /* no _dm.json yet, or no read access — fall back silently, will retry next time a spell modal opens */ }
 }
 
 // Persists the player's own per-character override and re-renders the open
@@ -36069,6 +36088,22 @@ function toggleMagicItemBrowser() {
   if (_miBrowserOpen) renderMagicItemBrowser();
 }
 
+// Debounced so rapid typing (especially broad early characters that still
+// match thousands of items in a 6,000+ item catalog) doesn't trigger a full
+// re-render on every single keystroke — only once typing pauses briefly.
+// Filter dropdowns (rarity/type/attunement) call renderMagicItemBrowser()
+// directly since those change less often and a slight delay there isn't
+// worth the complexity.
+let _miBrowserSearchDebounce = null;
+function debouncedRenderMagicItemBrowser() {
+  if (_miBrowserSearchDebounce) clearTimeout(_miBrowserSearchDebounce);
+  _miBrowserSearchDebounce = setTimeout(() => {
+    _miBrowserSearchDebounce = null;
+    renderMagicItemBrowser();
+  }, 180);
+}
+window.debouncedRenderMagicItemBrowser = debouncedRenderMagicItemBrowser;
+
 function renderMagicItemBrowser() {
   const list  = document.getElementById('mi-browser-list');
   const count = document.getElementById('mi-browser-count');
@@ -36104,10 +36139,25 @@ function renderMagicItemBrowser() {
   if (count) count.textContent = `${filtered.length} item${filtered.length!==1?'s':''}`;
   list.innerHTML = '';
 
+  // Rendering a DOM row per item gets genuinely slow once the catalog is
+  // this large (thousands of rows on an empty/broad search) — cap what
+  // actually gets built and tell the player there's more to narrow down
+  // to, rather than freezing the browser building rows nobody scrolls to.
+  const RENDER_CAP = 150;
+  const truncated = filtered.length > RENDER_CAP;
+  const toRender = truncated ? filtered.slice(0, RENDER_CAP) : filtered;
+
+  if (truncated) {
+    const notice = document.createElement('div');
+    notice.style.cssText = 'font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);margin-bottom:4px';
+    notice.textContent = `Showing first ${RENDER_CAP} of ${filtered.length} — keep typing to narrow it down`;
+    list.appendChild(notice);
+  }
+
   // Group by rarity
   const RARITY_ORDER = ['common','uncommon','rare','very rare','legendary','artifact','primeval vestige','priceless','unknown'];
   const grouped = {};
-  filtered.forEach(i => {
+  toRender.forEach(i => {
     const r = i.rarity||'common';
     if (!grouped[r]) grouped[r] = [];
     grouped[r].push(i);
@@ -37365,6 +37415,18 @@ async function deleteDMCatalogItem() {
   }
 }
 
+// Debounced for the same reason as debouncedRenderMagicItemBrowser — this
+// list can also be browsing the full 6,000+ item magic item catalog.
+let _dmItemsSearchDebounce = null;
+function debouncedDmRenderItemsList() {
+  if (_dmItemsSearchDebounce) clearTimeout(_dmItemsSearchDebounce);
+  _dmItemsSearchDebounce = setTimeout(() => {
+    _dmItemsSearchDebounce = null;
+    dmRenderItemsList();
+  }, 180);
+}
+window.debouncedDmRenderItemsList = debouncedDmRenderItemsList;
+
 function dmRenderItemsList() {
   const list  = document.getElementById('dm-items-list');
   const count = document.getElementById('dm-items-count');
@@ -37443,7 +37505,17 @@ function dmRenderItemsList() {
 
   if (count) count.textContent = `${filtered.length} item${filtered.length!==1?'s':''}`;
 
-  list.innerHTML = filtered.map(item => {
+  // Same fix as the player-facing Magic Item Browser — building a DOM row
+  // per item gets slow once the catalog is this large, and an empty/broad
+  // search on the full 6,000+ item catalog was rendering every single one.
+  const DM_ITEM_RENDER_CAP = 150;
+  const dmItemsTruncated = filtered.length > DM_ITEM_RENDER_CAP;
+  const toRenderItems = dmItemsTruncated ? filtered.slice(0, DM_ITEM_RENDER_CAP) : filtered;
+  const truncationNoticeHtml = dmItemsTruncated
+    ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);margin-bottom:4px">Showing first ${DM_ITEM_RENDER_CAP} of ${filtered.length} — keep typing to narrow it down</div>`
+    : '';
+
+  list.innerHTML = truncationNoticeHtml + toRenderItems.map(item => {
     const isDM = !!_dmItemOverrides[item.key];
     const isNewItem = isDM && !DMG_MAGIC_ITEMS.some(i => i.key === item.key);
     return `
@@ -42755,6 +42827,46 @@ function renderBackgroundEquipmentChoice(bgKey, containerId) {
 }
 window.renderBackgroundEquipmentChoice = renderBackgroundEquipmentChoice;
 
+// Resolves a background-equipment item name against the real catalogs
+// (Gear, then Weapons, then Armor) so background-granted starting kit gets
+// the same weight/value/description as anything picked from those
+// browsers, instead of landing as a bare custom row with nothing filled
+// in. Background item names sometimes carry a parenthetical detail the
+// catalogs don't ("Book (prayers)", "Parchment (10 sheets)") — matching is
+// done on the part before the parenthesis, but the original full name
+// (with the detail) is what actually gets shown on the character sheet.
+function lookupBackgroundEquipmentItem(name) {
+  const baseName = name.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const lower = baseName.toLowerCase();
+  const singularLower = lower.endsWith('s') && !lower.endsWith('ss') ? lower.slice(0, -1) : null;
+  const nameMatches = (catalogName) => {
+    const cLower = catalogName.toLowerCase();
+    return cLower === lower || (singularLower && cLower === singularLower);
+  };
+  const gear = PHB_GEAR.find(g => nameMatches(g.name));
+  if (gear) return { weight: gear.weight || '', desc: gear.desc || '' };
+  const weapon = PHB_WEAPONS.find(w => nameMatches(w.name));
+  if (weapon) return { weight: weapon.weight || '', desc: weapon.type ? `${weapon.type}${weapon.list ? ' · ' + weapon.list : ''}` : '' };
+  const armour = PHB_ARMOUR.find(a => nameMatches(a.name));
+  if (armour) return { weight: armour.weight || '', desc: armour.type || (armour.baseAC ? `AC ${armour.baseAC}` : '') };
+  return null;
+}
+
+// Splits a background item name into a clean base name + real quantity.
+// Two different kinds of parenthetical show up in background equipment
+// text: a stated count ("Parchment (12 sheets)", "Oil (3 flasks)",
+// "Rations (3 days' worth)" — always starts with a digit) and a
+// descriptive qualifier that names which variant, not how many
+// ("Book (history)", "Arcane Focus (Crystal or Wand)", "Gaming Set (same
+// as above)" — never starts with a digit). Only the first kind should
+// become a quantity; the second kind has to stay in the displayed name or
+// the item loses the detail that actually distinguishes it.
+function splitBackgroundItemQty(name, baseQty) {
+  const m = name.match(/^(.*?)\s*\((\d+)\s+[^)]*\)\s*$/);
+  if (!m) return { name, qty: baseQty };
+  return { name: m[1].trim(), qty: (baseQty || 1) * parseInt(m[2], 10) };
+}
+
 function applyBackgroundEquipmentChoice(bgKey, choice, containerId) {
   const bg = PHB_BACKGROUNDS[bgKey];
   if (!bg || !currentChar) return;
@@ -42772,7 +42884,14 @@ function applyBackgroundEquipmentChoice(bgKey, choice, containerId) {
 
   if (choice === 'A') {
     (bg.equipmentA || []).forEach(it => {
-      currentChar.equipment.push({ name: it.name, qty: it.qty, weight: '', desc: '', _bgGranted: true });
+      const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
+      const catalogMatch = lookupBackgroundEquipmentItem(cleanName);
+      currentChar.equipment.push({
+        name: cleanName, qty: resolvedQty,
+        weight: catalogMatch?.weight || '',
+        desc: catalogMatch?.desc || '',
+        _bgGranted: true,
+      });
     });
     currentChar.currency.gp = (currentChar.currency.gp || 0) + (bg.goldA || 0);
   } else {
@@ -42806,7 +42925,8 @@ function undoBackgroundEquipmentChoice() {
     // name — the player may separately own an item that happens to share
     // a name with something their background granted.
     (bg.equipmentA || []).forEach(it => {
-      const idx = (currentChar.equipment || []).findIndex(e => e._bgGranted && e.name === it.name && e.qty === it.qty);
+      const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
+      const idx = (currentChar.equipment || []).findIndex(e => e._bgGranted && e.name === cleanName && e.qty === resolvedQty);
       if (idx !== -1) currentChar.equipment.splice(idx, 1);
     });
     currentChar.currency.gp = Math.max(0, (currentChar.currency.gp || 0) - (bg.goldA || 0));
