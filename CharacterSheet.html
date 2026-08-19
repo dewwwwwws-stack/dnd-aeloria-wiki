@@ -6493,7 +6493,7 @@ function switchDMTab(tab) {
     btn.style.color = active ? 'var(--accent)' : 'var(--text3)';
     btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
   });
-  if (tab === 'admin')     dmLoadAdminCharList();
+  if (tab === 'admin')     { dmLoadAdminCharList(); if (typeof dmLoadGlyphDefaults === 'function') dmLoadGlyphDefaults(); if (typeof loadDMCustomLanguages === 'function') loadDMCustomLanguages(); }
   if (tab === 'campaigns') dmLoadCampaigns();
   if (tab === 'items')     dmRenderItemsList();
 }
@@ -7687,9 +7687,21 @@ async function ensureDMGlyphDefaultsLoaded() {
 let _dmCustomLanguages = [];
 let _dmCustomLanguagesLoaded = false;
 
+let _dmCustomLanguagesLoadGen = 0;
 async function loadDMCustomLanguages() {
+  const myGen = ++_dmCustomLanguagesLoadGen;
   try {
     const f = await GH.getFile('_dm.json');
+    // If a newer load (or a save that updated _dmCustomLanguages directly,
+    // like adding a language) started after this one, this response is
+    // stale — applying it would silently roll back whatever happened in
+    // the meantime. Concretely: switching to the tab this list lives on
+    // fires a background reload; if the DM adds a language while that's
+    // still in flight, the save finishes and updates state correctly,
+    // but the earlier reload's response can still land afterward and
+    // stomp it back to the pre-add state. Only the most recent call may
+    // apply its result.
+    if (myGen !== _dmCustomLanguagesLoadGen) return;
     _dmCustomLanguages = f.content.customLanguages || [];
     _dmCustomLanguagesLoaded = true; // only mark loaded on success, same
     // reasoning as the glyph-defaults loader above — a transient failure
@@ -7701,6 +7713,10 @@ async function loadDMCustomLanguages() {
 window.loadDMCustomLanguages = loadDMCustomLanguages;
 
 async function saveDMCustomLanguages() {
+  _dmCustomLanguagesLoadGen++; // invalidate any in-flight load — this
+  // save's result is more current than whatever a pending fetch might
+  // still be holding, so that fetch's response must not be allowed to
+  // overwrite the newer state once it lands
   try {
     let sha = null, existing = {};
     try { const f = await GH.getFile('_dm.json'); sha = f.sha; existing = f.content || {}; } catch {}
