@@ -2683,7 +2683,7 @@ body.preview-readonly #mi-detail-edit-row * {
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
                 <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="name" placeholder="Character name" oninput="onCharNameChange(this.value)" style="width:100%;box-sizing:border-box"/></div>
                 <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off" style="width:100%;box-sizing:border-box"/></div>
-                <div><label class="field-label">XP <span id="xp-milestone-badge" style="display:none;font-size:8px;color:var(--gold);border:1px solid var(--gold);border-radius:3px;padding:0 4px;margin-left:4px;letter-spacing:.3px" title="This campaign uses Milestone leveling — the DM levels the party up directly rather than tracking XP totals">MILESTONE</span></label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0" style="width:100%;box-sizing:border-box"/></div>
+                <div id="ci-xp-row"><label class="field-label">XP</label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0" style="width:100%;box-sizing:border-box"/></div>
               </div>
             </div>
             <div id="ci-subrace-row" style="display:none;margin-bottom:10px">
@@ -7723,17 +7723,18 @@ async function loadDMCustomLanguages() {
 window.loadDMCustomLanguages = loadDMCustomLanguages;
 let _charCampaignsCache = null;
 
-// Shows/hides the "MILESTONE" badge next to the XP field based on the
-// character's assigned campaign. The XP input itself stays functional
-// either way — some DMs still want a rough number tracked even under
-// Milestone leveling — this is purely an informational label so the
-// player knows which system their table actually uses.
+// Hides the XP field entirely for characters in a Milestone campaign —
+// the DM levels the party up directly under that system, so tracking an
+// XP total is meaningless clutter rather than something a player needs
+// to fill in. Previously this only added a small "MILESTONE" badge next
+// to the field and left the input visible either way; removed the badge
+// in favor of just not showing the field at all when it doesn't apply.
 function updateXpMilestoneIndicator() {
-  const badge = document.getElementById('xp-milestone-badge');
-  if (!badge) return;
+  const row = document.getElementById('ci-xp-row');
+  if (!row) return;
   const campaigns = _charCampaignsCache || DEFAULT_CAMPAIGNS;
   const camp = campaigns.find(c => c.id === currentChar?._campaign);
-  badge.style.display = camp?.levelingMode === 'milestone' ? '' : 'none';
+  row.style.display = camp?.levelingMode === 'milestone' ? 'none' : '';
 }
 window.updateXpMilestoneIndicator = updateXpMilestoneIndicator;
 
@@ -8451,9 +8452,34 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
     // (Aid: "Hit Points increase by 5") — and drop the bonus right after it.
     const baseQtyPattern = /\b(?:increase[s]?\s+by|gain[s]?)\s+\d+(?:\s*d\s*\d+)?(?:\s*\+\s*\d+)?/i;
     const baseQtyMatch = before.match(baseQtyPattern);
-    if (baseQtyMatch) {
-      const insertAt = baseQtyMatch.index + baseQtyMatch[0].length;
-      const highlighted = before.slice(0, insertAt) + ' ' + bonusSpan + before.slice(insertAt);
+
+    // Some spells state the same per-level bonus applies to TWO different
+    // numbers in the same sentence (Armor of Agathys: "gain 5 Temporary
+    // Hit Points" AND, separately, "the creature takes 5 Cold damage" —
+    // both scale by the same +5/level, but only the first matches the
+    // "gain/increase by" phrasing above). Look for a second, independent
+    // occurrence of the exact same base number followed by "damage" —
+    // "takes N ... damage" or "deals N ... damage" — elsewhere in the
+    // text, and highlight that one too rather than silently leaving it
+    // unscaled just because it didn't match the first pattern.
+    const secondQtyPattern = new RegExp(`\\b(?:takes|deals)\\s+${perLevel}\\b(?!\\s*d\\s*\\d)[^.]{0,20}damage`, 'i');
+    const secondQtyMatch = before.match(secondQtyPattern);
+
+    if (baseQtyMatch || secondQtyMatch) {
+      // Insert furthest-back match first so its position doesn't shift
+      // once the earlier match's insertion changes the string length.
+      const insertions = [];
+      if (baseQtyMatch) insertions.push(baseQtyMatch.index + baseQtyMatch[0].length);
+      if (secondQtyMatch) {
+        // Insert right after the number itself, not the whole "takes N ... damage" match
+        const numOffset = secondQtyMatch[0].search(new RegExp(`\\b${perLevel}\\b`));
+        insertions.push(secondQtyMatch.index + numOffset + String(perLevel).length);
+      }
+      insertions.sort((a, b) => b - a); // descending, so earlier insertions don't shift later ones
+      let highlighted = before;
+      insertions.forEach(pos => {
+        highlighted = highlighted.slice(0, pos) + ' ' + bonusSpan + highlighted.slice(pos);
+      });
       return highlighted + after;
     }
     // Fallback for phrasing that doesn't match either pattern above — still
@@ -12193,7 +12219,7 @@ const PHB_CLASS_CHOICES = {
         {
           "value": "protector",
           "label": "Protector",
-          "desc": "Gain Training with Heavy Armor and Martial weapons. (Note: this proficiency isn't currently applied automatically anywhere else on the sheet \u2014 track it manually.)"
+          "desc": "Gain Training with Heavy Armor and Martial weapons \u2014 applied automatically to your Proficiencies panel and Attacks math."
         },
         {
           "value": "thaumaturge",
@@ -19137,20 +19163,30 @@ function getWeaponPropertyLabel(propKey) {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+// 2024 PHB base-class weapon proficiencies, verified against the actual
+// Core [Class] Traits tables (uploaded session source) rather than memory —
+// several entries here were previously stale 2014 data (Bard/Rogue's named
+// weapon lists, Druid's Scimitar exception) or outright wrong regardless of
+// edition (Sorcerer/Artificer). See HANDOFF5 for the audit.
+// `simpleMelee`/`martialMelee` grant only the melee half of that category
+// (e.g. a class with Simple weapons but not Simple ranged); `monkWeapon`
+// checks the PHB_WEAPONS catalog's own `monk` flag (Simple Melee + Martial
+// Melee weapons with the Light property) instead of a hardcoded name list,
+// so it stays correct if the weapon catalog changes.
 const CLASS_WEAPON_PROFS = {
   barbarian: { simple:true, martial:true, specific:[] },
-  bard:      { simple:true, martial:false, specific:['longsword','rapier','shortsword','hand_crossbow'] },
+  bard:      { simple:true, martial:false, specific:[] },
   cleric:    { simple:true, martial:false, specific:[] },
-  druid:     { simple:true, martial:false, specific:['scimitar'] },
+  druid:     { simple:true, martial:false, specific:[] },
   fighter:   { simple:true, martial:true, specific:[] },
-  monk:      { simple:true, martial:false, specific:['shortsword','hand_crossbow'] },
+  monk:      { simple:false, martial:false, monkWeapon:true, specific:[] },
   paladin:   { simple:true, martial:true, specific:[] },
   ranger:    { simple:true, martial:true, specific:[] },
-  rogue:     { simple:true, martial:false, specific:['longsword','rapier','shortsword','hand_crossbow','scimitar','whip'] },
-  sorcerer:  { simple:true, martial:false, specific:[] },
+  rogue:     { simple:true, martial:false, specific:['rapier','shortsword','hand_crossbow','scimitar','whip'] },
+  sorcerer:  { simple:false, martial:false, specific:['dagger','dart','sling','quarterstaff','light_crossbow'] },
   warlock:   { simple:true, martial:false, specific:[] },
   psion:     { simple:true, martial:false, specific:[] },
-  artificer: { simple:false, martial:false, specific:['dagger','crossbow_light','hand_crossbow','quarterstaff','shortsword'] },
+  artificer: { simple:true, martial:false, specific:[] },
   wizard:    { simple:false, martial:false, specific:['dagger','dart','sling','quarterstaff','light_crossbow'] },
 };
 
@@ -22799,7 +22835,11 @@ function toolProfKey(name) {
 // these is far less consistently structured than tool/language grants
 // were, so this stays player/DM-driven rather than guessed at.
 const WEAPON_ARMOR_PROF_CATEGORIES = {
-  'Weapons': ['Simple Weapons', 'Martial Weapons'],
+  // 'Simple Melee Weapons' is a distinct fixed toggle from 'Simple Weapons'
+  // (not a subset checkbox) — needed for classes like Monk whose base
+  // proficiency is melee-only and would otherwise over-claim simple ranged
+  // weapons (Dart, Sling, Light Crossbow) if granted the full category.
+  'Weapons': ['Simple Weapons', 'Simple Melee Weapons', 'Martial Weapons'],
   'Armor': ['Light Armor', 'Medium Armor', 'Heavy Armor', 'Shields'],
 };
 
@@ -22860,16 +22900,25 @@ window.removeCustomWeaponArmorProf = removeCustomWeaponArmorProf;
 // Sorcerer, Rogue, Bard, Monk) list those specific weapons instead, which
 // get auto-added as Custom entries rather than toggling the whole category
 // they don't actually have full access to.
+// Re-audited against the uploaded 2024 Core [Class] Traits source (see
+// HANDOFF5) rather than memory. Fixes from the prior (memory-based) version:
+// Druid no longer gets Medium Armor at base level (that's the Warden Primal
+// Order choice, not yet wired — see handoff); Bard lost its 2014 named-
+// weapon exceptions (2024 Bard is Simple Weapons only); Rogue's named list
+// updated to the actual 2024 set (Martial weapons with Finesse or Light —
+// drops Longsword, adds Scimitar/Whip); Monk now correctly gets Simple
+// MELEE only (not full Simple, which would over-grant Dart/Sling/Light
+// Crossbow) plus its two Martial-Light exceptions.
 const CLASS_WEAPON_ARMOR_GRANTS = {
   'barbarian': { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
-  'bard':      { armor: ['Light Armor'], weapons: ['Simple Weapons','Hand Crossbows','Longswords','Rapiers','Shortswords'] },
+  'bard':      { armor: ['Light Armor'], weapons: ['Simple Weapons'] },
   'cleric':    { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons'] },
-  'druid':     { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons'] },
+  'druid':     { armor: ['Light Armor','Shields'], weapons: ['Simple Weapons'] },
   'fighter':   { armor: ['Light Armor','Medium Armor','Heavy Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
-  'monk':      { armor: [], weapons: ['Simple Weapons','Shortswords'] },
+  'monk':      { armor: [], weapons: ['Simple Melee Weapons','Scimitars','Shortswords'] },
   'paladin':   { armor: ['Light Armor','Medium Armor','Heavy Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
   'ranger':    { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
-  'rogue':     { armor: ['Light Armor'], weapons: ['Simple Weapons','Hand Crossbows','Longswords','Rapiers','Shortswords'] },
+  'rogue':     { armor: ['Light Armor'], weapons: ['Simple Weapons','Hand Crossbows','Rapiers','Scimitars','Shortswords','Whips'] },
   'sorcerer':  { armor: [], weapons: ['Daggers','Darts','Slings','Quarterstaffs','Light Crossbows'] },
   'warlock':   { armor: ['Light Armor'], weapons: ['Simple Weapons'] },
   'wizard':    { armor: [], weapons: ['Daggers','Darts','Slings','Quarterstaffs','Light Crossbows'] },
@@ -22881,6 +22930,38 @@ const CLASS_WEAPON_ARMOR_GRANTS = {
 // check or uncheck sticks even if this re-evaluates (switching classes,
 // leveling, etc.), and any class-specific named weapon that isn't one of
 // the four fixed categories is tracked as a Custom entry.
+// Subclass-level fixed armor/weapon grants — same "search real text" rule
+// as the tool/language grants, not memory. Cleric War Domain deliberately
+// has NO entry: unlike its 2014 version, the 2024 War Domain grants no
+// weapon/armor proficiency at all (War Priest replaced it) — confirmed
+// against the actual subclass text rather than assumed from the 2014
+// edition. Wizard/War Magic's grant is spelled out as its 11 actual
+// qualifying weapons (Melee Martial minus Two-Handed/Heavy), same
+// treatment as the base-class named lists above.
+const CLASS_WEAPON_ARMOR_GRANTS_SUBCLASS = {
+  'bard/swords':            { armor: ['Medium Armor'], weapons: ['Scimitars'] },
+  'warlock/the hexblade':   { armor: ['Medium Armor','Shields'], weapons: ['Martial Weapons'] },
+  'cleric/death domain':    { armor: [], weapons: ['Martial Weapons'] },
+  'cleric/forge domain':    { armor: ['Heavy Armor'], weapons: [] },
+  'cleric/nature domain':   { armor: ['Heavy Armor'], weapons: [] },
+  'cleric/order domain':    { armor: ['Heavy Armor'], weapons: [] },
+  'cleric/tempest domain':  { armor: ['Heavy Armor'], weapons: ['Martial Weapons'] },
+  'cleric/twilight domain': { armor: ['Heavy Armor'], weapons: ['Martial Weapons'] },
+  'wizard/war magic':       { armor: [], weapons: ['Battleaxes','Flails','Longswords','Morningstars','Rapiers','Scimitars','Shortswords','Tridents','Warhammers','War Picks','Whips'] },
+};
+
+// Re-evaluates class-granted weapon/armor proficiencies every render, same
+// manual-override protection as the tool/language grants — a manual
+// check or uncheck sticks even if this re-evaluates (switching classes,
+// leveling, etc.), and any class-specific named weapon that isn't one of
+// the four fixed categories is tracked as a Custom entry. Also covers
+// subclass-level fixed grants (College of Swords, Hexblade, etc.) and the
+// two base-class radio choices that grant proficiency — Divine Order
+// "Protector" (Cleric) and Primal Order "Warden" (Druid) — which are
+// choices, not subclasses, so getSubclassKey doesn't cover them; both
+// were previously defined in class_choices but never actually wired to
+// grant anything here, which is why Warden silently did nothing while
+// Protector's own description had to self-flag "track it manually."
 function applyClassWeaponArmorGrants() {
   if (!currentChar) return;
   if (!currentChar.weaponArmorProfs) currentChar.weaponArmorProfs = {};
@@ -22904,9 +22985,23 @@ function applyClassWeaponArmorGrants() {
 
   const entries = typeof getAllClasses === 'function' ? getAllClasses() : [];
   const fixedNames = new Set(Object.values(WEAPON_ARMOR_PROF_CATEGORIES).flat());
+  const choices = currentChar.class_choices || {};
+
+  const grants = [];
   entries.forEach(e => {
-    const grant = CLASS_WEAPON_ARMOR_GRANTS[(e.class||'').toLowerCase()];
-    if (!grant) return;
+    const clsKey = (e.class||'').toLowerCase();
+    if (CLASS_WEAPON_ARMOR_GRANTS[clsKey]) grants.push(CLASS_WEAPON_ARMOR_GRANTS[clsKey]);
+    const subKey = e.subclass ? getSubclassKey(e.class, e.subclass) : null;
+    if (subKey && CLASS_WEAPON_ARMOR_GRANTS_SUBCLASS[subKey]) grants.push(CLASS_WEAPON_ARMOR_GRANTS_SUBCLASS[subKey]);
+    if (clsKey === 'cleric' && choices.divine_order === 'protector') {
+      grants.push({ armor: ['Heavy Armor'], weapons: ['Martial Weapons'] });
+    }
+    if (clsKey === 'druid' && choices.primal_order === 'Warden') {
+      grants.push({ armor: ['Medium Armor'], weapons: ['Martial Weapons'] });
+    }
+  });
+
+  grants.forEach(grant => {
     [...(grant.armor||[]), ...(grant.weapons||[])].forEach(name => {
       const key = toolProfKey(name);
       if (currentChar._manualWeaponArmorProfs[key]) return; // player has
@@ -29799,15 +29894,53 @@ function ensureWeaponData() {
 }
 
 // ── Proficiency check ─────────────────────────────────────
+// Subclass-level fixed weapon grants (non-choice, found in the actual
+// subclass feature text — same "search real text" rule as CLASS_TOOL_GRANTS).
+// Keyed as 'class/subclasskey' via getSubclassKey. Domains/subclasses that
+// grant armor only (Cleric Forge/Nature/Order) have no entry here — see
+// CLASS_WEAPON_ARMOR_GRANTS_SUBCLASS for the armor side.
+// War Magic Wizard's grant ("Melee Martial weapons without Two-Handed or
+// Heavy") is a property filter, not a category — spelled out here as the
+// actual 11 qualifying weapons rather than approximated.
+const CLASS_WEAPON_PROFS_SUBCLASS = {
+  'bard/swords':          { specific: ['scimitar'] },
+  'warlock/the hexblade':  { martial: true },
+  'cleric/death domain':   { martial: true },
+  'cleric/tempest domain': { martial: true },
+  'cleric/twilight domain':{ martial: true },
+  'wizard/war magic':      { specific: ['battleaxe','flail','longsword','morningstar','rapier','scimitar','shortsword','trident','warhammer','war_pick','whip'] },
+};
+
 function isWeaponProficient(weaponKey, weaponType) {
+  const phbWeapon = PHB_WEAPONS.find(w => w.key === weaponKey);
+  const wList = phbWeapon?.list || '';          // 'melee' | 'ranged'
+  const isMonkWeapon = phbWeapon?.monk === true; // Simple Melee + Martial Melee(Light), per catalog
   const classes = getAllClasses();
+  const choices = currentChar?.class_choices || {};
+
+  const checkProf = (prof) => {
+    if (!prof) return false;
+    if (prof.simple       && weaponType === 'Simple')                    return true;
+    if (prof.simpleMelee  && weaponType === 'Simple'  && wList==='melee') return true;
+    if (prof.martial      && weaponType === 'Martial')                   return true;
+    if (prof.martialMelee && weaponType === 'Martial' && wList==='melee') return true;
+    if (prof.monkWeapon   && isMonkWeapon)                                return true;
+    if (prof.specific?.includes(weaponKey))                               return true;
+    return false;
+  };
+
   for (const entry of classes) {
     const cls = entry.class?.toLowerCase();
-    const prof = CLASS_WEAPON_PROFS[cls];
-    if (!prof) continue;
-    if (prof.simple  && weaponType === 'Simple')  return true;
-    if (prof.martial && weaponType === 'Martial') return true;
-    if (prof.specific.includes(weaponKey))        return true;
+    if (checkProf(CLASS_WEAPON_PROFS[cls])) return true;
+
+    const subKey = entry.subclass ? getSubclassKey(entry.class, entry.subclass) : null;
+    if (subKey && checkProf(CLASS_WEAPON_PROFS_SUBCLASS[subKey])) return true;
+
+    // Divine Order (Cleric) "Protector" / Primal Order (Druid) "Warden" —
+    // a base-class radio choice, not a subclass, so it isn't covered by the
+    // subclass lookup above. Both grant Martial weapon proficiency.
+    if (cls === 'cleric' && choices.divine_order === 'protector' && weaponType === 'Martial') return true;
+    if (cls === 'druid'  && choices.primal_order === 'Warden'    && weaponType === 'Martial') return true;
   }
   return false;
 }
