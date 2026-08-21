@@ -26637,6 +26637,7 @@ function recalcAll() {
   // the speed display, leaving it stuck at whatever it showed before.
   calcSpeed();
   autoSetACMethod();
+  if (typeof onACChange === 'function') onACChange(); // recalcAll updates ac_armor_key/shield state above, but never actually recomputed the displayed AC — equipping/unequipping magic armor or a shield silently went stale until something else happened to call this
   renderSavesBlock();
   updateDCCalc();
   renderSkillsBlock();
@@ -37585,7 +37586,7 @@ function toggleMagicArmorEquipped(idx, val) {
   // Only one suit of body armor can be worn at a time
   if (item.equipped) {
     currentChar.magicItems.forEach((other, i) => {
-      if (i !== idx && other.isArmour && other.type !== 'shield') other.equipped = false;
+      if (i !== idx && other.isArmour && !isShieldItemType(other.type)) other.equipped = false;
     });
   }
   renderMagicItemsPanel();
