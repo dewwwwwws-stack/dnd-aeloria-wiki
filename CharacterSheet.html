@@ -2504,6 +2504,25 @@ body.preview-readonly #mi-detail-edit-row * {
   line-height: 1.55; margin-top: 4px;
 }
 
+/* Collapsed Class Choices summary - one row per choice (label above,
+   value below) rather than a single comma/middot-joined paragraph, which
+   became unreadable once a choice's value was a long list (e.g. several
+   Eldritch Invocations). */
+.cc-summary-item {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cc-summary-item:last-child { border-bottom: none; }
+.cc-summary-label {
+  font-family: var(--font-label); font-size: 10px; font-weight: 700;
+  color: var(--accent); text-transform: uppercase; letter-spacing: .4px;
+  margin-bottom: 2px;
+}
+.cc-summary-value {
+  font-family: var(--font-body); font-size: 12px; color: var(--text2);
+  line-height: 1.45;
+}
+
 /* ── PLACEHOLDER ─────────────────────────────────────────── */
 .placeholder-page {
   display: flex; align-items: center; justify-content: center;
@@ -2691,10 +2710,15 @@ body.preview-readonly #mi-detail-edit-row * {
             <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px" id="dc-calc-formula"></div>
           </div>
           <div class="panel" style="margin-top:10px" id="class-choices-panel">
-            <div class="panel-title">Class Choices
+            <div class="panel-title">
+              <span onclick="toggleProfPanelExpanded('classchoices')" style="cursor:pointer;flex:1">Class Choices</span>
               <span id="class-choices-subtitle" style="font-size:9px;color:var(--text3)"></span>
+              <span id="classchoices-profs-arrow" onclick="toggleProfPanelExpanded('classchoices')" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);cursor:pointer;margin-left:6px">▸</span>
             </div>
+            <div id="classchoices-profs-summary" style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.6;cursor:pointer" onclick="toggleProfPanelExpanded('classchoices')"></div>
+            <div id="classchoices-profs-expanded" style="display:none;margin-top:6px">
             <div id="class-choices-body"></div>
+            </div>
           </div>
           <div class="panel" style="margin-top:10px">
             <div class="panel-title">Boons &amp; Curses</div>
@@ -2865,6 +2889,13 @@ body.preview-readonly #mi-detail-edit-row * {
                   <label class="field-label" style="font-size:9px;margin-bottom:2px">Senses</label>
                   <div id="senses-box" style="font-family:var(--font-ui);font-size:10px;color:var(--text2);line-height:1.4;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius)"></div>
                 </div>
+                <div style="margin-top:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <label class="field-label" style="margin:0">Resistances &amp; Immunities</label>
+                    <button class="tbtn" style="font-size:9px;padding:2px 8px" onclick="openResistEditModal()">Edit</button>
+                  </div>
+                  <div id="resist-active-summary" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+                </div>
                 <!-- hidden field kept for data-key compatibility -->
                 <input type="hidden" id="ci-base-speed" data-key="base_speed" value="30"/>
               </div>
@@ -2925,13 +2956,6 @@ body.preview-readonly #mi-detail-edit-row * {
               <div id="saves-block"></div>
               <textarea class="sheet-textarea" id="saves-notes" data-key="saves_notes"
                 placeholder="Notes: advantage vs poison, magic resistance…" style="min-height:40px;margin-top:8px"></textarea>
-              <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-                  <div class="field-label" style="margin-bottom:0">Resistances &amp; Immunities</div>
-                  <button class="tbtn" style="font-size:9px;padding:3px 9px" onclick="openResistEditModal()">Edit</button>
-                </div>
-                <div id="resist-active-summary" style="display:flex;flex-wrap:wrap;gap:5px"></div>
-              </div>
             </div>
             <div class="panel">
               <div class="panel-title">Skills
@@ -12158,7 +12182,7 @@ const PHB_SUBCLASSES = {
   "ranger/swarmkeeper": {"name":"Swarmkeeper","source":"2014","features":[{"name":"Gathered Swarm","level":3,"desc":"3rd-level Swarmkeeper feature A swarm of intangible nature spirits has bonded itself to you and can assist you in battle. While you're alive, the swarm remains in your space, crawling on you or flying and skittering around you within your space. You determine its appearance, or you generate its appearance by rolling on the Swarm Appearance table. | 1. Swarming insects | 2. Miniature twig blights | 3. Fluttering birds | 4. Playful pixies Once on each of your turns, you can cause the swarm to assist you in one of the following ways, immediately after you hit a creature with an attack: The attack's target takes 1d6 piercing damage from the swarm; The attack's target must succeed on a Strength saving throw against your spell save DC or be moved by the swarm up to 15 feet horizontally in a direction of your choice; You are moved by the swarm 5 feet horizontally in a direction of your choice.","usages":null,"recovery":null},{"name":"Swarmkeeper Magic","level":3,"desc":"3rd-level Swarmkeeper feature You learn the mage hand cantrip if you don't already know it. When you cast it, the hand takes the form of your swarming nature spirits. You also learn an additional spell of 1st level or higher when you reach certain levels in this class, as shown in the Swarmkeeper Spells table. Each spell counts as a ranger spell for you, but it doesn't count against the number of ranger spells you know. | 3rd Level. faerie fire | 5th Level. web | 9th Level. gaseous form | 13th Level. arcane eye | 17th Level. insect plague","usages":null,"recovery":null},{"name":"Writhing Tide","level":7,"desc":"7th-level Swarmkeeper feature You can condense part of your swarm into a focused mass that lifts you up. As a bonus action, you gain a flying speed of 10 feet and can hover. This effect lasts for 1 minute or until you are incapacitated. You can use this feature a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.","usages":"prof_bonus","recovery":"long rest"},{"name":"Mighty Swarm","level":11,"desc":"11th-level Swarmkeeper feature Your Gathered Swarm grows mightier in the following ways: The damage of Gathered Swarm increases to 1d8; If a creature fails its saving throw against being moved by Gathered Swarm, you can also cause the swarm to knock the creature prone; When you are moved by Gathered Swarm, it gives you half cover until the start of your next turn.","usages":null,"recovery":null},{"name":"Swarming Dispersal","level":15,"desc":"15th-level Swarmkeeper feature You can discorporate into your swarm, avoiding danger. When you take damage, you can use your reaction to give yourself resistance to that damage. You vanish into your swarm and then teleport to an unoccupied space that you can see within 30 feet of you, where you reappear with the swarm. You can use this feature a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.","usages":"prof_bonus","recovery":"long rest"}],"bonusSpells":["faerie_fire","web","gaseous_form","arcane_eye","insect_plague"]},
   "rogue/phantom": {"name":"Phantom","source":"RtHW","features":[{"name":"Wails from the Grave","level":3,"desc":"Immediately after you deal Sneak Attack damage to a creature on your turn, you can target a second creature that you can see within 30 feet of the first creature. Roll half the number of Sneak Attack damage dice for your level (round up), and the second creature takes Necrotic damage equal to the roll's total as wails of the dead sound around it. You can use this feature a number of times equal to your Dexterity modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.","usages":"dex_mod","recovery":"long rest"},{"name":"Whispers of the Dead","level":3,"desc":"Whenever you finish a Short or Long Rest, you can choose one skill or tool proficiency that you lack and gain it, as a ghostly presence shares its knowledge with you. You lose this proficiency when you use this benefit again to choose a different proficiency.","usages":null,"recovery":null},{"name":"Tokens of the Departed","level":9,"desc":"The spirits of the dead are drawn to you, and echoes of their past lives magically manifest as strange curios with resonant power. You gain two soul trinkets. A soul trinket is a Tiny object (the DM determines the trinket's form or has you roll on the Trinkets table in the Player's Handbook to generate it). If you move more than 30 feet from a trinket, the trinket immediately teleports to you, appearing somewhere on your person. | Using Soul Trinkets. You can use soul trinkets in the following ways: | Death's Knell. When you deal Sneak Attack damage on your turn, you can destroy one soul trinket and immediately use Wails from the Grave without expending a use of that feature. | Life Essence. While you have at least one soul trinket, you have Advantage on Death Saving Throws and Constitution saving throws. | Spirit Query. You can take a Magic action to destroy one soul trinket and immediately cast the Augury spell, requiring no spell components and using Constitution as the spellcasting modifier. If you know the creature with which the trinket is associated, you can ask the creature's spirit one question instead of casting the spell. In this case, the spirit appears to you and answers as concisely as possible in a language it knew in life. | Gaining Additional Soul Trinkets. When a creature you can see within 30 feet of you dies, you can take a Reaction to gain another soul trinket, claiming a sliver of that creature's departing spirit. The new trinket appears somewhere on your person. You can have a maximum of two soul trinkets at a time. If you try to gain a soul trinket while at your maximum, one of your existing trinkets is immediately destroyed and replaced by the new trinket. The maximum number of soul trinkets you can have increases when you reach Rogue levels 13 (three trinkets) and 17 (four trinkets). Whenever you finish a Long Rest with fewer than two soul trinkets, you gain soul trinkets until you have two.","usages":"level<13?2:level<17?3:4","recovery":"long rest"},{"name":"Voice of Death","level":9,"desc":"You can cast Speak with Dead once without a spell slot, requiring no spell components and using Dexterity as the spellcasting modifier. You regain the ability to cast it this way when you finish a Short or Long Rest. When you cast the spell, you can target one of your soul trinkets from Tokens of the Departed instead of a corpse, allowing the spirit of the creature associated with the trinket to answer.","usages":1,"recovery":"short rest"},{"name":"Ghost Walk","level":13,"desc":"As a Bonus Action, you assume a spectral form, gaining the benefits below for 10 minutes or until you end them (no action required). Once you use this feature, you can't use it again until you finish a Long Rest unless you destroy one of your soul trinkets from Tokens of the Departed (no action required) to restore your use of it. | Flight. You gain a Fly Speed of 10 feet and can hover. | Hazy Form. Attack rolls have Disadvantage against you. | Incorporeal Movement. You can move through creatures and objects as if they were Difficult Terrain, but you take 1d10 Force damage if you end your turn inside a creature or an object.","usages":1,"recovery":"long rest"},{"name":"Death's Friend","level":17,"desc":"Your association with death has become so close that you gain the following benefits. | Death's Lament. When you use Wails from the Grave, you can deal the feature's Necrotic damage to both the first and the second creature. | Draw of Death. When you roll Initiative, you gain one soul trinket for your Tokens of the Departed if you have none remaining.","usages":null,"recovery":null}]},
   "warlock/the fathomless": {"name":"The Fathomless","source":"2014","features":[{"name":"Expanded Spell List","level":1,"desc":"1st-level Fathomless feature The Fathomless lets you choose from an expanded list of spells when you learn a warlock spell. The following spells are added to the warlock spell list for you. | 1st Level. create or destroy water, thunderwave | 2nd Level. gust of wind, silence | 3rd Level. lightning bolt, sleet storm | 4th Level. control water, summon elemental (water only) | 5th Level. Bigby's hand (appears as a tentacle), cone of cold","usages":null,"recovery":null},{"name":"Tentacle of the Deeps","level":1,"desc":"1st-level Fathomless feature You can magically summon a spectral tentacle that strikes at your foes. As a bonus action, you create a 10-foot-long tentacle at a point you can see within 60 feet of you. The tentacle lasts for 1 minute or until you use this feature to create another tentacle. When you create the tentacle, you can make a melee spell attack against one creature within 10 feet of it. On a hit, the target takes 1d8 cold damage, and its speed is reduced by 10 feet until the start of your next turn. When you reach 10th level in this class, the damage increases to 2d8. As a bonus action on your turn, you can move the tentacle up to 30 feet and repeat the attack. You can summon the tentacle a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.","usages":"prof_bonus","recovery":"long rest"},{"name":"Gift of the Sea","level":1,"desc":"1st-level Fathomless feature You gain a swimming speed of 40 feet, and you can breathe underwater.","usages":null,"recovery":null},{"name":"Oceanic Soul","level":6,"desc":"6th-level Fathomless feature You are now even more at home in the depths. You gain resistance to cold damage. In addition, when you are fully submerged, any creature that is also fully submerged can understand your speech, and you can understand theirs.","usages":null,"recovery":null},{"name":"Guardian Coil","level":6,"desc":"6th-level Fathomless feature Your Tentacle of the Deeps can defend you and others, interposing itself between them and harm. When you or a creature you can see takes damage while within 10 feet of the tentacle, you can use your reaction to choose one of those creatures and reduce the damage to that creature by 1d8. When you reach 10th level in this class, the damage reduced by the tentacle increases to 2d8.","usages":null,"recovery":null},{"name":"Grasping Tentacles","level":10,"desc":"10th-level Fathomless feature You learn the spell Evard's black tentacles. It counts as a warlock spell for you, but it doesn't count against the number of spells you know. You can also cast it once without a spell slot, and you regain the ability to do so when you finish a long rest. Whenever you cast this spell, your patron's magic bolsters you, granting you a number of temporary hit points equal to your warlock level. Moreover, damage can't break your concentration on this spell.","usages":1,"recovery":"long rest"},{"name":"Fathomless Plunge","level":14,"desc":"14th-level Fathomless feature You can magically open temporary conduits to watery destinations. As an action, you can teleport yourself and up to five other willing creatures that you can see within 30 feet of you. Amid a whirl of tentacles, you all vanish and then reappear up to 1 mile away in a body of water you've seen (pond size or larger) or within 30 feet of it, each of you appearing in an unoccupied space within 30 feet of the others. Once you use this feature, you can't use it again until you finish a short or long rest.","usages":1,"recovery":"short rest"}]},
-  "warlock/the genie": {"name":"The Genie","source":"TCoE","bonusSpellsByChoice":{"dao (earth)":["detect_evil_and_good","sanctuary","phantasmal_force","spike_growth","create_food_and_water","meld_into_stone","phantasmal_killer","stone_shape","creation","wall_of_stone"],"djinni (air)":["detect_evil_and_good","thunderwave","gust_of_wind","phantasmal_force","create_food_and_water","wind_wall","greater_invisibility","phantasmal_killer","creation","seeming"],"efreeti (fire)":["burning_hands","detect_evil_and_good","phantasmal_force","scorching_ray","create_food_and_water","fireball","fire_shield","phantasmal_killer","creation","flame_strike"],"marid (water)":["detect_evil_and_good","fog_cloud","blur","phantasmal_force","create_food_and_water","sleet_storm","control_water","phantasmal_killer","cone_of_cold","creation"]},"features":[{"name":"Expanded Spell List","level":1,"desc":"1st-level Genie feature The Genie lets you choose from an expanded list of spells when you learn a warlock spell. The Genie Expanded Spells table shows the genie spells that are added to the warlock spell list for you, along with the spells associated in the table with your patron's kind: dao, djinni, efreeti, or marid. | 1st Level. detect evil and good | 2nd Level. phantasmal force | 3rd Level. create food and water | 4th Level. phantasmal killer | 5th Level. creation | 9th Level. wish","usages":null,"recovery":null},{"name":"Choose Genie Kind","level":1,"desc":"| 1. Dao | 2. Djinni | 3. Efreeti | 4. Marid","usages":null,"recovery":null},{"name":"Genie's Vessel","level":1,"desc":"1st-level Genie feature Your patron gifts you a magical vessel that grants you a measure of the genie's power. The vessel is a Tiny object, and you can use it as a spellcasting focus for your warlock spells. You decide what the object is, or you can determine what it is randomly by rolling on the Genie's Vessel table. | 1. Oil lamp | 2. Urn | 3. Ring with a compartment | 4. Stoppered bottle | 5. Hollow statuette | 6. Ornate lantern While you are touching the vessel, you can use it in the following ways: | Bottled Respite. As an action, you can magically vanish and enter your vessel, which remains in the space you left. The interior of the vessel is an extradimensional space in the shape of a 20-foot-radius cylinder, 20 feet high, and resembles your vessel. The interior is appointed with cushions and low tables and is a comfortable temperature. While inside, you can hear the area around your vessel as if you were in its space. You can remain inside the vessel up to a number of hours equal to twice your proficiency bonus. You exit the vessel early if you use a bonus action to leave, if you die, or if the vessel is destroyed. When you exit the vessel, you appear in the unoccupied space closest to it. Any objects left in the vessel remain there until carried out, and if the vessel is destroyed, every object stored there harmlessly appears in the unoccupied spaces closest to the vessel's former space. Once you enter the vessel, you can't enter again until you finish a long rest. | Genie's Wrath. Once during each of your turns when you hit with an attack roll, you can deal extra damage to the target equal to your proficiency bonus. The type of this damage is determined by your patron: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid). The vessel's AC equals your spell save DC. Its hit points equal your warlock level plus your proficiency bonus, and it is immune to poison and psychic damage. If the vessel is destroyed or you lose it, you can perform a 1-hour ceremony to receive a replacement from your patron. This ceremony can be performed during a short or long rest, and the previous vessel is destroyed if it still exists. The vessel vanishes in a flare of elemental power when you die.","usages":null,"recovery":null},{"name":"Genie's Vessel: Bottled Respite","level":1,"desc":"As an action, you can magically vanish and enter your vessel, which remains in the space you left. The interior of the vessel is an extradimensional space in the shape of a 20-foot-radius cylinder, 20 feet high, and resembles your vessel. The interior is appointed with cushions and low tables and is a comfortable temperature. While inside, you can hear the area around your vessel as if you were in its space. You can remain inside the vessel up to a number of hours equal to twice your proficiency bonus. You exit the vessel early if you use a bonus action to leave, if you die, or if the vessel is destroyed. When you exit the vessel, you appear in the unoccupied space closest to it. Any objects left in the vessel remain there until carried out, and if the vessel is destroyed, every object stored there harmlessly appears in the unoccupied spaces closest to the vessel's former space. Once you enter the vessel, you can't enter again until you finish a long rest.","usages":1,"recovery":"long rest"},{"name":"Genie's Wrath","level":1,"desc":"Once during each of your turns when you hit with an attack roll, you can deal extra damage to the target equal to your proficiency bonus. The type of this damage is determined by your patron: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid).","usages":null,"recovery":null},{"name":"Elemental Gift","level":6,"desc":"6th-level Genie feature You begin to take on characteristics of your patron's kind. You now have resistance to a damage type determined by your patron's kind: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid). In addition, as a bonus action, you can give yourself a flying speed of 30 feet that lasts for 10 minutes, during which you can hover. You can use this bonus action a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.","usages":"prof_bonus","recovery":"long rest"},{"name":"Sanctuary Vessel","level":10,"desc":"10th-level Genie feature When you enter your Genie's Vessel via the Bottled Respite feature, you can now choose up to five willing creatures that you can see within 30 feet of you, and the chosen creatures are drawn into the vessel with you. As a bonus action, you can eject any number of creatures from the vessel, and everyone is ejected if you leave or die or if the vessel is destroyed. In addition, anyone (including you) who remains within the vessel for at least 10 minutes gains the benefit of finishing a short rest, and anyone can add your proficiency bonus to the number of hit points they regain if they spend any Hit Dice as part of a short rest there.","usages":null,"recovery":null},{"name":"Limited Wish","level":14,"desc":"14th-level Genie feature You entreat your patron to grant you a small wish. As an action, you can speak your desire to your Genie's Vessel, requesting the effect of one spell that is 6th level or lower and has a casting time of 1 action. The spell can be from any class's spell list, and you don't need to meet the requirements in that spell, including costly components; the spell simply takes effect as part of this action. Once you use this feature, you can't use it again until you finish 1d4 long rests.","usages":1,"recovery":"long rest"}],"bonusSpells":[]},
+  "warlock/the genie": {"name":"The Genie","source":"TCoE","genieExpandedSpells":{"1":{"shared":"Detect Evil and Good","dao":"Sanctuary","djinni":"Thunderwave","efreeti":"Burning Hands","marid":"Fog Cloud"},"2":{"shared":"Phantasmal Force","dao":"Spike Growth","djinni":"Gust of Wind","efreeti":"Scorching Ray","marid":"Blur"},"3":{"shared":"Create Food and Water","dao":"Meld into Stone","djinni":"Wind Wall","efreeti":"Fireball","marid":"Sleet Storm"},"4":{"shared":"Phantasmal Killer","dao":"Stone Shape","djinni":"Greater Invisibility","efreeti":"Fire Shield","marid":"Control Water"},"5":{"shared":"Creation","dao":"Wall of Stone","djinni":"Seeming","efreeti":"Flame Strike","marid":"Cone of Cold"},"9":{"shared":"Wish","dao":null,"djinni":null,"efreeti":null,"marid":null}},"features":[{"name":"Expanded Spell List","level":1,"desc":"1st-level Genie feature The Genie lets you choose from an expanded list of spells when you learn a warlock spell. The Genie Expanded Spells table shows the genie spells that are added to the warlock spell list for you, along with the spells associated in the table with your patron's kind: dao, djinni, efreeti, or marid.","usages":null,"recovery":null},{"name":"Choose Genie Kind","level":1,"desc":"| 1. Dao | 2. Djinni | 3. Efreeti | 4. Marid","usages":null,"recovery":null},{"name":"Genie's Vessel","level":1,"desc":"1st-level Genie feature Your patron gifts you a magical vessel that grants you a measure of the genie's power. The vessel is a Tiny object, and you can use it as a spellcasting focus for your warlock spells. You decide what the object is, or you can determine what it is randomly by rolling on the Genie's Vessel table. | 1. Oil lamp | 2. Urn | 3. Ring with a compartment | 4. Stoppered bottle | 5. Hollow statuette | 6. Ornate lantern While you are touching the vessel, you can use it in the following ways: | Bottled Respite. As an action, you can magically vanish and enter your vessel, which remains in the space you left. The interior of the vessel is an extradimensional space in the shape of a 20-foot-radius cylinder, 20 feet high, and resembles your vessel. The interior is appointed with cushions and low tables and is a comfortable temperature. While inside, you can hear the area around your vessel as if you were in its space. You can remain inside the vessel up to a number of hours equal to twice your proficiency bonus. You exit the vessel early if you use a bonus action to leave, if you die, or if the vessel is destroyed. When you exit the vessel, you appear in the unoccupied space closest to it. Any objects left in the vessel remain there until carried out, and if the vessel is destroyed, every object stored there harmlessly appears in the unoccupied spaces closest to the vessel's former space. Once you enter the vessel, you can't enter again until you finish a long rest. | Genie's Wrath. Once during each of your turns when you hit with an attack roll, you can deal extra damage to the target equal to your proficiency bonus. The type of this damage is determined by your patron: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid). The vessel's AC equals your spell save DC. Its hit points equal your warlock level plus your proficiency bonus, and it is immune to poison and psychic damage. If the vessel is destroyed or you lose it, you can perform a 1-hour ceremony to receive a replacement from your patron. This ceremony can be performed during a short or long rest, and the previous vessel is destroyed if it still exists. The vessel vanishes in a flare of elemental power when you die.","usages":null,"recovery":null},{"name":"Genie's Vessel: Bottled Respite","level":1,"desc":"As an action, you can magically vanish and enter your vessel, which remains in the space you left. The interior of the vessel is an extradimensional space in the shape of a 20-foot-radius cylinder, 20 feet high, and resembles your vessel. The interior is appointed with cushions and low tables and is a comfortable temperature. While inside, you can hear the area around your vessel as if you were in its space. You can remain inside the vessel up to a number of hours equal to twice your proficiency bonus. You exit the vessel early if you use a bonus action to leave, if you die, or if the vessel is destroyed. When you exit the vessel, you appear in the unoccupied space closest to it. Any objects left in the vessel remain there until carried out, and if the vessel is destroyed, every object stored there harmlessly appears in the unoccupied spaces closest to the vessel's former space. Once you enter the vessel, you can't enter again until you finish a long rest.","usages":1,"recovery":"long rest"},{"name":"Genie's Wrath","level":1,"desc":"Once during each of your turns when you hit with an attack roll, you can deal extra damage to the target equal to your proficiency bonus. The type of this damage is determined by your patron: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid).","usages":null,"recovery":null},{"name":"Elemental Gift","level":6,"desc":"6th-level Genie feature You begin to take on characteristics of your patron's kind. You now have resistance to a damage type determined by your patron's kind: bludgeoning (dao), thunder (djinni), fire (efreeti), or cold (marid). In addition, as a bonus action, you can give yourself a flying speed of 30 feet that lasts for 10 minutes, during which you can hover. You can use this bonus action a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.","usages":"prof_bonus","recovery":"long rest"},{"name":"Sanctuary Vessel","level":10,"desc":"10th-level Genie feature When you enter your Genie's Vessel via the Bottled Respite feature, you can now choose up to five willing creatures that you can see within 30 feet of you, and the chosen creatures are drawn into the vessel with you. As a bonus action, you can eject any number of creatures from the vessel, and everyone is ejected if you leave or die or if the vessel is destroyed. In addition, anyone (including you) who remains within the vessel for at least 10 minutes gains the benefit of finishing a short rest, and anyone can add your proficiency bonus to the number of hit points they regain if they spend any Hit Dice as part of a short rest there.","usages":null,"recovery":null},{"name":"Limited Wish","level":14,"desc":"14th-level Genie feature You entreat your patron to grant you a small wish. As an action, you can speak your desire to your Genie's Vessel, requesting the effect of one spell that is 6th level or lower and has a casting time of 1 action. The spell can be from any class's spell list, and you don't need to meet the requirements in that spell, including costly components; the spell simply takes effect as part of this action. Once you use this feature, you can't use it again until you finish 1d4 long rests.","usages":1,"recovery":"long rest"}],"bonusSpells":[]},
   "wizard/order of scribes": {"name":"Order of Scribes","source":"2014","features":[{"name":"Wizardly Quill","level":2,"desc":"2nd-level Order of Scribes feature As a bonus action, you can magically create a Tiny quill in your free hand. The magic quill has the following properties: The quill doesn't require ink. When you write with it, it produces ink in a color of your choice on the writing surface; The time you must spend to copy a spell into your spellbook equals 2 minutes per spell level if you use the quill for the transcription; You can erase anything you write with the quill if you wave the feather over the text as a bonus action, provided the text is within 5 feet of you. This quill disappears if you create another one or if you die.","usages":null,"recovery":null},{"name":"Awakened Spellbook","level":2,"desc":"2nd-level Order of Scribes feature Using specially prepared inks and ancient incantations passed down by your wizardly order, you have awakened an arcane sentience within your spellbook. While you are holding the book, it grants you the following benefits: You can use the book as a spellcasting focus for your wizard spells; When you cast a wizard spell with a spell slot, you can temporarily replace its damage type with a type that appears in another spell in your spellbook, which magically alters the spell's formula for this casting only. The latter spell must be of the same level as the spell slot you expend; When you cast a wizard spell as a ritual, you can use the spell's normal casting time, rather than adding 10 minutes to it. Once you use this benefit, you can't do so again until you finish a long rest. If necessary, you can replace the book over the course of a short rest by using your Wizardly Quill to write arcane sigils in a blank book or a magic spellbook to which you're attuned. At the end of the rest, your spellbook's consciousness is summoned into the new book, which the consciousness transforms into your spellbook, along with all its spells. If the previous book still existed somewhere, all the spells vanish from its pages.","usages":1,"recovery":"long rest"},{"name":"Manifest Mind","level":6,"desc":"6th-level Order of Scribes feature You can conjure forth the mind of your Awakened Spellbook. As a bonus action while the book is on your person, you can cause the mind to manifest as a Tiny spectral object, hovering in an unoccupied space of your choice within 60 feet of you. The spectral mind is intangible and doesn't occupy its space, and it sheds dim light in a 10-foot radius. It looks like a ghostly tome, a cascade of text, or a scholar from the past (your choice). While manifested, the spectral mind can hear and see, and it has darkvision with a range of 60 feet. The mind can telepathically share with you what it sees and hears (no action required). Whenever you cast a wizard spell on your turn, you can cast it as if you were in the spectral mind's space, instead of your own, using its senses. You can do so a number of times per day equal to your proficiency bonus, and you regain all expended uses when you finish a long rest. As a bonus action, you can cause the spectral mind to hover up to 30 feet to an unoccupied space that you or it can see. It can pass through creatures but not objects. The spectral mind stops manifesting if it is ever more than 300 feet away from you, if someone casts dispel magic on it, if the Awakened Spellbook is destroyed, if you die, or if you dismiss the spectral mind as a bonus action. Once you conjure the mind, you can't do so again until you finish a long rest, unless you expend a spell slot of any level to conjure it again.","usages":1,"recovery":"long rest"},{"name":"Manifest Mind: Cast Spell","level":6,"desc":"Whenever you cast a wizard spell on your turn, you can cast it as if you were in the spectral mind's space, instead of your own, using its senses. You can do so a number of times per day equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.","usages":"prof_bonus","recovery":"long rest"},{"name":"Master Scrivener","level":10,"desc":"10th-level Order of Scribes feature Whenever you finish a long rest, you can create one magic scroll by touching your Wizardly Quill to a blank piece of paper or parchment and causing one spell from your Awakened Spellbook to be copied onto the scroll. The spellbook must be within 5 feet of you when you make the scroll. The chosen spell must be of 1st or 2nd level and must have a casting time of 1 action. Once in the scroll, the spell's power is enhanced, counting as one level higher than normal. You can cast the spell from the scroll by reading it as an action. The scroll is unintelligible to anyone else, and the spell vanishes from the scroll when you cast it or when you finish your next long rest. You are also adept at crafting spell scrolls, which are described in the treasure chapter of the Dungeon Master's Guide. The gold and time you must spend to make such a scroll are halved if you use your Wizardly Quill.","usages":1,"recovery":"long rest"},{"name":"One with the Word","level":14,"desc":"14th-level Order of Scribes feature Your connection to your Awakened Spellbook has become so profound that your soul has become entwined with it. While the book is on your person, you have advantage on all Intelligence (Arcana) checks, as the spellbook helps you remember magical lore. Moreover, if you take damage while your spellbook's mind is manifested, you can prevent all of that damage to you by using your reaction to dismiss the spectral mind, using its magic to save yourself. Then roll 3d6. The spellbook temporarily loses spells of your choice that have a combined spell level equal to that roll or higher. For example, if the roll's total is 9, spells vanish from the book that have a combined level of at least 9, which could mean one 9th-level spell, three 3rd-level spells, or some other combination. If there aren't enough spells in the book to cover this cost, you drop to 0 hit points. Until you finish 1d6 long rests, you are incapable of casting the lost spells, even if you find them on a scroll or in another spellbook. After you finish the required number of rests, the spells reappear in the spellbook. Once you use this reaction, you can't do so again until you finish a long rest.","usages":1,"recovery":"long rest"}]},
   "bard/college of spirits": {"name":"College of Spirits","source":"RtHW","features":[{"name":"Channeler","level":3,"desc":"You learn how to contact spirits beyond the grave, letting their power and knowledge flow through you. You gain the following benefits. | Guiding Whispers. You know the Guidance cantrip. It has a range of 60 feet when you cast it. | Spiritual Focus. You employ tools that aid you in channeling spirits. You gain a Gaming Set (playing cards). You have proficiency with this Gaming Set, and you can use it or one of the following items as a Spellcasting Focus for your Bard spells: Arcane Focus (crystal or orb), Candle, or Ink Pen.","usages":null,"recovery":null},{"name":"Spirits from Beyond","level":3,"desc":"You can call forth spirits of the dead to empower you and your allies. When you take a Bonus Action to give a creature a Bardic Inspiration die, you can call forth the powers of a random spirit. To determine the spirit you channel, roll the Bardic Inspiration die and refer to the Spirits from Beyond table. The spirit remains channeled until you unleash it or until you finish a Short or Long Rest. | Controlled Channeling. As a Bonus Action, you can expend a use of your Bardic Inspiration and channel a specific spirit. When you do so, choose the spirit from the Spirits from Beyond table rather than rolling. The chosen spirit's corresponding number must be less than or equal to the highest number on your Bardic Inspiration die; for example, if your Bardic Inspiration die is a d8, you can choose to channel any spirit up to (and including) the Shade. | Unleashing a Spirit. As a Magic action, you can unleash one of your channeled spirits. Choose one creature you can see within 30 feet of yourself as the spirit's target. The spirit then takes effect; if a spirit's effect requires a saving throw, the DC equals your Bard spell save DC.","usages":null,"recovery":null},{"name":"Spirits from Beyond Table","level":3,"desc":"| 1. Beloved. The target regains Hit Points equal to a roll of your Bardic Inspiration die plus your Charisma modifier. | 2. Sharpshooter. The target takes Force damage equal to a roll of your Bardic Inspiration die plus your Charisma modifier. | 3. Avenger. Until the end of your next turn, any creature that hits the target with a melee attack roll takes Force damage equal to a roll of your Bardic Inspiration die. | 4. Renegade. The target can immediately take a Reaction to teleport up to 30 feet to an unoccupied space it can see. | 5. Fortune Teller. The target has Advantage on D20 Tests until the start of your next turn. | 6. Wayfarer. The target gains Temporary Hit Points equal to a roll of your Bardic Inspiration die plus your Bard level. While the target has these Temporary Hit Points, its Speed increases by 10 feet. | 7. Trickster. The target makes a Wisdom saving throw. On a failed save, the target takes Psychic damage equal to two rolls of your Bardic Inspiration die and has the Charmed condition until the start of your next turn. On a successful save, the target takes half as much damage only. | 8. Shade. The target has the Invisible condition until the end of its next turn or until the target makes an attack roll, deals damage, or casts a spell. When the invisibility ends, each creature in a 5-foot Emanation originating from the target must succeed on a Constitution saving throw or take Necrotic damage equal to two rolls of your Bardic Inspiration die. | 9. Arsonist. The target makes a Dexterity saving throw, taking Fire damage equal to four rolls of your Bardic Inspiration die on a failed save or half as much damage on a successful one. | 10. Coward. The target and each creature of your choice in a 30-foot Emanation originating from the target must succeed on a Wisdom saving throw or have the Frightened condition until the start of your next turn. While a creature is Frightened, its Speed is halved (round down), and it can take either an action or a Bonus Action, not both. | 11. Brute. Each creature of your choice in a 30-foot Emanation originating from the target makes a Strength saving throw. On a failed save, a creature takes Thunder damage equal to three rolls of your Bardic Inspiration die and has the Prone condition. On a successful save, a creature takes half as much damage only. | 12. Priest. The target regains Hit Points equal to two rolls of your Bardic Inspiration die, and one of the following conditions of your choice ends on the target: Blinded, Charmed, Deafened, Paralyzed, Poisoned, or Stunned.","usages":null,"recovery":null,"isTable":true},{"name":"Empowered Channeling","level":6,"desc":"Your ability to channel spirits improves. You gain the following benefits. | Power from Beyond. Once per turn, when you cast a Bard spell with a spell slot that deals damage or restores Hit Points, roll 1d6. You gain a bonus equal to the number rolled to one of the spell's damage rolls or to the total Hit Points the spell restores. | Spiritual Manifestation. You always have the Spirit Guardians spell prepared. You can cast the spell once without a spell slot, and you regain the ability to cast it in this way when you finish a Long Rest. Whenever you cast the spell, you can modify it so the spirits also guard against worldly threats. When you cast the spell in this way, you and allies within the spell's Emanation have Half Cover. Once you modify the spell in this way, you can't do so again until you finish a Short or Long Rest.","usages":1,"recovery":"short rest"},{"name":"Mystical Connection","level":14,"desc":"You gain mastery over the spirits you call forth. Whenever you roll on the Spirits from Beyond table, you can roll the die twice and choose which of the two effects to bestow. If you roll the same number on both dice, you can instead choose any effect on the table.","usages":null,"recovery":null}]},
   "warlock/the undead": {"name":"The Undead","source":"RtHW","bonusSpells":["bane","blindness/deafness","phantasmal_force","ray_of_sickness","speak_with_dead","summon_undead","greater_invisibility","phantasmal_killer","antilife_shell","cloudkill"],"features":[{"name":"Form of Dread","level":3,"desc":"As a Bonus Action, you transform into an avatar of your patron's dreadful power, gaining the benefits below for 1 minute, until you have the Incapacitated condition, or until you end the form (no action required). You can transform a number of times equal to your Charisma modifier (minimum of once), and you regain all expended uses when you finish a Long Rest. | Facsimile of Life. You gain Temporary Hit Points equal to 1d10 plus your Warlock level. | Fearless Form. You have Immunity to the Frightened condition. If you are Frightened when you transform, the condition immediately ends for you. | Frightful Avatar. Once per turn, when you hit a creature with an attack roll, you can force it to make a Wisdom saving throw against your spell save DC. On a failed save, the target has the Frightened condition until the end of your next turn.","usages":"cha_mod","recovery":"long rest"},{"name":"Undead Spells","level":3,"desc":"The magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Undead Spells table, you thereafter always have the listed spells prepared. | 3 Level. Bane, Blindness/Deafness, Phantasmal Force, Ray of Sickness | 5 Level. Speak with Dead, Summon Undead | 7 Level. Greater Invisibility, Phantasmal Killer | 9 Level. Antilife Shell, Cloudkill","usages":null,"recovery":null},{"name":"Grave Touched","level":6,"desc":"Your patron's powers have a profound effect on your body and magic, granting you the following benefits. | Arcane Necrosis. Necrotic damage from your attacks, Warlock spells, and Warlock features ignores Resistance to Necrotic damage. Once per turn when you cast a spell that deals damage, you can change that spell's damage type to Necrotic. | Dreaded Necrosis. When you hit a creature with an attack roll and deal Necrotic damage while using your Form of Dread, you can roll one additional damage die when determining the Necrotic damage the target takes. You can use this benefit only once per turn. | Undead Endurance. You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. In addition, you don't need to sleep, and magic can't put you to sleep.","usages":null,"recovery":null},{"name":"Necrotic Husk","level":10,"desc":"Your connection to undeath saturates your body. You gain the following benefits. | Necrotic Resilience. You have Resistance to Necrotic damage. While using your Form of Dread, you have Immunity to Necrotic damage. | Unholy Resuscitation. If you drop to 0 Hit Points and don't die outright, you can cause your body to erupt with deathly energy. Each creature of your choice in a 30-foot Emanation originating from you makes a Constitution saving throw against your spell save DC, taking Necrotic damage equal to 2d10 plus your Charisma modifier on a failed save or half as much damage on a successful one. Your Hit Points then change to twice your Warlock level, and you gain 1 Exhaustion level. Once you use this benefit, you can't use it again until you finish a Short or Long Rest.","usages":1,"recovery":"short rest"},{"name":"Superior Dread","level":14,"desc":"Your Form of Dread improves, granting you the following benefits while you are using it. | Dread Resistance. You have Resistance to Bludgeoning, Piercing, and Slashing damage. | Ghostly Flight. You have a Fly Speed equal to your Speed and can hover. You can move through creatures and objects as if they were Difficult Terrain, but you take 1d10 Force damage if you end your turn inside a creature or an object. | Profane Casting. Whenever you cast a Warlock spell from the Conjuration or Necromancy school, you cast it without any Verbal, Somatic, or Material components, except Material components that are costly or consumed.","usages":null,"recovery":null}]},
@@ -22242,6 +22266,30 @@ function getAllClasses() {
         if (domLv > 0) entry.levels = Array.from({length: domLv}, (_, i) => i + 1);
       }
     });
+    // Self-heal a duplicate class entry (same class name appearing twice) -
+    // 5e never allows taking the same class twice, so this is always data
+    // corruption rather than a legitimate character state, however it got
+    // there. Left unfixed, every caller of getAllClasses() (spell slots,
+    // proficiency bonus, AC, and every class/subclass feature card in the
+    // Features tab) silently doubles up. Keeps the first occurrence, merges
+    // the duplicate's levels into it (union, in case they'd drifted apart),
+    // and prefers whichever entry actually has a subclass set.
+    const seen = new Map();
+    const deduped = [];
+    currentChar.classes.forEach(entry => {
+      const key = (entry.class || '').toLowerCase().trim();
+      if (!key) { deduped.push(entry); return; }
+      const existing = seen.get(key);
+      if (!existing) {
+        seen.set(key, entry);
+        deduped.push(entry);
+      } else {
+        const mergedLevels = Array.from(new Set([...(existing.levels||[]), ...(entry.levels||[])])).sort((a,b)=>a-b);
+        existing.levels = mergedLevels;
+        if (!existing.subclass && entry.subclass) existing.subclass = entry.subclass;
+      }
+    });
+    if (deduped.length !== currentChar.classes.length) currentChar.classes = deduped;
     return currentChar.classes;
   }
   // Fallback to legacy fields (also handles empty/corrupt classes array)
@@ -25886,6 +25934,41 @@ function removeCustomCondition(name) {
 }
 window.removeCustomCondition = removeCustomCondition;
 
+// Records which auto-grant source(s) currently account for a damage type's
+// resistance/immunity/vulnerability, purely so the UI can show "granted by
+// X" on hover. Each sync function below calls this with its own stable
+// sourceKey and the {type, label} pairs it's CURRENTLY granting; this wipes
+// that source's prior contributions across every type first, so e.g.
+// switching Genie Kind cleanly drops the old label without needing separate
+// retraction logic duplicated here. Multiple sources can legitimately grant
+// the same type at once (a race and a magic item both giving Fire
+// resistance) - all of them show, not just one.
+function setResistanceSourceLabels(sourceKey, typeLabelPairs) {
+  if (!currentChar) return;
+  if (!currentChar._resistanceSources) currentChar._resistanceSources = {};
+  const src = currentChar._resistanceSources;
+  Object.keys(src).forEach(type => { delete src[type][sourceKey]; });
+  (typeLabelPairs || []).forEach(({ type, label }) => {
+    if (!type || !label) return;
+    if (!src[type]) src[type] = {};
+    src[type][sourceKey] = label;
+  });
+}
+window.setResistanceSourceLabels = setResistanceSourceLabels;
+
+// What to show on hover for a given damage type: every recorded auto-source
+// label, joined - or "Manually set" if the state exists but nothing tracked
+// here is granting it (a DM override, a feat's resistance typed in by hand,
+// or anything not yet covered by the tables below), or '' if nothing is set
+// at all for that type.
+function getResistanceSourceText(type) {
+  if (!currentChar) return '';
+  const src = currentChar._resistanceSources?.[type];
+  if (src && Object.keys(src).length) return Object.values(src).join(', ');
+  return currentChar.damageStates?.[type] ? 'Manually set' : '';
+}
+window.getResistanceSourceText = getResistanceSourceText;
+
 // Applies the race's computed damage resistances (currentChar._dmgres,
 // already correctly derived from base race + subrace) into the manual
 // Resistances tracker. Auto-granted entries are tracked separately in
@@ -25917,6 +26000,9 @@ function syncRacialResistances() {
   });
 
   currentChar._autoGrantedResistances = newAuto;
+  const raceLabel = (typeof getRaceData === 'function' ? getRaceData(currentChar.race)?.name : null)
+    || (currentChar.race ? currentChar.race.charAt(0).toUpperCase() + currentChar.race.slice(1) : '');
+  setResistanceSourceLabels('race', newAuto.map(type => ({ type, label: raceLabel ? `Race (${raceLabel})` : 'Race' })));
   if (typeof renderResistances === 'function') renderResistances();
 }
 window.syncRacialResistances = syncRacialResistances;
@@ -25983,6 +26069,10 @@ function syncRageResistances() {
   });
 
   currentChar._autoGrantedRageResistances = grantList;
+  setResistanceSourceLabels('rage', grantList.map(type => ({
+    type,
+    label: ['bludgeoning', 'piercing', 'slashing'].includes(type) ? 'Rage' : 'Path of Lament (Otherworldly Anguish)',
+  })));
   if (typeof renderResistances === 'function') renderResistances();
 }
 window.syncRageResistances = syncRageResistances;
@@ -26178,6 +26268,7 @@ function syncSubclassResistances() {
   const prevAuto = currentChar._autoGrantedSubclassResistances || [];
 
   let grantList = [];
+  let labelList = []; // [{type, label}] - parallel to grantList, one entry per push
 
   // Check EVERY class the character has, not just getPrimaryClass() —
   // that only reflects array order (whichever class was entered first in
@@ -26192,10 +26283,11 @@ function syncSubclassResistances() {
     const subKey = getSubclassKey(cls, subclass);
     if (!subKey) return;
     const level = entry.levels?.length || 0;
+    const subDisplayName = PHB_SUBCLASSES[subKey]?.name || entry.subclass;
 
     const tableEntry = SUBCLASS_RESISTANCE_TABLE[subKey];
     if (tableEntry && level >= tableEntry.minLevel) {
-      grantList.push(...tableEntry.types);
+      tableEntry.types.forEach(type => { grantList.push(type); labelList.push({ type, label: subDisplayName }); });
     }
 
     // Draconic Sorcery's Elemental Affinity (level 6+): choice-dependent,
@@ -26203,7 +26295,7 @@ function syncSubclassResistances() {
     // rather than guessing.
     if (subKey === 'sorcerer/draconic' && level >= 6) {
       const affinity = (currentChar.class_choices?.draconic_affinity || currentChar.class_choices?.elemental_affinity || '').toLowerCase();
-      if (affinity) grantList.push(affinity);
+      if (affinity) { grantList.push(affinity); labelList.push({ type: affinity, label: 'Draconic Sorcery (Elemental Affinity)' }); }
     }
 
     // Genie Warlock's Elemental Gift (level 6+, tied to Genie Kind choice) —
@@ -26225,7 +26317,7 @@ function syncSubclassResistances() {
       Object.values(GENIE_KIND_RESISTANCE).forEach(t => {
         if (t !== dmgType && currentChar.damageStates[t] === 'resistant') delete currentChar.damageStates[t];
       });
-      if (dmgType) grantList.push(dmgType);
+      if (dmgType) { grantList.push(dmgType); labelList.push({ type: dmgType, label: 'The Genie (Elemental Gift)' }); }
     }
 
     // Wild Heart Barbarian's Rage of the Wilds — Bear aspect grants a
@@ -26235,7 +26327,9 @@ function syncSubclassResistances() {
     if (subKey === 'barbarian/wild heart' && level >= 3) {
       const aspect = (currentChar.class_choices?.wild_heart_aspect || '').toLowerCase();
       if (aspect === 'bear') {
-        grantList.push(...DAMAGE_TYPES.map(t => t.toLowerCase()).filter(t => !['force','necrotic','psychic','radiant'].includes(t)));
+        DAMAGE_TYPES.map(t => t.toLowerCase()).filter(t => !['force','necrotic','psychic','radiant'].includes(t)).forEach(type => {
+          grantList.push(type); labelList.push({ type, label: 'Wild Heart (Aspect of the Wilds - Bear)' });
+        });
       }
     }
 
@@ -26245,7 +26339,8 @@ function syncSubclassResistances() {
     if (subKey === 'druid/land' && level >= 10) {
       const landType = (currentChar.class_choices?.circle_of_the_land_type || '').toLowerCase();
       const NATURES_WARD_RESISTANCE = { arid: 'fire', polar: 'cold', temperate: 'lightning', tropical: 'poison' };
-      if (NATURES_WARD_RESISTANCE[landType]) grantList.push(NATURES_WARD_RESISTANCE[landType]);
+      const type = NATURES_WARD_RESISTANCE[landType];
+      if (type) { grantList.push(type); labelList.push({ type, label: "Circle of the Land (Nature's Ward)" }); }
     }
 
     // Hell Knight's Infernal Resilience — RAW re-chooses at the end of
@@ -26253,14 +26348,14 @@ function syncSubclassResistances() {
     // Shield; simplified to a plain changeable-at-will selector per request.
     if (subKey === 'fighter/hell knight' && level >= 7) {
       const type = (currentChar.class_choices?.infernal_resilience_type || '').toLowerCase();
-      if (type) grantList.push(type);
+      if (type) { grantList.push(type); labelList.push({ type, label: 'Hell Knight (Infernal Resilience)' }); }
     }
 
     // Fiend Warlock's Fiendish Resilience — same simplification: RAW
     // re-chooses at the end of each rest, here just changeable at will.
     if (subKey === 'warlock/the fiend' && level >= 10) {
       const type = (currentChar.class_choices?.fiendish_resilience_type || '').toLowerCase();
-      if (type) grantList.push(type);
+      if (type) { grantList.push(type); labelList.push({ type, label: 'The Fiend (Fiendish Resilience)' }); }
     }
   });
 
@@ -26276,6 +26371,14 @@ function syncSubclassResistances() {
   });
 
   currentChar._autoGrantedSubclassResistances = grantList;
+  // Merge multiple labels for the same type (e.g. a table entry AND a
+  // choice-based grant both landing on the same damage type) into one
+  // combined string, rather than the last one silently winning.
+  const mergedLabels = {};
+  labelList.forEach(({ type, label }) => {
+    mergedLabels[type] = mergedLabels[type] ? mergedLabels[type] + ' / ' + label : label;
+  });
+  setResistanceSourceLabels('subclass', Object.entries(mergedLabels).map(([type, label]) => ({ type, label })));
   if (typeof renderResistances === 'function') renderResistances();
 }
 window.syncSubclassResistances = syncSubclassResistances;
@@ -26294,6 +26397,8 @@ function syncItemResistances() {
 
   let grantList = [];
   let vulnList = [];
+  let resLabels = []; // [{type, label}]
+  let vulnLabels = [];
 
   (currentChar.magicItems || []).forEach(item => {
     // Backfill for items added before this feature existed.
@@ -26312,19 +26417,23 @@ function syncItemResistances() {
     // everything else counts whenever owned (worn/held is implied).
     if (item.attunement && !item.attuned) return;
 
+    const itemLabel = (typeof getItemDisplayName === 'function' ? getItemDisplayName(item) : (item.customName || item.name)) || 'Magic item';
+
     if (dmgres) {
-      grantList.push(...dmgres.map(t => t.toLowerCase()));
+      dmgres.map(t => t.toLowerCase()).forEach(type => { grantList.push(type); resLabels.push({ type, label: itemLabel }); });
     }
     if (options && item.resistanceChoice) {
       if (isDragonColor) {
         const dmgType = DRAGON_COLOR_DAMAGE[item.resistanceChoice.toLowerCase()];
-        if (dmgType) grantList.push(dmgType);
+        if (dmgType) { grantList.push(dmgType); resLabels.push({ type: dmgType, label: itemLabel }); }
       } else if (vulnBackfire) {
         // Armor of Vulnerability: resistance to the chosen type, Vulnerability to the OTHER options.
-        grantList.push(item.resistanceChoice.toLowerCase());
-        options.filter(o => o !== item.resistanceChoice).forEach(o => vulnList.push(o.toLowerCase()));
+        const type = item.resistanceChoice.toLowerCase();
+        grantList.push(type); resLabels.push({ type, label: itemLabel });
+        options.filter(o => o !== item.resistanceChoice).forEach(o => { vulnList.push(o.toLowerCase()); vulnLabels.push({ type: o.toLowerCase(), label: itemLabel }); });
       } else {
-        grantList.push(item.resistanceChoice.toLowerCase());
+        const type = item.resistanceChoice.toLowerCase();
+        grantList.push(type); resLabels.push({ type, label: itemLabel });
       }
     }
   });
@@ -26343,6 +26452,11 @@ function syncItemResistances() {
 
   currentChar._autoGrantedItemResistances = grantList;
   currentChar._autoGrantedItemVulnerabilities = vulnList;
+  const mergedLabels = {};
+  [...resLabels, ...vulnLabels].forEach(({ type, label }) => {
+    mergedLabels[type] = mergedLabels[type] ? mergedLabels[type] + ' / ' + label : label;
+  });
+  setResistanceSourceLabels('item', Object.entries(mergedLabels).map(([type, label]) => ({ type, label })));
   if (typeof renderResistances === 'function') renderResistances();
 }
 window.syncItemResistances = syncItemResistances;
@@ -26377,6 +26491,8 @@ function syncSummonSharedResistance() {
   }
 
   currentChar._autoGrantedSummonResistance = grant;
+  const spellName = spellKey ? (PHB_SPELL_LIST.find(s => s.key === spellKey)?.name || 'Summon spell') : '';
+  setResistanceSourceLabels('summon', grant ? [{ type: grant, label: spellName ? `${spellName} (Draconic Spirit)` : 'Summon (Draconic Spirit)' }] : []);
   if (typeof renderResistances === 'function') renderResistances();
 }
 window.syncSummonSharedResistance = syncSummonSharedResistance;
@@ -26436,7 +26552,10 @@ function renderResistances() {
       pill.className = 'resist-pill' + (state ? ' ' + state : '');
       const label = state ? RESIST_STATE_LABEL[state] : '';
       pill.innerHTML = `<div class="resist-dot"></div>${type}${label ? ` <span style="opacity:.75;font-size:9px">(${label}.)</span>` : ''}`;
-      pill.title = state ? `${type}: ${state.charAt(0).toUpperCase()+state.slice(1)} - click to change` : `${type} - click to set`;
+      const sourceText = state ? getResistanceSourceText(key) : '';
+      pill.title = state
+        ? `${type}: ${state.charAt(0).toUpperCase()+state.slice(1)}${sourceText ? ' — ' + sourceText : ''} - click to change`
+        : `${type} - click to set`;
       pill.onclick = () => cycleResistance(key);
       grid.appendChild(pill);
     }
@@ -26459,7 +26578,9 @@ function renderResistSummary() {
   const pills = [];
   Object.entries(states).forEach(([type, state]) => {
     const color = STATE_COLOR[state] || 'var(--text3)';
-    pills.push(`<span class="resist-pill ${state}" style="cursor:default">${type.charAt(0).toUpperCase()+type.slice(1)} <span style="opacity:.7">(${RESIST_STATE_LABEL[state]||state})</span></span>`);
+    const sourceText = getResistanceSourceText(type);
+    const titleAttr = sourceText ? ` title="${sourceText.replace(/"/g,'&quot;')}"` : '';
+    pills.push(`<span class="resist-pill ${state}" style="cursor:default"${titleAttr}>${type.charAt(0).toUpperCase()+type.slice(1)} <span style="opacity:.7">(${RESIST_STATE_LABEL[state]||state})</span></span>`);
   });
   Object.entries(condStates).forEach(([cond, state]) => {
     pills.push(`<span class="condition-pill ${state==='immune'?'active':'resistant'}" style="cursor:default">${cond} <span style="opacity:.7">(${state==='immune'?'Immune':'Adv.'})</span></span>`);
@@ -40540,6 +40661,8 @@ function renderClassChoices() {
   const classes = getAllClasses();
   if (!classes.length || !classes[0].class) {
     body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:8px;letter-spacing:.5px">Select a class to see choices</div>';
+    const summaryEl0 = document.getElementById('classchoices-profs-summary');
+    if (summaryEl0) summaryEl0.textContent = 'No class selected';
     return;
   }
 
@@ -40555,6 +40678,7 @@ function renderClassChoices() {
 
   body.innerHTML = '';
   let anyChoices = false;
+  const _summaryParts = [];
 
   classes.forEach((entry, ci) => {
     const eCls = (entry.class||'').toLowerCase().trim();
@@ -40606,8 +40730,28 @@ function renderClassChoices() {
         if (!_allSubs.some(s => s.includes(def.showIfSubclass.toLowerCase()))) continue;
       }
       body.appendChild(renderChoiceDef(def, eCls));
+
+      const savedVal = currentChar.class_choices[def.id];
+      if (savedVal != null && (!Array.isArray(savedVal) || savedVal.length)) {
+        const displayVal = Array.isArray(savedVal)
+          ? savedVal.map(v => typeof v === 'string' ? v : (v.name || v.cantrip || '')).filter(Boolean).join(', ')
+          : String(savedVal);
+        if (displayVal) _summaryParts.push({ label: def.label, value: displayVal });
+      }
     }
   });
+
+  const summaryEl = document.getElementById('classchoices-profs-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = _summaryParts.length
+      ? _summaryParts.map(({ label, value }) => `
+          <div class="cc-summary-item">
+            <div class="cc-summary-label">${label}</div>
+            <div class="cc-summary-value">${value}</div>
+          </div>
+        `).join('')
+      : '<div style="color:var(--text3);font-family:var(--font-body);font-size:11px;padding:4px 0">No choices made yet</div>';
+  }
 
   if (!anyChoices) {
     body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:8px;letter-spacing:.5px">No choices available yet</div>';
@@ -50136,14 +50280,30 @@ function populateFeaturesTab() {
     }
 
     let _descForRender = getEffectiveText(overrideKey, e.desc);
-    if (e.name === 'Expanded Spell List' && (e.source || '').toLowerCase() === 'the genie' && _descForRender) {
-      const _chosenKind = (currentChar.class_choices?.genie_kind || '').split('(')[0].trim();
-      const _hi = (label) => new RegExp(`\\b${label}:\\s*([^;|]+)`, 'g');
-      _descForRender = _descForRender.replace(_hi('Genie'), (m, rest) =>
-        `<span style="color:var(--accent);font-weight:600">Genie: ${rest}</span>`);
-      if (_chosenKind) {
-        _descForRender = _descForRender.replace(_hi(_chosenKind), (m, rest) =>
-          `<span style="color:var(--accent);font-weight:600">${_chosenKind}: ${rest}</span>`);
+    if (e.name === 'Expanded Spell List' && (e.source || '').toLowerCase() === 'the genie') {
+      const genieSubData = subKey ? PHB_SUBCLASSES[subKey] : null;
+      const genieSpellsByLevel = genieSubData?.genieExpandedSpells;
+      if (genieSpellsByLevel) {
+        const chosenRaw = (currentChar.class_choices?.genie_kind || '').toLowerCase();
+        const kindKey = ['dao', 'djinni', 'efreeti', 'marid'].find(k => chosenRaw.includes(k)) || null;
+        const kindLabel = kindKey ? kindKey[0].toUpperCase() + kindKey.slice(1) : null;
+        const levels = Object.keys(genieSpellsByLevel).sort((a, b) => parseInt(a) - parseInt(b));
+        const lines = levels.map(lv => {
+          const row = genieSpellsByLevel[lv];
+          const ord = lv === '1' ? '1st' : lv === '2' ? '2nd' : lv === '3' ? '3rd' : lv + 'th';
+          if (kindKey) {
+            // Chosen kind only - just that kind's addition at this level (if any).
+            const kindSpell = row[kindKey];
+            return `${ord} Level: ${row.shared}${kindSpell ? ', ' + kindSpell : ''}`;
+          }
+          // No kind chosen yet - show all four so the player can compare
+          // before deciding.
+          const extras = ['dao', 'djinni', 'efreeti', 'marid']
+            .filter(k => row[k]).map(k => `${k[0].toUpperCase()+k.slice(1)}: ${row[k]}`).join(', ');
+          return `${ord} Level: ${row.shared}${extras ? ' (' + extras + ')' : ''}`;
+        });
+        const tableHeader = kindLabel ? `Genie Expanded Spells (${kindLabel})` : 'Genie Expanded Spells (choose your Genie Kind to narrow this list)';
+        _descForRender = _descForRender + ' | ' + tableHeader + ' - ' + lines.join(' | ');
       }
     }
 
