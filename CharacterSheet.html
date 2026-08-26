@@ -3297,6 +3297,16 @@ body.preview-readonly #mi-detail-edit-row * {
             <div id="encumbrance-tracker" style="margin-bottom:10px"></div>
             <button class="add-row-btn" onclick="openModal('add-item-type-modal')" style="margin-bottom:10px">+ Add Item</button>
 
+            <!-- Starting equipment (class + background) — collapsed behind a
+                 small status button + modal instead of always-inline panels,
+                 so a character that already has both picked (or never touches
+                 this) doesn't get extra clutter here. See openStartingEquipModal
+                 and getStartingEquipStatusText. -->
+            <button class="tbtn" id="inv-equip-config-btn" style="justify-content:space-between;width:100%;margin-bottom:10px" onclick="openStartingEquipModal()">
+              <span>🎒 Starting Equipment</span>
+              <span id="inv-equip-config-status" style="font-size:9px;color:var(--text3)"></span>
+            </button>
+
             <!-- Browse Magic Items - relocated here so picking "Magic Item"
                  from + Add Item opens this in place, rather than navigating
                  away to a separate Magic Items panel further down the page -->
@@ -3383,6 +3393,7 @@ body.preview-readonly #mi-detail-edit-row * {
               <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)" title="50 coins of any denomination weigh 1 lb, per the PHB">Weight: <span id="currency-weight">0 lb</span></span>
               <span id="currency-container-picker-wrap"></span>
             </div>
+            <button class="tbtn" style="width:100%;justify-content:center;font-size:10px;margin-top:6px" onclick="openGiveCurrencyModal()" title="Give coins to a party member">🎁 Give Currency</button>
 
             <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
               <div style="font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.5px;color:var(--text3);text-transform:uppercase;margin-bottom:6px">Add a Valuable</div>
@@ -4013,6 +4024,60 @@ body.preview-readonly #mi-detail-edit-row * {
     <button class="btn-primary" onclick="saveBoonCurseEdit()">Save</button>
     <button class="tbtn" style="margin-top:6px;color:var(--red);border-color:var(--red)" onclick="removeBoonCurseFromModal()">Remove</button>
     <div id="bc-edit-status" style="font-family:var(--font-ui);font-size:11px;margin-top:6px;min-height:16px"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="starting-equip-modal">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-title">
+      🎒 Starting Equipment
+      <span class="modal-close" onclick="closeModal('starting-equip-modal')">✕</span>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:10px">
+      Your class and background each grant a one-time choice of starting gear. Picking a new option swaps out the old one — anything you've added manually since is untouched.
+    </div>
+    <div id="se-modal-cls-equip-choice" style="margin-bottom:12px"></div>
+    <div id="se-modal-bg-equip-choice" style="margin-bottom:4px"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="give-currency-modal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      💰 Give Currency
+      <span class="modal-close" onclick="closeModal('give-currency-modal')">✕</span>
+    </div>
+    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:10px">
+      Enter how much of each denomination to send, then pick who gets it.
+    </div>
+    <div class="currency-grid" style="margin-bottom:8px">
+      <div class="currency-cell">
+        <div class="currency-label" style="color:var(--coin-copper)">CP</div>
+        <input class="currency-input" type="number" id="give-cur-cp" min="0" value="0"/>
+        <div class="currency-sub">Copper</div>
+      </div>
+      <div class="currency-cell">
+        <div class="currency-label" style="color:var(--coin-silver)">SP</div>
+        <input class="currency-input" type="number" id="give-cur-sp" min="0" value="0"/>
+        <div class="currency-sub">Silver</div>
+      </div>
+      <div class="currency-cell">
+        <div class="currency-label" style="color:var(--coin-gold)">GP</div>
+        <input class="currency-input" type="number" id="give-cur-gp" min="0" value="0"/>
+        <div class="currency-sub">Gold</div>
+      </div>
+      <div class="currency-cell">
+        <div class="currency-label" style="color:var(--coin-platinum)">PP</div>
+        <input class="currency-input" type="number" id="give-cur-pp" min="0" value="0"/>
+        <div class="currency-sub">Platinum</div>
+      </div>
+    </div>
+    <div id="give-cur-max" style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:10px"></div>
+    <div style="font-family:var(--font-ui);font-size:9px;letter-spacing:1px;color:var(--text3);margin-bottom:6px">GIVE TO</div>
+    <div id="give-currency-recipients" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto">
+      <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading party…</div>
+    </div>
+    <div id="give-currency-status" style="font-family:var(--font-ui);font-size:11px;margin-top:8px;min-height:16px"></div>
   </div>
 </div>
 
@@ -6003,7 +6068,19 @@ async function handleRemoteCharUpdate(field, notify) {
                     || JSON.stringify(fresh.death_saves) !== JSON.stringify(currentChar.death_saves);
     const conditionsChanged = JSON.stringify(fresh.conditions) !== JSON.stringify(currentChar.conditions);
 
-    if ((field === 'magicItems' || field === 'full') && itemsChanged) {
+    const currencyChanged = JSON.stringify(fresh.currency) !== JSON.stringify(currentChar.currency);
+
+    // Every field name that can land in one of the arrays itemsChanged
+    // diffs — confirmGiveItem broadcasts the specific source it moved
+    // (magicItems/equipment/weapons/armorOwned/valuables) and confirmGrantItem
+    // (DM grant) does the same, so all of them need to gate this branch,
+    // not just 'magicItems' literally. This was previously under-scoped:
+    // itemsChanged already diffed all these arrays, but the outer condition
+    // only ever fired for field==='magicItems', so an equipment/weapons/
+    // armorOwned/valuables gift never triggered a live refresh here —
+    // only the ~20s fallback poll (field 'full') eventually caught it.
+    const ITEM_FIELDS = ['magicItems', 'equipment', 'weapons', 'armorOwned', 'valuables'];
+    if ((ITEM_FIELDS.includes(field) || field === 'full') && itemsChanged) {
       if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) {
         // A local edit is still queued to be written — that's the user's
         // own not-yet-persisted intent, and it must win over stale server
@@ -6035,6 +6112,24 @@ async function handleRemoteCharUpdate(field, notify) {
         }
       }
     }
+    if ((field === 'currency' || field === 'full') && currencyChanged) {
+      if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) {
+        console.log('[realtime] local save pending, deferring remote currency overwrite');
+      } else {
+        currentChar.currency = fresh.currency;
+        ['cp','sp','gp','pp'].forEach(k => {
+          const el = document.getElementById('cur-' + k);
+          if (el) el.value = currentChar.currency?.[k] || 0;
+        });
+        if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal();
+        if (typeof renderUnifiedInventory === 'function') renderUnifiedInventory();
+        if (notify?.itemName && typeof showItemReceivedModal === 'function') {
+          showItemReceivedModal(notify);
+        } else {
+          toast('Your currency was updated', 'ok');
+        }
+      }
+    }
     if ((field === 'hp' || field === 'full') && hpChanged) {
       if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) {
         console.log('[realtime] local save pending, deferring remote hp overwrite');
@@ -6062,7 +6157,7 @@ async function handleRemoteCharUpdate(field, notify) {
     if (field === 'note') {
       currentChar._dmNote = fresh._dmNote;
     }
-    if (field === 'full' && (itemsChanged || hpChanged || conditionsChanged)) {
+    if (field === 'full' && (itemsChanged || hpChanged || conditionsChanged || currencyChanged)) {
       if (typeof renderActiveEffects === 'function') renderActiveEffects();
       if (typeof renderKnownSpells === 'function') renderKnownSpells();
     }
@@ -6331,6 +6426,7 @@ function switchPage(page) {
     updateCurrencyTotal();
     if (typeof renderValuables === 'function') renderValuables();
     if (typeof renderMountsVehicles === 'function') renderMountsVehicles();
+    if (typeof refreshStartingEquipButtons === 'function') refreshStartingEquipButtons();
   }
   if (page === 'background' && currentChar?.background) {
     buildBackgroundDropdown();
@@ -6459,6 +6555,9 @@ function closeModal(id) {
   if (id === 'feat-detail-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'feats') {
     openModal('quick-start-modal');
     renderQuickStartStep();
+  }
+  if (id === 'starting-equip-modal' && typeof refreshStartingEquipButtons === 'function') {
+    refreshStartingEquipButtons();
   }
   if (el._teleported && el._originalParent) {
     try { el._originalParent.insertBefore(el, el._originalNextSibling || null); } catch(e) {}
@@ -19227,6 +19326,126 @@ const PHB_CLASSES = {
   "psion": {"name":"Psion","die":6,"saves":["int","wis"],"primaryAbility":["Intelligence"],"skillsText":"Choose 2: Arcana, Insight, Intimidation, Investigation, Medicine, Perception, Persuasion","spellcasting":{"type":"full","ability":"int","cantrips":[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4]},"subclasses":["Metamorph","Psi Warper","Psykinetic","Telepath"],"features":[{"name":"Spellcasting","level":1,"desc":"You have learned how to channel magical energy using the power of your mind. See the Player's Handbook for the rules on spellcasting. The information below details how you use those rules with Psion spells, which appear in the Psion spell list later in the class's description. | Cantrips. You know two Psion cantrips of your choice. Minor Illusion and Telekinetic Fling are recommended. Whenever you gain a Psion level, you can replace one of your cantrips from this feature with another Psion cantrip of your choice. When you reach Psion levels 4 and 10, you learn another Psion cantrip of your choice, as shown in the Cantrips column of the Psion Features table. | Spell Slots. The Psion Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended spell slots when you finish a Long Rest. | Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose four level 1 Psion spells. Charm Person, Command, Dissonant Whispers, and Mage Armor are recommended. The number of spells on your list increases as you gain Psion levels, as shown in the Prepared Spells column of the Psion Features table. Whenever that number increases, choose additional Psion spells until the number of spells on your list matches the number in the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Psion, your list of prepared spells can include six Psion spells of levels 1 and 2 in any combination. If another Psion feature gives you spells that you always have prepared, those don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Psion spells for you. | Changing Your Prepared Spells. Whenever you gain a Psion level, you can replace one spell on your list with another Psion spell of an eligible level. | Spellcasting Ability. Intelligence is your spellcasting ability for your Psion spells. | Psionic Spellcasting. When you cast a Psion spell, that spell doesn't require a Verbal or Material component, even if the spell includes \"V\" or \"M\" in its \"Components\" entry, except Material components that are consumed by the spell or have a cost specified in the spell.","usages":null,"recovery":null},{"name":"Psionic Power","level":1,"desc":"You harbor a wellspring of psionic energy within yourself. This energy is represented by your Psionic Energy Dice. Your Psion level determines the die size and number of Psionic Energy Dice you have, as shown in the Energy Dice column of the Psion Features table. Your Psionic Energy Dice are used to enhance or fuel certain Psion features. You start with two such features: Telekinetic Propel and Telepathic Connection, each of which is detailed below. Some of your powers expend the Psionic Energy Dice, as specified in a power's description, and you can't use a power if it requires you to use a die when all your Psionic Energy Dice are expended. You regain one expended Psionic Energy Die when you finish a Short Rest, and you regain all of them when you finish a Long Rest. Some features that use Psionic Energy Dice require your target to make a saving throw. The save DC equals the spell save DC from this class's Spellcasting feature. | Telekinetic Propel. As a Bonus Action, choose one Large or smaller creature other than you that you can see within 30 feet of yourself. When you do so, the target must succeed on a Strength saving throw or be moved 5 feet straight toward you or straight away from you. Alternatively, you can roll one Psionic Energy Die when you take this Bonus Action, and the distance moved is equal to 5 times the number rolled. The die is expended only if the target fails the saving throw. | Telepathic Connection. You have telepathy with a range of 30 feet. As a Bonus Action, you can roll one Psionic Energy Die. For the next hour, the range of your telepathy increases by a number of feet equal to 10 times the number rolled. The first time you use this Bonus Action after each Long Rest, you don't expend the Psionic Energy Die. All other times you use this feature, you expend the die.","usages":"level<5?4:level<9?6:level<13?8:level<17?10:12","recovery":"long rest"},{"name":"Subtle Telekinesis","level":1,"desc":"You know the Mage Hand cantrip. You can cast it without Somatic components, and you can make the spectral hand Invisible when you cast it.","usages":null,"recovery":null},{"name":"Psionic Discipline","level":2,"desc":"You learn further psionic techniques that are fueled by your Psionic Energy Dice. You gain two disciplines of your choice, such as Expanded Awareness and Id Insinuation. Disciplines are described in the \"Psionic Discipline Options\" section later in this class's description. You can use only one Discipline each turn and only once per turn unless otherwise noted in one of those options. Whenever you gain a Psion level, you can replace one of your Psionic Discipline options with one you don't know. You gain one additional option at Psion levels 5, 10, 13, and 17.","usages":null,"recovery":null},{"name":"Psionic Discipline Options","level":2,"desc":"Psionic Discipline options appear in alphabetical order. | Biofeedback. When you cast a Psion spell from the Necromancy or Transmutation school, you can expend a number of Psionic Energy Dice up to your Intelligence modifier, roll them, and gain a number of Temporary Hit Points equal to the total number rolled plus your Intelligence modifier (minimum of one). | Bolstering Precognition. When you cast a Psion spell from the Abjuration or Divination school, you can expend one Psionic Energy Die. Roll the die and choose a creature you can see within 60 feet (which can be yourself). Until the end of your next turn, the creature gains a bonus to the next D20 Test it makes equal to the number rolled. | Destructive Thoughts. When you cast a Psion spell from the Conjuration or Evocation school that forces a creature you can see to make a saving throw against the spell, you can expend a number of Psionic Energy Dice up to your Intelligence modifier, and roll them. The creature takes Psychic damage equal to the total number rolled plus your Intelligence modifier (minimum of one), regardless of the result of the saving throw. | Devilish Tongue. When you take the Influence action, you can roll one Psionic Energy Die and add the number rolled to the ability check. If this causes you to succeed on the ability check, the die is expended. | Expanded Awareness. When you take the Search action, you can roll one Psionic Energy Die and add the number rolled to the ability check. If this causes you to succeed on the ability check, the die is expended. | Id Insinuation. When you cast a Psion spell from the Enchantment or Illusion school that forces a creature to make a saving throw, you can expend one Psionic Energy Dice and roll it. One target of the spell you can see subtracts half the number rolled (round up) from its saving throw against the spell. | Inerrant Aim. When you make an attack roll against a creature and miss, you can roll one Psionic Energy Die and add the number rolled to the attack roll. If this causes the attack to hit, the die is expended. | Observant Mind. When you take the Study action, you can roll one Psionic Energy Die and add the number rolled to the ability check. If this causes you to succeed on the ability check, the die is expended. | Psionic Backlash. Immediately after a creature you can see hits you with an attack roll, you can take a Reaction to expend one Psionic Energy Die, roll it, and reduce the damage you take from the attack equal to two times the number rolled plus your Intelligence modifier (minimum of two). In addition, you can force the attacker to make a Wisdom saving throw. On a failed save, the target takes Psychic damage equal to the amount of damage you reduced. | Psionic Guards. At the start of your turn, you can expend one Psionic Energy Die. Until the start of your next turn, you have Immunity to the Charmed and Frightened conditions and Advantage on Intelligence saving throws. If you are Charmed or Frightened when you use this discipline, the condition ends on you. When you use Psionic Guards, you can also use a different Psionic Discipline this turn. | Sharpened Mind. At the start of your turn, you can expend one Psionic Energy Die to hone your destructive psionics. Roll the die and record the number rolled. You gain the following benefits for 1 minute or until you have the Incapacitated condition. | Bypassing Psionics. Damage from your weapon attacks, Psion spells, and Psion features ignores Resistance to Psychic damage. | Attack Mode. Once per turn, when you deal Psychic damage to one or more creatures, you can replace the number rolled on one of the damage dice with the number recorded when you activated this Psionic Discipline. When you use Sharpened Mind, you can also use a different Psionic Discipline this turn.","usages":null,"recovery":null},{"name":"Psion Subclass","level":3,"desc":"You gain a Psion subclass of your choice. The Metamorph, Psykinetic, and Telepath subclasses are detailed after this class's description. A subclass is a specialization that grants you features at certain Psion levels. For the rest of your career, you gain each of your subclass's features that are of your Psion level or lower.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":4,"desc":"You gain the Ability Score Improvement feat or another feat of your choice for which you qualify. You gain this feature again at Psion levels 8, 12, and 16.","usages":null,"recovery":null},{"name":"Psionic Restoration","level":5,"desc":"You can perform a meditation that focuses the mind for 1 minute. At the end of it, you regain expended Psionic Energy Dice. Once you use this feature, you can't do so again until you finish a Long Rest.","usages":1,"recovery":"long rest"},{"name":"Psionic Discipline","level":5,"desc":"At 5th level, you learn an additional Psionic Discipline.","usages":null,"recovery":null},{"name":"Psionic Surge","level":7,"desc":"You can push your psionic powers using your life force. After you roll one or more Psionic Energy Dice, you can expend one of your Hit Point Dice and treat any roll of 1, 2, or 3 on those Psionic Energy Dice as a 4.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":8,"desc":"You gain the Ability Score Improvement feat or another feat of your choice for which you qualify. You gain this feature again at Psion levels 8, 12, and 16.","usages":null,"recovery":null},{"name":"Psionic Discipline","level":10,"desc":"At 10th level, you learn an additional Psionic Discipline.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":12,"desc":"You gain the Ability Score Improvement feat or another feat of your choice for which you qualify. You gain this feature again at Psion levels 8, 12, and 16.","usages":null,"recovery":null},{"name":"Psionic Discipline","level":13,"desc":"At 13th level, you learn an additional Psionic Discipline.","usages":null,"recovery":null},{"name":"Ability Score Improvement","level":16,"desc":"You gain the Ability Score Improvement feat or another feat of your choice for which you qualify. You gain this feature again at Psion levels 8, 12, and 16.","usages":null,"recovery":null},{"name":"Psionic Discipline","level":17,"desc":"At 17th level, you learn an additional Psionic Discipline.","usages":null,"recovery":null},{"name":"Psionic Reserves","level":18,"desc":"When you roll Initiative, you regain expended uses of Psionic Energy Dice until you have four if you have fewer than that.","usages":null,"recovery":null},{"name":"Epic Boon","level":19,"desc":"You gain an Epic Boon feat or another feat of your choice for which you qualify. Boon of Energy Resistance is recommended.","usages":null,"recovery":null},{"name":"Enkindled Life Force","level":20,"desc":"You burn your life force to achieve greater psionics. Once per turn, when you roll one or more Psionic Energy Dice for a Psion feature or Psionic Discipline, you can expend one or two of your Hit Point Dice. For each Hit Point Die expended, roll an additional Psionic Energy Die and add the numbers rolled to the total. This roll does not expend the Psionic Energy Die.","usages":null,"recovery":null}]}
 };
 
+// Class starting-equipment choices (2024 PHB) — mirrors the
+// PHB_BACKGROUNDS[key].equipmentA/goldA/goldB shape (array of {name,qty}
+// plus a gold total per lettered option), except a class can offer more
+// than one item-package choice (A/B, sometimes A/B/C) before the final
+// "or take the total gold instead" option. The last choice in each
+// class's `choices` array is always the pure-gold option (empty `items`).
+const CLASS_STARTING_EQUIPMENT = {
+  "artificer": { choices: [
+    { label: "A", items: [
+      { name: "Studded Leather Armor", qty: 1 }, { name: "Dagger", qty: 1 },
+      { name: "Thieves' Tools", qty: 1 }, { name: "Tinker's Tools", qty: 1 },
+      { name: "Dungeoneer's Pack", qty: 1 },
+    ], gold: 16 },
+    { label: "B", items: [], gold: 150 },
+  ]},
+  "barbarian": { choices: [
+    { label: "A", items: [
+      { name: "Greataxe", qty: 1 }, { name: "Handaxe", qty: 4 },
+      { name: "Explorer's Pack", qty: 1 },
+    ], gold: 15 },
+    { label: "B", items: [], gold: 75 },
+  ]},
+  "bard": { choices: [
+    { label: "A", items: [
+      { name: "Leather Armor", qty: 1 }, { name: "Dagger", qty: 2 },
+      { name: "Musical Instrument (choice)", qty: 1 }, { name: "Entertainer's Pack", qty: 1 },
+    ], gold: 19 },
+    { label: "B", items: [], gold: 90 },
+  ]},
+  "cleric": { choices: [
+    { label: "A", items: [
+      { name: "Chain Shirt", qty: 1 }, { name: "Shield", qty: 1 }, { name: "Mace", qty: 1 },
+      { name: "Holy Symbol", qty: 1 }, { name: "Priest's Pack", qty: 1 },
+    ], gold: 7 },
+    { label: "B", items: [], gold: 110 },
+  ]},
+  "druid": { choices: [
+    { label: "A", items: [
+      { name: "Leather Armor", qty: 1 }, { name: "Shield", qty: 1 }, { name: "Sickle", qty: 1 },
+      { name: "Druidic Focus (Quarterstaff)", qty: 1 }, { name: "Explorer's Pack", qty: 1 },
+      { name: "Herbalism Kit", qty: 1 },
+    ], gold: 9 },
+    { label: "B", items: [], gold: 50 },
+  ]},
+  "fighter": { choices: [
+    { label: "A", items: [
+      { name: "Chain Mail", qty: 1 }, { name: "Greatsword", qty: 1 }, { name: "Flail", qty: 1 },
+      { name: "Javelin", qty: 8 }, { name: "Dungeoneer's Pack", qty: 1 },
+    ], gold: 4 },
+    { label: "B", items: [
+      { name: "Studded Leather Armor", qty: 1 }, { name: "Scimitar", qty: 1 },
+      { name: "Shortsword", qty: 1 }, { name: "Longbow", qty: 1 }, { name: "Arrow", qty: 20 },
+      { name: "Quiver", qty: 1 }, { name: "Dungeoneer's Pack", qty: 1 },
+    ], gold: 11 },
+    { label: "C", items: [], gold: 155 },
+  ]},
+  "monk": { choices: [
+    { label: "A", items: [
+      { name: "Spear", qty: 1 }, { name: "Dagger", qty: 5 },
+      { name: "Artisan's Tools or Musical Instrument (choice)", qty: 1 },
+      { name: "Explorer's Pack", qty: 1 },
+    ], gold: 11 },
+    { label: "B", items: [], gold: 50 },
+  ]},
+  "paladin": { choices: [
+    { label: "A", items: [
+      { name: "Chain Mail", qty: 1 }, { name: "Shield", qty: 1 }, { name: "Longsword", qty: 1 },
+      { name: "Javelin", qty: 6 }, { name: "Holy Symbol", qty: 1 }, { name: "Priest's Pack", qty: 1 },
+    ], gold: 9 },
+    { label: "B", items: [], gold: 150 },
+  ]},
+  "psion": { choices: [
+    { label: "A", items: [
+      { name: "Spear", qty: 1 }, { name: "Dagger", qty: 2 }, { name: "Light Crossbow", qty: 1 },
+      { name: "Bolt", qty: 20 }, { name: "Crossbow Bolt Case", qty: 1 },
+      { name: "Dungeoneer's Pack", qty: 1 },
+    ], gold: 6 },
+    { label: "B", items: [], gold: 50 },
+  ]},
+  "ranger": { choices: [
+    { label: "A", items: [
+      { name: "Studded Leather Armor", qty: 1 }, { name: "Scimitar", qty: 1 },
+      { name: "Shortsword", qty: 1 }, { name: "Longbow", qty: 1 }, { name: "Arrow", qty: 20 },
+      { name: "Quiver", qty: 1 }, { name: "Druidic Focus (Sprig of Mistletoe)", qty: 1 },
+      { name: "Explorer's Pack", qty: 1 },
+    ], gold: 7 },
+    { label: "B", items: [], gold: 150 },
+  ]},
+  "rogue": { choices: [
+    { label: "A", items: [
+      { name: "Leather Armor", qty: 1 }, { name: "Dagger", qty: 2 }, { name: "Shortsword", qty: 1 },
+      { name: "Shortbow", qty: 1 }, { name: "Arrow", qty: 20 }, { name: "Quiver", qty: 1 },
+      { name: "Thieves' Tools", qty: 1 }, { name: "Burglar's Pack", qty: 1 },
+    ], gold: 8 },
+    { label: "B", items: [], gold: 100 },
+  ]},
+  "sorcerer": { choices: [
+    { label: "A", items: [
+      { name: "Spear", qty: 1 }, { name: "Dagger", qty: 2 },
+      { name: "Arcane Focus (Crystal)", qty: 1 }, { name: "Dungeoneer's Pack", qty: 1 },
+    ], gold: 28 },
+    { label: "B", items: [], gold: 50 },
+  ]},
+  "warlock": { choices: [
+    { label: "A", items: [
+      { name: "Leather Armor", qty: 1 }, { name: "Sickle", qty: 1 }, { name: "Dagger", qty: 2 },
+      { name: "Arcane Focus (Orb)", qty: 1 }, { name: "Book (occult lore)", qty: 1 },
+      { name: "Scholar's Pack", qty: 1 },
+    ], gold: 15 },
+    { label: "B", items: [], gold: 100 },
+  ]},
+  "wizard": { choices: [
+    { label: "A", items: [
+      { name: "Dagger", qty: 2 }, { name: "Arcane Focus (Quarterstaff)", qty: 1 },
+      { name: "Robe", qty: 1 }, { name: "Spellbook", qty: 1 }, { name: "Scholar's Pack", qty: 1 },
+    ], gold: 5 },
+    { label: "B", items: [], gold: 55 },
+  ]},
+};
+
 // Pact of the Chain familiars — keyed separately, detected via invocations not subclass
 const PACT_CHAIN_COMPANIONS = {
   tabLabel: "Familiar",
@@ -23390,6 +23609,42 @@ function getSkillAdvantageSources(skillKey) {
 }
 window.getSkillAdvantageSources = getSkillAdvantageSources;
 
+// Where a skill's proficiency/expertise actually came from — reads the
+// same tracking fields the Skill Setup wizard already persists (_bgSkills,
+// _classSkills, _raceSkill, _skilledSkills) rather than inventing new
+// storage, since that data was already there and just never surfaced
+// outside that one-time setup modal. A skill that's proficient without
+// matching any of these was either toggled by hand or granted by a feat
+// this function doesn't have a labeled source for (skill_prof/skill_expert
+// -type feats fold straight into skill_profs/skill_expert with no source
+// array of their own) — shown honestly as "Manually set / other source"
+// rather than guessing.
+function getSkillProfSources(skillKey) {
+  if (!currentChar) return [];
+  const skName = SKILLS.find(s => s.key === skillKey)?.name;
+  const sources = [];
+  if (currentChar._bgSkills?.includes(skillKey)) {
+    const bg = currentChar.background ? PHB_BACKGROUNDS[currentChar.background] : null;
+    sources.push(bg ? `Background (${bg.name})` : 'Background');
+  }
+  if (skName && currentChar._classSkills?.includes(skName)) {
+    const cls = (currentChar.levelPlan?.[1] || getPrimaryClass?.() || '').toString();
+    sources.push(cls ? `Class (${cls.charAt(0).toUpperCase()+cls.slice(1)})` : 'Class');
+  }
+  if (skName && currentChar._raceSkill === skName) {
+    const raceName = currentChar.race ? (PHB_RACES[currentChar.race]?.name || currentChar.race) : 'Race';
+    sources.push(raceName);
+  }
+  if (skName && currentChar._skilledSkills?.includes(skName)) {
+    sources.push('Skilled feat');
+  }
+  if (!sources.length && (currentChar.skill_profs?.[skillKey] || currentChar.skill_expert?.[skillKey])) {
+    sources.push('Manually set / other source');
+  }
+  return sources;
+}
+window.getSkillProfSources = getSkillProfSources;
+
 function renderSkillsBlock() {
   const block = document.getElementById('skills-block');
   if (!block || !currentChar) return;
@@ -23443,16 +23698,17 @@ function renderSkillsBlock() {
     if (orderBonus)   skParts.push(`${hasClass('cleric')?'Thaumaturge':'Magician'} +${orderBonus}`);
     if (exPen > 0)    skParts.push(`Exh \u2212${exPen}`);
     if (drunkPen > 0) skParts.push(`Drunk \u2212${drunkPen}`);
-    const skFormula = skParts.join(' + ').replace('+ \u2212', '\u2212') + ` = ${totalStr}` + (advTitle ? ` · ${advTitle}` : '') + (condDisadvTitle ? ` · ${condDisadvTitle}` : '');
+    const profSources = (isProf || isExpert) ? getSkillProfSources(sk.key) : [];
+    const skFormula = skParts.join(' + ').replace('+ \u2212', '\u2212') + ` = ${totalStr}` + (advTitle ? ` · ${advTitle}` : '') + (condDisadvTitle ? ` · ${condDisadvTitle}` : '') + (profSources.length ? ` · ${isExpert ? 'Expertise' : 'Proficiency'} from ${profSources.join(', ')}` : '');
 
     const row = document.createElement('div');
     row.className = 'skill-row';
     row.innerHTML = `
       <div class="skill-dots">
         <div class="prof-dot ${isProf ? 'prof' : ''}" id="skill-prof-dot-${sk.key}"
-          onclick="toggleSkillProf('${sk.key}')" title="Proficiency"></div>
+          onclick="toggleSkillProf('${sk.key}')" title="Proficiency${profSources.length ? ' - ' + profSources.join(', ') : ''}"></div>
         <div class="prof-dot expert-dot ${isExpert ? 'expert' : ''}" id="skill-exp-dot-${sk.key}"
-          onclick="toggleSkillExpert('${sk.key}')" title="Expertise (doubles proficiency bonus)"></div>
+          onclick="toggleSkillExpert('${sk.key}')" title="Expertise (doubles proficiency bonus)${profSources.length ? ' - ' + profSources.join(', ') : ''}"></div>
       </div>
       <span class="skill-name">${sk.name}${joatTag}${advSources.length ? ` <span style="font-size:9px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:0 4px;margin-left:4px" title="${advTitle}">ADV</span>` : ''}${condDisadvTag}</span>
       <span class="skill-ability">${sk.ability.toUpperCase()}</span>
@@ -28529,8 +28785,17 @@ function _getLuMaxSpellLevel() {
 
 function _getLuSpellCap() {
   if (_luMode === 'cantrip') return getCantripsMax();
-  const { max } = getPreparedMax();
-  return max;
+  // Use just the class this modal is scoped to (its title/subtitle already
+  // say e.g. "Sorcerer") — getPreparedMax()'s multiclass-combined total is
+  // the wrong number here: for a Sorcerer 2/Wizard 5 character it would add
+  // Sorcerer's own known-spell cap AND Wizard's separate prepared cap
+  // together into one figure that doesn't correspond to either class,
+  // shown under a header that only names one of them.
+  const cls = _getLuSpellClass();
+  if (!cls) return 0;
+  const entry = getAllClasses().find(e => e.class?.toLowerCase() === cls);
+  const lv = entry?.levels?.length || 0;
+  return getClassPreparedMax(cls, lv);
 }
 
 function _getLuCurrentSpells() {
@@ -28653,9 +28918,10 @@ function renderLevelUpSpellList() {
     html += `<div style="font-family:var(--font-label);font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin:4px 0 6px">Already Granted</div>`;
     for (const { sp, cat } of grantedEntries) {
       const style = GRANT_STYLES[cat];
+      const safeName = sp.name.replace(/'/g,"\\'");
       html += `<div style="display:flex;align-items:start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);opacity:.75">
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--font-title);font-size:12px;font-weight:600;color:var(--text)">${sp.name}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openSpellDetailModal('${sp.key}','${safeName}')">
+          <div style="font-family:var(--font-title);font-size:12px;font-weight:600;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${sp.name}</div>
           <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${sp.desc||''}</div>
         </div>
         <span style="font-family:var(--font-ui);font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:${style.color};border:1px solid ${style.color};border-radius:4px;padding:3px 7px;flex-shrink:0">✓ ${style.label}</span>
@@ -28679,16 +28945,17 @@ function renderLevelUpSpellList() {
     }
     for (const sp of byLevel[lv]) {
       const safeKey = sp.key.replace(/'/g,"\\'");
+      const safeName = sp.name.replace(/'/g,"\\'");
       const action = _luReplaceKey
         ? `Swap in`
         : (isFull ? `<span style="opacity:.4;cursor:not-allowed">At cap</span>` : `Add`);
       const clickable = _luReplaceKey || !isFull;
       html += `<div style="display:flex;align-items:start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--font-title);font-size:12px;font-weight:600;color:var(--text)">${sp.name}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openSpellDetailModal('${safeKey}','${safeName}')">
+          <div style="font-family:var(--font-title);font-size:12px;font-weight:600;color:var(--text);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">${sp.name}</div>
           <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4">${sp.desc||''}</div>
         </div>
-        ${clickable ? `<button class="tbtn" style="flex-shrink:0;font-size:10px;padding:4px 10px;${_luReplaceKey?'background:var(--accent);color:#000;font-weight:700':''}" onclick="luAddSpell('${safeKey}')">${_luReplaceKey ? '✓ Swap In' : '+ Add'}</button>` : `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);flex-shrink:0;padding:4px 10px">At cap</span>`}
+        ${clickable ? `<button class="tbtn" style="flex-shrink:0;font-size:10px;padding:4px 10px;${_luReplaceKey?'background:var(--accent);color:#000;font-weight:700':''}" onclick="event.stopPropagation();luAddSpell('${safeKey}')">${_luReplaceKey ? '✓ Swap In' : '+ Add'}</button>` : `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);flex-shrink:0;padding:4px 10px">At cap</span>`}
       </div>`;
     }
   }
@@ -29338,13 +29605,52 @@ function getCantripsMax() {
   return total;
 }
 
+// Per-class prepared/known spell cap formula, shared by getPreparedMax()
+// (which sums this across every spellcasting class for the character's
+// real overall total) and _getLuSpellCap() (which needs just ONE class's
+// own number — the level-up spell modal is scoped and labeled to a single
+// class, so it must never be handed the multiclass-combined total, which
+// is a different, larger number that doesn't mean anything for "how many
+// spells can THIS class prepare/know").
+function getClassPreparedMax(cls, lv) {
+  const TABLE_2024_CLASSES = ['cleric', 'druid', 'paladin', 'ranger'];
+  const cd = getClassData(cls);
+  if (!cd || !cd.spellcasting?.type || cd.spellcasting.type === 'none') return 0;
+  const ability = cd.spellcasting?.ability;
+  const mod = ability ? abilityMod(getAbilities()[ability]) : 0;
+  const type = cd.spellcasting?.type;
+  let classMax = 0;
+
+  if (cls === 'bard' || cls === 'psion' || cls === 'sorcerer') {
+    classMax = FULL_PREPARED_TABLE_2024[Math.min(lv, FULL_PREPARED_TABLE_2024.length) - 1] || 0;
+  } else if (cls === 'warlock') {
+    classMax = WARLOCK_PREPARED_TABLE_2024[Math.min(lv, WARLOCK_PREPARED_TABLE_2024.length) - 1] || 0;
+  } else if (isSwapOnLU(cls)) {
+    const table = cd.spellcasting?.spellsKnown || [];
+    classMax = table[Math.min(lv, table.length) - 1] || 0;
+  } else if (cls === 'wizard') {
+    classMax = WIZARD_PREPARED_TABLE_2024[Math.min(lv, WIZARD_PREPARED_TABLE_2024.length) - 1] || 0;
+  } else if (TABLE_2024_CLASSES.includes(cls)) {
+    const table = type === 'full' ? FULL_PREPARED_TABLE_2024 : HALF_PREPARED_TABLE_2024;
+    classMax = table[Math.min(lv, table.length) - 1] || 0;
+  } else if (cls === 'artificer') {
+    classMax = ARTIFICER_PREPARED_TABLE_2024[Math.min(lv, ARTIFICER_PREPARED_TABLE_2024.length - 1)] || 0;
+  } else if (type === 'full')  {
+    classMax = lv + mod;
+  } else if (type === 'half')  {
+    classMax = Math.floor(lv/2) + mod;
+  } else {
+    return 0; // subclass-based casters (EK, AT) — no class-level spell cap
+  }
+  if (classMax <= 0) return 0;
+  return Math.max(1, classMax);
+}
+
 function getPreparedMax() {
   // Returns { max, breakdown } — the spell count cap for each class.
   // Uses the shared FULL/WIZARD/HALF/ARTIFICER_PREPARED_TABLE_2024 constants
   // (defined above, near CLASS_PREP_FORMULA) rather than a local copy, so
   // this and the Spells-tab stat display can never drift out of sync again.
-  const TABLE_2024_CLASSES = ['cleric', 'druid', 'paladin', 'ranger'];
-
   let total = 0;
   const parts = [];
   getAllClasses().forEach(entry => {
@@ -29352,40 +29658,8 @@ function getPreparedMax() {
     const lv  = entry.levels?.length || 0;
     const cd  = getClassData(cls);
     if (!cd || !cd.spellcasting?.type || cd.spellcasting.type === 'none') return;
-    const ability = cd.spellcasting?.ability;
-    const mod = ability ? abilityMod(getAbilities()[ability]) : 0;
-    const type = cd.spellcasting?.type;
-    let classMax = 0;
-
-    if (cls === 'bard' || cls === 'psion' || cls === 'sorcerer') {
-      // Bard/Psion/Sorcerer use the 2024 Prepared Spells table (same as
-      // Cleric/Druid). Warlock also uses a Prepared Spells table, but its
-      // own distinct one (see WARLOCK_PREPARED_TABLE_2024) - handled below.
-      classMax = FULL_PREPARED_TABLE_2024[Math.min(lv, FULL_PREPARED_TABLE_2024.length) - 1] || 0;
-    } else if (cls === 'warlock') {
-      classMax = WARLOCK_PREPARED_TABLE_2024[Math.min(lv, WARLOCK_PREPARED_TABLE_2024.length) - 1] || 0;
-    } else if (isSwapOnLU(cls)) {
-      // Fixed list casters: cap comes from spellsKnown table
-      const table = cd.spellcasting?.spellsKnown || [];
-      classMax = table[Math.min(lv, table.length) - 1] || 0;
-    } else if (cls === 'wizard') {
-      classMax = WIZARD_PREPARED_TABLE_2024[Math.min(lv, WIZARD_PREPARED_TABLE_2024.length) - 1] || 0;
-    } else if (TABLE_2024_CLASSES.includes(cls)) {
-      // 2024 fixed prepared-spells tables — no ability modifier involved
-      const table = type === 'full' ? FULL_PREPARED_TABLE_2024 : HALF_PREPARED_TABLE_2024;
-      classMax = table[Math.min(lv, table.length) - 1] || 0;
-    } else if (cls === 'artificer') {
-      classMax = ARTIFICER_PREPARED_TABLE_2024[Math.min(lv, ARTIFICER_PREPARED_TABLE_2024.length - 1)] || 0;
-    } else if (type === 'full')  {
-      classMax = lv + mod;
-    } else if (type === 'half')  {
-      classMax = Math.floor(lv/2) + mod;
-    } else {
-      // Subclass-based casters (EK, AT) — no class-level spell cap, skip
-      return;
-    }
+    const classMax = getClassPreparedMax(cls, lv);
     if (classMax <= 0) return;
-    classMax = Math.max(1, classMax);
     total += classMax;
     const clsName = cls.charAt(0).toUpperCase()+cls.slice(1);
     parts.push(`${clsName}: ${classMax}`);
@@ -29934,6 +30208,14 @@ function buildKnownSpellRows() {
     _shownKeys.add(sp.key);
   });
 
+  // Wizard's spellbook (prepared/ritual-only) and every OTHER spellcasting
+  // class's own known-spell list are not mutually exclusive — a Sorcerer/
+  // Wizard multiclass character has both at once. This used to be an
+  // if/else that only ever showed one or the other depending on whether
+  // Wizard was present anywhere on the character, which meant a non-Wizard
+  // class's known spells (added via luAddSpell, genuinely written to
+  // spells.known) simply vanished from every spell count and the main
+  // Spells page the moment Wizard was multiclassed in alongside them.
   if (isWiz) {
     const allBook = currentChar.spells.spellbook.filter(s => s.level > 0);
     allBook.forEach(sp => {
@@ -29945,35 +30227,31 @@ function buildKnownSpellRows() {
       } else if (isRitual) {
         rows.push({ ...sp, pipType:'ritual-only', locked:false, ritual:true });
       }
-    });
-  } else {
-    currentChar.spells.known.filter(s => s.level > 0).forEach(sp => {
-      if (_shownKeys.has(sp.key)) return;
-      const isPrepared = currentChar.spells.prepared.includes(sp.key) || isKnownCaster(_sc?.cls);
-      const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
-      rows.push({ ...sp, pipType: isPrepared ? 'prepared' : '', locked: false, ritual: phb?.ritual });
       _shownKeys.add(sp.key);
     });
   }
+  currentChar.spells.known.filter(s => s.level > 0).forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    const isPrepared = currentChar.spells.prepared.includes(sp.key) || isKnownCaster(_sc?.cls);
+    const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
+    rows.push({ ...sp, pipType: isPrepared ? 'prepared' : '', locked: false, ritual: phb?.ritual });
+    _shownKeys.add(sp.key);
+  });
 
   return rows;
 }
 
 function countPreparedSpells() {
   ensureSpellData();
-  // Wizards have a genuinely separate model — a larger spellbook plus a
-  // daily-prepared subset tracked in spells.prepared (an array of spell
-  // keys) — so that array is the correct source specifically for them.
-  // Every other prepare-freely class uses spells.known directly as their
-  // prepared list, with no separate spellbook concept, matching what the
-  // Manage Spells modal already correctly counts.
-  if (getCharSpellClasses().includes('wizard')) {
-    return (currentChar.spells?.prepared || []).filter(key => {
-      const phb = PHB_SPELL_LIST.find(s => s.key === key);
-      return phb && phb.level > 0;
-    }).length;
-  }
-  return buildKnownSpellRows().filter(r => r.level > 0 && !r.locked).length;
+  // Counts every class's currently-prepared leveled spells together — a
+  // multiclass character's Wizard spellbook-prepared subset AND any other
+  // class's own known/prepared spells (Sorcerer, Cleric, etc.) at once,
+  // since buildKnownSpellRows() now correctly surfaces both simultaneously
+  // rather than showing only one depending on whether Wizard happened to
+  // be present anywhere on the character. Ritual-only spellbook entries
+  // that aren't actually prepared don't count against the cap — you can
+  // still ritual-cast those without preparing them.
+  return buildKnownSpellRows().filter(r => r.level > 0 && !r.locked && r.pipType !== 'ritual-only').length;
 }
 
 // ── Add / Remove spells ───────────────────────────────────
@@ -36369,6 +36647,14 @@ window.renderFeatItemsArmor = renderFeatItemsArmor;
 // already uses, so nothing needs syncing between them; adding or removing
 // an item anywhere (here or in its own dedicated panel) is reflected
 // everywhere automatically since it's literally the same data.
+// Maps a renderUnifiedInventory row's `kind` (singular, display-oriented)
+// to the actual currentChar array name that openGiveItemModal/confirmGiveItem
+// operate on (plural, data-oriented) — 'mount' is deliberately absent since
+// mounts/vehicles are reference/ownership tracking, not hand-off-able gear.
+const GIVE_ITEM_KIND_SOURCE = {
+  weapon: 'weapons', armor: 'armorOwned', magic: 'magicItems', valuable: 'valuables',
+};
+
 function renderUnifiedInventory() {
   const list = document.getElementById('inv-unified-list');
   const countEl = document.getElementById('inv-summary-count');
@@ -36698,7 +36984,7 @@ function renderUnifiedInventory() {
         <button class="sp-del-btn" style="opacity:1;font-size:10px;padding:0 4px" onclick="adjustRowQty('${r.kind}',${r.rowIdx},1)" title="Increase quantity">+</button>
       </div>` : ''}
       ${r.onEditClick ? `<button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="event.stopPropagation();${r.onEditClick}" title="Edit">✎</button>` : ''}
-      ${r.kind === 'magic' ? `<button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="event.stopPropagation();openGiveItemModal('magicItems',${r.rowIdx})" title="Give to a party member">🎁</button>` : ''}
+      ${GIVE_ITEM_KIND_SOURCE[r.kind] ? `<button class="tbtn" style="font-size:9px;padding:1px 5px;flex-shrink:0" onclick="event.stopPropagation();openGiveItemModal('${GIVE_ITEM_KIND_SOURCE[r.kind]}',${r.rowIdx})" title="Give to a party member">🎁</button>` : ''}
       <button class="sp-del-btn" style="opacity:1;flex-shrink:0" onclick="event.stopPropagation();${r.onRemove}">✕</button>
     </div>`).join('')}
   `).join('') + `
@@ -38589,10 +38875,33 @@ function setMagicAmmoType(idx, type) {
 
 // Lets a logged-in player hand an item they own off to another member of
 // their own party — a genuine transfer (removed from the giver, added to
-// the receiver), not a DM-style creation out of nothing. Works for both
-// magicItems and equipment (general gear); source distinguishes which
-// array the item is coming from.
-let _giveItemSource = null; // { source: 'magicItems'|'equipment', idx }
+// the receiver), not a DM-style creation out of nothing. Works across all
+// carried-item sources: magicItems, equipment (general gear), weapons,
+// armorOwned, and valuables (treasure). Mounts/vehicles are deliberately
+// excluded — see GIVE_ITEM_KIND_SOURCE.
+let _giveItemSource = null; // { source: 'magicItems'|'equipment'|'weapons'|'armorOwned'|'valuables', idx }
+
+// Resolves a display name for any give-able source — magicItems has its
+// own naming pipeline (getItemDisplayName), weapons/armorOwned fall back
+// to the PHB catalog entry when the row has no custom name override, and
+// valuables have no `name` field at all (only a catalog `key`) so they
+// must always resolve through VALUABLES_CATALOG.
+function getGiveItemDisplayName(source, item) {
+  if (source === 'magicItems') return getItemDisplayName(item);
+  if (source === 'weapons') {
+    const phb = PHB_WEAPONS.find(w => w.key === item.weaponKey);
+    return item.name || phb?.name || 'Weapon';
+  }
+  if (source === 'armorOwned') {
+    const phb = PHB_ARMOUR.find(a => a.key === item.key);
+    return item.name || phb?.name || 'Armor';
+  }
+  if (source === 'valuables') {
+    const def = VALUABLES_CATALOG.find(c => c.key === item.key);
+    return def?.name || 'Valuable';
+  }
+  return item.name || 'this item';
+}
 
 async function openGiveItemModal(source, idx) {
   if (!currentChar || window._previewMode) return;
@@ -38600,8 +38909,7 @@ async function openGiveItemModal(source, idx) {
   if (!item) return;
 
   _giveItemSource = { source, idx, uid: item._uid || null };
-  document.getElementById('give-item-name').textContent =
-    source === 'magicItems' ? getItemDisplayName(item) : (item.name || 'this item');
+  document.getElementById('give-item-name').textContent = getGiveItemDisplayName(source, item);
   const recipEl = document.getElementById('give-item-recipients');
   recipEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading party…</div>';
   document.getElementById('give-item-status').textContent = '';
@@ -38710,13 +39018,23 @@ async function confirmGiveItem(targetId) {
         recipient[source].push(givenItem);
       }
     } else {
-      // Plain equipment has none of the above complexity - just copy it.
+      // Plain equipment, weapons, armor, and valuables have none of the
+      // magicItems catalog-rebuild complexity above — just copy the row.
+      // Per-owner state that only makes sense on the giver's own sheet is
+      // reset: containerUid (the recipient almost certainly doesn't own a
+      // container with that same _uid), plus whichever equipped/worn flag
+      // this source type has, so the item doesn't arrive pre-equipped.
       givenItem = { ...item };
+      delete givenItem.containerUid;
+      if (source === 'weapons') givenItem.equipped = false;
+      if (source === 'armorOwned') givenItem.worn = false;
       recipient[source].push(givenItem);
     }
 
     await GH.putFile(`${targetId}.json`, recipient, sha);
-    const givenName = source === 'magicItems' && typeof getItemDisplayName === 'function' ? getItemDisplayName(givenItem) : (givenItem.customName || givenItem.name);
+    const givenName = source === 'magicItems'
+      ? getItemDisplayName(givenItem)
+      : getGiveItemDisplayName(source, givenItem);
     broadcastCharUpdate(targetId, source, {
       notify: { itemName: givenName, fromName: currentChar.charName || 'A party member', fromIsDM: false },
     });
@@ -38750,6 +39068,115 @@ async function confirmGiveItem(targetId) {
   }
 }
 window.confirmGiveItem = confirmGiveItem;
+
+// Currency has no per-item rows to click a 🎁 button on, so it gets its
+// own modal (same party-list fetch pattern as openGiveItemModal above) —
+// the player enters how much of each denomination to send, then picks a
+// recipient from the list to confirm.
+async function openGiveCurrencyModal() {
+  if (!currentChar || window._previewMode) return;
+  ['cp','sp','gp','pp'].forEach(k => {
+    const el = document.getElementById('give-cur-' + k);
+    if (el) el.value = 0;
+  });
+  const cur = currentChar.currency || {};
+  const maxEl = document.getElementById('give-cur-max');
+  if (maxEl) maxEl.textContent = `You have ${cur.cp||0} cp, ${cur.sp||0} sp, ${cur.gp||0} gp, ${cur.pp||0} pp.`;
+  const recipEl = document.getElementById('give-currency-recipients');
+  recipEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">Loading party…</div>';
+  document.getElementById('give-currency-status').textContent = '';
+  openModal('give-currency-modal');
+
+  if (!currentChar._campaign) {
+    recipEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">You\'re not assigned to a party yet - ask your DM to set one from the DM Panel.</div>';
+    return;
+  }
+
+  try {
+    const allChars = await fetchAllCharacters();
+    const partyMates = allChars.filter(({ id, char }) =>
+      id !== currentChar.id && char._campaign === currentChar._campaign
+    );
+    if (!partyMates.length) {
+      recipEl.innerHTML = '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">No one else is in your party yet.</div>';
+      return;
+    }
+    recipEl.innerHTML = partyMates.map(({ id, char }) => `
+      <button class="tbtn" style="justify-content:flex-start;font-size:12px;padding:8px 10px" onclick="confirmGiveCurrency('${id}')">
+        ${char.charName || id}
+        <span style="margin-left:auto;color:var(--text3);font-size:10px">${capFirst(char.class)||''}${char.level?` · Lvl ${char.level}`:''}</span>
+      </button>
+    `).join('');
+  } catch(e) {
+    recipEl.innerHTML = `<div style="color:var(--red);font-family:var(--font-ui);font-size:11px">${e.message}</div>`;
+  }
+}
+window.openGiveCurrencyModal = openGiveCurrencyModal;
+
+async function confirmGiveCurrency(targetId) {
+  if (!currentChar) return;
+  const statusEl = document.getElementById('give-currency-status');
+  const cp = Math.max(0, parseInt(document.getElementById('give-cur-cp')?.value) || 0);
+  const sp = Math.max(0, parseInt(document.getElementById('give-cur-sp')?.value) || 0);
+  const gp = Math.max(0, parseInt(document.getElementById('give-cur-gp')?.value) || 0);
+  const pp = Math.max(0, parseInt(document.getElementById('give-cur-pp')?.value) || 0);
+  if (!cp && !sp && !gp && !pp) {
+    statusEl.textContent = 'Enter an amount first.';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  // currentChar.currency is kept in sync with the on-screen inputs by
+  // updateCurrencyTotal() on every change, so it's safe to read the have-
+  // amounts straight from it here rather than re-reading the DOM inputs.
+  const have = currentChar.currency || {};
+  if (cp > (have.cp||0) || sp > (have.sp||0) || gp > (have.gp||0) || pp > (have.pp||0)) {
+    statusEl.textContent = "You don't have that much of one of those denominations.";
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+
+  statusEl.textContent = 'Sending…';
+  statusEl.style.color = 'var(--text3)';
+  try {
+    const { content: recipient, sha } = await GH.getFile(`${targetId}.json`);
+    if (!recipient.currency) recipient.currency = {};
+    recipient.currency.cp = (recipient.currency.cp || 0) + cp;
+    recipient.currency.sp = (recipient.currency.sp || 0) + sp;
+    recipient.currency.gp = (recipient.currency.gp || 0) + gp;
+    recipient.currency.pp = (recipient.currency.pp || 0) + pp;
+    await GH.putFile(`${targetId}.json`, recipient, sha);
+
+    // Only touch the giver's own currency once the recipient's write has
+    // actually succeeded — same ordering confirmGiveItem uses.
+    currentChar.currency.cp = (currentChar.currency.cp || 0) - cp;
+    currentChar.currency.sp = (currentChar.currency.sp || 0) - sp;
+    currentChar.currency.gp = (currentChar.currency.gp || 0) - gp;
+    currentChar.currency.pp = (currentChar.currency.pp || 0) - pp;
+    ['cp','sp','gp','pp'].forEach(k => {
+      const el = document.getElementById('cur-' + k);
+      if (el) el.value = currentChar.currency[k];
+    });
+    if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal();
+    debouncedSave();
+
+    const parts = [];
+    if (pp) parts.push(`${pp} pp`);
+    if (gp) parts.push(`${gp} gp`);
+    if (sp) parts.push(`${sp} sp`);
+    if (cp) parts.push(`${cp} cp`);
+    const amountStr = parts.join(', ');
+    broadcastCharUpdate(targetId, 'currency', {
+      notify: { itemName: amountStr, fromName: currentChar.charName || 'A party member', fromIsDM: false },
+    });
+
+    toast(`Gave ${amountStr} to ${recipient.charName || targetId}`, 'ok');
+    closeModal('give-currency-modal');
+  } catch(e) {
+    statusEl.textContent = 'Failed: ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+window.confirmGiveCurrency = confirmGiveCurrency;
 
 function removeMagicItem(idx) {
   ensureMagicItems();
@@ -42242,7 +42669,22 @@ window._featPickerListVisible = {};
 
 function showFeatPickerList(slotId) {
   const list = document.getElementById('fp-list-' + slotId);
+  const wrap = document.getElementById('fp-wrap-' + slotId);
   if (list) {
+    // Reposition as position:fixed using the wrapper's actual viewport
+    // coordinates rather than relying on CSS "position:absolute; top:100%"
+    // alone — that positioning is relative to (and gets clipped by) the
+    // nearest ancestor with overflow set, which the Quick Start modal's
+    // #qs-step-body has (it needs to scroll for long steps). Fixed
+    // positioning escapes that clipping regardless of which container
+    // this picker is rendered inside.
+    if (wrap) {
+      const rect = wrap.getBoundingClientRect();
+      list.style.position = 'fixed';
+      list.style.top = rect.bottom + 'px';
+      list.style.left = rect.left + 'px';
+      list.style.width = rect.width + 'px';
+    }
     list.style.display = 'block';
     window._featPickerListVisible[slotId] = true;
   }
@@ -45624,6 +46066,18 @@ function buildBackgroundDropdown() {
 
   wrap.appendChild(inp);
   wrap.appendChild(list);
+
+  const infoBtn = document.createElement('span');
+  infoBtn.textContent = '\u2139';
+  infoBtn.title = 'View background details';
+  infoBtn.style.cssText = 'position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text3);font-size:12px;z-index:2';
+  infoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const key = inp.getAttribute('data-bgval');
+    if (key) openBackgroundInfoModal(key);
+  });
+  wrap.appendChild(infoBtn);
+
   el.parentNode.replaceChild(wrap, el);
 }
 
@@ -45814,7 +46268,7 @@ function renderBackgroundEquipmentChoice(bgKey, containerId) {
     </div>`;
 
   container.innerHTML = `
-    <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;margin-bottom:6px">STARTING EQUIPMENT — CHOOSE A OR B</div>
+    <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;margin-bottom:6px">BACKGROUND EQUIPMENT — CHOOSE A OR B</div>
     <div style="display:flex;flex-direction:column;gap:6px">
       ${optionRow('A', `${itemsListA}${bg.goldA ? `, ${bg.goldA} GP` : ''}`)}
       ${optionRow('B', `${bg.goldB || 50} GP`)}
@@ -45909,6 +46363,181 @@ function applyBackgroundEquipmentChoice(bgKey, choice, containerId) {
   renderBackgroundEquipmentChoice(bgKey, containerId);
 }
 window.applyBackgroundEquipmentChoice = applyBackgroundEquipmentChoice;
+
+// ── Class starting equipment (mirrors the background equipment-choice
+// pattern above — see renderBackgroundEquipmentChoice/applyBackground-
+// EquipmentChoice for the original). The key difference is a class can
+// offer 2 or 3 lettered item packages before the final pure-gold option,
+// instead of exactly one item package (A) plus gold-only (B), so the
+// button row is built from CLASS_STARTING_EQUIPMENT[cls].choices
+// generically instead of assuming an A/B shape.
+// ── Starting Equipment modal (Class + Background together) — replaces the
+// old always-inline panels on the Inventory tab and Background tab with a
+// single small status button + modal, so characters that already have both
+// choices made (or never touch this at all) aren't shown extra UI by
+// default. Quick Start's own qs-cls-equip-choice/qs-bg-equip-choice panels
+// are unaffected — those stay inline in the wizard, where showing the
+// choice up front is exactly the point.
+function openStartingEquipModal() {
+  openModal('starting-equip-modal');
+  const clsKey = getCharClassKey();
+  const clsContainer = document.getElementById('se-modal-cls-equip-choice');
+  if (clsContainer) {
+    if (clsKey && CLASS_STARTING_EQUIPMENT[clsKey]) {
+      renderClassEquipmentChoice(clsKey, 'se-modal-cls-equip-choice');
+    } else {
+      clsContainer.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Pick a class first to see its starting equipment.</div>';
+    }
+  }
+  const bgContainer = document.getElementById('se-modal-bg-equip-choice');
+  if (bgContainer) {
+    const bgKey = currentChar?.background;
+    const bg = bgKey
+      ? (PHB_BACKGROUNDS[bgKey] || PHB_BACKGROUNDS[bgKey.toLowerCase()]
+         || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === bgKey.toLowerCase()))
+      : null;
+    if (bg) {
+      const bgNormKey = Object.keys(PHB_BACKGROUNDS).find(k => PHB_BACKGROUNDS[k] === bg) || bgKey;
+      renderBackgroundEquipmentChoice(bgNormKey, 'se-modal-bg-equip-choice');
+    } else {
+      bgContainer.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Pick a background first to see its starting equipment.</div>';
+    }
+  }
+}
+window.openStartingEquipModal = openStartingEquipModal;
+
+// Builds the one-line status shown on the small config button (both the
+// Inventory-tab and Background-tab copies read this same text) —
+// "✓ Class · ✓ Background" once both are picked, partial credit otherwise.
+function getStartingEquipStatusText() {
+  const clsKey = getCharClassKey();
+  const clsApplicable = clsKey && CLASS_STARTING_EQUIPMENT[clsKey];
+  const clsDone = currentChar?._clsEquipChoice?.clsKey === clsKey;
+  const bgKeyRaw = currentChar?.background;
+  const bg = bgKeyRaw
+    ? (PHB_BACKGROUNDS[bgKeyRaw] || PHB_BACKGROUNDS[bgKeyRaw.toLowerCase()]
+       || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === bgKeyRaw.toLowerCase()))
+    : null;
+  const bgNormKey = bg ? (Object.keys(PHB_BACKGROUNDS).find(k => PHB_BACKGROUNDS[k] === bg) || bgKeyRaw) : null;
+  const bgDone = bg && currentChar?._bgEquipChoice?.bgKey === bgNormKey;
+
+  const parts = [];
+  if (clsApplicable) parts.push(clsDone ? '✓ Class' : 'Class not set');
+  if (bg) parts.push(bgDone ? '✓ Background' : 'Background not set');
+  if (!parts.length) return 'Pick a class/background first';
+  return parts.join(' · ');
+}
+
+// Refreshes both copies of the status button (Inventory tab + Background
+// tab) — called whenever the modal closes, since that's the only place
+// either choice can now be made outside Quick Start.
+function refreshStartingEquipButtons() {
+  const statusText = getStartingEquipStatusText();
+  const invStatus = document.getElementById('inv-equip-config-status');
+  if (invStatus) invStatus.textContent = statusText;
+  const bgStatus = document.getElementById('bg-equip-config-status');
+  if (bgStatus) bgStatus.textContent = statusText;
+}
+window.refreshStartingEquipButtons = refreshStartingEquipButtons;
+
+function getCharClassKey() {
+  // First class in currentChar.classes is the starting class by convention
+  // elsewhere in the file (see HANDOFF8 — Level Plan's level-1 reorder).
+  const raw = currentChar?.classes?.[0]?.class || currentChar?.class || '';
+  return raw ? raw.toLowerCase().trim() : '';
+}
+
+function renderClassEquipmentChoice(clsKey, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const cls = CLASS_STARTING_EQUIPMENT[clsKey];
+  const clsData = PHB_CLASSES[clsKey];
+  if (!cls || !clsData) { container.innerHTML = ''; container.style.cssText = 'margin-bottom:10px'; return; }
+  // Panel chrome lives here (not in the caller's static HTML) so this
+  // renders consistently whether called from Quick Start's pre-styled
+  // wrapper or the Inventory tab's plain div.
+  container.style.cssText = 'margin-bottom:16px;padding:10px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)';
+  const applied = (currentChar?._clsEquipChoice?.clsKey === clsKey) ? currentChar._clsEquipChoice.choice : null;
+  const letters = cls.choices.map(c => c.label).join(' OR ');
+
+  const describeChoice = (choice) => {
+    const itemsList = choice.items.map(it => it.qty > 1 ? `${it.qty}× ${it.name}` : it.name).join(', ');
+    if (!choice.items.length) return `${choice.gold} GP`;
+    return `${itemsList}${choice.gold ? `, ${choice.gold} GP` : ''}`;
+  };
+
+  const optionRow = (choice) => `
+    <div class="tbtn" style="text-align:left;justify-content:flex-start;padding:8px 10px;cursor:pointer;${applied===choice.label?'border-color:var(--accent);color:var(--accent)':''}"
+      onclick="applyClassEquipmentChoice('${clsKey}','${choice.label}','${containerId}')">
+      <span style="font-family:var(--font-ui);font-size:10px;line-height:1.5">
+        <strong>(${choice.label})</strong> ${describeChoice(choice)}
+      </span>
+      ${applied===choice.label ? '<span style="color:var(--accent);margin-left:6px">✓</span>' : ''}
+    </div>`;
+
+  container.innerHTML = `
+    <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;margin-bottom:6px">CLASS EQUIPMENT — CHOOSE ${letters}</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${cls.choices.map(optionRow).join('')}
+    </div>
+    ${applied ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:6px">Option ${applied} is in your inventory/gold. Picking another option swaps it out.</div>` : ''}
+  `;
+}
+window.renderClassEquipmentChoice = renderClassEquipmentChoice;
+
+function applyClassEquipmentChoice(clsKey, choiceLabel, containerId) {
+  const cls = CLASS_STARTING_EQUIPMENT[clsKey];
+  if (!cls || !currentChar) return;
+  const choice = cls.choices.find(c => c.label === choiceLabel);
+  if (!choice) return;
+  const already = currentChar._clsEquipChoice;
+  if (already && already.clsKey === clsKey && already.choice === choiceLabel) return;
+  if (already && already.clsKey === clsKey) undoClassEquipmentChoice();
+
+  if (!currentChar.currency) currentChar.currency = {};
+  if (!currentChar.equipment) currentChar.equipment = [];
+
+  choice.items.forEach(it => {
+    const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
+    const catalogMatch = lookupBackgroundEquipmentItem(cleanName);
+    currentChar.equipment.push({
+      name: cleanName, qty: resolvedQty,
+      weight: catalogMatch?.weight || '',
+      desc: catalogMatch?.desc || '',
+      _clsGranted: true,
+    });
+  });
+  currentChar.currency.gp = (currentChar.currency.gp || 0) + (choice.gold || 0);
+  currentChar._clsEquipChoice = { clsKey, choice: choiceLabel };
+
+  const gpEl = document.getElementById('cur-gp');
+  if (gpEl) gpEl.value = currentChar.currency.gp;
+  if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal();
+  if (typeof renderEquipList === 'function') renderEquipList();
+  debouncedSave();
+  toast(`Applied Option ${choiceLabel} from ${PHB_CLASSES[clsKey]?.name || clsKey}.`, 'ok');
+  renderClassEquipmentChoice(clsKey, containerId);
+}
+window.applyClassEquipmentChoice = applyClassEquipmentChoice;
+
+function undoClassEquipmentChoice() {
+  if (!currentChar?._clsEquipChoice) return;
+  const { clsKey, choice: choiceLabel } = currentChar._clsEquipChoice;
+  const cls = CLASS_STARTING_EQUIPMENT[clsKey];
+  if (!cls) { currentChar._clsEquipChoice = null; return; }
+  const choice = cls.choices.find(c => c.label === choiceLabel);
+  if (!choice) { currentChar._clsEquipChoice = null; return; }
+  if (!currentChar.currency) currentChar.currency = {};
+
+  choice.items.forEach(it => {
+    const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
+    const idx = (currentChar.equipment || []).findIndex(e => e._clsGranted && e.name === cleanName && e.qty === resolvedQty);
+    if (idx !== -1) currentChar.equipment.splice(idx, 1);
+  });
+  currentChar.currency.gp = Math.max(0, (currentChar.currency.gp || 0) - (choice.gold || 0));
+  currentChar._clsEquipChoice = null;
+}
+window.undoClassEquipmentChoice = undoClassEquipmentChoice;
 
 function undoBackgroundEquipmentChoice() {
   if (!currentChar?._bgEquipChoice) return;
@@ -46014,7 +46643,12 @@ function renderBackgroundInfo(_bgParam) {
   // gold amount, so a single flat "starting gold" line doesn't fit).
 
   html += '</div>';
-  html += '<div id="bg-equip-choice" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"></div>';
+  html += `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+    <button class="tbtn" id="bg-equip-config-btn" style="justify-content:space-between;width:100%" onclick="openStartingEquipModal()">
+      <span>🎒 Starting Equipment</span>
+      <span id="bg-equip-config-status" style="font-size:9px;color:var(--text3)"></span>
+    </button>
+  </div>`;
 
   // Flavour trait
   const bgTraitOverrideKey = _bgKey ? `background:${_bgKey}` : null;
@@ -46027,7 +46661,7 @@ function renderBackgroundInfo(_bgParam) {
   }
 
   infoEl.innerHTML = html;
-  renderBackgroundEquipmentChoice(_bgKey, 'bg-equip-choice');
+  if (typeof refreshStartingEquipButtons === 'function') refreshStartingEquipButtons();
 }
 
 function initBackgroundDropdown() {
@@ -46469,7 +47103,17 @@ function renderFeatsList() {
 
 function showFeatListPicker(i) {
   const list = document.getElementById('fl-list-' + i);
-  if (list) list.style.display = 'block';
+  const wrap = document.getElementById('fl-wrap-' + i);
+  if (list) {
+    if (wrap) {
+      const rect = wrap.getBoundingClientRect();
+      list.style.position = 'fixed';
+      list.style.top = rect.bottom + 'px';
+      list.style.left = rect.left + 'px';
+      list.style.width = rect.width + 'px';
+    }
+    list.style.display = 'block';
+  }
 }
 function hideFeatListPicker(i) {
   setTimeout(() => {
@@ -47142,8 +47786,10 @@ function renderFeatPicker(slot, dec) {
     if (!f.type || ['full','half','none','pact'].includes(f.type)) return false;
     if (isEpic)   return f.type === 'epic';
     if (isOrigin) return f.type === 'origin' || ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]');
-    // General feat slot: exclude origin, epic
-    if (f.type === 'origin' || ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]')) return false;
+    // General feat slot: Origin feats are allowed here too (house rule -
+    // strict 2024 rules only let you take them via background/species,
+    // but this sheet doesn't enforce that restriction) - just keep Epic
+    // Boons out, since those are a wholly separate mechanical category.
     if (f.type === 'epic' || f.name.startsWith('Boon of')) return false;
     return true;
   }).map(f => f.name).sort();
@@ -47897,6 +48543,50 @@ window.openFeatInfoModal = openFeatInfoModal;
 // built from — this is never a re-typed or abbreviated label, and the
 // class-features check always runs first so a base-class feature can't be
 // shadowed by a same-named subclass one.
+// Popup for a race tile clicked in the Quick Start Race step (see
+// renderQuickStartRaceGrid) — reuses the same #feat-info-modal markup as
+// openFeatInfoModal/openClassFeatureInfoModal, formatted for a race's
+// speed/size/darkvision/ability-score line plus its full features list,
+// all sourced directly from PHB_RACES so nothing here is re-typed.
+function openRaceInfoModal(raceKey) {
+  const race = PHB_RACES[raceKey];
+  if (!race) return;
+  const titleEl = document.getElementById('feat-info-title');
+  const bodyEl  = document.getElementById('feat-info-body');
+  if (titleEl) titleEl.textContent = race.name || raceKey;
+  if (bodyEl) {
+    const summaryBits = [];
+    if (race.size) summaryBits.push(`Size ${race.size}`);
+    if (race.speed) summaryBits.push(`Speed ${race.speed} ft`);
+    if (race.flySpeed) summaryBits.push(`Fly ${race.flySpeed} ft`);
+    if (race.darkvision) summaryBits.push(`Darkvision ${race.darkvision} ft`);
+    const summaryLine = summaryBits.length
+      ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-bottom:8px">${summaryBits.join(' · ')}</div>`
+      : '';
+    const asiText = race.scorestxt || race.asi || '';
+    const asiLine = asiText
+      ? `<div style="font-family:var(--font-ui);font-size:11px;color:var(--gold);margin-bottom:10px">${asiText}</div>`
+      : '';
+    const featuresHtml = (race.features || []).map(f =>
+      `<div style="margin-bottom:8px"><span style="font-weight:600;color:var(--text-hi)">${(f.name||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}.</span> <span style="color:var(--text2)">${(f.desc||'').replace(/\|/g,' · ')}</span></div>`
+    ).join('');
+    const fallbackTrait = race.trait
+      ? `<div style="color:var(--text2)">${race.trait.replace(/\\n|\n/g,'<br>').replace(/•/g,'&bull;')}</div>`
+      : '<div style="color:var(--text3)">No details available.</div>';
+    const subracesHtml = race.subraces && Object.keys(race.subraces).length
+      ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-ui);font-size:10px;color:var(--text3)">Has ${Object.keys(race.subraces).length} subrace option(s) — choose one after selecting this race.</div>`
+      : '';
+    bodyEl.innerHTML = `
+      ${summaryLine}
+      ${asiLine}
+      <div style="font-family:var(--font-body);font-size:13px;line-height:1.6">${featuresHtml || fallbackTrait}</div>
+      ${subracesHtml}
+    `;
+  }
+  openModal('feat-info-modal', true);
+}
+window.openRaceInfoModal = openRaceInfoModal;
+
 function openClassFeatureInfoModal(cls, featureName, subKey) {
   if (!cls || !featureName) return;
   const classData = PHB_CLASSES[cls.toLowerCase()];
@@ -51760,55 +52450,56 @@ function renderLevelPlanGrid() {
     // Class select
     const clsSel = document.createElement('select');
     clsSel.className = 'level-plan-select';
-    // Level 1 only locks once a real primary class actually exists — a
-    // brand-new Quick Start character reaching this modal with nothing
-    // chosen yet has classNames[0] === '' (the empty placeholder), and
-    // should be able to pick their primary class right here rather than
-    // being shown a disabled "-" with no way forward.
-    if (lv === 1 && classNames[0]) {
-      // Level 1 locked to primary
+    // Level 1 is freely editable just like every other level — it's not
+    // locked to whatever the "primary" class happens to already be. Your
+    // starting class is exempt from multiclass ability-score requirements
+    // (same as every other class already gets when it's the one at level
+    // 1), but which class that ends up being is the player's call, and
+    // changing it here is exactly how you'd correct an earlier Quick
+    // Start pick without starting over.
+    Object.keys(PHB_CLASSES).sort().forEach(c => {
       const opt = document.createElement('option');
-      opt.value = classNames[0] || '';
-      opt.textContent = classNames[0] ? (classNames[0].charAt(0).toUpperCase() + classNames[0].slice(1)) : '-';
-      clsSel.appendChild(opt);
-      clsSel.disabled = true;
-    } else {
-      // Show all PHB classes with req check
-      Object.keys(PHB_CLASSES).sort().forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c.charAt(0).toUpperCase() + c.slice(1);
-        // Primary class is always allowed (already in it, or about to
-        // become it) — level 1 never has multiclass ability-score
-        // prerequisites regardless of whether a primary class exists yet.
-        if (lv !== 1 && c !== classNames[0]) {
-          const req = meetsMulticlassReq(c);
-          if (!req.ok) {
-            opt.disabled = true;
-            opt.title = req.reason;
-            opt.textContent += ` - ${req.reason}`;
-          }
+      opt.value = c;
+      opt.textContent = c.charAt(0).toUpperCase() + c.slice(1);
+      // The class currently occupying level 1 is always allowed penalty-
+      // free (whichever one that is) — level 1 never has multiclass
+      // ability-score prerequisites regardless of which class sits there.
+      if (lv !== 1 && c !== currentCls) {
+        const req = meetsMulticlassReq(c);
+        if (!req.ok) {
+          opt.disabled = true;
+          opt.title = req.reason;
+          opt.textContent += ` - ${req.reason}`;
         }
-        if (c === currentCls) opt.selected = true;
-        clsSel.appendChild(opt);
-      });
-    }
+      }
+      if (c === currentCls) opt.selected = true;
+      clsSel.appendChild(opt);
+    });
 
     clsSel.addEventListener('change', () => {
       const newCls = clsSel.value;
       _levelPlanDraft[lv] = newCls;
       if (lv === 1) {
-        // This is the primary-class slot. If classes[0] is still the
-        // empty placeholder (or missing outright), set its class directly
-        // rather than pushing a second entry — otherwise the placeholder
-        // and the real choice both end up in currentChar.classes.
-        if (currentChar.classes?.[0] && !currentChar.classes[0].class) {
-          currentChar.classes[0].class = newCls;
-        } else if (!currentChar.classes?.length) {
-          currentChar.classes = [{ class: newCls, subclass: '', levels: [] }];
-        } else if (!currentChar.classes.some(c => c.class === newCls)) {
-          currentChar.classes.unshift({ class: newCls, subclass: '', levels: [] });
+        // Changing level 1's class means newCls becomes the new primary/
+        // starting class. Reorder currentChar.classes so it sits at index
+        // 0 (a lot of other logic — starting equipment, hit points, etc.
+        // — assumes classes[0] is the starting class) while preserving
+        // every other class entry (including the old primary, now just a
+        // regular multiclass entry) exactly as it was.
+        const existingIdx = currentChar.classes?.findIndex(c => c.class === newCls) ?? -1;
+        if (existingIdx > 0) {
+          const [entry] = currentChar.classes.splice(existingIdx, 1);
+          currentChar.classes.unshift(entry);
+        } else if (existingIdx === -1) {
+          if (currentChar.classes?.[0] && !currentChar.classes[0].class) {
+            currentChar.classes[0].class = newCls;
+          } else if (!currentChar.classes?.length) {
+            currentChar.classes = [{ class: newCls, subclass: '', levels: [] }];
+          } else {
+            currentChar.classes.unshift({ class: newCls, subclass: '', levels: [] });
+          }
         }
+        // existingIdx === 0 means newCls is already primary - nothing to do.
       } else {
         // Auto-add class to classes array if not present
         const exists = currentChar.classes.some(c => c.class === newCls);
@@ -52079,9 +52770,15 @@ function renderQuickStartSpellsStep(body) {
   // addSpellToKnown). The old code read the nonexistent field and always
   // showed "0 cantrips" here regardless of how many were actually known.
   const cantripsKnown = (currentChar.spells?.known || []).filter(s => s.level === 0).length;
-  const isWiz = sc.cls?.toLowerCase() === 'wizard';
+  const isPrimaryWiz = sc.cls?.toLowerCase() === 'wizard';
+  // Wizard needs its own Spellbook Setup step whenever it's ANY of the
+  // character's classes, not only when it happens to be the primary one —
+  // a Sorcerer 2/Wizard 5 character (primary = Sorcerer) was skipping
+  // Wizard's spellbook setup entirely, since this used to only check the
+  // primary class.
+  const hasWizardAnywhere = getCharSpellClasses().includes('wizard');
 
-  if (isWiz) {
+  if (isPrimaryWiz) {
     // Wizards don't fit the generic known-list modal — same reason it's
     // hidden for them on the main sheet (see the comment by sp-levelup-btn):
     // their spellbook is a separate, larger pool from what's prepared day
@@ -52100,12 +52797,29 @@ function renderQuickStartSpellsStep(body) {
   }
 
   const known = (currentChar.spells?.known || []).length;
-  body.innerHTML = `
+  let html = `
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5">
       ${sc.cls.charAt(0).toUpperCase()+sc.cls.slice(1)} casts from ${sc.ability.toUpperCase()}. Currently ${cantripsKnown} cantrip${cantripsKnown===1?'':'s'} and ${known} spell${known===1?'':'s'} selected.
     </div>
     <button class="btn-primary" style="width:100%" onclick="quickStartOpenSpellModal()">Choose Cantrips & Spells</button>
   `;
+
+  if (hasWizardAnywhere) {
+    // Multiclassed into Wizard without it being the primary class — it
+    // still needs its own spellbook, entirely separate from ${sc.cls}'s
+    // known-spell list above (different pool, different rules).
+    const book = (currentChar.spells?.spellbook || []).filter(s => s.level > 0).length;
+    html += `
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5">
+          You're also multiclassed into Wizard, which needs its own spellbook (separate from ${sc.cls.charAt(0).toUpperCase()+sc.cls.slice(1)}'s spells above). Currently ${book} spell${book===1?'':'s'} in your spellbook.
+        </div>
+        <button class="tbtn" style="width:100%;justify-content:center" onclick="quickStartOpenSpellbookSetup()">📖 Set Up Wizard Spellbook</button>
+      </div>
+    `;
+  }
+
+  body.innerHTML = html;
 }
 
 function quickStartOpenSpellbookSetup() {
@@ -52135,12 +52849,16 @@ function renderQuickStartItemsStep(body) {
   const bgKey = currentChar.background;
   const bg = bgKey ? (PHB_BACKGROUNDS[bgKey] || PHB_BACKGROUNDS[bgKey.toLowerCase()] || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === bgKey.toLowerCase())) : null;
   const bgNormKey = bg ? (Object.keys(PHB_BACKGROUNDS).find(k => PHB_BACKGROUNDS[k] === bg) || bgKey) : bgKey;
+  const clsKey = getCharClassKey();
+  const hasClsEquip = clsKey && CLASS_STARTING_EQUIPMENT[clsKey];
   const currentGP = currentChar.currency?.gp || 0;
 
   body.innerHTML = `
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.5">
-      Pick your background's starting equipment below, then use these to add whatever your class also grants (a rapier vs. a longsword, etc.).
+      Pick your class's starting equipment below, then your background's.
     </div>
+
+    ${hasClsEquip ? `<div id="qs-cls-equip-choice" style="margin-bottom:16px;padding:10px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)"></div>` : ''}
 
     ${bg ? `<div id="qs-bg-equip-choice" style="margin-bottom:16px;padding:10px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)"></div>` : ''}
 
@@ -52148,7 +52866,7 @@ function renderQuickStartItemsStep(body) {
       <label class="field-label">Gold (gp) — adjust freely</label>
       <input type="number" min="0" class="info-input" id="qs-gold-input" value="${currentGP}"
         onchange="setQuickStartGold(this.value)" style="width:120px"/>
-      <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px">Reflects the equipment choice above plus anything else you add — edit directly if your table uses different starting-wealth rules.</div>
+      <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px">Reflects the equipment choices above plus anything else you add — edit directly if your table uses different starting-wealth rules.</div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:8px">
@@ -52158,6 +52876,7 @@ function renderQuickStartItemsStep(body) {
       <button class="tbtn" style="justify-content:flex-start" onclick="quickStartPauseForInlineTask('magic')">+ Add Magic Item</button>
     </div>
   `;
+  if (hasClsEquip) renderClassEquipmentChoice(clsKey, 'qs-cls-equip-choice');
   if (bg) renderBackgroundEquipmentChoice(bgNormKey, 'qs-bg-equip-choice');
 }
 
@@ -52280,6 +52999,43 @@ function renderQuickStartFeatsStep(body) {
 }
 window.renderQuickStartFeatsStep = renderQuickStartFeatsStep;
 
+// Popup for a background clicked anywhere it's referenced (the Quick Start
+// grid, before it's even selected, or the main sheet's background field) —
+// reuses the same #feat-info-modal markup as the race/feat/class-feature
+// modals above. The Background page itself already has a full always-
+// visible "Background Grants" panel (renderBackgroundInfo) for whichever
+// background is currently selected; this covers previewing any background
+// from wherever its name shows up, selected or not.
+function openBackgroundInfoModal(bgKey) {
+  const bg = PHB_BACKGROUNDS[bgKey];
+  if (!bg) return;
+  const titleEl = document.getElementById('feat-info-title');
+  const bodyEl  = document.getElementById('feat-info-body');
+  if (titleEl) titleEl.textContent = bg.name || bgKey;
+  if (bodyEl) {
+    const itemsListA = (bg.equipmentA || []).map(it => it.qty > 1 ? `${it.qty}\u00d7 ${it.name}` : it.name).join(', ');
+    const originFeatName = bg.originFeat || bg.feat || '';
+    const safeOriginFeat = originFeatName.replace(/'/g,"\\'");
+    const grantsHtml = `
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.7">
+        ${bg.scoresTxt ? `<div><strong style="color:var(--text-hi)">Ability scores:</strong> ${bg.scoresTxt}</div>` : ''}
+        ${bg.skills?.length ? `<div><strong style="color:var(--text-hi)">Skills:</strong> ${bg.skills.join(', ')}</div>` : ''}
+        ${bg.tools?.length ? `<div><strong style="color:var(--text-hi)">Tools:</strong> ${bg.tools.join(', ')}</div>` : ''}
+        ${bg.languages?.length || bg.langExtra ? `<div><strong style="color:var(--text-hi)">Languages:</strong> ${(bg.languages||[]).join(', ')}${bg.langExtra ? ` + ${bg.langExtra} of your choice` : ''}</div>` : ''}
+        ${originFeatName ? `<div><strong style="color:var(--text-hi)">Origin Feat:</strong> <span onclick="event.stopPropagation();openFeatInfoModal('${safeOriginFeat}')" style="text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;cursor:pointer;color:var(--accent)" title="View ${originFeatName.replace(/"/g,'&quot;')}">${originFeatName}</span></div>` : ''}
+        ${itemsListA ? `<div><strong style="color:var(--text-hi)">Equipment (A):</strong> ${itemsListA}${bg.goldA ? `, ${bg.goldA} GP` : ''}</div>` : ''}
+        <div><strong style="color:var(--text-hi)">Equipment (B):</strong> ${bg.goldB || 50} GP</div>
+      </div>
+    `;
+    const traitHtml = bg.trait
+      ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-body);font-size:12px;color:var(--text3);line-height:1.6;font-style:italic">${bg.trait}</div>`
+      : '';
+    bodyEl.innerHTML = grantsHtml + traitHtml;
+  }
+  openModal('feat-info-modal', true);
+}
+window.openBackgroundInfoModal = openBackgroundInfoModal;
+
 function renderQuickStartBackgroundStep(body) {
   body.innerHTML = `
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">
@@ -52303,9 +53059,12 @@ function renderQuickStartBackgroundGrid() {
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
   grid.innerHTML = entries.length ? entries.map(([key, bg]) => `
-    <div class="tbtn" style="text-align:left;justify-content:flex-start;padding:8px 10px;flex-direction:column;align-items:flex-start;gap:2px;${key===currentKey?'border-color:var(--accent);color:var(--accent)':''}"
+    <div class="tbtn" style="display:flex;text-align:left;justify-content:space-between;align-items:flex-start;padding:8px 10px;flex-direction:column;gap:2px;${key===currentKey?'border-color:var(--accent);color:var(--accent)':''}"
       onclick="selectQuickStartBackground('${key}')">
-      <span>${bg.name}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+        <span>${bg.name}</span>
+        <span onclick="event.stopPropagation();openBackgroundInfoModal('${key}')" title="View ${bg.name.replace(/"/g,'&quot;')} details" style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px">&#8505;</span>
+      </div>
       <span style="font-size:9px;color:var(--gold)">${bg.scoresTxt || ''}</span>
     </div>
   `).join('') : `<div style="grid-column:1/-1;font-family:var(--font-body);font-size:12px;color:var(--text3);padding:8px">No backgrounds match "${q}".</div>`;
@@ -52472,8 +53231,11 @@ function renderQuickStartRaceGrid() {
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
   grid.innerHTML = raceEntries.length ? raceEntries.map(([key, r]) => `
-    <div class="tbtn" data-race-key="${key}" style="text-align:left;justify-content:flex-start;padding:8px 10px;${key===currentRace?'border-color:var(--accent);color:var(--accent)':''}"
-      onclick="selectQuickStartRace('${key}')">${r.name}</div>
+    <div class="tbtn" data-race-key="${key}" style="display:flex;align-items:center;text-align:left;justify-content:space-between;padding:8px 10px;${key===currentRace?'border-color:var(--accent);color:var(--accent)':''}"
+      onclick="selectQuickStartRace('${key}')">
+      <span>${r.name}</span>
+      <span onclick="event.stopPropagation();openRaceInfoModal('${key}')" title="View ${r.name.replace(/"/g,'&quot;')} details" style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px">&#8505;</span>
+    </div>
   `).join('') : `<div style="grid-column:1/-1;font-family:var(--font-body);font-size:12px;color:var(--text3);padding:8px">No races match "${q}".</div>`;
 
   // If the currently-selected race is filtered out by the active search
