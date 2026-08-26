@@ -34762,7 +34762,18 @@ function renderScalingTableHTML(table, featuresByLevel, clsKey, currentLv, subKe
                       const safeDisplay = name.replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
                       const safeArg = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
                       const safeSubKey = (subKey || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-                      return `<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="openClassFeatureInfoModal('${clsKey}','${safeArg}','${safeSubKey}')">${safeDisplay}</span>`;
+                      const link = `<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="openClassFeatureInfoModal('${clsKey}','${safeArg}','${safeSubKey}')">${safeDisplay}</span>`;
+                      // ASI/Epic Boon repeat at several levels with identical
+                      // RAW text — show what was actually picked at THIS
+                      // level right alongside it, same info the Features
+                      // tab pill already shows, so it's not level-4's-choice
+                      // ambiguously repeated at 8/12/16 here too.
+                      const isASISlot = name === 'Ability Score Improvement' || name === 'Epic Boon';
+                      const choiceText = isASISlot ? getASIFeatSlotChoiceText(clsKey, row.level) : null;
+                      const choiceBadge = choiceText
+                        ? ` <span style="color:var(--accent);font-size:10px">(${choiceText.replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]))})</span>`
+                        : '';
+                      return link + choiceBadge;
                     }).join(', ')
                   : '-';
                 return `<td style="text-align:left;padding:2px 4px;${textColor}">${cellHtml}</td>`;
@@ -46447,6 +46458,7 @@ function renderFeatsList() {
         ${prereq}
         ${({'dark gift':'<span style="font-size:8px;color:#9b59b6;background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.4);border-radius:3px;padding:1px 5px;white-space:nowrap;font-family:var(--font-ui)">Dark Gift</span>','path':'<span style="font-size:8px;color:var(--gold);background:rgba(192,57,107,.15);border:1px solid rgba(192,57,107,.4);border-radius:3px;padding:1px 5px;white-space:nowrap;font-family:var(--font-ui)">Path</span>','epic':'<span style="font-size:8px;color:#e67e22;background:rgba(230,126,34,.12);border:1px solid rgba(230,126,34,.4);border-radius:3px;padding:1px 5px;white-space:nowrap;font-family:var(--font-ui)">Epic</span>','dragonmark':'<span style="font-size:8px;color:#3498db;background:rgba(52,152,219,.12);border:1px solid rgba(52,152,219,.4);border-radius:3px;padding:1px 5px;white-space:nowrap;font-family:var(--font-ui)">Dragonmark</span>','origin':'<span style="font-size:8px;color:var(--accent3);background:rgba(46,168,110,.1);border:1px solid rgba(46,168,110,.3);border-radius:3px;padding:1px 5px;white-space:nowrap;font-family:var(--font-ui)">Origin</span>','style':'<span style="font-size:8px;color:#16a085;background:rgba(22,160,133,.12);border:1px solid rgba(22,160,133,.4);border-radius:3px;padding:1px 5px;white-space:nowrap;font-family:var(--font-ui)">Fighting Style</span>'})[featType] || ''}
         ${featNeedsModal(feat.name) ? `<button class="tbtn" style="font-size:9px;padding:2px 8px;margin-right:4px;${currentChar.featSlots?.['feat_'+realIdx]?.featDetail||currentChar.spells?.featSpells?.['feat_'+realIdx]?'border-color:var(--gold);color:var(--gold)':''}" onclick="openFeatListModal(${realIdx})">&#9881; Configure</button>` : ''}
+        ${feat.name ? `<button class="tbtn" style="font-size:9px;padding:2px 8px;margin-right:4px" title="View full feat details" onclick="openFeatInfoModal('${feat.name.replace(/'/g,"\\'")}')">&#8505; Info</button>` : ''}
         <button class="row-del-btn" onclick="removeFeat(${realIdx})">✕</button>
       </div>
       ${desc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:5px;line-height:1.5;padding-top:5px;border-top:1px solid var(--border)">${desc.replace(/\|/g,' · ')}${(isDM && featOverrideKey) ? `<span style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px" title="Edit RAW text" onclick="event.stopPropagation();openTextOverrideModal(${JSON.stringify(featOverrideKey).replace(/"/g,'&quot;')},${JSON.stringify(phbData.name + ' — Feat').replace(/"/g,'&quot;')},${JSON.stringify(desc).replace(/"/g,'&quot;')})">✎</span>` : ''}</div>` : ''}
@@ -47201,6 +47213,7 @@ function renderFeatPicker(slot, dec) {
           </div>
         </div>
         ${needsCfg ? `<button class="tbtn" style="font-size:9px;padding:2px 8px;${hasCfg?'border-color:var(--gold);color:var(--gold)':''}" onclick="openFeatDetailModal('${slot.id}','${val.replace(/'/g,"\'")}')" title="${hasCfg?'Edit feat options':'Configure feat options'}">&#9881; ${hasCfg?'Edit':'Config'}</button>` : ''}
+        ${val ? `<button class="tbtn" style="font-size:9px;padding:2px 8px" title="View full feat details" onclick="openFeatInfoModal('${val.replace(/'/g,"\\'")}')">&#8505; Info</button>` : ''}
         <button class="tbtn" style="font-size:9px;padding:2px 7px;color:var(--text3)" onclick="chooseFeatSlot('${slot.id}', null)" title="Change to ASI">⇄ ASI</button>
       </div>
       ${prereq ? `<div style="font-family:var(--font-ui);font-size:10px;margin-bottom:4px">${renderPrereqLine(prereq, valKey)}</div>` : ''}
@@ -51251,9 +51264,23 @@ function populateFeaturesTab() {
 
     const editPencil = (isDM && overrideKey) ? `<span class="tov-edit-pencil" style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px" title="Edit RAW text" onclick="event.stopPropagation();openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(e.source + ' — ' + e.name).replace(/"/g,'&quot;')},${JSON.stringify(_descForRender||'').replace(/"/g,'&quot;')})">✎</span>` : '';
 
+    // Feat entries (from a feat slot, a background's origin feat, or the
+    // free-text Feats list) open the same full feat-info modal the Feats
+    // list and feat pickers already use elsewhere - clicking a class/
+    // subclass/racial feature pill still does nothing special here (its
+    // full text is already inline below), and a feat with exactly one
+    // granted spell keeps opening that spell's own modal instead, since
+    // that's the more specific, more useful click target for it.
+    const isFeatEntry = (e.sourceType === 'Feat' || e.sourceType === 'Background Feat') && !(e._spellKeys?.length === 1);
+    const clickAttr = e._spellKeys?.length === 1
+      ? `style="cursor:pointer" onclick="openSpellDetailModal('${e._spellKeys[0]}','${(PHB_SPELL_LIST.find(s=>s.key===e._spellKeys[0])?.name||'').replace(/'/g,"\\'")}')"`
+      : isFeatEntry
+      ? `style="cursor:pointer" onclick="openFeatInfoModal('${e.name.replace(/'/g,"\\'")}')"`
+      : '';
+
     html2 += `
     <div class="feat-pill-item" id="feat-card-${e.id}" data-feat-id="${e.id}"
-      ${e._spellKeys?.length === 1 ? `style="cursor:pointer" onclick="openSpellDetailModal('${e._spellKeys[0]}','${(PHB_SPELL_LIST.find(s=>s.key===e._spellKeys[0])?.name||'').replace(/'/g,"\\'")}')"`:''}
+      ${clickAttr}
     >
       <div class="feat-pill-row">
         <span class="feat-pill-badge" style="--pill-colour:${typeColour}">${e.name}</span>
