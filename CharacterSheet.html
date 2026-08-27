@@ -880,6 +880,15 @@ body.preview-readonly #mi-detail-edit-row * {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Panels like Class Choices and Languages append a status badge as a
+     sibling flex item next to the title text. Without wrap, a title that
+     breaks onto two lines (narrow panel width) grows the row's height,
+     and align-items:center then centers the single-line badge across
+     that full height — landing it visually between the two title lines
+     instead of beside them. flex-wrap lets the badge drop to its own
+     line instead of overlapping when space runs out. */
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 /* ── MODALS ──────────────────────────────────────────────── */
@@ -2170,6 +2179,28 @@ body.preview-readonly #mi-detail-edit-row * {
   border-bottom: 1px solid var(--border);
 }
 .choice-entry:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+/* Unset/unfinished class choice — a dropdown never picked, a multi-select
+   short of its required count, etc. (see isUnfilled in renderChoiceDef).
+   Left border + tinted background so it's noticeable while scanning the
+   panel, without being as loud as an error state. */
+.choice-entry.choice-entry-unset {
+  border-left: 3px solid var(--amber);
+  background: rgba(232, 166, 64, .07);
+  padding: 10px 10px 12px;
+  border-radius: var(--radius);
+  margin-left: -10px;
+  margin-right: -10px;
+}
+.choice-entry.choice-entry-unset .choice-label::after {
+  content: '● Not yet chosen';
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 9px;
+  letter-spacing: .5px;
+  text-transform: none;
+  color: var(--amber);
+  vertical-align: middle;
+}
 .choice-label {
   font-family: var(--font-ui); font-size: 10px;
   text-transform: uppercase; letter-spacing: 1px;
@@ -2711,7 +2742,8 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
           <div class="panel" style="margin-top:10px" id="class-choices-panel">
             <div class="panel-title">
-              <span onclick="toggleProfPanelExpanded('classchoices')" style="cursor:pointer;flex:1">Class Choices</span>
+              <span onclick="toggleProfPanelExpanded('classchoices')" style="cursor:pointer;flex:1;min-width:0">Class Choices</span>
+              <span id="class-choices-unset-badge" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);border:1px solid var(--amber);border-radius:10px;padding:1px 7px;margin-right:6px;letter-spacing:.3px;cursor:pointer" onclick="toggleProfPanelExpanded('classchoices')" title="Choices still needing a pick"></span>
               <span id="class-choices-subtitle" style="font-size:9px;color:var(--text3)"></span>
               <span id="classchoices-profs-arrow" onclick="toggleProfPanelExpanded('classchoices')" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);cursor:pointer;margin-left:6px">▸</span>
             </div>
@@ -3074,7 +3106,8 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
           <div class="panel" style="margin-top:10px">
             <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleProfPanelExpanded('lang')">
-              <span>Languages</span>
+              <span style="flex:1;min-width:0">Languages</span>
+              <span id="lang-unset-badge" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);border:1px solid var(--amber);border-radius:10px;padding:1px 7px;margin-right:6px;letter-spacing:.3px" title="Language picks still available from your species/background"></span>
               <span id="lang-profs-arrow" style="font-family:var(--font-ui);font-size:11px;color:var(--text3)">▸</span>
             </div>
             <div id="lang-profs-summary" style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.6;cursor:pointer" onclick="toggleProfPanelExpanded('lang')"></div>
@@ -5013,7 +5046,7 @@ body.preview-readonly #mi-detail-edit-row * {
         <option value="7">7th</option><option value="8">8th</option><option value="9">9th</option>
       </select>
     </div>
-    <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);margin-bottom:6px">
+    <div id="ms-selected-line" style="font-family:var(--font-ui);font-size:10px;color:var(--text2);margin-bottom:6px">
       Selected: <span id="ms-selected-count" style="color:var(--accent);font-weight:700">0</span>
       / <span id="ms-max-count">2</span>
       <span id="ms-selected-names" style="color:var(--text3);margin-left:8px"></span>
@@ -13234,6 +13267,7 @@ const PHB_CLASS_CHOICES = {
       "minLevel": 1,
       "type": "magical-secrets",
       "count": 20,
+      "minCount": 2,
       "sourceLists": [],
       "ritualOnly": true,
       "levelFilter": [1],
@@ -15788,16 +15822,16 @@ const PHB_FEATS_FULL    = {
     "source": "UA2026",
     "desc": "You grow four tentacles around your mouth, your head elongates, and your skin becomes purple and slick with mucus. Your transformation into a mind flayer is complete. You gain the following benefits. | Ability Score Increase. Increase your Intelligence score by 1, to a maximum of 20. | Psionic Energy Dice. The Psionic Energy Dice granted to you by this feat path become d10s. If they are already d10s, they instead become d12s. | Aberration. Your creature type is Aberration. | Illithid Specialization. You excel at a particular illithid talent. Choose one of the following benefits: | Brain-Seeking Tentacles. When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Grapple option. You can expend a Psionic Energy Die when you use this benefit to roll the expended die. The target takes extra Psychic damage equal to the number rolled plus your Intelligence modifier, and it subtracts half the number rolled (round up) from its saving throw to avoid gaining the Grappled condition. If the target is reduced to 0 Hit Points as a result of this benefit, the Psionic Energy Die isn't expended. You can use this benefit only once per turn. | Mind Flayer Spells. You always have the Detect Thoughts, Levitate, and Mind Blast spells prepared. Intelligence is your spellcasting ability for these spells. You can cast these spells without expending a spell slot by expending a Psionic Energy Die. You can also cast these spells using any spell slots you have of an appropriate level. | Repeatable. You can take this feat more than once, but you must choose a different option for Illithid Specialization each time."
   }
-  ,"arcane artist": {"name": "Arcane Artist [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Minor Illusion cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Inspiring Magic. When you cast a spell from the Illusion school, you can choose one ally within 30 feet of yourself who can see you. That ally gains Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest."}
-  ,"arcane eloquence": {"name": "Arcane Eloquence [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Vicious Mockery cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Smooth Talker. When you make a Charisma (Deception, Intimidation, or Persuasion) check, you can roll 1d4 and add the number rolled to the ability check."}
-  ,"arcane infiltrator": {"name": "Arcane Infiltrator [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Friends cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Cunning Diversion. You can take the Dodge action as a Bonus Action. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
-  ,"arcane omens": {"name": "Arcane Omens [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Guidance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Helpful Premonition. When you or a creature you can see within 30 feet of yourself fails a saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save's total, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
-  ,"arcane overload": {"name": "Arcane Overload [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Fire Bolt cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Power Surge. When you cast an Evocation spell and deal damage with it, you can add your Proficiency Bonus to one damage roll of that spell. Once you use this benefit, you can't do so again until you finish a Long Rest."}
-  ,"arcane safeguard": {"name": "Arcane Safeguard [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Resistance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | You can cast the Resistance cantrip as a Bonus Action. You can do so a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. | Sheltering Aid. When you take the Help action to assist with an ally's ability check, that ally gains a number of Temporary Hit Points equal to your Proficiency Bonus."}
-  ,"arcane undertaker": {"name": "Arcane Undertaker [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn one Cleric or Wizard cantrip of your choice. The cantrip must be from the Necromancy school. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Knowledge from the Dead. When you make an Intelligence (History) or Wisdom (Medicine) check, you can roll 1d4 and add the number rolled to the ability check. | Understanding of Death. When you take the Help action to stabilize a creature with 0 Hit Points, you gain Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest."}
-  ,"familiar friend": {"name": "Familiar Friend [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "usages": "prof_bonus", "recovery": "long rest", "desc": "You gain the following benefits. | Faithful Companion. You always have the Find Familiar spell prepared. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast it once without a spell slot or Material components, and you regain the ability to cast it in this way when you finish a Long Rest. You can also cast the spell using any spell slots you have. | Fortified Familiar. When you cast the Find Familiar spell, your familiar's Hit Point maximum and current Hit Points are increased by an amount equal to twice your character level. | Helpful Friend. When you make an ability check using a skill in which you have proficiency while your familiar is within 5 feet of you, you gain Advantage on the check. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
-  ,"portal jumper": {"name": "Portal Jumper [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Otherworldly Resilience. You have Resistance to one of the following damage types: Necrotic, Psychic, or Radiant (choose when you select this feat). | Portal Step. You can spend 15 feet of movement to teleport to an unoccupied space you can see within 15 feet of yourself. You can use this benefit a number of times equal to your Proficiency Bonus but only once per turn, and you regain all expended uses when you finish a Long Rest."}
-  ,"transmuted anatomy": {"name": "Transmuted Anatomy [Origin]", "type": "general", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Lengthened Stride. Your Speed increases by 5 feet. | Resilient Anatomy. You have Advantage on saving throws against effects that would compel you to shape-shift against your will. | Additionally, when you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
+  ,"arcane artist": {"name": "Arcane Artist [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Minor Illusion cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Inspiring Magic. When you cast a spell from the Illusion school, you can choose one ally within 30 feet of yourself who can see you. That ally gains Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest."}
+  ,"arcane eloquence": {"name": "Arcane Eloquence [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Vicious Mockery cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Smooth Talker. When you make a Charisma (Deception, Intimidation, or Persuasion) check, you can roll 1d4 and add the number rolled to the ability check."}
+  ,"arcane infiltrator": {"name": "Arcane Infiltrator [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Friends cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Cunning Diversion. You can take the Dodge action as a Bonus Action. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
+  ,"arcane omens": {"name": "Arcane Omens [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Guidance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Helpful Premonition. When you or a creature you can see within 30 feet of yourself fails a saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save's total, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
+  ,"arcane overload": {"name": "Arcane Overload [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Fire Bolt cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Power Surge. When you cast an Evocation spell and deal damage with it, you can add your Proficiency Bonus to one damage roll of that spell. Once you use this benefit, you can't do so again until you finish a Long Rest."}
+  ,"arcane safeguard": {"name": "Arcane Safeguard [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Resistance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | You can cast the Resistance cantrip as a Bonus Action. You can do so a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. | Sheltering Aid. When you take the Help action to assist with an ally's ability check, that ally gains a number of Temporary Hit Points equal to your Proficiency Bonus."}
+  ,"arcane undertaker": {"name": "Arcane Undertaker [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn one Cleric or Wizard cantrip of your choice. The cantrip must be from the Necromancy school. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Knowledge from the Dead. When you make an Intelligence (History) or Wisdom (Medicine) check, you can roll 1d4 and add the number rolled to the ability check. | Understanding of Death. When you take the Help action to stabilize a creature with 0 Hit Points, you gain Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest."}
+  ,"familiar friend": {"name": "Familiar Friend [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "usages": "prof_bonus", "recovery": "long rest", "desc": "You gain the following benefits. | Faithful Companion. You always have the Find Familiar spell prepared. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast it once without a spell slot or Material components, and you regain the ability to cast it in this way when you finish a Long Rest. You can also cast the spell using any spell slots you have. | Fortified Familiar. When you cast the Find Familiar spell, your familiar's Hit Point maximum and current Hit Points are increased by an amount equal to twice your character level. | Helpful Friend. When you make an ability check using a skill in which you have proficiency while your familiar is within 5 feet of you, you gain Advantage on the check. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
+  ,"portal jumper": {"name": "Portal Jumper [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Otherworldly Resilience. You have Resistance to one of the following damage types: Necrotic, Psychic, or Radiant (choose when you select this feat). | Portal Step. You can spend 15 feet of movement to teleport to an unoccupied space you can see within 15 feet of yourself. You can use this benefit a number of times equal to your Proficiency Bonus but only once per turn, and you regain all expended uses when you finish a Long Rest."}
+  ,"transmuted anatomy": {"name": "Transmuted Anatomy [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Lengthened Stride. Your Speed increases by 5 feet. | Resilient Anatomy. You have Advantage on saving throws against effects that would compel you to shape-shift against your will. | Additionally, when you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
   ,"abjuration adept": {"name": "Abjuration Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Shield", "2": "Lesser Restoration", "3": "Protection from Energy", "4": "Banishment", "5": "Mass Cure Wounds"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Abjuration Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Protective Ward. When you cast a spell from the Abjuration school using a spell slot, you or one creature you can see within 30 feet of yourself gains Temporary Hit Points equal to twice the level of spell slot expended."}
   ,"conjuration adept": {"name": "Conjuration Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Entangle", "2": "Misty Step", "3": "Conjure Animals", "4": "Dimension Door", "5": "Conjure Elemental"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Conjuration Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Persistent Conjuration. While maintaining Concentration on a spell from the Conjuration school, you gain a bonus to Constitution saving throws to maintain this Concentration. This bonus is equal to the ability modifier of the score increased by this feat."}
   ,"divination adept": {"name": "Divination Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Detect Evil and Good", "2": "Mind Spike", "3": "Clairvoyance", "4": "Divination", "5": "Scrying"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Divination Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Prescient Intervention. When a creature you can see within 60 feet of yourself makes a D20 Test, you can take a Reaction to give that creature Advantage or Disadvantage (your choice) on that roll. | Once you use this benefit, you can't do so again until you finish a Long Rest. You can also regain use of this feature when you cast a spell from the Divination school using a spell slot."}
@@ -18051,16 +18085,16 @@ const PHB_FEATS = {
   "symbiotic_being": {"name": "Symbiotic Being", "type": "dark gift", "prereq": "Ravenloft Campaign", "minLevel": null, "source": "RtHW", "desc": "A second being resides within your body, offering knowledge and assistance while furthering its own agenda. You gain the following features. | Entwined Existence. The symbiote can't be targeted. If you die, so does your symbiote. If you are returned to life, your symbiote also revives. | Second Mind. You gain proficiency in one of the following skills: Arcana, Deception, History, Intimidation, Insight, Investigation, Nature, Religion, Perception, or Persuasion. You also know one additional language of your choice, chosen from the language tables in the Player's Handbook. | Sustained Symbiosis. When you fail a saving throw, you can take a Reaction and expend one of your Hit Dice. Roll the die and add the number rolled to the saving throw, potentially turning the failure into a success. | You can use this feature a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. | Symbiotic Agenda. Immediately after you make a D20 Test and roll a 1 on the d20, your symbiote attempts to assert control. Make a Charisma saving throw (DC 13 plus your Proficiency Bonus). On a failed save, you have the Charmed condition for 1d12 hours. While Charmed, you must try to follow the symbiote's commands and further its goals, as determined by the DM. Whenever you take damage, you can repeat this save, ending the effect on a success. | At the DM's discretion, you might make this saving throw whenever you act contrary to the symbiote's agenda.", "usages": "prof_bonus", "recovery": "long rest", "asi": {}, "skills": []},
   "touch_of_death_feat": {"name": "Touch of Death", "type": "dark gift", "prereq": "Ravenloft Campaign", "minLevel": null, "source": "RtHW", "desc": "Deathly power resides within you, bursting out at the slightest provocation. You gain the following features. | Death Touch. You learn the Chill Touch spell and can cast it without spell components. Necrotic damage you deal with this spell ignores Resistance. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Pull of the Grave. You have Disadvantage on Death Saving Throws.", "usages": null, "recovery": null, "asi": {}, "skills": []},
   "watchers_feat": {"name": "Watchers", "type": "dark gift", "prereq": "Ravenloft Campaign", "minLevel": null, "source": "RtHW", "desc": "Something unnatural is always watching you, taking the form of scurrying vermin and other eerie creatures. You gain the following features. | Borrowed Eyes. You always have the Beast Sense and Speak with Animals spells prepared. You can cast each spell without a spell slot, and you must finish a Long Rest before you can cast it in this way again. You can also cast these spells using spell slots you have of the appropriate level. | Heightened Suspicion. Whenever you take the Search action, you can roll 1d4 and add the number rolled to any ability check made as part of that action. | Incessant Watchers. You have Disadvantage on saving throws made against the Scrying spell. | In addition, immediately after you make a D20 Test and roll a 1 on the d20, paranoia threatens to overwhelm you. Make a Wisdom saving throw (DC 13 plus your Proficiency Bonus). On a failed save, you have Disadvantage on D20 Tests for 1 minute. You can repeat the save at the end of each of your turns, ending the effect early on a success.", "usages": null, "recovery": null, "asi": {}, "skills": []}
-  ,"arcane artist": {"name": "Arcane Artist [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Minor Illusion cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Inspiring Magic. When you cast a spell from the Illusion school, you can choose one ally within 30 feet of yourself who can see you. That ally gains Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest.", "asi": {}, "skills": [], "usages": 1, "recovery": "long rest"}
-  ,"arcane eloquence": {"name": "Arcane Eloquence [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Vicious Mockery cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Smooth Talker. When you make a Charisma (Deception, Intimidation, or Persuasion) check, you can roll 1d4 and add the number rolled to the ability check.", "asi": {}, "skills": []}
-  ,"arcane infiltrator": {"name": "Arcane Infiltrator [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Friends cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Cunning Diversion. You can take the Dodge action as a Bonus Action. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
-  ,"arcane omens": {"name": "Arcane Omens [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Guidance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Helpful Premonition. When you or a creature you can see within 30 feet of yourself fails a saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save's total, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
-  ,"arcane overload": {"name": "Arcane Overload [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Fire Bolt cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Power Surge. When you cast an Evocation spell and deal damage with it, you can add your Proficiency Bonus to one damage roll of that spell. Once you use this benefit, you can't do so again until you finish a Long Rest.", "asi": {}, "skills": [], "usages": 1, "recovery": "long rest"}
-  ,"arcane safeguard": {"name": "Arcane Safeguard [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Resistance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | You can cast the Resistance cantrip as a Bonus Action. You can do so a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. | Sheltering Aid. When you take the Help action to assist with an ally's ability check, that ally gains a number of Temporary Hit Points equal to your Proficiency Bonus.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
-  ,"arcane undertaker": {"name": "Arcane Undertaker [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn one Cleric or Wizard cantrip of your choice. The cantrip must be from the Necromancy school. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Knowledge from the Dead. When you make an Intelligence (History) or Wisdom (Medicine) check, you can roll 1d4 and add the number rolled to the ability check. | Understanding of Death. When you take the Help action to stabilize a creature with 0 Hit Points, you gain Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest.", "asi": {}, "skills": [], "usages": 1, "recovery": "long rest"}
-  ,"familiar friend": {"name": "Familiar Friend [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Faithful Companion. You always have the Find Familiar spell prepared. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast it once without a spell slot or Material components, and you regain the ability to cast it in this way when you finish a Long Rest. You can also cast the spell using any spell slots you have. | Fortified Familiar. When you cast the Find Familiar spell, your familiar's Hit Point maximum and current Hit Points are increased by an amount equal to twice your character level. | Helpful Friend. When you make an ability check using a skill in which you have proficiency while your familiar is within 5 feet of you, you gain Advantage on the check. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
-  ,"portal jumper": {"name": "Portal Jumper [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Otherworldly Resilience. You have Resistance to one of the following damage types: Necrotic, Psychic, or Radiant (choose when you select this feat). | Portal Step. You can spend 15 feet of movement to teleport to an unoccupied space you can see within 15 feet of yourself. You can use this benefit a number of times equal to your Proficiency Bonus but only once per turn, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
-  ,"transmuted anatomy": {"name": "Transmuted Anatomy [Origin]", "type": "general", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Lengthened Stride. Your Speed increases by 5 feet. | Resilient Anatomy. You have Advantage on saving throws against effects that would compel you to shape-shift against your will. | Additionally, when you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
+  ,"arcane artist": {"name": "Arcane Artist [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Minor Illusion cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Inspiring Magic. When you cast a spell from the Illusion school, you can choose one ally within 30 feet of yourself who can see you. That ally gains Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest.", "asi": {}, "skills": [], "usages": 1, "recovery": "long rest"}
+  ,"arcane eloquence": {"name": "Arcane Eloquence [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Vicious Mockery cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Smooth Talker. When you make a Charisma (Deception, Intimidation, or Persuasion) check, you can roll 1d4 and add the number rolled to the ability check.", "asi": {}, "skills": []}
+  ,"arcane infiltrator": {"name": "Arcane Infiltrator [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Friends cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Cunning Diversion. You can take the Dodge action as a Bonus Action. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
+  ,"arcane omens": {"name": "Arcane Omens [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Guidance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Helpful Premonition. When you or a creature you can see within 30 feet of yourself fails a saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save's total, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
+  ,"arcane overload": {"name": "Arcane Overload [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Fire Bolt cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Power Surge. When you cast an Evocation spell and deal damage with it, you can add your Proficiency Bonus to one damage roll of that spell. Once you use this benefit, you can't do so again until you finish a Long Rest.", "asi": {}, "skills": [], "usages": 1, "recovery": "long rest"}
+  ,"arcane safeguard": {"name": "Arcane Safeguard [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn the Resistance cantrip. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | You can cast the Resistance cantrip as a Bonus Action. You can do so a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. | Sheltering Aid. When you take the Help action to assist with an ally's ability check, that ally gains a number of Temporary Hit Points equal to your Proficiency Bonus.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
+  ,"arcane undertaker": {"name": "Arcane Undertaker [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Cantrip. You learn one Cleric or Wizard cantrip of your choice. The cantrip must be from the Necromancy school. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | Knowledge from the Dead. When you make an Intelligence (History) or Wisdom (Medicine) check, you can roll 1d4 and add the number rolled to the ability check. | Understanding of Death. When you take the Help action to stabilize a creature with 0 Hit Points, you gain Heroic Inspiration. Once you use this benefit, you can't use it again until you finish a Long Rest.", "asi": {}, "skills": [], "usages": 1, "recovery": "long rest"}
+  ,"familiar friend": {"name": "Familiar Friend [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Faithful Companion. You always have the Find Familiar spell prepared. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast it once without a spell slot or Material components, and you regain the ability to cast it in this way when you finish a Long Rest. You can also cast the spell using any spell slots you have. | Fortified Familiar. When you cast the Find Familiar spell, your familiar's Hit Point maximum and current Hit Points are increased by an amount equal to twice your character level. | Helpful Friend. When you make an ability check using a skill in which you have proficiency while your familiar is within 5 feet of you, you gain Advantage on the check. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
+  ,"portal jumper": {"name": "Portal Jumper [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Otherworldly Resilience. You have Resistance to one of the following damage types: Necrotic, Psychic, or Radiant (choose when you select this feat). | Portal Step. You can spend 15 feet of movement to teleport to an unoccupied space you can see within 15 feet of yourself. You can use this benefit a number of times equal to your Proficiency Bonus but only once per turn, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
+  ,"transmuted anatomy": {"name": "Transmuted Anatomy [Origin]", "type": "origin", "prereq": "", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Lengthened Stride. Your Speed increases by 5 feet. | Resilient Anatomy. You have Advantage on saving throws against effects that would compel you to shape-shift against your will. | Additionally, when you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "asi": {}, "skills": [], "usages": "prof_bonus", "recovery": "long rest"}
   ,"abjuration adept": {"name": "Abjuration Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Abjuration Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Protective Ward. When you cast a spell from the Abjuration school using a spell slot, you or one creature you can see within 30 feet of yourself gains Temporary Hit Points equal to twice the level of spell slot expended.", "asi": {}, "skills": []}
   ,"conjuration adept": {"name": "Conjuration Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Conjuration Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Persistent Conjuration. While maintaining Concentration on a spell from the Conjuration school, you gain a bonus to Constitution saving throws to maintain this Concentration. This bonus is equal to the ability modifier of the score increased by this feat.", "asi": {}, "skills": []}
   ,"divination adept": {"name": "Divination Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Divination Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Prescient Intervention. When a creature you can see within 60 feet of yourself makes a D20 Test, you can take a Reaction to give that creature Advantage or Disadvantage (your choice) on that roll. | Once you use this benefit, you can't do so again until you finish a Long Rest. You can also regain use of this feature when you cast a spell from the Divination school using a spell slot.", "asi": {}, "skills": [], "usages": 1, "recovery": "long rest"}
@@ -24103,6 +24137,11 @@ window.toggleToolProf = toggleToolProf;
 
 function toggleLanguageProf(name) {
   if (!currentChar) return;
+  // Common is always known (see applyClassLanguageGrants) and isn't a
+  // player choice — ignore attempts to toggle it off rather than let it
+  // silently snap back true on the next render, which would look like a
+  // bug instead of intentional behavior.
+  if (toolProfKey(name) === toolProfKey('Common')) return;
   if (!currentChar.languageProfs) currentChar.languageProfs = {};
   if (!currentChar._manualLanguageProfs) currentChar._manualLanguageProfs = {};
   const key = toolProfKey(name);
@@ -24141,6 +24180,36 @@ const CLASS_TOOL_GRANTS = {
 // Re-evaluates class/subclass-granted languages AND tools against the
 // character's current classes every render, respecting manual overrides
 // the same way background grants do.
+// Total "of your choice" language slots a character is owed, on top of
+// the always-known Common — species grants "Common + N of your choice"
+// (parsed from PHB_RACES[key].languages, which already exists as free
+// text like "Common + 2 of your choice" for every species), plus
+// whatever a background separately grants via its langExtra field
+// (currently 0 on every built-in background, but present in the data
+// shape for homebrew/DM-added backgrounds that do grant extra picks).
+// This does NOT enforce Standard-vs-Rare eligibility on which slot can
+// hold which language — the Languages panel has never restricted that,
+// and adding that restriction is out of scope here; this only tracks
+// the total count so the player can see how many picks they still owe.
+function getExpectedLanguageChoiceCount() {
+  if (!currentChar) return 0;
+  let total = 0;
+  const speciesKey = (currentChar.race || '').toLowerCase();
+  const speciesData = PHB_RACES[speciesKey];
+  if (speciesData?.languages) {
+    const m = speciesData.languages.match(/(\d+)\s+of your choice/i);
+    if (m) total += parseInt(m[1], 10);
+  }
+  const bgKey = currentChar.background;
+  const bg = bgKey
+    ? (PHB_BACKGROUNDS[bgKey] || PHB_BACKGROUNDS[bgKey.toLowerCase()]
+       || Object.values(PHB_BACKGROUNDS).find(b => b.name?.toLowerCase() === bgKey.toLowerCase()))
+    : null;
+  if (bg?.langExtra) total += bg.langExtra;
+  return total;
+}
+window.getExpectedLanguageChoiceCount = getExpectedLanguageChoiceCount;
+
 function applyClassLanguageGrants() {
   if (!currentChar) return;
   if (!currentChar.languageProfs) currentChar.languageProfs = {};
@@ -24149,6 +24218,12 @@ function applyClassLanguageGrants() {
   if (!currentChar._clsToolProfs) currentChar._clsToolProfs = [];
   if (!currentChar._manualLanguageProfs) currentChar._manualLanguageProfs = {};
   if (!currentChar._manualToolProfs) currentChar._manualToolProfs = {};
+
+  // Every character always knows Common (2024 PHB) — force it on
+  // unconditionally rather than routing it through the class-grant
+  // undo/reapply cycle above, since it's never granted or revoked by a
+  // class/subclass and should never be togglable off.
+  currentChar.languageProfs['common'] = true;
 
   currentChar._clsLanguageProfs.forEach(k => {
     if (!currentChar._manualLanguageProfs[k]) delete currentChar.languageProfs[k];
@@ -24245,7 +24320,23 @@ function renderToolLanguageProfsBlock() {
     if (currentChar.customLanguages.length) allCategories['Custom'] = currentChar.customLanguages;
     const customNotes = Object.fromEntries(_dmCustomLanguages.map(l => [l.name, l.note]));
     const homebrewNames = new Set(_dmCustomLanguages.map(l => l.name));
-    langBlock.innerHTML = Object.entries(allCategories).map(([cat, names]) => `
+
+    // Choice-slot tracker: how many "of your choice" picks (species + any
+    // background langExtra) the character is owed, vs. how many non-Common,
+    // non-class-granted languages are currently toggled on. Class-granted
+    // languages (currentChar._clsLanguageProfs) are fixed, not a player
+    // choice, so they're excluded from both sides of this count — picking
+    // them isn't optional and shouldn't count against or toward the budget.
+    const expectedLangCount = getExpectedLanguageChoiceCount();
+    const clsGrantedSet = new Set(currentChar._clsLanguageProfs || []);
+    const selectedChoiceCount = Object.keys(currentChar.languageProfs)
+      .filter(k => currentChar.languageProfs[k] && k !== toolProfKey('Common') && !clsGrantedSet.has(k))
+      .length;
+    const langCountHtml = expectedLangCount > 0
+      ? `<div style="font-family:var(--font-ui);font-size:9px;color:${selectedChoiceCount < expectedLangCount ? 'var(--amber)' : 'var(--text3)'};letter-spacing:.5px;margin-bottom:6px">${selectedChoiceCount} / ${expectedLangCount} chosen (from species/background)</div>`
+      : '';
+
+    langBlock.innerHTML = langCountHtml + Object.entries(allCategories).map(([cat, names]) => `
       <div style="margin-bottom:4px">
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-top:6px">${cat}</div>
         ${names.map(name => {
@@ -24271,6 +24362,17 @@ function renderToolLanguageProfsBlock() {
         }).join('')}
       </div>
     `).join('');
+
+    const langBadgeEl = document.getElementById('lang-unset-badge');
+    if (langBadgeEl) {
+      const remaining = expectedLangCount - selectedChoiceCount;
+      if (remaining > 0) {
+        langBadgeEl.textContent = `⚠ ${remaining} to pick`;
+        langBadgeEl.style.display = '';
+      } else {
+        langBadgeEl.style.display = 'none';
+      }
+    }
   }
 
   // Collapsed-view summaries — shown instead of the full grid when the
@@ -37724,6 +37826,12 @@ function renderFeatItemsWeapons() {
 let _msCurrentId    = null; // 'magical_secrets' or 'magical_discoveries'
 let _msSourceLists  = [];   // class lists to show
 let _msMaxCount     = 2;
+// Null unless the def sets a real minCount distinct from its cap (only
+// Book of Ancient Secrets today — see openMagicalSecretsDef) — drives
+// showing "min N required, up to Y allowed" instead of "X / Y selected"
+// in the modal, since for that one feature Y is a generous ceiling for
+// spells found during play, not a target the player needs to hit.
+let _msMinCount      = null;
 let _msDraft        = [];   // currently selected spell keys in modal
 
 function getMagicalSecretsSpells(id) {
@@ -37736,10 +37844,11 @@ let _msCantripOnly  = false;
 let _msRitualOnly   = false;
 let _msLevelFilter  = null; // array of allowed levels, or null for all
 
-function openMagicalSecrets(id, label, sourceLists, maxCount, desc, cantripOnly, ritualOnly, levelFilter) {
+function openMagicalSecrets(id, label, sourceLists, maxCount, desc, cantripOnly, ritualOnly, levelFilter, minCount) {
   _msCurrentId    = id;
   _msSourceLists  = sourceLists || [];
   _msMaxCount     = maxCount || 2;
+  _msMinCount     = (minCount != null && minCount !== _msMaxCount) ? minCount : null;
   _msCantripOnly  = !!cantripOnly;
   _msRitualOnly   = !!ritualOnly;
   _msLevelFilter  = Array.isArray(levelFilter) ? levelFilter : null;
@@ -37747,12 +37856,44 @@ function openMagicalSecrets(id, label, sourceLists, maxCount, desc, cantripOnly,
 
   document.getElementById('ms-modal-title').textContent = label || 'Magical Secrets';
   document.getElementById('ms-modal-desc').textContent  = desc || '';
-  document.getElementById('ms-max-count').textContent   = _msMaxCount;
   document.getElementById('ms-search').value = '';
   document.getElementById('ms-level-filter').value = '';
 
+  renderMSSelectedCount();
   renderMSBrowser();
   openModal('magical-secrets-modal', true);
+}
+
+// Separated out from openMagicalSecrets so applyMagicalSecrets/toggle can
+// refresh just this line as the draft selection changes, without needing
+// to re-run the whole modal-open setup.
+function renderMSSelectedCount() {
+  const selLine = document.getElementById('ms-selected-line');
+  if (!selLine) return;
+  const names = _msDraft.map(k => PHB_SPELL_LIST.find(s=>s.key===k)?.name || k);
+  const namesText = names.length ? '- ' + names.join(', ') : '';
+  // Always rebuilds the whole line from scratch rather than patching
+  // individual spans in place — the two branches below render genuinely
+  // different DOM shapes (min-count phrasing has no #ms-max-count span
+  // at all), so patching would leave stale/missing nodes behind if the
+  // branch taken ever differs between calls. Full replace keeps this
+  // idempotent no matter what the previous render looked like.
+  if (_msMinCount != null) {
+    // The cap (_msMaxCount) is real — it still stops the player from
+    // adding unlimited spells — but showing it as "X / 20" reads like a
+    // target the player is short of, when the actual requirement is the
+    // much smaller minimum. Spell out both numbers with their own labels
+    // instead of the terse "X / Y" used everywhere else.
+    selLine.innerHTML =
+      `Selected: <span id="ms-selected-count" style="color:var(--accent);font-weight:700">${_msDraft.length}</span>` +
+      ` <span style="color:var(--text3)">(${_msMinCount} required minimum, ${_msMaxCount} max)</span>` +
+      `<span id="ms-selected-names" style="color:var(--text3);margin-left:8px">${namesText}</span>`;
+  } else {
+    selLine.innerHTML =
+      `Selected: <span id="ms-selected-count" style="color:var(--accent);font-weight:700">${_msDraft.length}</span>` +
+      ` / <span id="ms-max-count">${_msMaxCount}</span>` +
+      `<span id="ms-selected-names" style="color:var(--text3);margin-left:8px">${namesText}</span>`;
+  }
 }
 
 function renderMSBrowser() {
@@ -37832,14 +37973,9 @@ function renderMSBrowser() {
     list.appendChild(row);
   });
 
-  // Update counter
-  const countEl = document.getElementById('ms-selected-count');
-  const namesEl = document.getElementById('ms-selected-names');
-  if (countEl) countEl.textContent = _msDraft.length;
-  if (namesEl) {
-    const names = _msDraft.map(k => PHB_SPELL_LIST.find(s=>s.key===k)?.name || k);
-    namesEl.textContent = names.length ? '- ' + names.join(', ') : '';
-  }
+  // Update counter — shared with openMagicalSecrets' initial render so
+  // the "X / Y" vs "min N, max Y" phrasing logic lives in one place.
+  renderMSSelectedCount();
 }
 
 function toggleMSSpell(key) {
@@ -41656,6 +41792,8 @@ function renderClassChoices() {
     body.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:8px;letter-spacing:.5px">Select a class to see choices</div>';
     const summaryEl0 = document.getElementById('classchoices-profs-summary');
     if (summaryEl0) summaryEl0.textContent = 'No class selected';
+    const badgeEl0 = document.getElementById('class-choices-unset-badge');
+    if (badgeEl0) badgeEl0.style.display = 'none';
     return;
   }
 
@@ -41671,6 +41809,7 @@ function renderClassChoices() {
 
   body.innerHTML = '';
   let anyChoices = false;
+  let unsetCount = 0;
   const _summaryParts = [];
 
   classes.forEach((entry, ci) => {
@@ -41722,7 +41861,9 @@ function renderClassChoices() {
         const _allSubs = getAllClasses().map(e => (e.subclass||'').toLowerCase());
         if (!_allSubs.some(s => s.includes(def.showIfSubclass.toLowerCase()))) continue;
       }
-      body.appendChild(renderChoiceDef(def, eCls));
+      const choiceEl = renderChoiceDef(def, eCls);
+      body.appendChild(choiceEl);
+      if (choiceEl.dataset.unfilled === '1') unsetCount++;
 
       const savedVal = currentChar.class_choices[def.id];
       if (savedVal != null && (!Array.isArray(savedVal) || savedVal.length)) {
@@ -41749,13 +41890,25 @@ function renderClassChoices() {
     body.appendChild(hdr);
 
     featDefs.forEach(def => {
-      body.appendChild(renderChoiceDef(def, null));
+      const choiceEl = renderChoiceDef(def, null);
+      body.appendChild(choiceEl);
+      if (choiceEl.dataset.unfilled === '1') unsetCount++;
       const savedVal = currentChar.class_choices[def.id];
       if (savedVal != null && (!Array.isArray(savedVal) || savedVal.length)) {
         const displayVal = Array.isArray(savedVal) ? savedVal.join(', ') : String(savedVal);
         if (displayVal) _summaryParts.push({ label: def.label, value: displayVal });
       }
     });
+  }
+
+  const badgeEl = document.getElementById('class-choices-unset-badge');
+  if (badgeEl) {
+    if (unsetCount > 0) {
+      badgeEl.textContent = `⚠ ${unsetCount} unset`;
+      badgeEl.style.display = '';
+    } else {
+      badgeEl.style.display = 'none';
+    }
   }
 
   const summaryEl = document.getElementById('classchoices-profs-summary');
@@ -42048,11 +42201,20 @@ function renderChoiceDef(def, _choiceCls) {
   wrap.className = 'choice-entry';
 
   const saved = currentChar.class_choices[def.id];
+  // Tracks whether this specific choice still needs player input — set per
+  // branch below (each type has its own notion of "complete": a dropdown
+  // needs any value, a multi-pick needs to reach its maxCount, etc.).
+  // Read back via wrap.dataset.unfilled by renderClassChoices() to drive
+  // both the per-entry highlight and the panel-level unset count, so the
+  // "is this done" logic lives in exactly one place per type instead of
+  // being recomputed differently in two spots.
+  let isUnfilled = false;
 
   let inner = `<span class="choice-label">${def.label}</span>`;
   if (def.desc) inner += `<div class="choice-desc">${def.desc}</div>`;
 
   if (def.type === 'radio') {
+    isUnfilled = !saved;
     inner += '<div class="choice-radio-group">';
     for (const opt of def.options) {
       const sel = saved === opt.value;
@@ -42069,6 +42231,7 @@ function renderChoiceDef(def, _choiceCls) {
 
   } else if (def.type === 'dropdown') {
     const val = saved || '';
+    isUnfilled = !val;
     inner += `<select class="choice-select" onchange="onChoiceChange('${def.id}', this.value)">
       <option value="">- Choose -</option>
       ${def.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
@@ -42121,6 +42284,7 @@ function renderChoiceDef(def, _choiceCls) {
     const over = selected.length > maxCount;
     const clsLv = getClassLevelCount(_choiceCls) || getLevel();
     const actualMax = def.countByLevel ? (def.countByLevel[clsLv]||0) : (def.count||1);
+    isUnfilled = selected.length < actualMax;
     inner += `<div style="display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;align-items:center;gap:10px">
         <span class="choice-pills-count ${over?'over':''}" style="margin:0">${selected.length} / ${actualMax} selected</span>
@@ -42141,6 +42305,7 @@ function renderChoiceDef(def, _choiceCls) {
     const selected = Array.isArray(saved) ? saved : [];
     const maxCount = def.maxCount || (def.countByLevel ? (def.countByLevel[String(getLevel())] || def.countByLevel[getLevel()] || 0) : (def.count||2));
     const over = selected.length > maxCount;
+    isUnfilled = selected.length < maxCount;
 
     // Psionic Disciplines: use a modal like Eldritch Invocations
     if (def.id === 'arcane_shot_options') {
@@ -42211,6 +42376,7 @@ function renderChoiceDef(def, _choiceCls) {
     const parsed    = parseInvocations ? parseInvocations() : (Array.isArray(saved) ? saved.map(e => ({name:e,cantrip:null})) : []);
     const maxCount  = def.countByLevel ? (def.countByLevel[getLevel()]||0) : (def.count||2);
     const over      = parsed.length > maxCount;
+    isUnfilled = parsed.length < maxCount;
     inner += `<div style="display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;align-items:center;gap:10px">
         <span class="choice-pills-count ${over?'over':''}" style="margin:0">${parsed.length} / ${maxCount} selected</span>
@@ -42244,6 +42410,7 @@ function renderChoiceDef(def, _choiceCls) {
             : def.pool) // skill-select (proficiency grants): show all options
         : (def.pool || SKILLS.map(s => s.name));
     const over = selected.length > maxCount;
+    isUnfilled = selected.length < maxCount;
 
     inner += `<div class="choice-pills-wrap">
       <div class="choice-pills-count ${over?'over':''}">${selected.length} / ${maxCount} selected</div>
@@ -42258,6 +42425,7 @@ function renderChoiceDef(def, _choiceCls) {
 
   } else if (def.type === 'text-input') {
     const val = typeof saved === 'string' ? saved : '';
+    isUnfilled = !val;
     inner += `<input class="choice-select" type="text" value="${val.replace(/"/g,'&quot;')}"
       placeholder="Enter spell name…"
       oninput="onChoiceChange('${def.id}', this.value)"
@@ -42267,6 +42435,19 @@ function renderChoiceDef(def, _choiceCls) {
     _msDefRegistry[def.id] = def; // register so openMagicalSecretsDef can look it up
     const chosen = Array.isArray(saved) ? saved : (currentChar.spells?.featSpells?.[def.id] || []);
     const names  = chosen.map(k => PHB_SPELL_LIST.find(s=>s.key===k)?.name || k);
+    const msMaxCount = def.countByLevel
+      ? (def.countByLevel[getClassLevelCount(def.forClass) || getLevel()] || def.count || 0)
+      : (def.count || 2);
+    // `count` doubles as a hard cap on how many the picker modal allows
+    // (openMagicalSecretsDef passes it straight through as maxCount) —
+    // for most magical-secrets defs that cap IS the required amount
+    // (Mystic Arcanum: exactly 1, Book of Shadows rituals: exactly 2),
+    // but Book of Ancient Secrets sets count:20 purely as a generous
+    // ceiling for spells found during play, not a requirement — its real
+    // "done" threshold is just its minCount:2 free picks. Fall back to
+    // msMaxCount when a def has no minCount override.
+    const msRequiredCount = def.minCount != null ? def.minCount : msMaxCount;
+    isUnfilled = chosen.length < msRequiredCount;
     const srcLabel = (def.sourceLists||[]).map(c=>c.charAt(0).toUpperCase()+c.slice(1)).join(', ');
     inner += `<div style="margin-top:4px">
       <div style="font-family:var(--font-body);font-size:12px;color:var(--accent);margin-bottom:6px;min-height:18px">
@@ -42280,6 +42461,15 @@ function renderChoiceDef(def, _choiceCls) {
   } else if (def.type === 'display') {
     // desc already rendered universally above; nothing else to show for this type
   }
+
+  // Highlight this entry if it still needs player input — see the
+  // per-branch isUnfilled assignments above. 'display' and other
+  // non-choice types (modal-button, starry-form-button, etc.) are
+  // deliberately left at the default isUnfilled=false: they're either
+  // pure info or an optional/re-configurable ability toggle, not a
+  // one-time pick a player could forget to make.
+  wrap.dataset.unfilled = isUnfilled ? '1' : '0';
+  if (isUnfilled) wrap.classList.add('choice-entry-unset');
 
   wrap.innerHTML = inner;
   return wrap;
@@ -42299,7 +42489,7 @@ function openMagicalSecretsDef(id) {
     : (def.count || 2);
   openMagicalSecrets(def.id, def.label || 'Magical Secrets', def.sourceLists || [],
     maxCount, def.desc || '', !!def.cantripOnly, !!def.ritualOnly,
-    Array.isArray(def.levelFilter) ? def.levelFilter : null);
+    Array.isArray(def.levelFilter) ? def.levelFilter : null, def.minCount ?? null);
 }
 window.openMagicalSecretsDef = openMagicalSecretsDef;
 window.openMagicalSecrets    = openMagicalSecrets;
@@ -42653,17 +42843,35 @@ window.applySpellbookSetup = applySpellbookSetup;
 window.openSkillSetup        = openSkillSetup;
 window.openSkillSetupForFeat = openSkillSetupForFeat;
 window.applySkillSetup       = applySkillSetup;
-window.setFeatPickerFilter   = function(slotId, type) {
+window.setFeatPickerFilter   = function(slotId, type, domId) {
   if (!window._featPickerFilters) window._featPickerFilters = {};
   window._featPickerFilters[slotId] = type;
   // Reset search text when filter changes
-  const inp = document.getElementById('fp-search-' + slotId);
+  const inp = document.getElementById('fp-search-' + (domId || slotId));
   if (inp) { inp.value = ''; inp.placeholder = '- Search or choose feat -'; }
+  rerenderFeatPickerHost();
 };
-window.setFeatPickerSourceFilter = function(slotId, source) {
+window.setFeatPickerSourceFilter = function(slotId, source, domId) {
   if (!window._featPickerSourceFilters) window._featPickerSourceFilters = {};
   window._featPickerSourceFilters[slotId] = source;
+  rerenderFeatPickerHost();
 };
+// Both feat pickers (Origin and General/Epic) are rendered by two
+// different callers with the same slot ids — the always-in-DOM Feats tab
+// (renderFeatSlotsPanel) and the Quick Start modal's feats step
+// (renderQuickStartFeatsStep) — which is exactly why every DOM id these
+// pickers generate gets a context prefix (see renderOriginFeatPicker/
+// renderFeatPicker's `pfx` param). Filter/source changes need the same
+// context-awareness for which re-render to trigger, or a filter click
+// made inside the Quick Start modal would silently re-render the hidden
+// Feats tab underneath instead of the visible modal content.
+function rerenderFeatPickerHost() {
+  if (typeof _qsActive !== 'undefined' && _qsActive && typeof QS_STEPS !== 'undefined' && QS_STEPS[_qsStepIndex] === 'feats') {
+    renderQuickStartFeatsStep(document.getElementById('qs-step-body'));
+  } else {
+    renderFeatSlotsPanel();
+  }
+}
 
 window._featPickerListVisible = {};
 
@@ -42730,10 +42938,10 @@ function filterFeatPickerList(slotId, query) {
 }
 window.filterFeatPickerList = filterFeatPickerList;
 
-function selectFeatPickerOpt(slotId, value) {
-  const inp = document.getElementById('fp-search-' + slotId);
+function selectFeatPickerOpt(domId, slotId, value) {
+  const inp = document.getElementById('fp-search-' + domId);
   if (inp) inp.value = value;
-  const list = document.getElementById('fp-list-' + slotId);
+  const list = document.getElementById('fp-list-' + domId);
   if (list) list.style.display = 'none';
   onFeatSlotFeatChange(slotId, value);
 }
@@ -47260,20 +47468,50 @@ function renderBGASISection() {
   infoEl.innerHTML = `
     <strong style="color:var(--text)">${bg.name}</strong> suggests:
     <span style="color:var(--gold)">${abilities.map(a => AB_FULL[a]).join(', ')}</span><br>
-    <span style="color:var(--text3)">${bg.scoresTxt || bg.scorestxt || ''}</span>
+    <span style="color:var(--text3)">${bg.scoresTxt || bg.scorestxt || ''}</span><br>
+    <span style="color:var(--text3);font-style:italic">House rule: a secondary stat outside this list is allowed as the smaller +1, as long as the majority of the increase still comes from ${bg.name}'s list.</span>
   `;
 
   renderBGASIAssigns();
+}
+
+function getBgAsiRuleViolation() {
+  // Enforces the "Background Ability Score Flexibility" house rule (see
+  // its full text under feat/reference key 'background ability score
+  // flexibility (house rule)'): a secondary ability outside the
+  // background's own list is allowed, but the *majority* of the
+  // increase still has to come from the background's suggested
+  // abilities — the +2 in a 2/1 split, or 2 of the 3 in a 1/1/1 spread.
+  // Returns a warning string if the current slot assignment breaks that,
+  // or null if it's fine (including while slots are still unassigned —
+  // this only judges a genuinely completed, invalid assignment).
+  const bgAbilities = getBGSuggestedAbilities();
+  if (!bgAbilities.length) return null;
+  if (_bgASIMethod === 'split') {
+    const twoSlot = _bgASISlots.find(s => s.bonus === 2);
+    if (twoSlot?.ability && !bgAbilities.includes(twoSlot.ability)) {
+      return 'The +2 must be one of your background\'s ability scores — only the +1 can be a secondary statistic.';
+    }
+  } else {
+    const assigned = _bgASISlots.filter(s => s.ability);
+    if (assigned.length === _bgASISlots.length) {
+      const bgCount = assigned.filter(s => bgAbilities.includes(s.ability)).length;
+      if (bgCount < 2) {
+        return 'At least 2 of the 3 increases must be from your background\'s ability scores.';
+      }
+    }
+  }
+  return null;
 }
 
 function renderBGASIAssigns() {
   const container = document.getElementById('asi-bg-assigns');
   if (!container) return;
 
-  const abilities = getBGSuggestedAbilities();
+  const bgAbilities = getBGSuggestedAbilities();
   const AB_FULL   = { str:'Strength',dex:'Dexterity',con:'Constitution',int:'Intelligence',wis:'Wisdom',cha:'Charisma' };
 
-  if (!abilities.length) {
+  if (!bgAbilities.length) {
     container.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">No suggested abilities found.</div>';
     return;
   }
@@ -47292,7 +47530,12 @@ function renderBGASIAssigns() {
     badge.style.cssText = 'font-family:var(--font-ui);font-size:14px;font-weight:700;color:var(--gold);min-width:28px;text-align:center';
     badge.textContent = `+${slot.bonus}`;
 
-    // Ability dropdown - filter out abilities already used in OTHER slots
+    // Ability dropdown - filter out abilities already used in OTHER slots.
+    // Unlike before, this now offers ALL SIX abilities, not just the
+    // background's own three — the house rule allows a secondary stat
+    // outside that list, as long as the overall split still satisfies
+    // getBgAsiRuleViolation() above. Background-suggested abilities are
+    // labeled so it's clear which ones "count" toward that requirement.
     const usedElsewhere = _bgASISlots
       .filter((_, i) => i !== idx)
       .map(s => s.ability)
@@ -47302,11 +47545,11 @@ function renderBGASIAssigns() {
     sel.style.cssText = 'flex:1;padding:5px 8px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--font-ui);font-size:11px;outline:none;appearance:none;cursor:pointer';
     sel.innerHTML = '<option value="">- Choose ability -</option>';
 
-    abilities.forEach(ab => {
+    ABILITIES.forEach(ab => {
       if (usedElsewhere.includes(ab)) return; // already taken by another slot
       const opt = document.createElement('option');
       opt.value = ab;
-      opt.textContent = AB_FULL[ab];
+      opt.textContent = AB_FULL[ab] + (bgAbilities.includes(ab) ? ' (background)' : '');
       if (slot.ability === ab) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -47332,6 +47575,17 @@ function renderBGASIAssigns() {
     row.appendChild(preview);
     container.appendChild(row);
   });
+
+  // Live house-rule validation warning — shown under the assign rows so
+  // the player sees it before even trying to hit Apply, not just as a
+  // rejection message afterward.
+  const violation = getBgAsiRuleViolation();
+  if (violation) {
+    const warn = document.createElement('div');
+    warn.style.cssText = 'font-family:var(--font-ui);font-size:10px;color:var(--red);margin-top:6px;letter-spacing:.3px';
+    warn.textContent = '⚠ ' + violation;
+    container.appendChild(warn);
+  }
 }
 
 // ── Patch switchASIMode to handle background mode ──────────
@@ -47388,6 +47642,15 @@ applyASI = function() {
   const unassigned = _bgASISlots.filter(s => !s.ability);
   if (unassigned.length) {
     errEl.textContent = `Please assign all ${_bgASISlots.length} bonuses.`;
+    return;
+  }
+
+  // House rule enforcement (see getBgAsiRuleViolation) — a secondary
+  // ability outside the background's list is allowed, but not as the
+  // majority of the increase.
+  const ruleViolation = getBgAsiRuleViolation();
+  if (ruleViolation) {
+    errEl.textContent = ruleViolation;
     return;
   }
 
@@ -47738,44 +48001,100 @@ function renderFeatSlotsPanel() {
   });
 }
 
-function renderOriginFeatPicker(slot, dec) {
-  const ORIGIN_OPTS = Object.values(PHB_FEATS_FULL)
+// Shorthand for the feat-picker source dropdown only — the underlying
+// PHB_FEATS[key].source value stays "Arcana Unleashed" everywhere else
+// (matching, storage, any other spot that might display a source), this
+// only swaps the label text shown in the <option>, not the value used
+// for filtering/comparison.
+function featSourceAbbrev(src) {
+  return src === 'Arcana Unleashed' ? 'AU' : src;
+}
+
+function renderOriginFeatPicker(slot, dec, pfx = '') {
+  // `pfx` disambiguates the DOM ids this picker generates from the copy
+  // of the same picker rendered elsewhere for the same slot.id — the
+  // Feats tab (page-feats) stays in the DOM at all times, so without a
+  // distinct prefix the Quick Start modal's copy would collide with it:
+  // document.getElementById would silently resolve to the hidden tab's
+  // element instead of the one the player is actually looking at, which
+  // is why the dropdown/search previously did nothing when used from
+  // Quick Start. slot.id itself (unprefixed) is still used for anything
+  // that reads/writes actual character data.
+  const domId = pfx + slot.id;
+
+  // Source search, same as the general feat picker below — everything in
+  // this list already IS an origin feat by definition, so there's no
+  // type filter to offer, but narrowing by book (PHB'24 only vs.
+  // homebrew/3rd-party) is just as useful here as it is for general feats.
+  const activeSource = window._featPickerSourceFilters?.[slot.id] || '';
+  const ORIGIN_OPTS_ALL = Object.values(PHB_FEATS_FULL)
     .filter(f => ORIGIN_FEATS.includes(f.name) || f.name.includes('[Origin]'))
     .map(f => f.name).sort();
+  const sourceOptions = [...new Set(ORIGIN_OPTS_ALL.map(n => {
+    const key = Object.keys(PHB_FEATS).find(k => PHB_FEATS[k].name === n);
+    return (key && PHB_FEATS[key]?.source) || "PHB'24";
+  }))].sort();
+  const ORIGIN_OPTS = ORIGIN_OPTS_ALL.filter(n => {
+    if (!activeSource) return true;
+    const key = Object.keys(PHB_FEATS).find(k => PHB_FEATS[k].name === n);
+    const src = (key && PHB_FEATS[key]?.source) || "PHB'24";
+    return src === activeSource;
+  });
 
   const val    = dec.feat || '';
   const phb    = val ? Object.values(PHB_FEATS_FULL).find(f => f.name === val) : null;
   const valKey = val ? Object.keys(PHB_FEATS).find(k => PHB_FEATS[k].name === val) : null;
   const prereq = phb?.prereq || (val ? (Object.values(PHB_FEATS).find(f => f.name === val)?.prereq || '') : '');
+  // Same Config/Info affordances as the general feat picker — origin
+  // feats like Magic Initiate need the same extra-choices modal (spell
+  // selection) that any other feat with FEAT_EXTRA_CHOICES entries does,
+  // and every feat deserves the same one-click way to read its full text
+  // without leaving the picker.
+  const needsCfg = val && featNeedsModal(val);
+  const hasCfg   = needsCfg && !!dec.featDetail;
 
   return `
     <div style="margin-top:6px">
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+        <select class="tbtn" style="font-size:9px;padding:1px 4px" onchange="setFeatPickerSourceFilter('${slot.id}',this.value,'${domId}')">
+          <option value="">All Sources</option>
+          ${sourceOptions.map(src => `<option value="${src.replace(/"/g,'&quot;')}" ${activeSource===src?'selected':''}>${featSourceAbbrev(src)}</option>`).join('')}
+        </select>
+      </div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <div style="flex:1;position:relative" id="fp-wrap-${slot.id}">
-          <input type="text" class="choice-select" id="fp-search-${slot.id}"
+        <div style="flex:1;position:relative" id="fp-wrap-${domId}">
+          <input type="text" class="choice-select" id="fp-search-${domId}"
             placeholder="${val || '- Search or choose origin feat -'}"
             value="${val}"
             autocomplete="off"
-            oninput="filterFeatPickerList('${slot.id}', this.value)"
-            onfocus="showFeatPickerList('${slot.id}')"
-            onblur="hideFeatPickerList('${slot.id}')"
+            oninput="filterFeatPickerList('${domId}', this.value)"
+            onfocus="showFeatPickerList('${domId}')"
+            onblur="hideFeatPickerList('${domId}')"
             style="width:100%;box-sizing:border-box"/>
-          <div id="fp-list-${slot.id}" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:var(--bg2);border:1px solid var(--accent);border-top:none;border-radius:0 0 var(--radius) var(--radius);z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.4)">
-            ${ORIGIN_OPTS.map(n => `<div class="fp-opt" data-slot="${slot.id}" data-val="${n.replace(/"/g,'&quot;')}"
-              onmousedown="selectFeatPickerOpt('${slot.id}','${n.replace(/'/g,"\'")}')"
+          <div id="fp-list-${domId}" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:var(--bg2);border:1px solid var(--accent);border-top:none;border-radius:0 0 var(--radius) var(--radius);z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.4)">
+            ${ORIGIN_OPTS.map(n => `<div class="fp-opt" data-slot="${domId}" data-val="${n.replace(/"/g,'&quot;')}"
+              onmousedown="selectFeatPickerOpt('${domId}','${slot.id}','${n.replace(/'/g,"\\'")}')"
               style="padding:7px 10px;font-family:var(--font-body);font-size:12px;color:var(--text2);cursor:pointer;${val===n?'background:var(--bg3);color:var(--accent);':''}"
               onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='${val===n?'var(--bg3)':'transparent'}'">
               ${featOptionLabelForDropdown(n)}${featPrereqWarningMarker(n)}</div>`).join('')}
           </div>
         </div>
+        ${needsCfg ? `<button class="tbtn" style="font-size:9px;padding:2px 8px;${hasCfg?'border-color:var(--gold);color:var(--gold)':''}" onclick="openFeatDetailModal('${slot.id}','${val.replace(/'/g,"\'")}')" title="${hasCfg?'Edit feat options':'Configure feat options'}">&#9881; ${hasCfg?'Edit':'Config'}</button>` : ''}
+        ${val ? `<button class="tbtn" style="font-size:9px;padding:2px 8px" title="View full feat details" onclick="openFeatInfoModal('${val.replace(/'/g,"\\'")}')">&#8505; Info</button>` : ''}
       </div>
       ${prereq ? `<div style="font-family:var(--font-ui);font-size:10px;margin-bottom:4px">${renderPrereqLine(prereq, valKey)}</div>` : ''}
+      ${needsCfg && !hasCfg ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--red);margin-bottom:4px;letter-spacing:.5px">&#9888; Click Config to set ability score &amp; options</div>` : ''}
       ${phb?.desc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:5px;line-height:1.5">${phb.desc.replace(/\|/g,' · ')}</div>` : ''}
     </div>
   `;
 }
 
-function renderFeatPicker(slot, dec) {
+function renderFeatPicker(slot, dec, pfx = '') {
+  // See renderOriginFeatPicker's comment on `pfx`/`domId` — same collision
+  // fix applies here, since this picker is also rendered both by the
+  // always-in-DOM Feats tab and by Quick Start's feats step for the same
+  // slot.id.
+  const domId = pfx + slot.id;
   const isEpic = slot.type === 'epic';
   const AB_FULL = {str:'Strength',dex:'Dexterity',con:'Constitution',int:'Intelligence',wis:'Wisdom',cha:'Charisma'};
   const level  = getLevel();
@@ -47801,18 +48120,19 @@ function renderFeatPicker(slot, dec) {
   const needsCfg = val && featNeedsModal(val);
   const hasCfg   = needsCfg && !!dec.featDetail;
 
-  const fpFilterId = 'fp-filter-' + slot.id;
   const activeFilter = window._featPickerFilters?.[slot.id] || 'all';
   const activeSource  = window._featPickerSourceFilters?.[slot.id] || '';
-  const searchQuery = (document.getElementById('fp-search-' + slot.id)?.value || '').toLowerCase();
+  const searchQuery = (document.getElementById('fp-search-' + domId)?.value || '').toLowerCase();
   // Every distinct source among the feats actually offered in this slot -
   // untagged entries (no "source" field in PHB_FEATS) bucket under
-  // "(Unspecified)" rather than being silently hidden or given a guessed
-  // source, since a real chunk of the table (older/legacy entries) was
-  // never tagged.
+  // "PHB'24" since every currently-untagged feat in the table is in fact
+  // a core 2024 Player's Handbook feat (verified against the full feat
+  // list — Alert, Tough, Lucky, Actor, the Epic Boons, etc. all lack a
+  // source tag while every FRHoF/Eberron/homebrew feat has one), not
+  // an actually-unknown source.
   const sourceOptions = [...new Set(opts.map(n => {
     const key = Object.keys(PHB_FEATS).find(k => PHB_FEATS[k].name === n);
-    return (key && PHB_FEATS[key]?.source) || '(Unspecified)';
+    return (key && PHB_FEATS[key]?.source) || "PHB'24";
   }))].sort();
   const filteredOpts = opts.filter(n => {
     if (!n) return false;
@@ -47822,7 +48142,7 @@ function renderFeatPicker(slot, dec) {
       if (featType !== activeFilter) return false;
     }
     if (activeSource) {
-      const src = (key && PHB_FEATS[key]?.source) || '(Unspecified)';
+      const src = (key && PHB_FEATS[key]?.source) || "PHB'24";
       if (src !== activeSource) return false;
     }
     return true; // search filtering is done client-side in filterFeatPickerList
@@ -47832,27 +48152,27 @@ function renderFeatPicker(slot, dec) {
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
         ${(isEpic ? [['all','All'],['epic','Epic (Boon)']] :
            isOrigin ? [['all','All'],['origin','Origin']] :
-           [['all','All'],['general','General'],['style','Fighting Style'],['path','Path'],
+           [['all','All'],['origin','Origin'],['general','General'],['style','Fighting Style'],['path','Path'],
             ['dark gift','Dark Gift'],['dragonmark','Dragonmark']]
-          ).map(([t,label]) => `<button class="tbtn" style="font-size:9px;padding:1px 7px;${activeFilter===t?'border-color:var(--accent);color:var(--accent);font-weight:600':''}" onclick="setFeatPickerFilter('${slot.id}','${t}');renderFeatSlotsPanel()">${label}</button>`).join('')}
-        <select class="tbtn" style="font-size:9px;padding:1px 4px" onchange="setFeatPickerSourceFilter('${slot.id}',this.value);renderFeatSlotsPanel()">
+          ).map(([t,label]) => `<button class="tbtn" style="font-size:9px;padding:1px 7px;${activeFilter===t?'border-color:var(--accent);color:var(--accent);font-weight:600':''}" onclick="setFeatPickerFilter('${slot.id}','${t}','${domId}')">${label}</button>`).join('')}
+        <select class="tbtn" style="font-size:9px;padding:1px 4px" onchange="setFeatPickerSourceFilter('${slot.id}',this.value,'${domId}')">
           <option value="">All Sources</option>
-          ${sourceOptions.map(src => `<option value="${src.replace(/"/g,'&quot;')}" ${activeSource===src?'selected':''}>${src}</option>`).join('')}
+          ${sourceOptions.map(src => `<option value="${src.replace(/"/g,'&quot;')}" ${activeSource===src?'selected':''}>${featSourceAbbrev(src)}</option>`).join('')}
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <div style="flex:1;position:relative" id="fp-wrap-${slot.id}">
-          <input type="text" class="choice-select" id="fp-search-${slot.id}"
+        <div style="flex:1;position:relative" id="fp-wrap-${domId}">
+          <input type="text" class="choice-select" id="fp-search-${domId}"
             placeholder="${val || '- Search or choose feat -'}"
             value="${val}"
             autocomplete="off"
-            oninput="filterFeatPickerList('${slot.id}', this.value)"
-            onfocus="showFeatPickerList('${slot.id}')"
-            onblur="hideFeatPickerList('${slot.id}')"
+            oninput="filterFeatPickerList('${domId}', this.value)"
+            onfocus="showFeatPickerList('${domId}')"
+            onblur="hideFeatPickerList('${domId}')"
             style="width:100%;box-sizing:border-box"/>
-          <div id="fp-list-${slot.id}" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:var(--bg2);border:1px solid var(--accent);border-top:none;border-radius:0 0 var(--radius) var(--radius);z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.4)">
-            ${filteredOpts.map(n => `<div class="fp-opt" data-slot="${slot.id}" data-val="${n.replace(/"/g,'&quot;')}"
-              onmousedown="selectFeatPickerOpt('${slot.id}','${n.replace(/'/g,"\'")}')"
+          <div id="fp-list-${domId}" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:var(--bg2);border:1px solid var(--accent);border-top:none;border-radius:0 0 var(--radius) var(--radius);z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.4)">
+            ${filteredOpts.map(n => `<div class="fp-opt" data-slot="${domId}" data-val="${n.replace(/"/g,'&quot;')}"
+              onmousedown="selectFeatPickerOpt('${domId}','${slot.id}','${n.replace(/'/g,"\'")}')"
               style="padding:7px 10px;font-family:var(--font-body);font-size:12px;color:var(--text2);cursor:pointer;${val===n?'background:var(--bg3);color:var(--accent);':''}"
               onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='${val===n?'var(--bg3)':'transparent'}'">
               ${featOptionLabelForDropdown(n)}${featPrereqWarningMarker(n)}</div>`).join('')}
@@ -47944,16 +48264,49 @@ function renderASIPicker(slot, dec) {
   `;
 }
 
+// Rebuilds the featDetail ability-score layer from scratch across every
+// feat slot — same computation applyFeatDetailEffects/removeFeatDetailEffects
+// do inline for a single slot change, but callable standalone so
+// chooseFeatSlot can re-sync this layer too (see its comment for why).
+function rebuildFeatDetailAbilityLayer() {
+  ensureLayers();
+  const detailLayer = AB_ZERO();
+  Object.values(currentChar.featSlots || {}).forEach(dec => {
+    if (dec.choice !== 'feat' || !dec.featDetail?.asiAb) return;
+    detailLayer[dec.featDetail.asiAb] = (detailLayer[dec.featDetail.asiAb]||0) + 1;
+  });
+  setLayer('featDetail', detailLayer);
+}
+
 // ── Slot interaction functions ─────────────────────────────
 function chooseFeatSlot(id, choice) {
   if (!currentChar.featSlots) currentChar.featSlots = {};
   if (choice === null) {
-    // Undo choice - first unapply any applied ASI
-    unapplyFeatSlot(id);
     delete currentChar.featSlots[id];
   } else {
+    // Overwrites any prior choice for this slot outright — if it had an
+    // ASI pick or a feat with its own bonus ASI configured, that data is
+    // gone from featSlots[id] as of this line, which is exactly why both
+    // ability layers get rebuilt below rather than patched in place.
     currentChar.featSlots[id] = { choice };
   }
+  // A slot can contribute to EITHER the featSlots layer (ASI choice) or
+  // the featDetail layer (a feat's own bonus ASI, e.g. War Caster) but
+  // never both at once — whichever it was previously contributing to
+  // needs a full rebuild whenever the slot's choice changes or is
+  // cleared, or that old contribution survives as a stale, uncleared
+  // bonus even though the slot no longer says 'asi'/doesn't have that
+  // feat anymore. This used to be handled by unapplyFeatSlot(), which
+  // only covered the ASI case and even then wrote directly to the
+  // already-computed currentChar.abilities instead of the featSlots
+  // layer — a value the very next computeAbilities() call would discard
+  // anyway, since it always rebuilds from the layers, not from whatever
+  // abilities already happened to hold. Rebuilding both layers from
+  // scratch here, unconditionally, is the reliable fix: each function
+  // only iterates whatever's left in currentChar.featSlots, so a
+  // deleted/changed slot's old contribution simply isn't there to count.
+  applyFeatSlotASIs();
+  rebuildFeatDetailAbilityLayer();
   renderFeatSlotsPanel();
   if (typeof renderClassChoices === 'function') renderClassChoices();
   if (typeof onACChange === 'function') onACChange();
@@ -48103,25 +48456,6 @@ function setASISlotAb(id, abKey, value) {
   currentChar.featSlots[id].asi[abKey] = value;
   renderFeatSlotsPanel();
   applyFeatSlotASIs();
-}
-
-function unapplyFeatSlot(id) {
-  // Remove effects of a slot being cleared
-  const dec = currentChar.featSlots?.[id];
-  if (!dec) return;
-  if (dec.choice === 'asi' && dec.asi) {
-    const asi = dec.asi;
-    // Subtract previously applied bonuses
-    if (asi.ab1 && currentChar.abilities[asi.ab1]) {
-      const bonus = asi.method === 'double' ? 2 : 1;
-      currentChar.abilities[asi.ab1] = Math.max(1, (currentChar.abilities[asi.ab1] || 10) - bonus);
-    }
-    if (asi.method === 'split' && asi.ab2 && currentChar.abilities[asi.ab2]) {
-      currentChar.abilities[asi.ab2] = Math.max(1, (currentChar.abilities[asi.ab2] || 10) - 1);
-    }
-    renderAbilityBlock();
-    recalcAll();
-  }
 }
 
 function applyFeatSlotASIs() {
@@ -52981,7 +53315,7 @@ function renderQuickStartFeatsStep(body) {
           </div>`;
       }
     } else if (slot.type === 'origin') {
-      content += renderOriginFeatPicker(slot, dec);
+      content += renderOriginFeatPicker(slot, dec, 'qs-');
     } else if (!dec.choice) {
       content += `
         <div class="feat-slot-choice">
@@ -52989,7 +53323,7 @@ function renderQuickStartFeatsStep(body) {
           <button class="feat-choice-btn asi"  onclick="chooseFeatSlot('${slot.id}', 'asi')">Take ASI</button>
         </div>`;
     } else if (dec.choice === 'feat') {
-      content += renderFeatPicker(slot, dec);
+      content += renderFeatPicker(slot, dec, 'qs-');
     } else if (dec.choice === 'asi') {
       content += renderASIPicker(slot, dec);
     }
