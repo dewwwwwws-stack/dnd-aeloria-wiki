@@ -4060,6 +4060,23 @@ body.preview-readonly #mi-detail-edit-row * {
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="bg-asi-confirm-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-title">
+      ⚠ Are you sure?
+      <span class="modal-close" onclick="closeModal('bg-asi-confirm-modal')">✕</span>
+    </div>
+    <div id="bg-asi-confirm-message" style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:16px"></div>
+    <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:16px">
+      This is a house-rule exception — only confirm if your DM has approved it for this character.
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" style="flex:1" onclick="confirmBgAsiOverride()">Yes, apply anyway</button>
+      <button class="tbtn" style="flex:1" onclick="closeModal('bg-asi-confirm-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="starting-equip-modal">
   <div class="modal-box" style="max-width:460px">
     <div class="modal-title">
@@ -47646,14 +47663,27 @@ applyASI = function() {
   }
 
   // House rule enforcement (see getBgAsiRuleViolation) — a secondary
-  // ability outside the background's list is allowed, but not as the
-  // majority of the increase.
+  // ability outside the background's list is normally allowed only as
+  // the smaller bonus, not the larger one. Rather than hard-blocking a
+  // DM-approved exception (e.g. a Warlock background-swapping into
+  // Scribe for a specific character concept), this now asks for
+  // confirmation instead of refusing outright — the player can still
+  // say no and go fix their split.
   const ruleViolation = getBgAsiRuleViolation();
   if (ruleViolation) {
-    errEl.textContent = ruleViolation;
+    openBgAsiRuleConfirm(ruleViolation);
     return;
   }
 
+  commitBackgroundASI();
+};
+
+// Separated out from applyASI so both the normal (no violation) and
+// confirmed-override (see openBgAsiRuleConfirm/confirmBgAsiOverride)
+// paths can share the exact same commit logic — the override doesn't
+// get its own looser copy that could drift out of sync with capped-
+// ability warnings, save-restore, or any other behavior here.
+function commitBackgroundASI() {
   // Write to background layer (replaces previous bg ASI)
   ensureLayers();
   const bgLayer = AB_ZERO();
@@ -47686,7 +47716,25 @@ applyASI = function() {
   closeModal('asi-modal');
   const methodLabel = _bgASIMethod === 'split' ? '+2/+1' : '+1/+1/+1';
   toast(`Background ASI applied (${methodLabel})`, 'ok');
-};
+}
+
+// Confirmation step for a house-rule exception — shows the same
+// violation message the inline warning already displays, but as an
+// explicit "are you sure?" the player has to actively confirm, rather
+// than silently letting them submit an invalid split or flatly refusing
+// a DM-approved one-off exception.
+function openBgAsiRuleConfirm(message) {
+  const msgEl = document.getElementById('bg-asi-confirm-message');
+  if (msgEl) msgEl.textContent = message;
+  openModal('bg-asi-confirm-modal', true);
+}
+window.openBgAsiRuleConfirm = openBgAsiRuleConfirm;
+
+function confirmBgAsiOverride() {
+  closeModal('bg-asi-confirm-modal');
+  commitBackgroundASI();
+}
+window.confirmBgAsiOverride = confirmBgAsiOverride;
 
 // ── Auto-open Background ASI mode when background selected ──
 const _origOnBGChange = onBackgroundChange;
@@ -49497,17 +49545,23 @@ function applyFeatDetailEffects(slotId, featName, state) {
   if (!currentChar.skill_expert) currentChar.skill_expert= {};
   if (!currentChar.save_profs)   currentChar.save_profs  = {};
 
-  // ASI +1 — write to featDetail layer (recomputed across all slots)
+  // ASI +1 — write to featDetail layer (recomputed across all slots).
+  // The caller (applyFeatDetail) already saved this slot's new state
+  // into currentChar.featSlots[slotId].featDetail before calling this
+  // function, so the loop below already counts this slot's own ASI once
+  // — there used to be an extra "add current state" line here on top of
+  // that, under the (now stale) assumption that the state hadn't been
+  // saved yet. That double-counted every feat-granted ASI by +1 (e.g.
+  // War Caster showing as Feat +2 instead of +1 in the ability
+  // breakdown), so it's been removed rather than guarded, since the
+  // loop alone is already complete and correct.
   if (state.asiAb) {
     ensureLayers();
-    // Rebuild featDetail layer from all slots
     const detailLayer = AB_ZERO();
     Object.values(currentChar.featSlots || {}).forEach(dec => {
       if (dec.choice !== 'feat' || !dec.featDetail?.asiAb) return;
       detailLayer[dec.featDetail.asiAb] = (detailLayer[dec.featDetail.asiAb]||0) + 1;
     });
-    // Also add current state (not yet saved)
-    detailLayer[state.asiAb] = (detailLayer[state.asiAb]||0) + 1;
     setLayer('featDetail', detailLayer);
   }
   // Skilled skills
