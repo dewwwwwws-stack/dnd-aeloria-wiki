@@ -16,7 +16,7 @@
     "con": 16,
     "int": 10,
     "wis": 10,
-    "cha": 18
+    "cha": 20
   },
   "hp_max": 0,
   "hp_current": 0,
@@ -87,7 +87,17 @@
     },
     "asi_warlock_8": {
       "choice": "feat",
-      "feat": "Undead Grasp"
+      "feat": "Undead Grasp",
+      "featDetail": {
+        "asiAb": "cha"
+      }
+    },
+    "asi_warlock_12": {
+      "choice": "feat",
+      "feat": "Lich Ascension",
+      "featDetail": {
+        "asiAb": "cha"
+      }
     }
   },
   "_darkvision": 120,
@@ -189,7 +199,7 @@
       "con": 0,
       "int": 0,
       "wis": 0,
-      "cha": 1
+      "cha": 3
     },
     "cap": {},
     "hardSet": {}
@@ -210,7 +220,8 @@
   "customConditions": [],
   "boonsCurses": [],
   "damageStates": {
-    "necrotic": "resistant"
+    "necrotic": "resistant",
+    "poison": "resistant"
   },
   "conditionStates": {},
   "_autoContaminationConditions": [],
@@ -261,7 +272,11 @@
   ],
   "_resistanceSources": {
     "necrotic": {
-      "subclass": "The Undead"
+      "subclass": "The Undead",
+      "feat": "Lich Ascension"
+    },
+    "poison": {
+      "feat": "Lich Ascension"
     }
   },
   "_blindsight": 0,
@@ -269,7 +284,10 @@
   "_telepathy": 0,
   "_autoGrantedItemResistances": [],
   "_autoGrantedItemVulnerabilities": [],
-  "_autoGrantedFeatResistances": [],
+  "_autoGrantedFeatResistances": [
+    "necrotic",
+    "poison"
+  ],
   "_autoGrantedSummonResistance": null,
   "name": "Penishead",
   "racialSpellAbility": "cha",
