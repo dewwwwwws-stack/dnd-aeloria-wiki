@@ -6665,6 +6665,15 @@ function closeModal(id) {
   if (id === 'starting-equip-modal' && typeof refreshStartingEquipButtons === 'function') {
     refreshStartingEquipButtons();
   }
+  // The Custom Background Builder closes the wizard when it opens (same
+  // as the weapon/armor-edit and spell modals above, no keepOthersOpen)
+  // — reopen the wizard here and re-render its background step so the
+  // new/edited custom background shows up selected in the grid, instead
+  // of leaving the player on a background step and no modal at all.
+  if (id === 'custom-background-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'background') {
+    openModal('quick-start-modal');
+    renderQuickStartStep();
+  }
   if (el._teleported && el._originalParent) {
     try { el._originalParent.insertBefore(el, el._originalNextSibling || null); } catch(e) {}
     el._teleported = false;
@@ -7426,10 +7435,11 @@ async function loadDMCharList() {
         // Compact single-line entry for the always-visible glance strip -
         // click jumps down to the full card in the detailed (scrollable) list.
         const downed = hpCur <= 0;
+        const deceased = !!c.deceased;
         const condCount = c.conditions?.length || 0;
         const ds = c.death_saves || { successes: 0, failures: 0 };
         const dsRules = getDeathSaveRules(c);
-        const showDeathSaves = downed || ds.successes > 0 || ds.failures > 0;
+        const showDeathSaves = !deceased && (downed || ds.successes > 0 || ds.failures > 0);
         const dsPipsHTML = showDeathSaves ? `
           <div style="display:flex;gap:5px;align-items:center;margin-top:2px" title="${dsRules.note || 'Death saves'}">
             <div style="display:flex;gap:1px">${Array.from({length:dsRules.max},(_,i)=>`<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'var(--bg3)'};border:1px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
@@ -7454,8 +7464,8 @@ async function loadDMCharList() {
             style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:var(--bg3)"
             onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg3)'"
             title="Click to jump to ${(c.charName||id).replace(/"/g,'&quot;')}'s card">
-            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              ${downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
+            <div style="font-family:var(--font-ui);font-size:10px;color:${deceased ? 'var(--text3)' : 'var(--text)'};font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${deceased ? '⚰️ ' : downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
             </div>
             <div>
             <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
@@ -7500,6 +7510,9 @@ async function loadDMCharList() {
                 style="font-size:13px;line-height:1;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
                 onmouseover="this.style.color='var(--red)';this.style.background='color-mix(in srgb, var(--red) 10%, transparent)'"
                 onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button>
+              <button onclick="toggleCharacterDeceased('${id}',${deceased})" title="${deceased ? 'Mark as alive' : 'Mark as dead'}"
+                style="font-size:13px;line-height:1;color:${deceased ? 'var(--text)' : 'var(--text3)'};background:${deceased ? 'color-mix(in srgb, var(--text) 12%, transparent)' : 'none'};border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
+                onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='${deceased ? 'var(--text)' : 'var(--text3)'}'">☠</button>
             </div>
           </div>
           <div style="height:3px;background:var(--bg3);border-radius:2px;margin-bottom:8px">
@@ -7691,10 +7704,11 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
     const id = charId;
 
     const downed = hpCur <= 0;
+    const deceased = !!c.deceased;
     const condCount = c.conditions?.length || 0;
     const ds = c.death_saves || { successes: 0, failures: 0 };
     const dsRules = getDeathSaveRules(c);
-    const showDeathSaves = downed || ds.successes > 0 || ds.failures > 0;
+    const showDeathSaves = !deceased && (downed || ds.successes > 0 || ds.failures > 0);
     const dsPipsHTML = showDeathSaves ? `
       <div style="display:flex;gap:5px;align-items:center;margin-top:2px" title="${dsRules.note || 'Death saves'}">
         <div style="display:flex;gap:1px">${Array.from({length:dsRules.max},(_,i)=>`<span style="width:6px;height:6px;border-radius:50%;display:inline-block;background:${i<ds.successes?'var(--accent)':'var(--bg3)'};border:1px solid ${i<ds.successes?'var(--accent)':'var(--border)'}"></span>`).join('')}</div>
@@ -7754,6 +7768,9 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
             style="font-size:13px;line-height:1;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
             onmouseover="this.style.color='var(--red)';this.style.background='color-mix(in srgb, var(--red) 10%, transparent)'"
             onmouseout="this.style.color='var(--text3)';this.style.background='none'">✕</button>
+          <button onclick="toggleCharacterDeceased('${id}',${deceased})" title="${deceased ? 'Mark as alive' : 'Mark as dead'}"
+            style="font-size:13px;line-height:1;color:${deceased ? 'var(--text)' : 'var(--text3)'};background:${deceased ? 'color-mix(in srgb, var(--text) 12%, transparent)' : 'none'};border:none;cursor:pointer;padding:2px 4px;border-radius:3px;transition:color .15s,background .15s"
+            onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='${deceased ? 'var(--text)' : 'var(--text3)'}'">☠</button>
         </div>
       </div>
       <div style="height:3px;background:var(--bg3);border-radius:2px;margin-bottom:8px">
@@ -7841,8 +7858,8 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
           style="display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;padding:3px 8px;border-radius:4px;cursor:pointer;background:var(--bg3)"
           onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='var(--bg3)'"
           title="Click to jump to ${(c.charName||id).replace(/"/g,'&quot;')}'s card">
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-            ${downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
+          <div style="font-family:var(--font-ui);font-size:10px;color:${deceased ? 'var(--text3)' : 'var(--text)'};font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${deceased ? '⚰️ ' : downed ? '💀 ' : ''}${c.charName||id}${condCount ? ` <span style="color:var(--amber)">(${condCount})</span>` : ''}${isCaster && totalSlotsRemaining === 0 ? ' <span style="color:var(--red)" title="No spell slots remaining">🔮0</span>' : ''}
           </div>
           <div>
           <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
@@ -7976,7 +7993,7 @@ async function dmAdjHP(id, sign) {
     const change = dir * val;
     toast((c.charName||id) + ': HP ' + (change >= 0 ? '+' : '') + change + ' → ' + c.hp_current + '/' + hpMax, 'ok');
     if (adjEl) adjEl.value = '';
-    loadDMCharList();
+    refreshSingleCharacterCard(id, c);
   } catch(e) { toast('HP adjust failed: ' + e.message, 'error'); }
 }
 window.dmAdjHP = dmAdjHP;
@@ -7991,7 +8008,7 @@ async function dmAdjDeathSave(id, type, delta) {
     await GH.putFile(id + '.json', c, sha);
     broadcastCharUpdate(id, 'hp');
     toast(`${c.charName||id}: Death save ${type} ${delta > 0 ? '+1' : '-1'} → ${c.death_saves[key]}/${rules.max}`, 'ok');
-    loadDMCharList();
+    refreshSingleCharacterCard(id, c);
   } catch(e) { toast('Death save update failed: ' + e.message, 'error'); }
 }
 window.dmAdjDeathSave = dmAdjDeathSave;
@@ -8006,7 +8023,7 @@ async function dmSetDeathSave(id, type, idx) {
     c.death_saves[key] = Math.min(rules.max, cur > idx ? idx : idx + 1);
     await GH.putFile(id + '.json', c, sha);
     broadcastCharUpdate(id, 'hp');
-    loadDMCharList();
+    refreshSingleCharacterCard(id, c);
   } catch(e) { toast('Death save update failed: ' + e.message, 'error'); }
 }
 window.dmSetDeathSave = dmSetDeathSave;
@@ -41557,6 +41574,29 @@ function renderCombinedFeatureItemsHtml(items) {
   }).join('');
 }
 
+// Table variant of the above — for combined cards where every item in a
+// group shares the exact same boilerplate rule text (Book of Shadows'
+// "always prepared while the book is on your person" applying to every
+// cantrip, Mystic Arcanum's "cast once without a spell slot" applying to
+// every arcanum spell). renderCombinedFeatureItemsHtml repeats that
+// sentence once per item; this states it once per group instead, then
+// lists the items as table rows. Not used for Invocations Known — those
+// have genuinely distinct, often multi-paragraph RAW text per item, so
+// collapsing them into a table would lose real content rather than just
+// removing repetition.
+function renderCombinedFeatureTableHtml(groups) {
+  return groups.filter(g => g.rows?.length).map(g => {
+    const noteHtml = g.note
+      ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:4px">${g.note}</div>`
+      : '';
+    return `<div style="margin-bottom:10px">
+      <div style="font-weight:700;color:var(--text);margin-bottom:2px">${g.label}</div>
+      ${noteHtml}
+      ${renderMiniTableHtml(g.headers, g.rows)}
+    </div>`;
+  }).join('');
+}
+
 // ═══════════════════════════════════════════════════════════
 // INLINE FEATURE TABLES (proof of concept)
 // ═══════════════════════════════════════════════════════════
@@ -41689,6 +41729,20 @@ function buildGenieExpandedSpellTable() {
   return { headers: ['Warlock Level', 'Spells (shared + Dao/Djinni/Efreeti/Marid)'], rows };
 }
 
+// Shared low-level table-HTML builder — used by renderInlineFeatureTables
+// ([+] tag tables) and renderCombinedFeatureTableHtml (Book of Shadows /
+// Mystic Arcanum combined cards) so both produce visually consistent
+// tables instead of two slightly-different hand-rolled markups.
+function renderMiniTableHtml(headers, rows) {
+  const rowsHtml = rows.map(row =>
+    `<tr>${row.map(cell => `<td style="padding:3px 8px;border-bottom:1px solid var(--border)">${cell}</td>`).join('')}</tr>`
+  ).join('');
+  const headHtml = `<tr>${headers.map(h =>
+    `<th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px">${h}</th>`
+  ).join('')}</tr>`;
+  return `<table style="border-collapse:collapse;font-size:11px;width:100%">${headHtml}${rowsHtml}</table>`;
+}
+
 // Post-processes already-rendered feature HTML: any "TagName [+]" text
 // that has a matching table (static, dynamic spell-list, or the Genie's
 // bespoke one) becomes that table, rendered immediately visible — not
@@ -41704,14 +41758,8 @@ function renderInlineFeatureTables(html, subKey) {
     if (!table && tagName === 'Genie Expanded Spells') table = buildGenieExpandedSpellTable();
     if (!table && /\sSpells$/.test(tagName)) table = buildSubclassSpellTable(subKey);
     if (!table) return tagName; // no data yet — just drop the marker, keep the label
-    const rowsHtml = table.rows.map(row =>
-      `<tr>${row.map(cell => `<td style="padding:3px 8px;border-bottom:1px solid var(--border)">${cell}</td>`).join('')}</tr>`
-    ).join('');
-    const headHtml = `<tr>${table.headers.map(h =>
-      `<th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px">${h}</th>`
-    ).join('')}</tr>`;
     return `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;margin-top:4px">${tagName}</div>` +
-      `<div style="margin:4px 0 6px;overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">${headHtml}${rowsHtml}</table></div>`;
+      `<div style="margin:4px 0 6px;overflow-x:auto">${renderMiniTableHtml(table.headers, table.rows)}</div>`;
   });
 }
 
@@ -52432,14 +52480,22 @@ function populateFeaturesTab() {
   })();
 
   // ── Book of Shadows (Pact of the Tome cantrips + rituals) ────────────
-  // One combined card instead of one card per spell.
+  // Two small tables instead of one card per spell.
   (() => {
     const rituals  = getPactTomeRituals();
     const cantrips = getPactTomeCantrips();
     if (!rituals.length && !cantrips.length) return;
-    const itemsHtml = renderCombinedFeatureItemsHtml([
-      ...cantrips.map(sp => ({ name: sp.name, desc: "Always prepared while my Book of Shadows is on my person; counts as a Warlock cantrip." })),
-      ...rituals.map(sp => ({ name: sp.name + ' (Ritual)', desc: "Cast as a ritual without preparing it." })),
+    const itemsHtml = renderCombinedFeatureTableHtml([
+      {
+        label: 'Cantrips', headers: ['Cantrip'],
+        note: "Always prepared while my Book of Shadows is on my person; counts as a Warlock cantrip.",
+        rows: cantrips.map(sp => [sp.name]),
+      },
+      {
+        label: 'Ritual Spells', headers: ['Spell'],
+        note: "Cast as a ritual without preparing it.",
+        rows: rituals.map(sp => [sp.name]),
+      },
     ]);
     entries.push({
       level: 3, id: 'book_of_shadows_combined', name: 'Book of Shadows',
@@ -52449,18 +52505,20 @@ function populateFeaturesTab() {
     });
   })();
   // ── Mystic Arcanum ────────────────────────────────────────
-  // One combined card instead of one card per Arcanum spell.
+  // One small table instead of one card per Arcanum spell.
   (() => {
     const arcanumMinLevels = { mystic_arcanum:11, mystic_arcanum_6:11, mystic_arcanum_7:13, mystic_arcanum_8:15, mystic_arcanum_9:17 };
     const spells = getMysticArcanumSpells();
     if (!spells.length) return;
     const minLv = Math.min(...spells.map(sp => arcanumMinLevels[sp.arcanaId] || 11));
-    const itemsHtml = renderCombinedFeatureItemsHtml(
-      spells
-        .map(sp => ({ sp, lv: arcanumMinLevels[sp.arcanaId] || 11 }))
-        .sort((a,b) => a.lv - b.lv)
-        .map(({sp}) => ({ name: sp.name, desc: "Always prepared; cast once without a spell slot, regaining the ability when I finish a Long Rest." }))
-    );
+    const sorted = spells
+      .map(sp => ({ sp, lv: arcanumMinLevels[sp.arcanaId] || 11 }))
+      .sort((a,b) => a.lv - b.lv);
+    const itemsHtml = renderCombinedFeatureTableHtml([{
+      label: 'Mystic Arcanum', headers: ['Spell', 'Available At'],
+      note: "Always prepared; cast once without a spell slot, regaining the ability when I finish a Long Rest.",
+      rows: sorted.map(({sp, lv}) => [sp.name, `Warlock Level ${lv}`]),
+    }]);
     entries.push({
       level: minLv, id: 'arcanum_combined', name: 'Mystic Arcanum',
       source: 'Mystic Arcanum', sourceType: 'Subclass',
@@ -54158,6 +54216,7 @@ function renderQuickStartBackgroundStep(body) {
       Picking a background grants its skills, tools, starting gold, and equipment automatically. Next opens the ability score bonus that comes with it.
     </div>
     <input type="text" class="info-input" id="qs-bg-search" placeholder="Search backgrounds…" style="margin-bottom:8px" oninput="renderQuickStartBackgroundGrid()"/>
+    <button class="tbtn" style="width:100%;justify-content:center;margin-bottom:8px" onclick="openCustomBackgroundBuilder()">🛠 Build Custom Background…</button>
     <div id="qs-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:280px;overflow-y:auto"></div>
     <div id="qs-bg-detail" style="margin-top:12px"></div>
   `;
@@ -54711,6 +54770,39 @@ window.openPartyOverviewFromLogin = openPartyOverviewFromLogin;
 // edit controls: no condition dropdown, no note field, no item granting —
 // this is a glance view, not a management view.
 let _partyOverviewItems = [];
+// DM-only: marks another party member's character file as deceased (or
+// reverses that), independent of their current HP — a character can be
+// "Downed" (0 HP, stabilizing or dying) without being dead, and a
+// deceased character's card shouldn't keep showing "Downed"/death-save
+// pips once the DM has actually resolved the death. Same fetch-mutate-
+// write pattern confirmGiveCurrency uses for editing another player's
+// file: read their current file+sha, write the change, only then
+// refresh the view — never assumes a stale local copy is still correct.
+async function toggleCharacterDeceased(charId, currentlyDeceased) {
+  if (!isDM) return;
+  try {
+    const { content, sha } = await GH.getFile(`${charId}.json`);
+    content.deceased = !currentlyDeceased;
+    await GH.putFile(`${charId}.json`, content, sha);
+    toast(`Marked ${content.charName || charId} as ${content.deceased ? 'dead' : 'alive'}.`, 'ok');
+    if (typeof broadcastCharUpdate === 'function') broadcastCharUpdate(charId, 'full', {});
+    // Called from both the DM Panel roster and Party Overview — refresh
+    // whichever is actually on screen rather than assuming one. The DM
+    // Panel card can be patched in place via the same known-fresh-data
+    // path realtime updates already use (skips a redundant re-fetch);
+    // Party Overview always does a full reload of its own accord.
+    if (document.getElementById('dm-char-card-' + charId)) {
+      refreshSingleCharacterCard(charId, content);
+    }
+    if (document.getElementById('party-overview-body')) {
+      renderPartyOverview();
+    }
+  } catch (e) {
+    toast('Failed: ' + e.message, 'err');
+  }
+}
+window.toggleCharacterDeceased = toggleCharacterDeceased;
+
 async function renderPartyOverview() {
   const body = document.getElementById('party-overview-body');
   if (!body) return;
@@ -54781,6 +54873,7 @@ async function renderPartyOverview() {
         const hpPct = hpMax > 0 ? Math.max(0, Math.min(100, (hpCur/hpMax)*100)) : 0;
         const hpCol = hpPct > 60 ? 'var(--accent)' : hpPct > 30 ? 'var(--amber)' : 'var(--red)';
         const downed = hpCur <= 0;
+        const deceased = !!c.deceased;
         const cls   = capFirst(c.class) || '-';
         const level = c.level || 1;
         const sub   = c.subclass ? ` · ${c.subclass}` : '';
@@ -54861,13 +54954,14 @@ async function renderPartyOverview() {
         ].join('');
 
         return `
-          <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;${downed ? 'opacity:.6' : ''};display:flex;gap:16px;cursor:pointer" onclick="previewCharacterSheet('${id}')" title="Click to view ${(c.charName||'this character').replace(/"/g,'&quot;')}'s full sheet (read-only)">
+          <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;${deceased ? 'opacity:.5;filter:grayscale(60%)' : downed ? 'opacity:.6' : ''};display:flex;gap:16px;cursor:pointer;position:relative" onclick="previewCharacterSheet('${id}')" title="Click to view ${(c.charName||'this character').replace(/"/g,'&quot;')}'s full sheet (read-only)">
+            ${isDM ? `<span onclick="event.stopPropagation();toggleCharacterDeceased('${id}',${deceased})" title="${deceased ? 'Mark as alive' : 'Mark as dead'}" style="position:absolute;top:8px;right:8px;font-size:14px;cursor:pointer;opacity:${deceased ? '1' : '.35'};z-index:1">☠</span>` : ''}
             <div style="width:88px;height:88px;border-radius:50%;border:3px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center;${c.tokenUrl ? `background-image:url('${c.tokenUrl.replace(/'/g,'%27')}')` : ''}">
               ${c.tokenUrl ? '' : '<span style="font-size:34px;color:var(--text3)">⚔</span>'}
             </div>
             <div style="flex:1;min-width:0">
               <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-                <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${c.charName || 'Unnamed'}${downed ? ' <span style="color:var(--red);font-size:12px">- Downed</span>' : ''}</span>
+                <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${c.charName || 'Unnamed'}${deceased ? ' <span style="color:var(--text3);font-size:12px">- ☠ Dead</span>' : downed ? ' <span style="color:var(--red);font-size:12px">- Downed</span>' : ''}</span>
                 <span style="font-family:var(--font-ui);font-size:13px;color:${hpCol};font-weight:700">${hpCur}<span style="color:var(--text3);font-weight:400">/${hpMax}</span></span>
               </div>
               <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:2px">${cls}${level ? ` · Lvl ${level}` : ''}${sub}</div>
@@ -54914,7 +55008,7 @@ async function dmApplyCondition(charId, condition) {
       await GH.putFile(`${charId}.json`, c, sha);
       broadcastCharUpdate(charId, 'condition');
       toast(`${condition} → ${c.charName||charId}`, 'ok');
-      loadDMCharList();
+      refreshSingleCharacterCard(charId, c);
     }
   } catch(e) { toast('Failed: ' + e.message, 'error'); }
 }
@@ -54927,7 +55021,7 @@ async function dmRemoveCondition(charId, condition) {
     await GH.putFile(`${charId}.json`, c, sha);
     broadcastCharUpdate(charId, 'condition');
     toast(`Removed ${condition}`, 'ok');
-    loadDMCharList();
+    refreshSingleCharacterCard(charId, c);
   } catch(e) { toast('Failed: ' + e.message, 'error'); }
 }
 window.dmRemoveCondition = dmRemoveCondition;
