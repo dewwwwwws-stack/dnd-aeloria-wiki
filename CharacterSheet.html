@@ -803,18 +803,30 @@ body.preview-readonly .modal-overlay *:not(.modal-close) {
    blocked below. (feat-detail-modal is deliberately NOT included here -
    despite the name, it's actually a feat-choice/configuration modal with
    its own Apply button, not a pure description view.)
-   These rows open their detail modal via a row-level addEventListener in
-   JS, not an inline onclick attribute - an attribute selector (the first
-   version of this rule) can't see those at all, which is exactly why this
-   worked in the Unified Inventory view (which does use inline onclick)
-   but nowhere else. Re-enabling the row's own class instead lets its real
-   click handler fire; the nested-selector rules right after this one
-   re-block any button/input/select inside that same row (delete, prepare,
-   attune, give-item, etc.) at higher specificity, so the row opens detail
-   on click without exposing any of its actual edit controls. */
+   sp-known-row/sp-spellbook-row/magic-item-row are real, currently-live
+   classes (renderKnownSpells, renderSpellbookList, and the standalone
+   Magic Items panel/renderMagicItemsPanel respectively still assign them
+   via row.className, not an inline template attribute - grepping for
+   class="..." won't find them). These rows open their detail modal via a
+   row-level addEventListener in JS rather than an inline onclick, which
+   is why an attribute selector alone wouldn't reach them.
+   .inv-row is the separate, newer Unified Inventory row class (weapons/
+   armor/magic items/gear together in one list) and did NOT have this
+   same exemption - confirmed missing, not merely renamed, when this was
+   revisited to add item-art thumbnails, which is what actually surfaced
+   the gap: clicking a row to see full item art/detail did nothing during
+   preview. Unlike the three legacy classes, .inv-row needs no matching
+   nested re-block rule below: virtually every interactive control inside
+   it (equip checkbox, qty steppers, edit/give/remove buttons, weight
+   input) already calls event.stopPropagation() in its own onclick, and
+   with the blanket .page * rule still leaving those descendants at
+   pointer-events:none, a click anywhere in the row - including directly
+   over one of those controls - simply falls through to the row's own
+   onclick (open detail modal) rather than reaching the control at all. */
 body.preview-readonly .page .sp-known-row,
 body.preview-readonly .page .sp-spellbook-row,
-body.preview-readonly .page .magic-item-row {
+body.preview-readonly .page .magic-item-row,
+body.preview-readonly .page .inv-row {
   pointer-events: auto !important;
   cursor: pointer !important;
 }
@@ -902,6 +914,7 @@ body.preview-readonly #mi-detail-edit-row * {
   backdrop-filter: blur(4px);
   z-index: 500;
   display: flex; align-items: center; justify-content: center;
+  gap: 16px;
   padding: 20px;
 }
 .hidden { display: none !important; }
@@ -941,6 +954,25 @@ body.preview-readonly #mi-detail-edit-row * {
   padding: 24px;
   width: 100%;
   box-shadow: var(--shadow-lg);
+  position: relative;
+}
+/* Item-art image on the magic item detail modal: anchored to .modal's own
+   box (not a flex sibling of it within .modal-overlay) specifically so
+   the modal itself stays exactly where it always centered on the page -
+   a flex-sibling approach centers the [image, modal] PAIR together,
+   which visibly shifts the modal (and its text) off the page's true
+   center once the image is wide. right:100% + top:50%/translateY(-50%)
+   anchors the image's right edge to the modal's left edge and centers it
+   vertically against the modal's own actual rendered height, whatever
+   that ends up being for a given item's amount of text - not against
+   the overlay's flex cross-axis, which was really only incidentally
+   correct before when the image happened to be the tallest element. */
+#mi-detail-img {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 16px;
 }
 .modal-header {
   display: flex;
@@ -1437,6 +1469,21 @@ body.preview-readonly #mi-detail-edit-row * {
   .modal-box { width: calc(100vw - 16px) !important; max-width: none !important;
     max-height: calc(100vh - 60px) !important; margin: 8px; }
   .modal-overlay { padding: 8px; align-items: flex-start; padding-top: 30px; }
+  /* #mi-detail-img is absolutely positioned to the modal's left on
+     desktop (see base .modal/#mi-detail-img rules) - .modal is nearly
+     full viewport width on mobile, leaving no room for that, so this
+     reverts it to a normal, centered block sitting above the modal's own
+     content instead (it's a child of .modal, not a sibling in
+     .modal-overlay, so it stacks with the modal's other content here
+     rather than needing .modal-overlay's own flex-direction touched). */
+  #mi-detail-img {
+    position: static !important;
+    transform: none !important;
+    margin: 0 0 12px 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+  #mi-detail-img img { max-width: 60vw !important; }
 
   /* Spell slots: allow wrapping */
   .slot-pips { gap: 6px; }
@@ -4981,11 +5028,11 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <div class="modal-overlay hidden" id="magic-item-detail-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
   <div class="modal" style="max-width:600px">
+    <div id="mi-detail-img"></div>
     <div class="modal-header">
       <span id="mi-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('magic-item-detail-modal')">✕</button>
     </div>
-    <div id="mi-detail-img" style="margin-bottom:10px"></div>
     <div id="mi-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
     <div id="mi-detail-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
@@ -6668,6 +6715,23 @@ function openModal(id, keepOthersOpen = false) {
   setTimeout(() => autoGrowAllTextareas(el), 0);
 }
 
+// Click-outside-to-close, delegated once for every modal rather than
+// wired per-modal — of this file's 64 .modal-overlay instances, only one
+// (slot-override-modal) had ever gotten this via its own inline onclick;
+// every other modal (including treasure-detail-modal, reported as
+// impossible to dismiss when opened from Party Overview) had no fallback
+// at all if its X button's click didn't land for any reason, since these
+// modals get dynamically reparented to document.body on first open (see
+// openModal above) and there was nothing else listening at that level.
+// e.target is the overlay div itself only for a genuine click on the
+// dark backdrop; a click on anything inside the modal card sets e.target
+// to that descendant instead, so this can't fire from clicking content.
+document.addEventListener('click', (e) => {
+  if (e.target.classList && e.target.classList.contains('modal-overlay')) {
+    closeModal(e.target.id);
+  }
+});
+
 function closeModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -7106,8 +7170,19 @@ function buildDMInventoryHTML(c, charId) {
   const gearRows   = [];
   let totalWeight = 0;
 
+  // Same legacy-duplicate guard as renderUnifiedInventory/renderPartyOverview —
+  // catches stray weapon/armorOwned entries that duplicate an owned magic
+  // item by name but predate (or bypassed) the _fromMagicItem tagging system.
+  const magicWeaponNames = new Set(
+    magicItems.filter(mi => mi.isWeapon).map(mi => (mi.customName || mi.name || '').toLowerCase().trim())
+  );
+  const magicArmourNames = new Set(
+    magicItems.filter(mi => mi.isArmour).map(mi => (mi.customName || mi.name || '').toLowerCase().trim())
+  );
+
   weapons.forEach((entry, idx) => {
     if (entry._fromMagicItem) return; // proxy for an equipped magic weapon, shown via magicItems below instead
+    if (magicWeaponNames.has((entry.name || '').toLowerCase().trim())) return;
     const qty = entry.qty || 1;
     totalWeight += parseWeightLb(entry.weight) * qty;
     weaponRows.push({
@@ -7121,6 +7196,7 @@ function buildDMInventoryHTML(c, charId) {
   });
 
   armorOwned.forEach((entry, idx) => {
+    if (magicArmourNames.has((entry.name || '').toLowerCase().trim())) return;
     totalWeight += parseWeightLb(entry.weight);
     armorRows.push({
       badge: 'ARM', color: 'var(--accent2)',
@@ -11302,10 +11378,17 @@ function openMagicItemDetailModal(keyOrItem) {
 
   const imgEl = document.getElementById('mi-detail-img');
   if (imgEl) {
-    // Bigger than the inline row thumbnail, same onerror-hide-silently
-    // convention — most items still have no art, and that's fine.
+    // Sits outside the modal box entirely now (a flex sibling within
+    // .modal-overlay, positioned before .modal in the HTML so it lands
+    // to the left) rather than squeezed into a corner of the card — much
+    // more screen real estate to work with, so sized as a real portrait
+    // rather than a thumbnail. Same onerror-hide-silently convention as
+    // everywhere else: hiding this whole sibling div on a 404 removes it
+    // from the flex row entirely, so the modal box re-centers itself
+    // alone (via .modal-overlay's justify-content:center) exactly as it
+    // did before this existed, for the majority of items with no art.
     imgEl.innerHTML = item.key
-      ? `<img src="${itemImageUrl(item.key)}" loading="lazy" style="max-width:140px;max-height:140px;object-fit:contain;border-radius:6px;background:var(--bg2);border:1px solid var(--border)" onerror="this.parentElement.style.display='none'" alt=""/>`
+      ? `<img src="${itemImageUrl(item.key)}" loading="lazy" style="width:280px;max-width:38vw;height:280px;max-height:70vh;object-fit:contain;border-radius:10px;background:var(--bg2);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.4)" onerror="this.parentElement.style.display='none'" alt=""/>`
       : '';
   }
 
@@ -27230,6 +27313,17 @@ function syncItemResistances() {
     }
     if (!dmgres && !options) return; // this item grants no resistance at all
 
+    // Consumables (currently just Potion of Resistance) are deliberately
+    // excluded from this passive per-owned-item grant — their RAW effect
+    // is "resistance for 1 hour after you drink it," not "resistance for
+    // as long as you own one," and this sheet has no duration/expiry
+    // tracking for consumed items yet. Without this guard, simply having
+    // one in inventory (with a resistance type chosen at add-time)
+    // permanently granted that resistance regardless of whether it had
+    // ever actually been drunk — reported by a player as "potions are
+    // always assumed to be in effect."
+    if ((item.type || '').toLowerCase() === 'potion') return;
+
     // Attunement-required items only count while actually attuned;
     // everything else counts whenever owned (worn/held is implied).
     if (item.attunement && !item.attuned) return;
@@ -37042,8 +37136,26 @@ function renderUnifiedInventory() {
   const mountRows  = [];
   let totalWeight = 0; // running total, in lb — excludes anything validly stored in an owned container
 
+  // Name-based dedupe guard for legacy/stray weapon-array and armorOwned-
+  // array entries that duplicate an owned magic weapon/armor by name but
+  // were never tagged _fromMagicItem (predates that system, or added some
+  // other way) — mirrors the existing guard in renderPartyOverview.
+  const magicWeaponNames = new Set(
+    (currentChar.magicItems || []).filter(mi => mi.isWeapon).map(mi => (mi.customName || mi.name || '').toLowerCase().trim())
+  );
+  const magicArmourNames = new Set(
+    (currentChar.magicItems || []).filter(mi => mi.isArmour).map(mi => (mi.customName || mi.name || '').toLowerCase().trim())
+  );
+
   (currentChar.weapons || []).forEach((entry, idx) => {
     if (entry._fromMagicItem) return; // proxy for an equipped magic weapon — the real entry renders from magicItems below instead
+    // Also excludes plain weapon entries whose name matches an owned magic
+    // weapon's — catches legacy/duplicate entries that predate the
+    // _fromMagicItem tagging system above (or were added some other way)
+    // and would otherwise show up as a second, separate row alongside the
+    // real magic-item entry for the same weapon. Same guard Party Overview
+    // already uses; this is the main Inventory tab catching up to it.
+    if (magicWeaponNames.has((entry.name || '').toLowerCase().trim())) return;
     const phb = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
     const qty = entry.qty || 1;
     const wtEach = parseWeightLb(entry.weight);
@@ -37064,6 +37176,7 @@ function renderUnifiedInventory() {
   });
 
   (currentChar.armorOwned || []).forEach((entry, idx) => {
+    if (magicArmourNames.has((entry.name || '').toLowerCase().trim())) return; // same legacy-duplicate guard as weapons above
     const phb = PHB_ARMOUR.find(a => a.key === entry.key);
     const qty = entry.qty || 1;
     const containerUid = resolveContainerUid(entry);
@@ -38554,7 +38667,7 @@ function ensureMagicItems() {
 // Shows "Spell Scroll of Fireball (3rd Level)" once a spell is chosen, or
 // "Ring of Resistance (Fire)" once a damage type is chosen — otherwise
 // falls back to the item's own custom/default name.
-// ── Item art (item-images/{key}.webp on GitHub) ────────────────────
+// ── Item art (item-images/{key}.webp on GitHub, served via GitHub Pages) ──
 // Predictable URL-by-convention, deliberately NOT stored per-character —
 // embedding image data/URLs in character JSON would regress the DM-panel
 // round-trip-size performance fix. Instead every render site builds the
@@ -38562,9 +38675,24 @@ function ensureMagicItems() {
 // (onerror hides the <img>) for the majority of items that have no art,
 // same spirit as tokenUrl's sword-emoji fallback but resolved per-image
 // at render time instead of pre-known per-character.
+//
+// Served through GitHub Pages (confirmed live for this repo, built from
+// the `data` branch — the same branch item-images/ actually lives on)
+// rather than raw.githubusercontent.com directly or a third-party CDN.
+// raw.githubusercontent.com was ruled out: GitHub tightened rate limits
+// on unauthenticated requests to it in 2025, and a long session opening
+// many item-art images in a row was hitting it (already-cached images
+// kept working; anything not yet fetched started silently failing).
+// jsDelivr was tried next and avoided that, but needed a purge-after-
+// upload workaround (fire a request to jsDelivr's purge endpoint right
+// after every upload) to keep freshly-uploaded art from sitting stale
+// behind its own aggressive CDN caching, and that purge has no real
+// guarantee behind it. Pages sidesteps both problems at once: it isn't
+// rate-limited the same way, and it rebuilds/redeploys automatically on
+// every push (observed ~1-2 minutes), so no purge step is needed at all.
 function itemImageUrl(key) {
   if (!key) return '';
-  return `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch}/item-images/${key}.webp`;
+  return `https://${GH.owner}.github.io/${GH.repo}/item-images/${key}.webp`;
 }
 // Small square thumbnail <img>, sized for inline rows. Returns '' (no
 // element at all) when there's no key — callers fall back to their
@@ -40983,8 +41111,11 @@ async function dmUploadCatalogItemArt(file) {
     const path = `item-images/${key}.webp`;
     const existingSha = await GH.getFileShaAtPath(path);
     await GH.putBinaryFile(path, base64, existingSha);
-    // Cache-bust so the modal's own thumbnail shows the new art
-    // immediately rather than a browser-cached old copy or 404.
+    // Cache-bust the browser's own cache — Pages redeploys automatically
+    // on push (no CDN purge step needed the way jsDelivr required), but
+    // the browser itself may still be holding an old fetch of this exact
+    // URL, so this makes the modal's own thumbnail check again immediately
+    // rather than showing whatever it last successfully loaded.
     const imgEl = document.getElementById('ci-item-art-img');
     if (imgEl) { imgEl.style.display = 'none'; imgEl.src = itemImageUrl(key) + '?t=' + Date.now(); }
     if (statusEl) statusEl.textContent = 'Art uploaded.';
@@ -55400,6 +55531,9 @@ async function renderPartyOverview() {
         const magicWeaponNames = new Set(
           (c.magicItems || []).filter(mi => mi.isWeapon).map(mi => (mi.customName || mi.name || '').toLowerCase().trim())
         );
+        const magicArmourNames = new Set(
+          (c.magicItems || []).filter(mi => mi.isArmour).map(mi => (mi.customName || mi.name || '').toLowerCase().trim())
+        );
         const displayWeapons = (c.weapons || []).filter(w => !w._fromMagicItem && !magicWeaponNames.has((w.name || '').toLowerCase().trim()));
         const charIdx = _partyOverviewItems.push(c) - 1;
         const weaponsHTML = displayWeapons.map(w => {
@@ -55408,7 +55542,7 @@ async function renderPartyOverview() {
           return poRow(nm, w.equipped ? '· Equipped' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'weapon',_partyOverviewItems[${charIdx}])`, w.weaponKey);
         }).join('');
 
-        const armorHTML = (c.armorOwned || []).map(a => {
+        const armorHTML = (c.armorOwned || []).filter(a => !magicArmourNames.has((a.name || '').toLowerCase().trim())).map(a => {
           const nm = a.name || PHB_ARMOUR.find(x => x.key === a.key)?.name || 'Armor';
           const idx = _partyOverviewItems.push(a) - 1;
           return poRow(nm, a.worn ? '· Worn' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'armor')`, a.key);
