@@ -3766,6 +3766,7 @@ body.preview-readonly #mi-detail-edit-row * {
         <label style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px">CHOOSE COMPANION TYPE</label>
         <div id="companion-choice-btns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
+      <div id="battle-familiar-panel" style="display:none;margin-bottom:16px"></div>
       <div id="companion-blocks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px"></div>
     </div>
   </div>
@@ -9272,6 +9273,39 @@ function renderSpellDetailBody(sp, castLevel) {
     html = highlightSpellcastingMod(html);
     if (typeof linkifyGlossaryTerms === 'function') html = linkifyGlossaryTerms(html);
   }
+  // Battle Familiar's upcast text ("use the slot's level for the spell's
+  // level in the stat block") has no numeric literal for
+  // highlightSpellUpcast's prose-pattern matching to find and scale — its
+  // scaling instead lives in SUMMON_SPELL_DEFS.battle_familiar's formula
+  // functions, keyed by level and form. Without this, the modal would
+  // show identical text no matter which level the dropdown is set to.
+  if (html && sp.key === 'battle_familiar' && typeof SUMMON_SPELL_DEFS !== 'undefined' && SUMMON_SPELL_DEFS.battle_familiar) {
+    const bfDef = SUMMON_SPELL_DEFS.battle_familiar;
+    const n = Math.max(1, bfDef.multiattack(castLevel));
+    const rows = bfDef.forms.map(form => {
+      const ac = bfDef.ac(castLevel, form);
+      const hp = bfDef.hp(castLevel, form);
+      const dmg = `1d8+${3 + castLevel}`;
+      return `<tr><td style="padding:3px 8px;border-bottom:1px solid var(--border)">${form}</td>
+        <td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:center">${ac}</td>
+        <td style="padding:3px 8px;border-bottom:1px solid var(--border);text-align:center">${hp}</td>
+        <td style="padding:3px 8px;border-bottom:1px solid var(--border)">${bfDef.speed(form)}</td></tr>`;
+    }).join('');
+    html += `
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Battle Familiar Stat Block at Level ${castLevel}</div>
+        <table style="border-collapse:collapse;font-size:11px;width:100%">
+          <tr>
+            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px">Form</th>
+            <th style="padding:3px 8px;text-align:center;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px">AC</th>
+            <th style="padding:3px 8px;text-align:center;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px">HP</th>
+            <th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px">Speed</th>
+          </tr>
+          ${rows}
+        </table>
+        <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);margin-top:6px">Rend: ${1}d8+${3 + castLevel} Force${n > 1 ? `, ×${n} (Multiattack)` : ''}. Talented bonus: +${Math.floor(castLevel/2)}.</div>
+      </div>`;
+  }
   // The edit pencil passes the pre-highlight fullDesc (raw RAW text) into
   // the override modal, not the post-highlight html — the colored upcast/
   // cantrip-scaling spans are display-only computed values and shouldn't
@@ -12666,7 +12700,7 @@ const PHB_SUBCLASSES = {
   "warlock/the hexblade": {"name":"The Hexblade","source":"XUA25","bonusSpells":["arcane_vigor","shield","wrathful_smite","bestow_curse","conjure_barrage","freedom_of_movement","staggering_smite","animate_objects","steel_wind_strike"],"features":[{"name":"Hexblade Spells","level":3,"desc":"The magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Hexblade Spells table, you thereafter always have the listed spells prepared. Hexblade Spells [+]","usages":null,"recovery":null},{"name":"Hexblade's Curse","level":3,"desc":"Your patron grants you the power to curse and hinder your foes. As a Bonus Action, choose one creature you can see within 30 feet of yourself. The target is cursed for 1 minute, during which you gain the benefits below. The curse ends early if you use this feature again, if you dismiss it (no action required), or die. You can use this feature a number of times equal to your Charisma modifier (minimum of once), and you regain all expended uses when you finish a Long Rest. When you cast a spell using a spell slot that curses a target, you can use your Hexblade's Curse as a part of casting that spell instead of taking a Bonus Action. When you do so, the target of the spell is the target of your Hexblade's Curse, and your Hexblade's Curse's duration is either 1 minute or the spell's duration, whichever is longer. | Hungering Hex. When the target cursed by your Hexblade's Curse drops to 0 Hit Points, you regain Hit Points equal to 1d8 plus your Charisma modifier. | Accursed Shield. While you aren't wearing armor or wielding a Shield, you gain a +2 bonus to AC while you are within 10 feet of the target cursed by your Hexblade's Curse.","usages":"cha_mod","recovery":"long rest"},{"name":"Unyielding Will","level":3,"desc":"When you succeed on a saving throw to maintain Concentration, each creature of your choice in a 10-foot Emanation originating from you takes 2d6 Necrotic damage. Once you use this benefit, you can't do so again until the start of your next turn. In addition, when you fail a saving throw to maintain Concentration, you can choose to succeed instead, and you gain a number of Temporary Hit Points equal to 1d10 plus your Warlock level. Once you use this feature, you can't do so again until you finish a Long Rest.","usages":1,"recovery":"long rest"},{"name":"Malign Brutality","level":6,"desc":"Your patron's might furthers your bloodthirst, granting you the following benefits. | Harrowing Hex. After you cast a level 1+ spell that has a casting time of an action, you can make one attack with a weapon as a Bonus Action. | Hindering Curse. When you hit the target cursed by your Hexblade's Curse with an attack roll, the target has Disadvantage on the next saving throw it makes before the start of your next turn. | Inescapable Hex. When the target of your Hexblade's Curse ends its turn 30 feet or further from you, you can move up to your Speed straight toward the target.","usages":null,"recovery":null},{"name":"Armor of Hexes","level":10,"desc":"When you take damage from the target cursed by your Hexblade's Curse, you can take a Reaction to reduce the damage taken by an amount equal to your Warlock level.","usages":null,"recovery":null},{"name":"Masterful Hex","level":14,"desc":"The power of your Hexblade's Curse increases, granting the following benefits. | Accursed Critical. Any attack roll you make against the target cursed by your Hexblade's Curse scores a Critical Hit on a roll of a 19 or 20 on the d20. | Explosive Hex. When you deal damage to the target cursed by your Hexblade's Curse, you can cause your curse to explode with sinister energy. The target and each creature of your choice in a 30-foot Emanation originating from the target take 3d6 Necrotic, Psychic, or Radiant damage (your choice), and their Speed is reduced by 10 feet until the start of your next turn. Once you use this benefit, you can't use it again until you finish a Long Rest unless you expend a Pact Magic slot (no action required) to restore your use of it. | Hex Restoration. You regain one expended use of Hexblade's Curse when you finish a Short Rest or use your Magical Cunning feature.","usages":null,"recovery":null}]},
   "wizard/conjuration": {"name":"Conjurer","source":"AU","features":[{"name":"Conjuration Savant","level":3,"desc":"Choose two Wizard spells from the Conjuration school, each of which must be no higher than level 2, and add them to your spellbook for free. In addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Conjuration school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.","usages":null,"recovery":null},{"name":"Benign Transposition","level":3,"desc":"As a Bonus Action, you teleport up to 30 feet to an unoccupied space that you can see. Alternatively, you can choose a space within range that is occupied by a Medium or smaller creature. If that creature is willing, you both teleport, swapping places. You can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.","usages":"int_mod","recovery":"long rest"},{"name":"Distant Transposition","level":6,"desc":"The range of your Benign Transposition feature increases to 60 feet. Additionally, you can restore one use of it by expending a level 3+ spell slot (no action required).","usages":null,"recovery":null},{"name":"Durable Summons","level":6,"desc":"When you cast a Conjuration spell to summon or create a creature using a spell slot, that creature gains Temporary Hit Points equal to twice your Wizard level when it first appears. While it has these Temporary Hit Points, the creature has Resistance to every damage type except Force, Necrotic, Psychic, and Radiant.","usages":null,"recovery":null},{"name":"Focused Conjuration","level":10,"desc":"Taking damage can't break your Concentration on Conjuration spells.","usages":null,"recovery":null},{"name":"Splintered Summons","level":14,"desc":"When you use a spell slot to cast a Conjuration spell that summons a spirit whose stat block is included in the spell description, such as Summon Aberration, you can modify the spell to summon two creatures with the spell instead of one. Each creature is of the same kind, uses the stat block and rules denoted by the spell, and manifests in a different unoccupied space of your choice within the spell's range, but the summoned creatures' Hit Point maximums and current Hit Points are halved. If you lose Concentration on the spell, both creatures disappear. Once you use this feature to modify a spell in this way, you must finish a Long Rest before you can do so again. You can also restore your use of it by expending a level 5+ spell slot (no action required).","usages":1,"recovery":"long rest"}]},
   "wizard/enchantment": {"name": "Enchanter", "source": "AU", "features": [{"name": "Enchantment Savant", "level": 3, "desc": "Choose two Wizard spells from the Enchantment school, each of which must be no higher than level 2, and add them to your spellbook for free. In addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Enchantment school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.", "usages": null, "recovery": null}, {"name": "Enchanting Conversationalist", "level": 3, "desc": "You gain proficiency in one of the following skills of your choice: Deception, Intimidation, or Persuasion. In addition, when you make an ability check with the chosen skill, you gain a bonus to the check equal to your Intelligence modifier (minimum of +1).", "usages": null, "recovery": null}, {"name": "Hypnotic Presence", "level": 3, "desc": "Your charming words and enchanting gaze can enthrall another creature. As a Magic action, choose one creature that you can see within 10 feet of yourself. If the target can see or hear you, it must succeed on a Wisdom saving throw against your spell save DC or have the Charmed condition for 1 minute or until the target is more than 10 feet away from you, the target can neither see nor hear you, or the target takes damage. While Charmed, the target has the Incapacitated condition and a Speed of 0. You can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.", "usages": "int_mod", "recovery": "long rest"}, {"name": "Split Enchantment", "level": 6, "desc": "When you use a spell slot to cast an Enchantment spell, such as Charm Person, that can be cast with a higher-level spell slot to target an additional creature, you can increase the spell's effective level by 1. You can use this feature a number of times equal to your Intelligence modifier, and you regain all expended uses when you finish a Long Rest.", "usages": "int_mod", "recovery": "long rest"}, {"name": "Instinctive Charm", "level": 10, "desc": "When a creature within 30 feet of you that you can see hits you with an attack roll, you can take a Reaction to force the attacker to make a Wisdom saving throw against your spell save DC. On a failed save, the attack misses instead, and if there is another creature within range of the attack other than the attacker, the attacker targets that creature with the triggering attack, using the same attack roll. If multiple creatures are within the attack's range, you choose which one to target. Once you take this Reaction, you can't do so again until you finish a Long Rest. You can also restore your use of it by casting an Enchantment spell with a spell slot.", "usages": 1, "recovery": "long rest"}, {"name": "Alter Memories", "level": 14, "desc": "You can make a creature unaware of your magical influence. When you cast an Enchantment spell that imposes the Charmed condition using a spell slot, you can choose one creature targeted by the spell. That creature remains unaware of being Charmed by you. In addition, once before the spell ends, you can take a Magic action to force the chosen creature to make an Intelligence saving throw against your spell save DC. On a failed save, you can make the creature lose a number of hours of its memories equal to 1 plus your Intelligence modifier (minimum of 1 hour lost). You can make the creature forget less time, and the amount of time can't exceed the duration of your Enchantment spell.", "usages": null, "recovery": null}]},
-    "wizard/necromancy": {"name": "Necromancer", "source": "AU", "features": [{"name": "Necromancy Savant", "level": 3, "desc": "Choose two Wizard spells from the Necromancy school, each of which must be no higher than level 2, and add them to your spellbook for free. In addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Necromancy school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.", "usages": null, "recovery": null}, {"name": "Necromancy Spellbook", "level": 3, "desc": "Your spellbook's necromantic secrets grant you additional powers. You gain the following benefits. | Necrotic Resistance. You have Resistance to Necrotic damage. | Undead Familiar. The Find Familiar spell appears in your spellbook. When you cast the spell, you choose one of the normal forms for your familiar or one of the following special forms: Skeleton or Zombie (see appendix B of the Player's Handbook for the familiar's stat block). When you choose one of the normal forms, you can choose Undead as its creature type. Additionally, when you take the Attack action, you can forgo one of your own attacks to allow your familiar to make one attack of its own with its Reaction. | Undead Vitality. When you cast a Necromancy spell using a spell slot, you can choose an Undead creature you can see within 60 feet of yourself to regain a number of Hit Points equal to the level of the spell slot expended plus your Wizard level.", "usages": null, "recovery": null}, {"name": "Grave Power", "level": 6, "desc": "You have discovered more necromantic insights and inscribed them in your spellbook. While holding your spellbook, you gain the following benefits. | Grave Resilience. When you use Arcane Recovery, your Exhaustion level, if any, decreases by 1. | Overwhelming Necrosis. Damage from your Wizard spells and Wizard features ignores Resistance to Necrotic damage.", "usages": null, "recovery": null}, {"name": "Undead Thralls", "level": 6, "desc": "You always have Animate Dead prepared and can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again. Whenever you start casting the spell, you can increase the spell's effective level by 1. In addition, while holding your spellbook, you gain the following benefits. | Undead Fortitude. Whenever you cast a Necromancy spell that creates or summons an Undead, the Undead's Hit Point maximum and current Hit Points increase by a number equal to your Intelligence modifier plus half your Wizard level (round down). | Withering Strike. Whenever an Undead you control within 60 feet of you hits a creature with an attack roll, the Undead deals extra Necrotic damage equal to your Intelligence modifier (minimum of 1 Necrotic damage).", "usages": null, "recovery": null}, {"name": "Harvest Undead", "level": 10, "desc": "You have learned more secrets about the nuances of life and death. Immediately after you become Bloodied but aren't reduced to 0 Hit Points from taking damage, you can take a Reaction to reduce an Undead creature under your control that you can see to 0 Hit Points. You then immediately regain a number of Hit Points equal to your Wizard level.", "usages": null, "recovery": null}, {"name": "Death's Master", "level": 14, "desc": "Abstruse rituals within your spellbook allow you mastery over undeath. While holding your spellbook, you gain the following benefits. | Bolster Undead. As a Bonus Action, choose any number of Undead you have created or summoned with a Necromancy spell that are within 60 feet of you. Those Undead each gain Temporary Hit Points equal to your Wizard level. Once you use this Bonus Action, you can't do so again until you finish a Long Rest. | Extinguish Undead. When an Undead creature you can see is reduced to 0 Hit Points, you can cause it to explode with necrotic energy. Roll a number of d6s equal to half the creature's unexpended Hit Dice (round up, minimum of 1d6), and add them together. Each creature in a 10-foot Emanation originating from the Undead makes a Dexterity saving throw. On a failed save, a target takes Necrotic damage equal to the number rolled and can't take Reactions until the start of its next turn. On a successful save, a target takes half as much damage only. When you use this feature to explode an Undead creature you don't control, you must take a Reaction and expend a level 5+ spell slot to do so.", "usages": null, "recovery": null}]},
+    "wizard/necromancy": {"name": "Necromancer", "source": "AU", "features": [{"name": "Necromancy Savant", "level": 3, "desc": "Choose two Wizard spells from the Necromancy school, each of which must be no higher than level 2, and add them to your spellbook for free. In addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Necromancy school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.", "usages": null, "recovery": null}, {"name": "Necromancy Spellbook", "level": 3, "desc": "Your spellbook's necromantic secrets grant you additional powers. You gain the following benefits. | Necrotic Resistance. You have Resistance to Necrotic damage. | Undead Familiar. The Find Familiar spell appears in your spellbook. When you cast the spell, you choose one of the normal forms for your familiar or one of the following special forms: Skeleton or Zombie (see appendix B of the Player's Handbook for the familiar's stat block). When you choose one of the normal forms, you can choose Undead as its creature type. Additionally, when you take the Attack action, you can forgo one of your own attacks to allow your familiar to make one attack of its own with its Reaction. | Undead Vitality. When you cast a Necromancy spell using a spell slot, you can choose an Undead creature you can see within 60 feet of yourself to regain a number of Hit Points equal to the level of the spell slot expended plus your Wizard level.", "usages": null, "recovery": null}, {"name": "Grave Power", "level": 6, "desc": "You have discovered more necromantic insights and inscribed them in your spellbook. While holding your spellbook, you gain the following benefits. | Grave Resilience. When you use Arcane Recovery, your Exhaustion level, if any, decreases by 1. | Overwhelming Necrosis. Damage from your Wizard spells and Wizard features ignores Resistance to Necrotic damage.", "usages": null, "recovery": null}, {"name": "Undead Thralls", "level": 6, "desc": "You always have Animate Dead prepared and can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again. Whenever you start casting the spell, you can increase the spell's effective level by 1. In addition, while holding your spellbook, you gain the following benefits. | Undead Fortitude. Whenever you cast a Necromancy spell that creates or summons an Undead, the Undead's Hit Point maximum and current Hit Points increase by a number equal to your Intelligence modifier plus half your Wizard level (round down). | Withering Strike. Whenever an Undead you control within 60 feet of you hits a creature with an attack roll, the Undead deals extra Necrotic damage equal to your Intelligence modifier (minimum of 1 Necrotic damage).", "usages": 1, "recovery": "long rest"}, {"name": "Harvest Undead", "level": 10, "desc": "You have learned more secrets about the nuances of life and death. Immediately after you become Bloodied but aren't reduced to 0 Hit Points from taking damage, you can take a Reaction to reduce an Undead creature under your control that you can see to 0 Hit Points. You then immediately regain a number of Hit Points equal to your Wizard level.", "usages": null, "recovery": null}, {"name": "Death's Master", "level": 14, "desc": "Abstruse rituals within your spellbook allow you mastery over undeath. While holding your spellbook, you gain the following benefits. | Bolster Undead. As a Bonus Action, choose any number of Undead you have created or summoned with a Necromancy spell that are within 60 feet of you. Those Undead each gain Temporary Hit Points equal to your Wizard level. Once you use this Bonus Action, you can't do so again until you finish a Long Rest.", "usages": 1, "recovery": "long rest"}, {"name": "Extinguish Undead", "level": 14, "desc": "When an Undead creature you can see is reduced to 0 Hit Points, you can cause it to explode with necrotic energy. Roll a number of d6s equal to half the creature's unexpended Hit Dice (round up, minimum of 1d6), and add them together. Each creature in a 10-foot Emanation originating from the Undead makes a Dexterity saving throw. On a failed save, a target takes Necrotic damage equal to the number rolled and can't take Reactions until the start of its next turn. On a successful save, a target takes half as much damage only. When you use this feature to explode an Undead creature you don't control, you must take a Reaction and expend a level 5+ spell slot to do so.", "usages": null, "recovery": null}]},
   "wizard/transmutation": {"name": "Transmuter", "source": "AU", "features": [{"name": "Transmutation Savant", "level": 3, "desc": "Choose two Wizard spells from the Transmutation school, each of which must be no higher than level 2, and add them to your spellbook for free. In addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Transmutation school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.", "usages": null, "recovery": null}, {"name": "Transmuter's Stone", "level": 3, "desc": "When you finish a Long Rest, you can create a magic stone that lasts until you use this feature again. The stone is a Tiny object, and you can use it as a Spellcasting Focus for your Wizard spells. A creature with the stone in its possession gains proficiency in Constitution saving throws and one of the following benefits, which you choose when you create the stone. You can change the stone's benefit when you cast a Transmutation spell using a spell slot. | Darkvision. The bearer gains Darkvision with a range of 60 feet or increases the range of its Darkvision by 60 feet. | Resistance. The bearer gains Resistance to Acid, Cold, Fire, Lightning, Poison, or Thunder damage (your choice each time you choose this benefit). | Speed. The bearer's Speed increases by 10 feet.", "usages": null, "recovery": null}, {"name": "Wondrous Alteration", "level": 3, "desc": "You always have the Alter Self spell prepared and can cast it once without expending a spell slot. You regain the ability to cast it in this way when you finish a Long Rest. While under the effects of Alter Self, you gain an additional benefit for each of its options. | Aquatic Adaptation. While underwater, you can take the Dash action as a Bonus Action. | Change Appearance. You have Advantage on Charisma (Deception) checks. | Natural Weapons. The damage of your new growth increases to 2d6 damage of the type associated with the growth. You also have Advantage on Constitution saving throws to maintain Concentration.", "usages": 1, "recovery": "long rest"}, {"name": "Empowered Transmutation", "level": 6, "desc": "When you use a spell slot to cast a Transmutation spell that doesn't make an attack roll or force a saving throw, such as Fly or Magic Weapon, you can increase the spell's effective level by 1. You can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.", "usages": "int_mod", "recovery": "long rest"}, {"name": "Potent Stone", "level": 10, "desc": "Your Transmuter's Stone is more versatile. When you create your Transmuter's Stone, you can choose up to two benefits. You can choose each option other than Resistance only once. If you choose Resistance twice, you must choose different damage types. You can change either or both benefits when you cast a Transmutation spell using a spell slot.", "usages": null, "recovery": null}, {"name": "Shape-Shifter", "level": 10, "desc": "You always have the Polymorph spell prepared and can cast it once without expending a spell slot. You regain the ability to cast it in this way when you finish a Long Rest. In addition, when you target yourself with the spell, you can modify the spell to gain the benefits below. Once you modify the spell using this feature, you can't do so again until you finish a Long Rest. | Game Statistics. In addition to retaining the features specified in the spell, you retain your memories and ability to communicate. You also retain your Intelligence, Wisdom, and Charisma scores; proficiencies; class features; and feats. | Transmute Spells. While shape-shifted, you can cast spells, but only Transmutation spells that don't have a Material component that has a specified cost or that is consumed by the spell.", "usages": 1, "recovery": "long rest"}, {"name": "Master Transmuter", "level": 14, "desc": "While you carry your Transmuter's Stone, you can take a Magic action to consume the reserve of transmutation magic stored inside and choose one of the following benefits. After you use the stone in this way, it crumbles to dust. You can prevent the stone from crumbling by expending a level 7+ spell slot as part of the Magic action you take using this feature. | Major Transformation. You can transmute one nonmagical object—no larger than a 10-foot Cube or eight connected 5-foot Cubes—into another nonmagical object of similar size and mass and of equal or lesser value. You must spend 10 minutes handling the object to transform it. | Panacea. You touch a creature as part of this Magic action, and the target regains a number of Hit Points equal to half its Hit Point maximum (round down). The target is cured of all magical contagions, and any curses affecting the target are lifted, including the target's Attunement to a cursed item. If the target has the Poisoned or Petrified conditions, those conditions end. | Restore Life. You cast the Raise Dead spell without expending a spell slot, using the stone in place of the required Material components. | Restore Youth. You touch one willing creature as part of this Magic action, and the target's Exhaustion level, if any, decreases to 0 and it permanently appears 3d10 years younger, to a minimum of young adulthood.", "usages": null, "recovery": null}]},
   "barbarian/path of lament": {"name":"Path of Lament","source":"UA26V","features":[{"name":"Banshee's Wail","level":3,"desc":"When you activate your Rage or as a Bonus Action while your Rage is active, you can let out a doleful wail. Each creature of your choice in a 30-foot Emanation originating from you makes a Constitution saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus). On a failed save, a creature takes Psychic damage and has the Deafened condition for 1 minute. On a successful save, a creature takes half as much damage only. To determine the Psychic damage, roll a number of d12s equal to your Rage Damage bonus, and add them together. You can use this feature a number of times equal to your Constitution modifier (minimum of once). You regain all expended uses when you finish a Long Rest. You can also regain all uses by expending a use of your Rage (no action required).","usages":"con_mod","recovery":"long rest"},{"name":"Commune with the Dead","level":6,"desc":"You can cast the Speak with Dead spell but only as a Ritual. Wisdom is your spellcasting ability for it.","usages":null,"recovery":null},{"name":"Horrifying Strike","level":6,"desc":"Once per turn when you hit a creature with a Strength-based attack roll while your Rage is active, you can attempt to horrify the target. The target must succeed on a Wisdom saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus) or have the Frightened condition until the start of your next turn.","usages":null,"recovery":null},{"name":"Otherworldly Anguish","level":10,"desc":"You draw power from a sorrow so deep it extends beyond the boundaries of the realm of the living. You gain the following benefits. | Deathly Wail. If a target fails its saving throw against your Banshee's Wail and it has Hit Points equal to twice your Barbarian level or fewer, it drops to 0 Hit Points instead of taking damage. | Impenetrable Sorrow. You can't be possessed. | Resistance. You have Resistance to Cold and Necrotic damage while your Rage is active.","usages":null,"recovery":null},{"name":"Sorrow Form","level":14,"desc":"When you activate your Rage, you can empower yourself with undeath. You gain the benefits below for 1 minute or until you drop to 0 Hit Points. Once you use this feature, you can't do so again until you finish a Long Rest. | Immunities. You have Immunity to the Charmed and Frightened conditions. If you're Charmed or Frightened when you empower yourself, the condition ends on you. In addition, you can't gain Exhaustion levels. | Life-Draining Strike. When a creature fails its saving throw against your Horrifying Strike, the creature takes 2d10 Necrotic damage. You regain Hit Points equal to the Necrotic damage dealt. | Undead. Your creature type is Undead.","usages":1,"recovery":"long rest"}]},
   "monk/warrior of venom": {"name":"Warrior of Venom","source":"UA26V","features":[{"name":"Envenom Weapon","level":3,"desc":"At the start of your turn, you can expend 1 Focus Point to apply a toxin produced from your blood to one Monk weapon that you're holding. A creature that takes damage from the weapon is subjected to one of the following toxin effects (choose when you apply the toxin): | Slowing Toxin. Until the start of your next turn, the target's Speed is halved; it can't take Reactions; and it can take either an action or a Bonus Action on its turn, not both. | Venom. The target takes Poison damage equal to two rolls of your Martial Arts die. The toxin retains potency for 1 minute or until a creature takes damage from the weapon.","usages":null,"recovery":null},{"name":"Potent Arsenal","level":3,"desc":"You gain a Poisoner's Kit, and you have proficiency with it. When creating a Basic Poison, you can do so over the course of 1 day (8 hours of work). Additionally, whenever you deal Poison damage with a Monk feature or a Monk weapon, you can change that damage type to Acid.","usages":null,"recovery":null},{"name":"Toxic Touch","level":6,"desc":"As a Magic action, you can expend 1 Focus Point to apply a potent toxin to a creature you touch. The target makes a Constitution saving throw. On a failed save, the target has the Poisoned condition for 1 minute. While Poisoned, the target is affected by one of the following effects of your choice: | Intoxicant. The target has the Charmed condition for the duration or until you or your allies deal damage to the target. | Sedative. The creature falls asleep and has the Unconscious condition for the duration. Another creature can use an action to shake it awake and remove the condition. | Truth Serum. The target can't knowingly communicate a lie for the duration.","usages":null,"recovery":null},{"name":"Toxin Refiner","level":11,"desc":"Your body can filter poison. You gain Immunity to Poison damage. Whenever you are subjected to Poison damage, your Envenom Weapon options each deal extra Poison damage equal to one roll of your Martial Arts die, and you can't gain this benefit again until the end of your next turn. In addition, whenever you ingest a poison, you regain a number of Hit Points equal to one roll of your Martial Arts die.","usages":null,"recovery":null},{"name":"Toxic Blood","level":11,"desc":"Enemies draw your toxic blood at their own peril. Whenever a creature hits you with a melee attack roll, the attacker takes 1d6 Poison damage. If you are Bloodied, the attacker instead takes Poison damage equal to one roll of your Martial Arts die.","usages":null,"recovery":null},{"name":"Hallucinogenic Breath","level":17,"desc":"When you take the Attack action on your turn, you can expend 2 Focus Points and replace one of your attacks with an exhalation of hallucinogenic vapors at one creature you can see within 30 feet. The target must make a Constitution saving throw. On a failed save, the target takes Poison damage equal to three rolls of your Martial Arts die and has the Frightened condition for 1 minute or until the target takes damage. While Frightened, the target takes the Dash action and moves away from you by the safest route on each of its turns unless there is nowhere to move. On a successful save, a creature takes half as much damage only.","usages":null,"recovery":null}]},
@@ -19319,6 +19353,314 @@ const COMPANION_DEFS = {
           }
         ]
       }
+    ]
+  },
+
+  "generic/find_familiar": {
+    tabLabel: "Familiar",
+    choiceGroup: "find_familiar_generic",
+    note: "Find Familiar. You choose one of the normal familiar forms below.",
+    companions: [
+      
+      {
+        id: "familiar_baboon_ff", name: "Baboon", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Small", alignment: "Unaligned",
+        speed: "30 ft, Climb 30 ft", senses: "passive Perception 11",
+        languages: "-",
+        scores: { str:8, dex:14, con:11, int:4, wis:12, cha:6 },
+        ac: 12, hp: 3,
+        traits: ["Pack Tactics: Has Advantage on an attack roll against a creature if at least one of the baboon's allies is within 5 feet of the creature and the ally doesn't have the Incapacitated condition."],
+        attacks: [{ name: "Bite", atkBonus: 1, dmg: "1 (1d4 - 1)", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_badger_ff", name: "Badger", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "20 ft, Burrow 5 ft", senses: "Darkvision 30 ft, passive Perception 13",
+        languages: "-",
+        skills: { perception: 3 },
+        scores: { str:10, dex:11, con:16, int:2, wis:12, cha:5 },
+        ac: 11, hp: 5,
+        resistances: "Poison",
+        attacks: [{ name: "Bite", atkBonus: 2, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_bat_ff", name: "Bat", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "5 ft, Fly 30 ft", senses: "Blindsight 60 ft, passive Perception 11",
+        languages: "-",
+        scores: { str:2, dex:15, con:8, int:2, wis:12, cha:4 },
+        ac: 12, hp: 1,
+        attacks: [{ name: "Bite", atkBonus: 4, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_cat_ff", name: "Cat", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "40 ft, Climb 40 ft", senses: "Darkvision 60 ft, passive Perception 13",
+        languages: "-",
+        skills: { perception: 3, stealth: 4 },
+        scores: { str:3, dex:15, con:10, int:3, wis:12, cha:7 },
+        ac: 12, hp: 2,
+        traits: ["Jumper: The cat's jump distance is determined using its Dexterity rather than its Strength."],
+        attacks: [{ name: "Scratch", atkBonus: 4, dmg: "1", dmgType: "Slashing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_crab_ff", name: "Crab", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "20 ft, Swim 20 ft", senses: "Blindsight 30 ft, passive Perception 9",
+        languages: "-",
+        skills: { stealth: 2 },
+        scores: { str:6, dex:11, con:12, int:1, wis:8, cha:2 },
+        ac: 11, hp: 3,
+        traits: ["Amphibious: The crab can breathe air and water."],
+        attacks: [{ name: "Claw", atkBonus: 2, dmg: "1", dmgType: "Bludgeoning", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_deer_ff", name: "Deer", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Medium", alignment: "Unaligned",
+        speed: "50 ft", senses: "Darkvision 60 ft, passive Perception 14",
+        languages: "-",
+        skills: { perception: 4 },
+        scores: { str:11, dex:16, con:11, int:2, wis:14, cha:5 },
+        ac: 13, hp: 4,
+        traits: ["Agile: The deer doesn't provoke an Opportunity Attack when it moves out of an enemy's reach."],
+        attacks: [{ name: "Ram", atkBonus: 2, dmg: "2 (1d4)", dmgType: "Bludgeoning", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_eagle_ff", name: "Eagle", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Small", alignment: "Unaligned",
+        speed: "10 ft, Fly 60 ft", senses: "passive Perception 16",
+        languages: "-",
+        skills: { perception: 6 },
+        scores: { str:6, dex:15, con:12, int:2, wis:14, cha:7 },
+        ac: 12, hp: 4,
+        attacks: [{ name: "Talons", atkBonus: 4, dmg: "4 (1d4 + 2)", dmgType: "Slashing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_frog_ff", name: "Frog", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "20 ft, Swim 20 ft", senses: "Darkvision 30 ft, passive Perception 11",
+        languages: "-",
+        skills: { perception: 1, stealth: 3 },
+        scores: { str:1, dex:13, con:8, int:1, wis:8, cha:3 },
+        ac: 11, hp: 1,
+        traits: ["Amphibious: The frog can breathe air and water.", "Standing Leap: The frog's Long Jump is up to 10 feet and its High Jump is up to 5 feet with or without a running start."],
+        attacks: [{ name: "Bite", atkBonus: 3, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_giant_fire_beetle_ff", name: "Giant Fire Beetle", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Small", alignment: "Unaligned",
+        speed: "30 ft, Climb 30 ft", senses: "Blindsight 30 ft, passive Perception 8",
+        languages: "-",
+        scores: { str:8, dex:10, con:12, int:1, wis:7, cha:3 },
+        ac: 13, hp: 4,
+        resistances: "Fire",
+        traits: ["Illumination: The beetle sheds Bright Light in a 10-foot radius and Dim Light for an additional 10 feet."],
+        attacks: [{ name: "Bite", atkBonus: 1, dmg: "1", dmgType: "Fire", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_giant_fly_ff", name: "Giant Fly", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Large", alignment: "Unaligned",
+        speed: "30 ft, Fly 60 ft", senses: "Darkvision 60 ft, passive Perception 10",
+        languages: "-",
+        scores: { str:14, dex:13, con:13, int:2, wis:10, cha:3 },
+        ac: 11, hp: 19,
+        attacks: []
+      },
+      {
+        id: "familiar_gazer_ff", name: "Gazer", choosable: true, choiceGroup: "find_familiar_generic", minLevel: 3,
+        type: "Aberration (Beholder)", size: "Tiny", alignment: "Typically Neutral Evil",
+        speed: "0 ft, Fly 30 ft (hover)", senses: "Darkvision 60 ft, passive Perception 14",
+        languages: "-", skills: { perception: 4, stealth: 5 },
+        scores: { str:3, dex:17, con:14, int:3, wis:10, cha:7 },
+        ac: 13, hp: 13,
+        conditionImmunities: "Prone",
+        traits: [
+          "Mimicry: The gazer can mimic simple sounds of speech it has heard, in any language. A creature that hears the sounds can tell they are imitations with a successful DC 10 Wisdom (Insight) check.",
+          "Familiar (Variant): I must be at least a 3rd-level spellcaster for the gazer to serve as my familiar, forming a telepathic bond with me as its willing master. While bonded, I can sense what the gazer senses as long as we're within 1 mile of each other. If I cause it physical harm, the gazer ends its service as a familiar, breaking the bond."
+        ],
+        actions: [
+          "Eye Rays: The gazer shoots two of the following magical eye rays at random (roll two d4s, reroll duplicates), choosing one or two targets it can see within 60 feet of it - 1: Dazing Ray (DC 12 Wisdom save or Charmed until the start of the gazer's next turn, halved speed and disadvantage on attack rolls while Charmed), 2: Fear Ray (DC 12 Wisdom save or Frightened until the start of the gazer's next turn), 3: Frost Ray (DC 12 Dexterity save or 10 (3d6) Cold damage), 4: Telekinetic Ray (a Medium or smaller creature makes a DC 12 Strength save or is moved up to 30 feet directly away from the gazer; a Tiny unattended object is moved up to 30 feet in any direction and can be finely manipulated)."
+        ],
+        attacks: [{ name: "Bite", atkBonus: 5, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_goat_ff", name: "Goat", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Medium", alignment: "Unaligned",
+        speed: "40 ft, Climb 30 ft", senses: "Darkvision 60 ft, passive Perception 12",
+        languages: "-",
+        skills: { perception: 2 },
+        scores: { str:11, dex:10, con:11, int:2, wis:10, cha:5 },
+        ac: 10, hp: 4,
+        attacks: [{ name: "Ram", atkBonus: 2, dmg: "1", dmgType: "Bludgeoning", range: "Melee (5 ft)", notes: "2 (1d4) Bludgeoning damage instead if the goat moved 20+ feet straight toward the target immediately before the hit" }]
+      },
+      {
+        id: "familiar_hawk_ff", name: "Hawk", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "10 ft, Fly 60 ft", senses: "passive Perception 16",
+        languages: "-",
+        skills: { perception: 6 },
+        scores: { str:5, dex:16, con:8, int:2, wis:14, cha:6 },
+        ac: 13, hp: 1,
+        attacks: [{ name: "Talons", atkBonus: 5, dmg: "1", dmgType: "Slashing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_hyena_ff", name: "Hyena", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Medium", alignment: "Unaligned",
+        speed: "50 ft", senses: "Darkvision 60 ft, passive Perception 13",
+        languages: "-",
+        skills: { perception: 3 },
+        scores: { str:11, dex:13, con:12, int:2, wis:12, cha:5 },
+        ac: 11, hp: 5,
+        traits: ["Pack Tactics: Has Advantage on an attack roll against a creature if at least one of the hyena's allies is within 5 feet of the creature and the ally doesn't have the Incapacitated condition."],
+        attacks: [{ name: "Bite", atkBonus: 2, dmg: "3 (1d6)", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_jackal_ff", name: "Jackal", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Small", alignment: "Unaligned",
+        speed: "40 ft", senses: "Darkvision 90 ft, passive Perception 15",
+        languages: "-",
+        skills: { perception: 5, stealth: 4 },
+        scores: { str:8, dex:15, con:11, int:3, wis:12, cha:6 },
+        ac: 12, hp: 3,
+        attacks: [{ name: "Bite", atkBonus: 1, dmg: "1 (1d4 - 1)", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_lizard_ff", name: "Lizard", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "20 ft, Climb 20 ft", senses: "Darkvision 30 ft, passive Perception 9",
+        languages: "-",
+        scores: { str:2, dex:11, con:10, int:1, wis:8, cha:3 },
+        ac: 10, hp: 2,
+        traits: ["Spider Climb: The lizard can climb difficult surfaces, including along ceilings, without needing to make an ability check."],
+        attacks: [{ name: "Bite", atkBonus: 2, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_octopus_ff", name: "Octopus", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Small", alignment: "Unaligned",
+        speed: "5 ft, Swim 30 ft", senses: "Darkvision 30 ft, passive Perception 12",
+        languages: "-",
+        skills: { perception: 2, stealth: 6 },
+        scores: { str:4, dex:15, con:11, int:3, wis:10, cha:4 },
+        ac: 12, hp: 3,
+        traits: ["Compression: The octopus can move through a space as narrow as 1 inch without expending extra movement to do so.", "Water Breathing: The octopus can breathe only underwater."],
+        attacks: [{ name: "Tentacles", atkBonus: 4, dmg: "1", dmgType: "Bludgeoning", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_owl_ff", name: "Owl", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "5 ft, Fly 60 ft", senses: "Darkvision 120 ft, passive Perception 15",
+        languages: "-",
+        skills: { perception: 5, stealth: 5 },
+        scores: { str:3, dex:13, con:8, int:2, wis:12, cha:7 },
+        ac: 11, hp: 1,
+        traits: ["Flyby: The owl doesn't provoke Opportunity Attacks when it flies out of an enemy's reach."],
+        attacks: [{ name: "Talons", atkBonus: 3, dmg: "1", dmgType: "Slashing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_piranha_ff", name: "Piranha", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "5 ft, Swim 40 ft", senses: "Darkvision 60 ft, passive Perception 8",
+        languages: "-",
+        scores: { str:2, dex:16, con:9, int:1, wis:7, cha:2 },
+        ac: 13, hp: 1,
+        traits: ["Water Breathing: The piranha can breathe only underwater."],
+        attacks: [{ name: "Bite", atkBonus: 5, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "Advantage on the attack roll if the target doesn't have all its Hit Points" }]
+      },
+      {
+        id: "familiar_rat_ff", name: "Rat", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "20 ft, Climb 20 ft", senses: "Darkvision 30 ft, passive Perception 12",
+        languages: "-",
+        skills: { perception: 2 },
+        scores: { str:2, dex:11, con:9, int:2, wis:10, cha:4 },
+        ac: 10, hp: 1,
+        traits: ["Agile: The rat doesn't provoke Opportunity Attacks when it moves out of an enemy's reach."],
+        attacks: [{ name: "Bite", atkBonus: 2, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_raven_ff", name: "Raven", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "10 ft, Fly 50 ft", senses: "passive Perception 13",
+        languages: "-",
+        skills: { perception: 3 },
+        scores: { str:2, dex:14, con:10, int:5, wis:13, cha:6 },
+        ac: 12, hp: 2,
+        traits: ["Mimicry: The raven can mimic simple sounds it has heard, such as a whisper or chitter. A hearer can discern the sounds are imitations with a successful DC 10 Wisdom (Insight) check."],
+        attacks: [{ name: "Beak", atkBonus: 4, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_scorpion_ff", name: "Scorpion", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "10 ft", senses: "Blindsight 10 ft, passive Perception 9",
+        languages: "-",
+        scores: { str:2, dex:11, con:8, int:1, wis:8, cha:2 },
+        ac: 11, hp: 1,
+        attacks: [{ name: "Sting", atkBonus: 2, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "Plus 3 (1d6) Poison damage" }]
+      },
+      {
+        id: "familiar_seahorse_ff", name: "Seahorse", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "5 ft, Swim 20 ft", senses: "passive Perception 12",
+        languages: "-",
+        skills: { perception: 2, stealth: 5 },
+        scores: { str:1, dex:12, con:8, int:1, wis:10, cha:2 },
+        ac: 12, hp: 1,
+        traits: ["Water Breathing: The seahorse can breathe only underwater."],
+        attacks: []
+      },
+      {
+        id: "familiar_space_guppy_ff", name: "Space Guppy", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Small", alignment: "Unaligned",
+        speed: "0 ft, Fly 30 ft", senses: "Darkvision 60 ft, passive Perception 10",
+        languages: "-",
+        scores: { str:3, dex:16, con:10, int:1, wis:10, cha:1 },
+        ac: 13, hp: 3,
+        traits: ["Air Envelope: If it has at least 1 Hit Point, the guppy can generate an air envelope around itself when in a vacuum. This air envelope can sustain the guppy and one other Tiny creature in its space indefinitely.", "Flyby: The guppy doesn't provoke Opportunity Attacks when it flies out of an enemy's reach."],
+        attacks: [{ name: "Tail Slap", atkBonus: 5, dmg: "1", dmgType: "Bludgeoning", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_space_mollymawk_ff", name: "Space Mollymawk", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Small", alignment: "Unaligned",
+        speed: "10 ft, Fly 50 ft", senses: "passive Perception 15",
+        languages: "-",
+        skills: { perception: 5 },
+        scores: { str:6, dex:14, con:11, int:3, wis:12, cha:3 },
+        ac: 12, hp: 3,
+        traits: ["Flyby: The mollymawk doesn't provoke Opportunity Attacks when it flies out of an enemy's reach.", "Hold Breath: The mollymawk can hold its breath for 15 minutes."],
+        attacks: [{ name: "Bite", atkBonus: 4, dmg: "4 (1d4 + 2)", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_spider_ff", name: "Spider", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "20 ft, Climb 20 ft", senses: "Darkvision 30 ft, passive Perception 10",
+        languages: "-",
+        skills: { stealth: 4 },
+        scores: { str:2, dex:14, con:8, int:1, wis:10, cha:2 },
+        ac: 12, hp: 1,
+        traits: ["Spider Climb: The spider can climb difficult surfaces, including along ceilings, without needing to make an ability check.", "Web Walker: The spider ignores movement restrictions caused by webs, and it knows the location of any other creature in contact with the same web."],
+        attacks: [{ name: "Bite", atkBonus: 4, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "Plus 2 (1d4) Poison damage" }]
+      },
+      {
+        id: "familiar_vulture_ff", name: "Vulture", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Medium", alignment: "Unaligned",
+        speed: "10 ft, Fly 50 ft", senses: "passive Perception 13",
+        languages: "-",
+        skills: { perception: 3 },
+        scores: { str:7, dex:10, con:13, int:2, wis:12, cha:4 },
+        ac: 10, hp: 5,
+        traits: ["Pack Tactics: Has Advantage on an attack roll against a creature if at least one of the vulture's allies is within 5 feet of the creature and the ally doesn't have the Incapacitated condition."],
+        attacks: [{ name: "Beak", atkBonus: 2, dmg: "2 (1d4)", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
+      {
+        id: "familiar_weasel_ff", name: "Weasel", choosable: true, choiceGroup: "find_familiar_generic",
+        type: "Beast", size: "Tiny", alignment: "Unaligned",
+        speed: "30 ft, Climb 30 ft", senses: "Darkvision 60 ft, passive Perception 13",
+        languages: "-",
+        skills: { acrobatics: 5, perception: 3, stealth: 5 },
+        scores: { str:3, dex:16, con:8, int:2, wis:12, cha:3 },
+        ac: 13, hp: 1,
+        attacks: [{ name: "Bite", atkBonus: 5, dmg: "1", dmgType: "Piercing", range: "Melee (5 ft)", notes: "" }]
+      },
     ]
   },
 
@@ -56282,6 +56624,19 @@ function getActiveCompanionDef() {
       }
     }
   }
+
+  // Generic fallback: any caster who simply knows the Find Familiar spell
+  // (a plain Wizard/Druid/Warlock with no subclass or invocation that
+  // otherwise grants a familiar) still has a real familiar once they cast
+  // it — this is the standalone Player's Handbook beast list, not tied to
+  // any subclass benefit. Only reached if none of the more specific
+  // sources above already matched, so a Necromancer/Pact of the Chain
+  // character keeps using their own richer entry instead.
+  if (typeof isSpellKnownOrPrepared === 'function' && isSpellKnownOrPrepared('find_familiar')) {
+    const casterEntry = classes.find(e => CLASS_SPELL_ABILITY[(e.class||'').toLowerCase().trim()]) || classes[0] || { class: '', levels: [] };
+    return { subKey: 'generic/find_familiar', def: COMPANION_DEFS['generic/find_familiar'], classEntry: casterEntry };
+  }
+
   return null;
 }
 
@@ -56301,11 +56656,230 @@ function updateCompanionTabVisibility() {
   }
 }
 
+// ── Battle Familiar (spell) — Companion tab integration ───────────
+// RAW: "If you have a familiar from the Find Familiar spell when you
+// cast this spell, you empower your existing familiar rather than
+// conjuring a new one. For the duration, your familiar can attack in
+// addition to taking other actions as normal, and your familiar's game
+// statistics are replaced by the Battle Familiar stat block, but it
+// retains its creature type, alignment, Hit Points, Hit Point Dice, and
+// any features granted by the Find Familiar spell. Your familiar gains
+// a number of Temporary Hit Points equal to the Hit Points of the
+// battle familiar... Your familiar reverts to its previous form when
+// Battle Familiar ends." (1 hour duration, no Concentration.)
+//
+// SUMMON_SPELL_DEFS.battle_familiar already models this spell for the
+// separate Summon-spell conjure-a-fresh-creature case, but that object's
+// attacks use the Summon system's own `bonus:null → spell attack mod`
+// convention, not the Companion tab's `atkFormula(oMod, strMod, prof)`
+// convention — so this is a second, Companion-tab-shaped object rather
+// than a reused reference. The NUMBERS are kept identical on purpose
+// (13+lv Brute AC / 11+lv other forms, HP (30 or 20)+(lv-2)*5, Rend
+// 1d8+3+lv Force, multiattack floor(lv/2)) so the two never drift apart
+// even though they're separate objects — if the stat block ever changes,
+// both need updating together.
+const BATTLE_FAMILIAR_STATBLOCK = {
+  forms: ['Brute', 'Flyer', 'Stalker'],
+  size: 'Medium',
+  scores: { str: 16, dex: 16, con: 12, int: 8, wis: 13, cha: 10 },
+  conditionImmunities: 'Charmed, Frightened',
+  senses: 'Darkvision 60 ft, passive Perception 11',
+  languages: 'Understands the languages you know',
+  ac: (lv, form) => (form === 'Brute' ? 13 : 11) + lv,
+  hp: (lv, form) => (form === 'Brute' ? 30 : 20) + (lv - 2) * 5,
+  speed: form => `40 ft, Swim 30 ft${form === 'Flyer' ? ', Fly 30 ft (hover)' : ''}`,
+  traits: (lv, form) => {
+    const t = [`Talented: Add half the spell's level (round down, ${Math.floor(lv/2)}) to any ability check or saving throw the familiar makes.`];
+    if (form === 'Flyer') t.unshift(`Flyby: Doesn't provoke an Opportunity Attack when it flies out of an enemy's reach.`);
+    if (form === 'Stalker') t.push(`Prowl (replaces one Rend in its Multiattack): Moves up to half its Speed without provoking Opportunity Attacks, then can take the Hide action.`);
+    return t;
+  },
+  attacks: lv => {
+    const n = Math.max(1, Math.floor(lv / 2));
+    return [{
+      name: n > 1 ? `Rend (×${n}, Multiattack)` : 'Rend',
+      atkFormula: (oMod, strMod, prof) => oMod + prof,
+      dmg: '1d8', dmgBonus: (oMod, strMod, prof) => 3 + lv, dmgType: 'Force',
+      range: 'Melee (5 ft)', notes: 'Attack bonus equals your spell attack modifier',
+    }];
+  },
+};
+
+// Only genuine Find Familiar sources qualify — Steel Defender, Reanimated
+// Companion, Beast Master's beast, etc. are not familiars from Find
+// Familiar and the spell's text doesn't apply to them.
+const BATTLE_FAMILIAR_ELIGIBLE_SUBKEYS = ['wizard/necromancy', 'warlock/pact_of_the_chain', 'generic/find_familiar'];
+
+// Returns the saved featDetail object ({spellAbility, familiarDamageType,
+// asi, ...}) for a taken feat matched by name (case-insensitive, ignoring
+// a trailing "[Origin]"/"[General]" tag), or null if the character
+// doesn't have that feat. Used to check for and apply Find Familiar's
+// related feats (Familiar Friend, Elemental/Otherworldly/Soothing
+// Familiar) to whichever familiar the Companion tab is showing.
+function getTakenFeatDetail(featName) {
+  if (!currentChar) return null;
+  const target = featName.toLowerCase().trim();
+  const decisions = typeof getFeatSlotDecisions === 'function' ? getFeatSlotDecisions() : {};
+  for (const dec of Object.values(decisions)) {
+    const chosen = (dec.feat || '').toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
+    if (chosen === target) return dec.featDetail || {};
+  }
+  return null;
+}
+
+function getBattleFamiliarMaxSlotLevel() {
+  if (!currentChar) return 0;
+  const slots = typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(currentChar) : { levels: [], warlock: null };
+  let max = 0;
+  (slots.levels || []).forEach(l => { if (l.max > 0 && l.level >= 2) max = Math.max(max, l.level); });
+  if (slots.warlock && slots.warlock.max > 0 && slots.warlock.slotLevel >= 2) max = Math.max(max, slots.warlock.slotLevel);
+  return max;
+}
+
+// Finds and marks used the first free slot pip at exactly `level` —
+// checks the Warlock Pact Magic pool first (since a Warlock's slots are
+// all fixed at one level, not a per-level choice), then the combined
+// non-Warlock pool. Returns true if a slot was actually spent.
+function spendSpellSlotForBattleFamiliar(level) {
+  if (!currentChar) return false;
+  const slots = computeSpellSlotsForChar(currentChar);
+  if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
+  if (slots.warlock && slots.warlock.slotLevel === level && slots.warlock.used < slots.warlock.max) {
+    for (let i = 0; i < slots.warlock.max; i++) {
+      if (!currentChar.spell_slots_used[`slot_${level}_${i}`]) {
+        currentChar.spell_slots_used[`slot_${level}_${i}`] = true;
+        return true;
+      }
+    }
+  }
+  const lvl = (slots.levels || []).find(l => l.level === level);
+  if (lvl && lvl.used < lvl.max) {
+    for (let i = 0; i < lvl.max; i++) {
+      if (!currentChar.spell_slots_used[`slot_${level}_${i}`]) {
+        currentChar.spell_slots_used[`slot_${level}_${i}`] = true;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Resolves which specific companion entry is currently displayed for a
+// choosable-group def (e.g. which necromancer familiar form is picked) —
+// mirrors the same choiceGroup/_companionChoice resolution renderCompanionTab
+// uses for its own display, so Battle Familiar always targets the same
+// familiar the player is actually looking at.
+function getCurrentlyChosenCompanion(def) {
+  if (!def?.companions?.length) return null;
+  const choosable = def.companions.filter(c => c.choosable);
+  if (!choosable.length) return def.companions[0] || null;
+  const group = choosable[0].choiceGroup;
+  const eligible = def.companions.filter(c => c.choiceGroup === group);
+  const savedId = currentChar._companionChoice?.[group];
+  return eligible.find(c => c.id === savedId) || eligible[0] || null;
+}
+
+function activateBattleFamiliar() {
+  if (!currentChar) return;
+  const active = typeof getActiveCompanionDef === 'function' ? getActiveCompanionDef() : null;
+  const comp = active ? getCurrentlyChosenCompanion(active.def) : null;
+  const levelSel = document.getElementById('bf-level-select');
+  const formSel  = document.getElementById('bf-form-select');
+  const level = parseInt(levelSel?.value) || 2;
+  const form  = formSel?.value || 'Brute';
+  if (level < 2) { toast('Battle Familiar needs a 2nd-level slot or higher.', 'warn'); return; }
+  if (!spendSpellSlotForBattleFamiliar(level)) { toast(`No unexpended level ${level} slot available.`, 'warn'); return; }
+  currentChar._battleFamiliar = { active: true, form, level, compId: comp?.id || null };
+  // Grant Temporary Hit Points equal to the battle familiar's Hit Points (RAW) —
+  // uses the existing per-companion Temp HP field already in the Companion tab.
+  if (comp) {
+    if (!currentChar._companionTempHP) currentChar._companionTempHP = {};
+    currentChar._companionTempHP[comp.id] = BATTLE_FAMILIAR_STATBLOCK.hp(level, form);
+  }
+  renderSpellSlots();
+  renderCompanionTab();
+  debouncedSave();
+  toast(`Battle Familiar active (${form}, level ${level})`, 'ok');
+}
+window.activateBattleFamiliar = activateBattleFamiliar;
+
+// Ending early does not refund the spent spell slot — casting the spell
+// already happened; choosing to end its effect early doesn't undo that.
+function endBattleFamiliar() {
+  if (!currentChar?._battleFamiliar) return;
+  currentChar._battleFamiliar.active = false;
+  renderCompanionTab();
+  debouncedSave();
+}
+window.endBattleFamiliar = endBattleFamiliar;
+
+function renderBattleFamiliarPanel(subKey) {
+  const panel = document.getElementById('battle-familiar-panel');
+  if (!panel) return;
+  const bf = currentChar._battleFamiliar;
+  const eligible = BATTLE_FAMILIAR_ELIGIBLE_SUBKEYS.includes(subKey);
+  const knowsSpell = isSpellKnownOrPrepared('battle_familiar');
+  // Still show the "active" status/End Early banner even if the spell
+  // somehow isn't in the known list right now (e.g. mid-edit) — knowing
+  // the spell only gates whether you can CAST it, not whether an
+  // already-cast effect keeps displaying.
+  if (!eligible || (!knowsSpell && !bf?.active)) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  const maxLv = getBattleFamiliarMaxSlotLevel();
+
+  if (bf?.active) {
+    panel.innerHTML = `
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);background:rgba(255,180,50,.08);border:1px solid var(--gold);border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>⚔ <strong style="color:var(--gold)">Battle Familiar active</strong> — ${bf.form}, level ${bf.level} (lasts 1 hour or until it loses all its Temporary Hit Points)</span>
+        <button class="tbtn" style="font-size:10px;padding:4px 10px" onclick="endBattleFamiliar()">End Early</button>
+      </div>`;
+    return;
+  }
+
+  if (maxLv < 2) {
+    panel.innerHTML = `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:6px 2px">Battle Familiar needs an unexpended 2nd-level+ spell slot.</div>`;
+    return;
+  }
+
+  const levelOptions = Array.from({length: maxLv - 1}, (_, i) => i + 2)
+    .map(lv => `<option value="${lv}">${lv}${lv===2?'nd':lv===3?'rd':'th'} level</option>`).join('');
+  const formOptions = BATTLE_FAMILIAR_STATBLOCK.forms.map(f => `<option value="${f}">${f}</option>`).join('');
+
+  panel.innerHTML = `
+    <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">Cast Battle Familiar</span>
+      <select id="bf-form-select" class="choice-select" style="font-size:10px" onchange="updateBattleFamiliarPreview()">${formOptions}</select>
+      <select id="bf-level-select" class="choice-select" style="font-size:10px" onchange="updateBattleFamiliarPreview()">${levelOptions}</select>
+      <button class="tbtn" style="font-size:10px;padding:4px 10px;color:var(--accent);border-color:var(--accent)" onclick="activateBattleFamiliar()">Cast</button>
+    </div>
+    <div id="bf-preview" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:6px 2px"></div>`;
+  updateBattleFamiliarPreview();
+}
+
+// Live preview of the resulting AC/HP/Rend/Talented bonus as the player
+// changes the level/form dropdowns, before they actually commit a spell
+// slot by clicking Cast.
+function updateBattleFamiliarPreview() {
+  const preview = document.getElementById('bf-preview');
+  if (!preview) return;
+  const level = parseInt(document.getElementById('bf-level-select')?.value) || 2;
+  const form  = document.getElementById('bf-form-select')?.value || 'Brute';
+  const ac = BATTLE_FAMILIAR_STATBLOCK.ac(level, form);
+  const hp = BATTLE_FAMILIAR_STATBLOCK.hp(level, form);
+  const n  = Math.max(1, Math.floor(level / 2));
+  preview.textContent = `Preview — AC ${ac} · +${hp} Temp HP · Rend 1d8+${3 + level} Force${n > 1 ? ` ×${n}` : ''} · Talented +${Math.floor(level/2)}`;
+}
+window.updateBattleFamiliarPreview = updateBattleFamiliarPreview;
+
+
 function renderCompanionTab() {
   const active = getActiveCompanionDef();
   if (!active) {
     const blocks = document.getElementById('companion-blocks');
     if (blocks) blocks.innerHTML = '';
+    const bfPanel = document.getElementById('battle-familiar-panel');
+    if (bfPanel) bfPanel.style.display = 'none';
     return;
   }
 
@@ -56314,6 +56888,8 @@ function renderCompanionTab() {
   const clsLevel = classEntry.levels?.length || getLevel();
   const abs = getAbilities();
   const prof = getProf();
+
+  renderBattleFamiliarPanel(subKey);
 
 
 
@@ -56387,7 +56963,7 @@ function renderCompanionTab() {
 
   function renderCompanionBlock(comp) {
     const oMod = getOwnerMod(comp.primaryAbility);
-    const scores = comp.scores;
+    let scores = comp.scores;
     let ac, hp, hpLabel;
     // Support both formula-based (Ranger companions) and static (familiar) stat blocks
     if (typeof comp.acFormula === 'function') {
@@ -56398,33 +56974,138 @@ function renderCompanionTab() {
       try { hpLabel = comp.hpLabel(clsLevel, oMod); } catch(e) { hpLabel = ''; }
     } else { hp = comp.hp ?? '?'; hpLabel = ''; }
 
+    // Battle Familiar overlay. RAW: "your familiar's game statistics are
+    // replaced by the Battle Familiar stat block, but it retains its
+    // creature type, alignment, Hit Points, Hit Point Dice, and any
+    // features granted by the Find Familiar spell." "Game statistics"
+    // means the WHOLE stat block — AC, Speed, ability scores, senses,
+    // languages, condition immunities, Attacks, and Traits — not just AC
+    // and attacks; only type, alignment, and the HP total/HP dice stay
+    // the familiar's own (the HP boost instead arrives as Temporary Hit
+    // Points, via the existing per-companion Temp HP field). Skills,
+    // Saves, Resistances, Vulnerabilities, and Immunities are cleared
+    // while active since the Battle Familiar stat block has none of its
+    // own — those numbers belonged to the replaced stat block too.
+    // Auto-reverts once those Temporary Hit Points are gone, matching
+    // "Battle Familiar ends early if the familiar has no more Temporary
+    // Hit Points left."
+    const bf = currentChar._battleFamiliar;
+    let bfActive = !!(bf?.active && bf.compId === comp.id);
+    if (bfActive && !(parseInt(currentChar._companionTempHP?.[comp.id]) > 0)) {
+      currentChar._battleFamiliar.active = false;
+      bfActive = false;
+    }
+    let speedForRender = comp.speed;
+    let attacksForRender = comp.attacks;
+    let traitsForRender = comp.traits;
+    let sizeForRender = comp.size;
+    let sensesForRender = comp.senses;
+    let languagesForRender = comp.languages;
+    let condImmuneForRender = comp.conditionImmunities;
+    let resistForRender = comp.resistances;
+    let vulnForRender = comp.vulnerabilities;
+    let immuneForRender = comp.immunities;
+    let skillsForRender = comp.skills;
+    let savesForRender = comp.saves;
+    let addProfForRender = comp.addProfToAbilityChecks;
+    if (bfActive) {
+      ac = BATTLE_FAMILIAR_STATBLOCK.ac(bf.level, bf.form);
+      speedForRender = BATTLE_FAMILIAR_STATBLOCK.speed(bf.form);
+      attacksForRender = BATTLE_FAMILIAR_STATBLOCK.attacks(bf.level);
+      traitsForRender = BATTLE_FAMILIAR_STATBLOCK.traits(bf.level, bf.form);
+      scores = BATTLE_FAMILIAR_STATBLOCK.scores;
+      sizeForRender = BATTLE_FAMILIAR_STATBLOCK.size;
+      sensesForRender = BATTLE_FAMILIAR_STATBLOCK.senses;
+      languagesForRender = BATTLE_FAMILIAR_STATBLOCK.languages;
+      condImmuneForRender = BATTLE_FAMILIAR_STATBLOCK.conditionImmunities;
+      // Battle Familiar's own bonus (Talented: half spell level, not a
+      // full Proficiency Bonus) is communicated via the Traits text
+      // instead of this flat +prof ability-score display mechanism, so
+      // the original familiar's own addProfToAbilityChecks (if any)
+      // doesn't apply to a stat block that no longer has that trait.
+      addProfForRender = false;
+      resistForRender = '';
+      vulnForRender = '';
+      immuneForRender = '';
+      skillsForRender = null;
+      savesForRender = null;
+    }
+
+    // Find Familiar related feats (Arcana Unleashed): Familiar Friend and
+    // its follow-up feats buff whichever familiar is shown, but only for
+    // a genuine Find Familiar source — not Steel Defender, Beast
+    // Master's beast, etc, which the feats' text doesn't apply to.
+    // Treated as "features granted by the Find Familiar spell," so they
+    // persist even while Battle Familiar's stat block is overlaid, per
+    // that spell's own text retaining such features.
+    if (BATTLE_FAMILIAR_ELIGIBLE_SUBKEYS.includes(subKey)) {
+      const ffDetail = getTakenFeatDetail('familiar friend');
+      if (ffDetail && typeof hp === 'number') {
+        // Fortified Familiar: HP maximum and current increase by twice
+        // your character level.
+        const fortifiedBonus = 2 * getLevel();
+        hp += fortifiedBonus;
+        hpLabel = hpLabel ? `${hpLabel} +${fortifiedBonus} (Fortified Familiar)` : `+${fortifiedBonus} (Fortified Familiar)`;
+      }
+
+      const elemDetail  = getTakenFeatDetail('elemental familiar');
+      const otherDetail = getTakenFeatDetail('otherworldly familiar');
+      const soothDetail = getTakenFeatDetail('soothing familiar');
+
+      if (elemDetail || otherDetail || soothDetail) {
+        const ffAbility = ffDetail?.spellAbility || 'int';
+        const imbueDC = 8 + prof + abilityMod(abs[ffAbility] || 10);
+        const extraResistances = [];
+        const extraTraits = [];
+
+        if (elemDetail?.familiarDamageType) {
+          extraResistances.push(elemDetail.familiarDamageType);
+          extraTraits.push(`Energy Pulse (Bonus Action + familiar's Reaction, Elemental Familiar): Each creature in a 5-foot Emanation from the familiar makes a DC ${imbueDC} Dexterity saving throw, taking 2d4 ${elemDetail.familiarDamageType} damage and gaining the Prone condition if Medium or smaller, on a failure.`);
+        }
+        if (otherDetail?.familiarDamageType) {
+          extraResistances.push(otherDetail.familiarDamageType);
+          extraTraits.push(`Phase Walk (Otherworldly Familiar): The familiar can move through other creatures and objects as if they were Difficult Terrain. If it ends its turn inside an object, it's shunted to the last unoccupied space it was in.`);
+        }
+        if (soothDetail) {
+          extraTraits.push(`Healing Beacon (Soothing Familiar): While the familiar is within 120 feet of you, allies in a 5-foot Emanation from it can treat a roll of 1 or 2 on a healing die as a 3.`);
+        }
+        if (extraResistances.length) {
+          resistForRender = [resistForRender, extraResistances.join(', ')].filter(Boolean).join(', ');
+        }
+        if (extraTraits.length) {
+          traitsForRender = [...(traitsForRender || []), ...extraTraits];
+        }
+      }
+    }
+
     const savedHP = currentChar._companionHP?.[comp.id];
     const currentHP = savedHP !== undefined ? savedHP : hp;
     const maxHP = hp;
 
-    const resistStr   = comp.resistances       ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Resist:</span> ${comp.resistances}</div>` : '';
-    const vulnStr     = comp.vulnerabilities   ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--red)">Vuln:</span> ${comp.vulnerabilities}</div>` : '';
-    const immuneStr   = comp.immunities        ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--accent2)">Immune:</span> ${comp.immunities}</div>` : '';
-    const condImmuneStr = comp.conditionImmunities ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Cond. Immune:</span> ${comp.conditionImmunities}</div>` : '';
+
+    const resistStr   = resistForRender       ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Resist:</span> ${resistForRender}</div>` : '';
+    const vulnStr     = vulnForRender   ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--red)">Vuln:</span> ${vulnForRender}</div>` : '';
+    const immuneStr   = immuneForRender        ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--accent2)">Immune:</span> ${immuneForRender}</div>` : '';
+    const condImmuneStr = condImmuneForRender ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Cond. Immune:</span> ${condImmuneForRender}</div>` : '';
 
     // Only ever shows entries the statblock actually has — no blanket
     // proficiency assumed for anything not explicitly listed, matching
     // real 5e stat block conventions (and the same pattern already used
     // correctly for Wild Shape beasts).
-    const skillsStr = (comp.skills && Object.keys(comp.skills).length)
-      ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Skills:</span> ${Object.entries(comp.skills).map(([sk,bonus]) => `${sk.charAt(0).toUpperCase()+sk.slice(1)} ${bonus>=0?'+':''}${bonus}`).join(', ')}</div>`
+    const skillsStr = (skillsForRender && Object.keys(skillsForRender).length)
+      ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Skills:</span> ${Object.entries(skillsForRender).map(([sk,bonus]) => `${sk.charAt(0).toUpperCase()+sk.slice(1)} ${bonus>=0?'+':''}${bonus}`).join(', ')}</div>`
       : '';
-    const savesStr = (comp.saves && Object.keys(comp.saves).length)
-      ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Saves:</span> ${Object.entries(comp.saves).map(([sv,bonus]) => `${sv.charAt(0).toUpperCase()+sv.slice(1)} ${bonus>=0?'+':''}${bonus}`).join(', ')}</div>`
+    const savesStr = (savesForRender && Object.keys(savesForRender).length)
+      ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Saves:</span> ${Object.entries(savesForRender).map(([sv,bonus]) => `${sv.charAt(0).toUpperCase()+sv.slice(1)} ${bonus>=0?'+':''}${bonus}`).join(', ')}</div>`
       : '';
 
     return `<div class="panel" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-        <span style="font-family:var(--font-heading);font-size:16px;color:var(--text);letter-spacing:.5px">${comp.name}</span>
-        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${comp.size} ${comp.type} · ${comp.alignment}</span>
+        <span style="font-family:var(--font-heading);font-size:16px;color:var(--text);letter-spacing:.5px">${comp.name}${bfActive ? ` <span style="font-family:var(--font-ui);font-size:9px;color:var(--gold);letter-spacing:.5px;border:1px solid var(--gold);border-radius:3px;padding:1px 5px;vertical-align:middle">⚔ BATTLE FAMILIAR</span>` : ''}</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${sizeForRender} ${comp.type} · ${comp.alignment}</span>
       </div>
-      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px">Speed: ${comp.speed} · ${comp.senses}</div>
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px">Speed: ${speedForRender} · ${sensesForRender}</div>
 
       <!-- AC / HP -->
       <div style="display:flex;gap:16px;margin-bottom:12px;align-items:flex-start">
@@ -56459,20 +57140,20 @@ function renderCompanionTab() {
 
       <!-- Ability Scores -->
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:var(--bg3);border-radius:var(--radius);padding:8px;margin-bottom:10px">
-        ${scoreLine(scores, comp.addProfToAbilityChecks)}
+        ${scoreLine(scores, addProfForRender)}
       </div>
       ${skillsStr}${savesStr}${resistStr}${vulnStr}${immuneStr}${condImmuneStr}
 
       <!-- Attacks -->
       <div style="margin:10px 0 8px">
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Attacks</div>
-        ${comp.attacks.filter(a => !a.minLevel || clsLevel >= a.minLevel).map(a => renderAttack(a, scores, comp.primaryAbility)).join('')}
+        ${attacksForRender.filter(a => !a.minLevel || clsLevel >= a.minLevel).map(a => renderAttack(a, scores, bfActive ? (CLASS_SPELL_ABILITY[cls] || 'int') : comp.primaryAbility)).join('')}
       </div>
 
       <!-- Traits -->
-      ${comp.traits?.length ? `<div style="margin-top:10px">
+      ${traitsForRender?.length ? `<div style="margin-top:10px">
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Traits & Abilities</div>
-        ${comp.traits.map(t => {
+        ${traitsForRender.map(t => {
           const colonIdx = t.indexOf(':');
           const tname = colonIdx > -1 ? t.slice(0, colonIdx) : t;
           const tdesc = colonIdx > -1 ? t.slice(colonIdx + 1) : '';
@@ -56495,7 +57176,7 @@ function renderCompanionTab() {
 
       <!-- Languages -->
       <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:8px">
-        <strong style="font-family:var(--font-ui);color:var(--text2)">Languages:</strong> ${comp.languages || '-'}
+        <strong style="font-family:var(--font-ui);color:var(--text2)">Languages:</strong> ${languagesForRender || '-'}
       </div>
     </div>`;
   }
