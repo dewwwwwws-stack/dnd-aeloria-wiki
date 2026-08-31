@@ -38784,6 +38784,19 @@ function itemImageUrl(key) {
   if (!key) return '';
   return `https://${GH.owner}.github.io/${GH.repo}/item-images/${key}.webp`;
 }
+// Session-only cache of item-art keys already confirmed missing (a 404
+// this session) — built directly off this investigation: every one of
+// the 6,684 catalog items has a real key (confirmed offline), so "no
+// art" essentially never means "no request fires." It means a real
+// request fires and 404s, same cost to the server as a successful one,
+// and — critically — 404 responses generally aren't cached the way a
+// successful image is, so re-viewing the SAME art-less item repeatedly
+// in one session was re-hitting the network every single time. This Set
+// makes that a one-time cost per key per session instead: once a key is
+// known missing, itemThumbImg/itemDetailImgTag skip creating an <img>
+// tag for it at all, exactly like the "no key" case already did.
+const _knownMissingItemArt = new Set();
+
 // Small square thumbnail <img>, sized for inline rows. Returns '' (no
 // element at all) when there's no key — callers fall back to their
 // existing badge/icon in that case, same as before this existed.
@@ -38796,11 +38809,13 @@ function itemImageUrl(key) {
 // used to report the "images stop loading after a while" issue),
 // instead of failing completely silently as before — narrows down which
 // keys failed and when, even without the full picture DevTools' Network
-// tab would give.
+// tab would give. It also records the key into _knownMissingItemArt via
+// data-item-key (inline onerror strings have no closure over `key`, so
+// this is how the failure handler knows which key just failed).
 function itemThumbImg(key, sizePx) {
-  if (!key) return '';
+  if (!key || _knownMissingItemArt.has(key)) return '';
   const s = sizePx || 22;
-  return `<img src="${itemImageUrl(key)}" loading="lazy" style="width:${s}px;height:${s}px;object-fit:contain;border-radius:3px;background:var(--bg2);flex-shrink:0" onerror="console.error('[item-art] thumb failed to load:', this.src, new Date().toISOString());this.style.display='none'" alt=""/>`;
+  return `<img src="${itemImageUrl(key)}" data-item-key="${key}" loading="lazy" style="width:${s}px;height:${s}px;object-fit:contain;border-radius:3px;background:var(--bg2);flex-shrink:0" onerror="console.error('[item-art] thumb failed to load:', this.src, new Date().toISOString());_knownMissingItemArt.add(this.dataset.itemKey);this.style.display='none'" alt=""/>`;
 }
 
 // The "outside the modal, to the left, big" item-art treatment shared by
@@ -38809,11 +38824,11 @@ function itemThumbImg(key, sizePx) {
 // rule, not here, so every modal using this tag stays visually
 // consistent by construction — no inline style string to remember to
 // keep in sync across four separate populate functions.
-// Same console-logged onerror as itemThumbImg above, and for the same
-// reason — see that comment.
+// Same console-logged onerror + _knownMissingItemArt recording as
+// itemThumbImg above, and for the same reasons — see that comment.
 function itemDetailImgTag(key) {
-  if (!key) return '';
-  return `<img src="${itemImageUrl(key)}" loading="lazy" onerror="console.error('[item-art] detail image failed to load:', this.src, new Date().toISOString());this.parentElement.style.display='none'" alt=""/>`;
+  if (!key || _knownMissingItemArt.has(key)) return '';
+  return `<img src="${itemImageUrl(key)}" data-item-key="${key}" loading="lazy" onerror="console.error('[item-art] detail image failed to load:', this.src, new Date().toISOString());_knownMissingItemArt.add(this.dataset.itemKey);this.parentElement.style.display='none'" alt=""/>`;
 }
 
 // Vertical-centering pass for the item-art image against the modal's
@@ -38828,13 +38843,29 @@ function itemDetailImgTag(key) {
 // needs to measure against only the content below the header — two
 // different reference frames one position:absolute element can't
 // express against a single containing block at the same time).
+//
+// Always resets top/transform, even when there's no image to position —
+// these modals are reused (openModal toggles a `hidden` class rather
+// than destroying/recreating the element), and innerHTML clears a
+// wrapper's children but NOT its own inline style attributes. Without
+// this explicit reset, an item with no art opened right after one WITH
+// art would briefly inherit that previous item's stale top/transform
+// values on its (empty, invisible) wrapper — harmless in itself since
+// there's nothing visible to mis-position, but exactly the kind of
+// leftover state that's worth not leaving lying around, and it meant a
+// subsequent item's positioning was starting from stale values for one
+// frame before this function's own setTimeout corrected it.
 function positionItemDetailImgOutside(imgWrapId, contentWrapId) {
   setTimeout(() => {
     const wrap = document.getElementById(contentWrapId);
     const imgWrap = document.getElementById(imgWrapId);
-    if (wrap && imgWrap && imgWrap.querySelector('img')) {
+    if (!wrap || !imgWrap) return;
+    if (imgWrap.querySelector('img')) {
       imgWrap.style.top = (wrap.offsetTop + wrap.offsetHeight / 2 - imgWrap.offsetHeight / 2) + 'px';
       imgWrap.style.transform = 'none';
+    } else {
+      imgWrap.style.top = '';
+      imgWrap.style.transform = '';
     }
   }, 0);
 }
@@ -41247,6 +41278,16 @@ async function dmUploadCatalogItemArt(file) {
     const path = `item-images/${key}.webp`;
     const existingSha = await GH.getFileShaAtPath(path, ITEM_ART_BRANCH);
     await GH.putBinaryFile(path, base64, existingSha, ITEM_ART_BRANCH);
+    // Just-uploaded art needs to be evicted from the "known missing"
+    // cache immediately, not just the browser's own cache below — that
+    // Set exists to stop repeat requests for items confirmed missing
+    // earlier THIS session, but if the DM uploads art for exactly that
+    // item mid-session (the normal QA workflow: test, upload, retest
+    // without reloading the page), the stale entry would otherwise keep
+    // suppressing every future attempt at this key — thumbnail AND
+    // modal alike — for the rest of the session, showing "no image"
+    // even though the upload just succeeded.
+    _knownMissingItemArt.delete(key);
     // Cache-bust the browser's own cache — Pages redeploys automatically
     // on push (no CDN purge step needed the way jsDelivr required), but
     // the browser itself may still be holding an old fetch of this exact
@@ -42022,10 +42063,12 @@ async function dmUploadMatchedItemArt() {
         const existingSha = await GH.getFileShaAtPath(path, ITEM_ART_BRANCH);
         if (existingSha === localSha) {
           skipped++; // identical content already at this path — no PUT needed
+          _knownMissingItemArt.delete(key); // it's confirmed present, even though nothing was written this run
           continue;
         }
         if (statusEl) statusEl.textContent = `Uploading ${done}/${totalKeys}: ${key}…`;
         await GH.putBinaryFile(path, base64, existingSha, ITEM_ART_BRANCH);
+        _knownMissingItemArt.delete(key); // see the comment on this same line in dmUploadCatalogItemArt — same reasoning, same fix
         ok++;
       } catch(e) {
         failed++;
