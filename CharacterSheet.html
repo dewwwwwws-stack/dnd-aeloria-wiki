@@ -940,6 +940,7 @@ body.preview-readonly #mi-detail-edit-row * {
   width: 100%;
   max-width: 460px;
   box-shadow: var(--shadow-lg);
+  position: relative;
 }
 
 /* Used by the spell/item detail modals specifically - same solid
@@ -956,23 +957,47 @@ body.preview-readonly #mi-detail-edit-row * {
   box-shadow: var(--shadow-lg);
   position: relative;
 }
-/* Item-art image on the magic item detail modal: anchored to .modal's own
-   box (not a flex sibling of it within .modal-overlay) specifically so
-   the modal itself stays exactly where it always centered on the page -
-   a flex-sibling approach centers the [image, modal] PAIR together,
-   which visibly shifts the modal (and its text) off the page's true
-   center once the image is wide. right:100% + top:50%/translateY(-50%)
-   anchors the image's right edge to the modal's left edge and centers it
-   vertically against the modal's own actual rendered height, whatever
-   that ends up being for a given item's amount of text - not against
-   the overlay's flex cross-axis, which was really only incidentally
-   correct before when the image happened to be the tallest element. */
-#mi-detail-img {
+/* Shared "outside the box, to the left, centered against the content"
+   item-art treatment — used by every item detail/edit modal (magic
+   items, weapons, armor, gear), as classes rather than one-off per-modal
+   ID rules, specifically to stop this pattern being right in one place
+   and missing/inconsistent in others, which kept happening this session
+   when each modal got its image support added separately.
+   .item-detail-img-outside is positioned relative to its nearest
+   position:relative ancestor (.modal or .modal-box, both of which
+   have that set) so its horizontal placement (right:100%) measures
+   from that modal's true outer edge — NOT from
+   .item-detail-content-wrap, which sits inset by the modal's own
+   padding; anchoring to the wrapper for both axes previously caused the
+   image to land inside the modal's own padding instead of outside it.
+   top:50%/translateY(-50%) here is only a same-tick fallback (correct,
+   but centers against the modal's FULL box, header/title included) —
+   immediately after each modal opens, positionItemDetailImgOutside()
+   (JS, defined near openMagicItemDetailModal) measures the matching
+   .item-detail-content-wrap's actual rendered position/height (only
+   possible once the modal is no longer display:none) and overwrites
+   this with a precise pixel `top`, centering against the content
+   specifically rather than the header-inclusive whole box. */
+.item-detail-content-wrap {
+  position: relative;
+}
+.item-detail-img-outside {
   position: absolute;
   right: 100%;
   top: 50%;
   transform: translateY(-50%);
   margin-right: 16px;
+}
+.item-detail-img-outside img {
+  width: 280px;
+  max-width: 38vw;
+  height: 280px;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
 }
 .modal-header {
   display: flex;
@@ -1469,21 +1494,24 @@ body.preview-readonly #mi-detail-edit-row * {
   .modal-box { width: calc(100vw - 16px) !important; max-width: none !important;
     max-height: calc(100vh - 60px) !important; margin: 8px; }
   .modal-overlay { padding: 8px; align-items: flex-start; padding-top: 30px; }
-  /* #mi-detail-img is absolutely positioned to the modal's left on
-     desktop (see base .modal/#mi-detail-img rules) - .modal is nearly
-     full viewport width on mobile, leaving no room for that, so this
-     reverts it to a normal, centered block sitting above the modal's own
-     content instead (it's a child of .modal, not a sibling in
-     .modal-overlay, so it stacks with the modal's other content here
-     rather than needing .modal-overlay's own flex-direction touched). */
-  #mi-detail-img {
+  /* .item-detail-img-outside is absolutely positioned to its modal's
+     left on desktop (see base .modal-box/.modal/.item-detail-img-outside
+     rules) - .modal/.modal-box are nearly full viewport width on mobile,
+     leaving no room for that, so this reverts it to a normal, centered
+     block sitting above the modal's own content instead (it's a child
+     of .modal/.modal-box, not a sibling in .modal-overlay, so it stacks
+     with the modal's other content here rather than needing
+     .modal-overlay's own flex-direction touched). Shared across every
+     modal using this pattern (magic items, weapons, armor, gear) since
+     it's one class now instead of a per-modal ID rule. */
+  .item-detail-img-outside {
     position: static !important;
     transform: none !important;
     margin: 0 0 12px 0 !important;
     display: flex !important;
     justify-content: center !important;
   }
-  #mi-detail-img img { max-width: 60vw !important; }
+  .item-detail-img-outside img { max-width: 60vw !important; }
 
   /* Spell slots: allow wrapping */
   .slot-pips { gap: 6px; }
@@ -3967,6 +3995,30 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
         </div>
 
+        <!-- One-time migration: graft the existing item-images/ tree from
+             data (where it was originally uploaded, before discovering
+             GitHub Pages for this repo builds from main) onto main
+             (where Pages actually serves from) — via the Git Data API's
+             tree/commit objects rather than re-uploading every file
+             through the Contents API, since git blobs are content-
+             addressed and branch-independent: the same tree object can
+             be referenced from a brand new commit on a completely
+             different branch without touching any file bytes at all.
+             See dmMigrateItemImagesToMain() below. -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius);padding:8px;margin-bottom:10px;background:rgba(255,255,255,.02)">
+          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="const b=document.getElementById('dm-item-art-migrate-body');b.style.display=b.style.display==='none'?'block':'none'">
+            <span style="font-family:var(--font-ui);font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)">⚡ Copy item-images: data → main</span>
+            <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">▾</span>
+          </div>
+          <div id="dm-item-art-migrate-body" style="display:none;margin-top:8px">
+            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:6px">
+              One-time fix: everything already synced to item-images/ on the <strong>data</strong> branch, copied onto <strong>main</strong> (the branch GitHub Pages actually serves) in a few seconds — no re-upload needed. <strong style="color:var(--red)">Overwrites</strong> item-images/ on main entirely with whatever's on data, so only run this if main's item-images/ is empty or you're fine losing anything uploaded there since.
+            </div>
+            <button class="tbtn" style="font-size:10px;padding:5px 12px;color:var(--accent);border-color:var(--accent)" onclick="dmMigrateItemImagesToMain()">Copy Now</button>
+            <div id="dm-item-art-migrate-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px"></div>
+          </div>
+        </div>
+
         <div id="dm-items-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
         <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 320px);overflow-y:auto"></div>
       </div>
@@ -4072,29 +4124,32 @@ body.preview-readonly #mi-detail-edit-row * {
       ✎ Edit Gear / Custom Item
       <span class="modal-close" onclick="closeModal('gear-edit-modal')">✕</span>
     </div>
-    <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:10px">
-      Also the right place for anything without inherent magic - a plot item, a quest MacGuffin, a memento, a key.
-    </div>
-    <div class="info-field">
-      <label class="field-label">Name</label>
-      <input class="info-input" id="gear-edit-name" maxlength="120" style="width:100%;box-sizing:border-box"/>
-    </div>
-    <div style="display:flex;gap:8px">
-      <div class="info-field" style="flex:1">
-        <label class="field-label">Quantity</label>
-        <input class="info-input" id="gear-edit-qty" type="number" min="1" value="1"/>
+    <div id="gear-edit-img" class="item-detail-img-outside"></div>
+    <div id="gear-edit-content-wrap" class="item-detail-content-wrap">
+      <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-bottom:10px">
+        Also the right place for anything without inherent magic - a plot item, a quest MacGuffin, a memento, a key.
       </div>
-      <div class="info-field" style="flex:2">
-        <label class="field-label">Weight (lb, per item)</label>
-        <input class="info-input" id="gear-edit-weight" type="number" min="0" step="0.1" placeholder="0"/>
+      <div class="info-field">
+        <label class="field-label">Name</label>
+        <input class="info-input" id="gear-edit-name" maxlength="120" style="width:100%;box-sizing:border-box"/>
       </div>
+      <div style="display:flex;gap:8px">
+        <div class="info-field" style="flex:1">
+          <label class="field-label">Quantity</label>
+          <input class="info-input" id="gear-edit-qty" type="number" min="1" value="1"/>
+        </div>
+        <div class="info-field" style="flex:2">
+          <label class="field-label">Weight (lb, per item)</label>
+          <input class="info-input" id="gear-edit-weight" type="number" min="0" step="0.1" placeholder="0"/>
+        </div>
+      </div>
+      <div class="info-field">
+        <label class="field-label">Description <span style="font-weight:400;text-transform:none;color:var(--text3)">(flavor, origin, what it does or means - as much as you want)</span></label>
+        <textarea class="sheet-textarea" id="gear-edit-desc" style="width:100%;box-sizing:border-box;min-height:100px" placeholder="What is this? Where did it come from?"></textarea>
+      </div>
+      <button class="btn-primary" onclick="saveGearEdit()">Save</button>
+      <div id="gear-edit-status" style="font-family:var(--font-ui);font-size:11px;margin-top:6px;min-height:16px"></div>
     </div>
-    <div class="info-field">
-      <label class="field-label">Description <span style="font-weight:400;text-transform:none;color:var(--text3)">(flavor, origin, what it does or means - as much as you want)</span></label>
-      <textarea class="sheet-textarea" id="gear-edit-desc" style="width:100%;box-sizing:border-box;min-height:100px" placeholder="What is this? Where did it come from?"></textarea>
-    </div>
-    <button class="btn-primary" onclick="saveGearEdit()">Save</button>
-    <div id="gear-edit-status" style="font-family:var(--font-ui);font-size:11px;margin-top:6px;min-height:16px"></div>
   </div>
 </div>
 
@@ -5028,19 +5083,21 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <div class="modal-overlay hidden" id="magic-item-detail-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
   <div class="modal" style="max-width:600px">
-    <div id="mi-detail-img"></div>
     <div class="modal-header">
       <span id="mi-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('magic-item-detail-modal')">✕</button>
     </div>
-    <div id="mi-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
-    <div id="mi-detail-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
-    <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
-    <div id="mi-detail-contents" style="display:none"></div>
-    <div id="mi-detail-spellbook-grants" style="display:none"></div>
-    <div id="mi-detail-notes" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-body);font-size:12px;color:var(--text2);font-style:italic"></div>
-    <div id="mi-detail-edit-row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:none">
-      <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="editFromDetailModal()">✎ Edit Notes</button>
+    <div id="mi-detail-img" class="item-detail-img-outside"></div>
+    <div id="mi-detail-content-wrap" class="item-detail-content-wrap">
+      <div id="mi-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div id="mi-detail-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
+      <div id="mi-detail-contents" style="display:none"></div>
+      <div id="mi-detail-spellbook-grants" style="display:none"></div>
+      <div id="mi-detail-notes" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-body);font-size:12px;color:var(--text2);font-style:italic"></div>
+      <div id="mi-detail-edit-row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:none">
+        <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="editFromDetailModal()">✎ Edit Notes</button>
+      </div>
     </div>
   </div>
 </div>
@@ -5051,9 +5108,11 @@ body.preview-readonly #mi-detail-edit-row * {
       <span id="td-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('treasure-detail-modal')">✕</button>
     </div>
-    <div id="td-detail-img" style="margin-bottom:8px"></div>
-    <div id="td-detail-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);letter-spacing:.3px;margin-bottom:12px"></div>
-    <div id="td-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
+    <div id="td-detail-img" class="item-detail-img-outside"></div>
+    <div id="td-detail-content-wrap" class="item-detail-content-wrap">
+      <div id="td-detail-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);letter-spacing:.3px;margin-bottom:12px"></div>
+      <div id="td-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
+    </div>
   </div>
 </div>
 
@@ -5117,8 +5176,11 @@ body.preview-readonly #mi-detail-edit-row * {
       <span id="weapon-detail-title">Weapon</span>
       <span class="modal-close" onclick="closeModal('weapon-detail-modal')">&#x2715;</span>
     </div>
-    <div id="weapon-detail-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
-    <div id="weapon-detail-body"></div>
+    <div id="weapon-detail-img" class="item-detail-img-outside"></div>
+    <div id="weapon-detail-content-wrap" class="item-detail-content-wrap">
+      <div id="weapon-detail-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div id="weapon-detail-body"></div>
+    </div>
   </div>
 </div>
 
@@ -5133,8 +5195,11 @@ body.preview-readonly #mi-detail-edit-row * {
       <span id="armor-detail-title">Armor</span>
       <span class="modal-close" onclick="closeModal('armor-detail-modal')">&#x2715;</span>
     </div>
-    <div id="armor-detail-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
-    <div id="armor-detail-body"></div>
+    <div id="armor-detail-img" class="item-detail-img-outside"></div>
+    <div id="armor-detail-content-wrap" class="item-detail-content-wrap">
+      <div id="armor-detail-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div id="armor-detail-body"></div>
+    </div>
   </div>
 </div>
 
@@ -5989,19 +6054,26 @@ const GH = {
     return Array.isArray(data) ? data.filter(f => f.name.endsWith('.json')) : [];
   },
 
-  // ── Raw binary uploads (token images) ──────────────────────
+  // ── Raw binary uploads (token images, item art) ──────────────────
   // Unlike getFile/putFile above, these take a full repo-relative path
   // rather than a filename under this.dir — token images live in their
-  // own tokens/ folder, not chars/.
-  async putBinaryFile(path, base64Content, sha) {
-    const body = { message: sha ? `Update ${path}` : `Create ${path}`, content: base64Content, branch: this.branch };
+  // own tokens/ folder, not chars/. Both accept an optional branch
+  // override (defaulting to this.branch, i.e. 'data', for every existing
+  // caller — tokens/character saves never pass one, so they're
+  // unaffected): item art specifically needs to write to 'main' instead,
+  // since that's the branch GitHub Pages is actually configured to
+  // deploy from — 'data' is used purely as storage and was never
+  // reachable by Pages at all, which is what silently broke every
+  // item-art image after switching itemImageUrl() over to a Pages URL.
+  async putBinaryFile(path, base64Content, sha, branch) {
+    const body = { message: sha ? `Update ${path}` : `Create ${path}`, content: base64Content, branch: branch || this.branch };
     if (sha) body.sha = sha;
     return this.req('PUT', `contents/${path}`, body);
   },
 
-  async getFileShaAtPath(path) {
+  async getFileShaAtPath(path, branch) {
     try {
-      const data = await this.req('GET', `contents/${path}?ref=${encodeURIComponent(this.branch)}`);
+      const data = await this.req('GET', `contents/${path}?ref=${encodeURIComponent(branch || this.branch)}`);
       return data.sha;
     } catch(e) { return null; } // 404 — file doesn't exist yet, nothing to overwrite
   }
@@ -11237,6 +11309,7 @@ function openTreasureDetailModal(key, kind) {
   if (typeof linkifyGlossaryTerms === 'function') tdBody = linkifyGlossaryTerms(tdBody, item.name);
   document.getElementById('td-detail-body').innerHTML = tdBody;
   openModal('treasure-detail-modal');
+  positionItemDetailImgOutside('td-detail-img', 'td-detail-content-wrap');
 }
 window.openTreasureDetailModal = openTreasureDetailModal;
 
@@ -11305,15 +11378,12 @@ function openInventoryItemDetailModal(entry, kind, charData) {
     imgKey = gearMatch?.key;
   }
   const imgEl = document.getElementById('td-detail-img');
-  if (imgEl) {
-    imgEl.innerHTML = imgKey
-      ? `<img src="${itemImageUrl(imgKey)}" loading="lazy" style="max-width:120px;max-height:120px;object-fit:contain;border-radius:6px;background:var(--bg2);border:1px solid var(--border)" onerror="this.parentElement.style.display='none'" alt=""/>`
-      : '';
-  }
+  if (imgEl) imgEl.innerHTML = itemDetailImgTag(imgKey);
   document.getElementById('td-detail-title').textContent = name;
   document.getElementById('td-detail-meta').textContent = meta;
   document.getElementById('td-detail-body').innerHTML = typeof linkifyGlossaryTerms === 'function' ? linkifyGlossaryTerms(body) : body;
   openModal('treasure-detail-modal');
+  positionItemDetailImgOutside('td-detail-img', 'td-detail-content-wrap');
 }
 window.openInventoryItemDetailModal = openInventoryItemDetailModal;
 
@@ -11324,6 +11394,8 @@ window.openInventoryItemDetailModal = openInventoryItemDetailModal;
 function openToolDetailModal(name) {
   const item = PHB_GEAR.find(g => g.name.toLowerCase() === name.toLowerCase());
   document.getElementById('td-detail-title').textContent = name;
+  const imgEl = document.getElementById('td-detail-img');
+  if (imgEl) imgEl.innerHTML = itemDetailImgTag(item?.key); // clears any stale image left over from a previously-opened weapon/armor/gear item, since this modal is shared with those
   if (item) {
     document.getElementById('td-detail-meta').textContent = [item.category, item.weight, item.value].filter(Boolean).join(' · ');
     let body = renderItemMarkdown(item.desc || '');
@@ -11340,6 +11412,7 @@ function openToolDetailModal(name) {
   // losing the player's place in whatever search/scroll position they
   // were at.
   openModal('treasure-detail-modal', true);
+  positionItemDetailImgOutside('td-detail-img', 'td-detail-content-wrap');
 }
 window.openToolDetailModal = openToolDetailModal;
 
@@ -11377,20 +11450,7 @@ function openMagicItemDetailModal(keyOrItem) {
   titleEl.style.color = RARITY_COLOURS[effRarity] || 'var(--text)';
 
   const imgEl = document.getElementById('mi-detail-img');
-  if (imgEl) {
-    // Sits outside the modal box entirely now (a flex sibling within
-    // .modal-overlay, positioned before .modal in the HTML so it lands
-    // to the left) rather than squeezed into a corner of the card — much
-    // more screen real estate to work with, so sized as a real portrait
-    // rather than a thumbnail. Same onerror-hide-silently convention as
-    // everywhere else: hiding this whole sibling div on a 404 removes it
-    // from the flex row entirely, so the modal box re-centers itself
-    // alone (via .modal-overlay's justify-content:center) exactly as it
-    // did before this existed, for the majority of items with no art.
-    imgEl.innerHTML = item.key
-      ? `<img src="${itemImageUrl(item.key)}" loading="lazy" style="width:280px;max-width:38vw;height:280px;max-height:70vh;object-fit:contain;border-radius:10px;background:var(--bg2);border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.4)" onerror="this.parentElement.style.display='none'" alt=""/>`
-      : '';
-  }
+  if (imgEl) imgEl.innerHTML = itemDetailImgTag(item.key);
 
   const rarityColor = RARITY_COLOURS[effRarity] || 'var(--text2)';
   const metaParts = [
@@ -11509,6 +11569,7 @@ function openMagicItemDetailModal(keyOrItem) {
   if (editRow) editRow.style.display = _miDetailOwnedIdx !== null ? '' : 'none';
 
   openModal('magic-item-detail-modal');
+  positionItemDetailImgOutside('mi-detail-img', 'mi-detail-content-wrap');
 }
 window.openMagicItemDetailModal = openMagicItemDetailModal;
 
@@ -36492,6 +36553,9 @@ function openWeaponDetail(idx) {
   const name = entry.name || phb?.name || 'Weapon';
   document.getElementById('weapon-detail-title').textContent = name;
 
+  const imgEl = document.getElementById('weapon-detail-img');
+  if (imgEl) imgEl.innerHTML = itemDetailImgTag(entry.weaponKey);
+
   const properties = (phb?.properties || [])
     .map(p => p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
     .join(', ');
@@ -36542,6 +36606,7 @@ function openWeaponDetail(idx) {
   // pattern as openFeatInfoModal, so it doesn't need to close whatever
   // else might be open behind it.
   openModal('weapon-detail-modal', true);
+  positionItemDetailImgOutside('weapon-detail-img', 'weapon-detail-content-wrap');
 }
 window.openWeaponDetail = openWeaponDetail;
 
@@ -36842,6 +36907,9 @@ function openArmorDetail(idx) {
   const name = entry.name || phb?.name || 'Armor';
   document.getElementById('armor-detail-title').textContent = name;
 
+  const imgEl2 = document.getElementById('armor-detail-img');
+  if (imgEl2) imgEl2.innerHTML = itemDetailImgTag(entry.key);
+
   const ac = entry.customAC || phb?.ac;
   const linkedItem = entry._fromMagicItem
     ? (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem)
@@ -36875,6 +36943,7 @@ function openArmorDetail(idx) {
     : finalBodyHtml;
 
   openModal('armor-detail-modal', true);
+  positionItemDetailImgOutside('armor-detail-img', 'armor-detail-content-wrap');
 }
 window.openArmorDetail = openArmorDetail;
 
@@ -37494,7 +37563,17 @@ function openGearEditModal(idx) {
   document.getElementById('gear-edit-weight').value = parseWeightLb(item.weight) || '';
   document.getElementById('gear-edit-desc').value = item.desc || '';
   document.getElementById('gear-edit-status').textContent = '';
+  // Gear entries carry no stored catalog key (free-text by design, so
+  // homebrew plot items/MacGuffins fit here too) — same one-off name
+  // match against PHB_GEAR already used in openInventoryItemDetailModal's
+  // gear branch, not a hot-path loop so the .find() cost is a non-issue.
+  const imgEl = document.getElementById('gear-edit-img');
+  if (imgEl) {
+    const gearMatch = (item.name && typeof PHB_GEAR !== 'undefined') ? PHB_GEAR.find(g => g.name.toLowerCase() === item.name.toLowerCase()) : null;
+    imgEl.innerHTML = itemDetailImgTag(gearMatch?.key);
+  }
   openModal('gear-edit-modal');
+  positionItemDetailImgOutside('gear-edit-img', 'gear-edit-content-wrap');
 }
 window.openGearEditModal = openGearEditModal;
 
@@ -38676,20 +38755,31 @@ function ensureMagicItems() {
 // same spirit as tokenUrl's sword-emoji fallback but resolved per-image
 // at render time instead of pre-known per-character.
 //
-// Served through GitHub Pages (confirmed live for this repo, built from
-// the `data` branch — the same branch item-images/ actually lives on)
-// rather than raw.githubusercontent.com directly or a third-party CDN.
-// raw.githubusercontent.com was ruled out: GitHub tightened rate limits
-// on unauthenticated requests to it in 2025, and a long session opening
-// many item-art images in a row was hitting it (already-cached images
-// kept working; anything not yet fetched started silently failing).
-// jsDelivr was tried next and avoided that, but needed a purge-after-
-// upload workaround (fire a request to jsDelivr's purge endpoint right
-// after every upload) to keep freshly-uploaded art from sitting stale
-// behind its own aggressive CDN caching, and that purge has no real
-// guarantee behind it. Pages sidesteps both problems at once: it isn't
-// rate-limited the same way, and it rebuilds/redeploys automatically on
-// every push (observed ~1-2 minutes), so no purge step is needed at all.
+// Served through GitHub Pages rather than raw.githubusercontent.com
+// directly or a third-party CDN. raw.githubusercontent.com was ruled
+// out: GitHub tightened rate limits on unauthenticated requests to it in
+// 2025, and a long session opening many item-art images in a row was
+// hitting it (already-cached images kept working; anything not yet
+// fetched started silently failing). jsDelivr was tried next and
+// avoided that, but needed a purge-after-upload workaround (fire a
+// request to jsDelivr's purge endpoint right after every upload) to
+// keep freshly-uploaded art from sitting stale behind its own
+// aggressive CDN caching, and that purge has no real guarantee behind
+// it. Pages sidesteps both problems: it isn't rate-limited the same
+// way, and it rebuilds/redeploys automatically on every push.
+//
+// Pages for this repo is configured to build from `main`, NOT `data` —
+// confirmed via Settings -> Pages after item art still 404'd even once
+// the files themselves were verified present on `data`. `data` is used
+// purely as storage for character saves/tokens/item art and was never
+// reachable by Pages at all; `main` is what the DM already manually
+// re-uploads CharacterSheet.html to whenever it's updated, and is also
+// what's actually serving that live page via Pages. So item art needs
+// to write to `main` specifically — see ITEM_ART_BRANCH below, passed
+// as the branch override to GH.putBinaryFile/getFileShaAtPath in both
+// upload paths — while everything else (character JSON, tokens)
+// continues writing to `data` via GH.branch exactly as before.
+const ITEM_ART_BRANCH = 'main';
 function itemImageUrl(key) {
   if (!key) return '';
   return `https://${GH.owner}.github.io/${GH.repo}/item-images/${key}.webp`;
@@ -38697,10 +38787,56 @@ function itemImageUrl(key) {
 // Small square thumbnail <img>, sized for inline rows. Returns '' (no
 // element at all) when there's no key — callers fall back to their
 // existing badge/icon in that case, same as before this existed.
+//
+// onerror also logs to console (src + timestamp) before hiding — a
+// browser deliberately withholds the actual failure reason (404 vs rate
+// limit vs CORS vs anything else) from JS for an <img> load, for privacy
+// reasons, so this can't capture a status code. What it CAN do is make a
+// failure show up at all in a console-log capture (the workflow already
+// used to report the "images stop loading after a while" issue),
+// instead of failing completely silently as before — narrows down which
+// keys failed and when, even without the full picture DevTools' Network
+// tab would give.
 function itemThumbImg(key, sizePx) {
   if (!key) return '';
   const s = sizePx || 22;
-  return `<img src="${itemImageUrl(key)}" loading="lazy" style="width:${s}px;height:${s}px;object-fit:contain;border-radius:3px;background:var(--bg2);flex-shrink:0" onerror="this.style.display='none'" alt=""/>`;
+  return `<img src="${itemImageUrl(key)}" loading="lazy" style="width:${s}px;height:${s}px;object-fit:contain;border-radius:3px;background:var(--bg2);flex-shrink:0" onerror="console.error('[item-art] thumb failed to load:', this.src, new Date().toISOString());this.style.display='none'" alt=""/>`;
+}
+
+// The "outside the modal, to the left, big" item-art treatment shared by
+// every item detail/edit modal (magic items, weapons, armor, gear).
+// Sizing/framing lives entirely in the .item-detail-img-outside img CSS
+// rule, not here, so every modal using this tag stays visually
+// consistent by construction — no inline style string to remember to
+// keep in sync across four separate populate functions.
+// Same console-logged onerror as itemThumbImg above, and for the same
+// reason — see that comment.
+function itemDetailImgTag(key) {
+  if (!key) return '';
+  return `<img src="${itemImageUrl(key)}" loading="lazy" onerror="console.error('[item-art] detail image failed to load:', this.src, new Date().toISOString());this.parentElement.style.display='none'" alt=""/>`;
+}
+
+// Vertical-centering pass for the item-art image against the modal's
+// content specifically (not its header-inclusive full box) — call once
+// per modal open, right after openModal(). Deferred via setTimeout
+// because the wrapper's offsetTop/offsetHeight are only meaningful once
+// the modal is no longer display:none, which openModal just changed but
+// the browser hasn't necessarily laid out yet on the same tick. See the
+// .item-detail-img-outside CSS comment for why this can't be done with
+// plain CSS percentages alone (right:100% needs to measure from the
+// modal's own edge for correct horizontal placement, but centering
+// needs to measure against only the content below the header — two
+// different reference frames one position:absolute element can't
+// express against a single containing block at the same time).
+function positionItemDetailImgOutside(imgWrapId, contentWrapId) {
+  setTimeout(() => {
+    const wrap = document.getElementById(contentWrapId);
+    const imgWrap = document.getElementById(imgWrapId);
+    if (wrap && imgWrap && imgWrap.querySelector('img')) {
+      imgWrap.style.top = (wrap.offsetTop + wrap.offsetHeight / 2 - imgWrap.offsetHeight / 2) + 'px';
+      imgWrap.style.transform = 'none';
+    }
+  }, 0);
 }
 
 function getItemDisplayName(item) {
@@ -41109,8 +41245,8 @@ async function dmUploadCatalogItemArt(file) {
   try {
     const base64 = await resizeImageToWebpBase64(file);
     const path = `item-images/${key}.webp`;
-    const existingSha = await GH.getFileShaAtPath(path);
-    await GH.putBinaryFile(path, base64, existingSha);
+    const existingSha = await GH.getFileShaAtPath(path, ITEM_ART_BRANCH);
+    await GH.putBinaryFile(path, base64, existingSha, ITEM_ART_BRANCH);
     // Cache-bust the browser's own cache — Pages redeploys automatically
     // on push (no CDN purge step needed the way jsDelivr required), but
     // the browser itself may still be holding an old fetch of this exact
@@ -41883,13 +42019,13 @@ async function dmUploadMatchedItemArt() {
       if (statusEl) statusEl.textContent = `Checking ${done}/${totalKeys}: ${key}…`;
       try {
         const path = `item-images/${key}.webp`;
-        const existingSha = await GH.getFileShaAtPath(path);
+        const existingSha = await GH.getFileShaAtPath(path, ITEM_ART_BRANCH);
         if (existingSha === localSha) {
           skipped++; // identical content already at this path — no PUT needed
           continue;
         }
         if (statusEl) statusEl.textContent = `Uploading ${done}/${totalKeys}: ${key}…`;
-        await GH.putBinaryFile(path, base64, existingSha);
+        await GH.putBinaryFile(path, base64, existingSha, ITEM_ART_BRANCH);
         ok++;
       } catch(e) {
         failed++;
@@ -41904,6 +42040,70 @@ async function dmUploadMatchedItemArt() {
   toast(`Item art sync: ${ok} uploaded, ${skipped} skipped (identical)${failed ? `, ${failed} failed` : ''}`, failed ? 'warn' : 'ok');
 }
 window.dmUploadMatchedItemArt = dmUploadMatchedItemArt;
+
+// One-time migration: copies item-images/ from `data` onto `main` using
+// the Git Data API's lower-level objects (refs/trees/commits) instead of
+// the Contents API used everywhere else in this file. The key trick:
+// git blobs and trees are content-addressed and branch-independent — the
+// exact same tree object that represents item-images/ on `data` can be
+// referenced from a brand-new commit on `main` without re-uploading a
+// single byte. This is what makes it fast (~6 API calls total, no matter
+// how many files are in the folder) instead of slow (one GET+PUT pair
+// per file, same as the bulk zip sync's ~30+ minutes for ~1000 files).
+//
+// Uses `base_tree` when creating the new tree so every other file
+// already on main (CharacterSheet.html, the wiki's own assets, etc.)
+// carries over untouched — only the item-images/ entry itself is
+// replaced. That replacement is a full swap, not a per-file merge: if
+// main's item-images/ already has something not on data (e.g. from a
+// partial re-run before this tool existed), this overwrites it, hence
+// the confirm() below.
+async function dmMigrateItemImagesToMain() {
+  const statusEl = document.getElementById('dm-item-art-migrate-status');
+  const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg; };
+
+  if (!confirm(
+    'Copy item-images/ from the data branch onto main?\n\n' +
+    'This OVERWRITES item-images/ on main entirely with whatever\'s currently on data. ' +
+    'Nothing else on main is touched. This cannot be easily undone from within the app.'
+  )) return;
+
+  try {
+    setStatus('Reading data branch…');
+    const dataRef = await GH.req('GET', 'git/refs/heads/data');
+    const dataCommit = await GH.req('GET', `git/commits/${dataRef.object.sha}`);
+    const dataRootTree = await GH.req('GET', `git/trees/${dataCommit.tree.sha}`);
+    const itemImagesEntry = dataRootTree.tree.find(e => e.path === 'item-images' && e.type === 'tree');
+    if (!itemImagesEntry) throw new Error('No item-images/ folder found on the data branch — nothing to copy.');
+
+    setStatus('Reading main branch…');
+    const mainRef = await GH.req('GET', 'git/refs/heads/main');
+    const mainCommit = await GH.req('GET', `git/commits/${mainRef.object.sha}`);
+
+    setStatus('Grafting item-images/ onto main…');
+    const newTree = await GH.req('POST', 'git/trees', {
+      base_tree: mainCommit.tree.sha,
+      tree: [{ path: 'item-images', mode: '040000', type: 'tree', sha: itemImagesEntry.sha }],
+    });
+
+    setStatus('Committing…');
+    const newCommit = await GH.req('POST', 'git/commits', {
+      message: 'Copy item-images/ from data branch onto main (for GitHub Pages)',
+      tree: newTree.sha,
+      parents: [mainRef.object.sha],
+    });
+
+    setStatus('Updating main…');
+    await GH.req('PATCH', 'git/refs/heads/main', { sha: newCommit.sha });
+
+    setStatus('Done — item-images/ copied onto main. Give Pages a minute or two to redeploy.');
+    toast('item-images/ copied to main', 'ok');
+  } catch(e) {
+    setStatus('Failed: ' + e.message);
+    toast('Migration failed: ' + e.message, 'error');
+  }
+}
+window.dmMigrateItemImagesToMain = dmMigrateItemImagesToMain;
 
 // Legacy stubs (called from existing code paths)
 function renderSpellList() { renderKnownSpells(); }
