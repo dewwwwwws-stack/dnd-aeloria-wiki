@@ -2586,6 +2586,7 @@ body.preview-readonly #mi-detail-edit-row * {
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -3898,6 +3899,27 @@ body.preview-readonly #mi-detail-edit-row * {
           <input type="text" id="dm-gear-quick-weight" class="spell-search-input" placeholder="wt (optional)" style="width:90px;flex-shrink:0"/>
           <button class="tbtn" style="font-size:10px;padding:5px 10px;flex-shrink:0;color:var(--accent);border-color:var(--accent)" onclick="dmQuickGrantGear()" title="Grant a piece of general gear that isn't in any catalog - a torch, rope, trail rations, anything">🎁 Grant Gear</button>
         </div>
+
+        <!-- Item Art Sync — bulk-upload a zip of item images, matched to the
+             catalog by normalized filename. See dmHandleItemArtZip() below
+             for the matching logic; nothing here writes to GitHub until the
+             DM reviews the match report and clicks "Upload Matched". -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius);padding:8px;margin-bottom:10px;background:rgba(255,255,255,.02)">
+          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="const b=document.getElementById('dm-item-art-body');b.style.display=b.style.display==='none'?'block':'none'">
+            <span style="font-family:var(--font-ui);font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)">🖼 Item Art Sync</span>
+            <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">▾</span>
+          </div>
+          <div id="dm-item-art-body" style="display:none;margin-top:8px">
+            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:6px">
+              Upload a .zip of item images (any folder layout). Filenames are matched to the catalog by name — review the match report before anything uploads to GitHub.
+            </div>
+            <input type="file" id="dm-item-art-zip-input" accept=".zip" style="display:none" onchange="dmHandleItemArtZip(this.files[0])"/>
+            <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="document.getElementById('dm-item-art-zip-input').click()">Choose .zip…</button>
+            <div id="dm-item-art-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:8px"></div>
+            <div id="dm-item-art-report" style="margin-top:8px"></div>
+          </div>
+        </div>
+
         <div id="dm-items-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
         <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 320px);overflow-y:auto"></div>
       </div>
@@ -4963,6 +4985,7 @@ body.preview-readonly #mi-detail-edit-row * {
       <span id="mi-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('magic-item-detail-modal')">✕</button>
     </div>
+    <div id="mi-detail-img" style="margin-bottom:10px"></div>
     <div id="mi-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
     <div id="mi-detail-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
@@ -4981,6 +5004,7 @@ body.preview-readonly #mi-detail-edit-row * {
       <span id="td-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
       <button class="modal-close" onclick="closeModal('treasure-detail-modal')">✕</button>
     </div>
+    <div id="td-detail-img" style="margin-bottom:8px"></div>
     <div id="td-detail-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);letter-spacing:.3px;margin-bottom:12px"></div>
     <div id="td-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
   </div>
@@ -5243,6 +5267,23 @@ body.preview-readonly #mi-detail-edit-row * {
       <div>
         <label class="field-label">Name</label>
         <input id="ci-item-name" class="info-input" type="text" placeholder="e.g. The Codicil of White">
+      </div>
+
+      <!-- Item art upload — catalog-mode only (see dmUploadCatalogItemArt).
+           Hidden for player-owned custom items (mode 'character') and for
+           a not-yet-saved new catalog item, since art needs a real catalog
+           key to hang the upload path off of — same "must exist first"
+           constraint the character token uploader already has. -->
+      <div id="ci-item-art-row" style="display:none;gap:12px;align-items:center">
+        <div id="ci-item-art-wrap" style="position:relative;width:56px;height:56px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);flex-shrink:0;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('ci-item-art-file').click()" title="Click to upload item art">
+          <img id="ci-item-art-img" src="" alt="" style="width:100%;height:100%;object-fit:contain;display:none" onload="this.style.display='block';document.getElementById('ci-item-art-fallback').style.display='none'" onerror="this.style.display='none';document.getElementById('ci-item-art-fallback').style.display='flex'"/>
+          <span id="ci-item-art-fallback" style="font-size:18px;color:var(--text3)">🖼</span>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:.3px;text-transform:uppercase">Item Art</div>
+          <div id="ci-item-art-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Click the thumbnail to upload an image</div>
+        </div>
+        <input type="file" id="ci-item-art-file" accept="image/*" style="display:none" onchange="dmUploadCatalogItemArt(this.files[0])"/>
       </div>
 
       <div style="display:flex;gap:10px">
@@ -7073,7 +7114,7 @@ function buildDMInventoryHTML(c, charId) {
       badge: 'WPN', color: 'var(--red)',
       name: `${qty>1?qty+'× ':''}${entry.name||'Weapon'}`,
       sub: entry.equipped ? 'Equipped' : '',
-      weight: entry.weight || '',
+      weight: entry.weight || '', imgKey: entry.weaponKey,
       onEdit: `dmOpenGearEdit('${charId}','${charName}','weapon',${idx})`,
       onRemove: `dmRemoveInventoryItem('${charId}','weapon',${idx})`,
     });
@@ -7085,7 +7126,7 @@ function buildDMInventoryHTML(c, charId) {
       badge: 'ARM', color: 'var(--accent2)',
       name: entry.name || 'Armor',
       sub: entry.worn ? 'Worn' : '',
-      weight: entry.weight || '',
+      weight: entry.weight || '', imgKey: entry.key,
       onEdit: `dmOpenGearEdit('${charId}','${charName}','armor',${idx})`,
       onRemove: `dmRemoveInventoryItem('${charId}','armor',${idx})`,
     });
@@ -7104,7 +7145,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: 'WPN', color: rarityColor,
         name: getItemDisplayName(item),
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
-        weight: '', onEdit,
+        weight: '', onEdit, imgKey: item.key,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     } else if (item.isArmour) {
@@ -7112,7 +7153,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: isShieldItemType(item.type)?'SHLD':'ARM', color: rarityColor,
         name: getItemDisplayName(item),
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
-        weight: '', onEdit,
+        weight: '', onEdit, imgKey: item.key,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     } else {
@@ -7120,7 +7161,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: (effRarity||'ITEM').slice(0,4).toUpperCase(), color: rarityColor,
         name: getItemDisplayName(item),
         sub: attuneSub,
-        weight: '', onEdit,
+        weight: '', onEdit, imgKey: item.key,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     }
@@ -7157,6 +7198,7 @@ function buildDMInventoryHTML(c, charId) {
     <div style="font-family:var(--font-ui);font-size:8px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);margin-top:4px">${group.label}</div>
     ${group.rows.map(r => `
       <div style="display:flex;align-items:center;gap:6px;padding:2px 0">
+        ${itemThumbImg(r.imgKey, 14)}
         <span style="font-family:var(--font-ui);font-size:7px;font-weight:700;color:${r.color};border:1px solid ${r.color};border-radius:3px;padding:0 3px;flex-shrink:0">${r.badge}</span>
         <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}${r.sub?` <span style="color:var(--text3)">· ${r.sub}</span>`:''}</span>
         ${r.weight ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);flex-shrink:0">${r.weight}</span>` : ''}
@@ -11112,6 +11154,8 @@ function openTreasureDetailModal(key, kind) {
   const item = catalog.find(i => i.key === key);
   if (!item) return;
   document.getElementById('td-detail-title').textContent = item.name;
+  const tdImgEl = document.getElementById('td-detail-img');
+  if (tdImgEl) tdImgEl.innerHTML = ''; // valuables/mounts aren't in the item-art pack; no lookup attempted
   document.getElementById('td-detail-meta').textContent = [item.category, item.value, item.weight].filter(Boolean).join(' · ');
   let tdBody = renderItemMarkdown(item.desc || '');
   if (typeof linkifyGlossaryTerms === 'function') tdBody = linkifyGlossaryTerms(tdBody, item.name);
@@ -11130,9 +11174,10 @@ window.openTreasureDetailModal = openTreasureDetailModal;
 // weight, notes) — covers homebrew/custom items with no catalog match.
 function openInventoryItemDetailModal(entry, kind, charData) {
   if (!entry) return;
-  let name, meta, body;
+  let name, meta, body, imgKey;
   if (kind === 'weapon') {
     const phb = PHB_WEAPONS.find(w => w.key === entry.weaponKey);
+    imgKey = entry.weaponKey;
     name = entry.name || phb?.name || 'Weapon';
     let dmgStr;
     if (Array.isArray(entry.damageLines) && entry.damageLines.length) {
@@ -11161,6 +11206,7 @@ function openInventoryItemDetailModal(entry, kind, charData) {
     body = parts.join('') || '<p style="color:var(--text3)">No further details.</p>';
   } else if (kind === 'armor') {
     const phb = PHB_ARMOUR.find(a => a.key === entry.key);
+    imgKey = entry.key;
     name = entry.name || phb?.name || 'Armor';
     const dexNote = phb?.type === 'light' ? '+ full DEX mod' : phb?.type === 'medium' ? '+ DEX mod (max 2)' : phb?.type === 'heavy' ? 'no DEX mod' : '';
     const acStr = phb?.type === 'shield' ? `+${phb.ac} AC` : phb ? `AC ${phb.ac}${dexNote ? ' ' + dexNote : ''}` : (entry.customAC ? `AC ${entry.customAC}` : '');
@@ -11175,6 +11221,18 @@ function openInventoryItemDetailModal(entry, kind, charData) {
     name = entry.name || 'Item';
     meta = [entry.weight, (entry.qty && entry.qty > 1) ? `×${entry.qty}` : ''].filter(Boolean).join(' · ');
     body = entry.desc ? renderItemMarkdown(entry.desc) : '<p style="color:var(--text3)">No further details.</p>';
+    // Gear entries are free-text (no stored catalog key — see comment
+    // above openGearBrowser), so this is the one spot that falls back to
+    // a name lookup rather than a stored field, same as the existing
+    // name-match lookups elsewhere in this file (e.g. line ~11216).
+    const gearMatch = (entry.name && typeof PHB_GEAR !== 'undefined') ? PHB_GEAR.find(g => g.name.toLowerCase() === entry.name.toLowerCase()) : null;
+    imgKey = gearMatch?.key;
+  }
+  const imgEl = document.getElementById('td-detail-img');
+  if (imgEl) {
+    imgEl.innerHTML = imgKey
+      ? `<img src="${itemImageUrl(imgKey)}" loading="lazy" style="max-width:120px;max-height:120px;object-fit:contain;border-radius:6px;background:var(--bg2);border:1px solid var(--border)" onerror="this.parentElement.style.display='none'" alt=""/>`
+      : '';
   }
   document.getElementById('td-detail-title').textContent = name;
   document.getElementById('td-detail-meta').textContent = meta;
@@ -11241,6 +11299,15 @@ function openMagicItemDetailModal(keyOrItem) {
   titleEl.textContent = getItemDisplayName(item);
   const effRarity = getEffectiveItemRarity(item);
   titleEl.style.color = RARITY_COLOURS[effRarity] || 'var(--text)';
+
+  const imgEl = document.getElementById('mi-detail-img');
+  if (imgEl) {
+    // Bigger than the inline row thumbnail, same onerror-hide-silently
+    // convention — most items still have no art, and that's fine.
+    imgEl.innerHTML = item.key
+      ? `<img src="${itemImageUrl(item.key)}" loading="lazy" style="max-width:140px;max-height:140px;object-fit:contain;border-radius:6px;background:var(--bg2);border:1px solid var(--border)" onerror="this.parentElement.style.display='none'" alt=""/>`
+      : '';
+  }
 
   const rarityColor = RARITY_COLOURS[effRarity] || 'var(--text2)';
   const metaParts = [
@@ -27982,6 +28049,41 @@ function resizeImageToBase64(file, maxDim = 300, quality = 0.85) {
   });
 }
 
+// Same resize approach as resizeImageToBase64 above, but encodes to WebP
+// instead of JPEG — kept as a separate function rather than adding a
+// format param to the existing one, since tokens (tokens/{id}.jpg) and
+// item art (item-images/{key}.webp) are two different, unrelated naming
+// conventions and this keeps each caller's intent explicit. Falls back
+// to whatever canvas.toDataURL actually returns if a browser doesn't
+// support WebP encoding (very old browsers only) — the caller doesn't
+// need to handle that specially since the bytes are still a valid image,
+// just not actually WebP; worth knowing about but not worth adding
+// complexity for as of writing.
+function resizeImageToWebpBase64(file, maxDim = 400, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        } else {
+          if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/webp', quality).split(',')[1]);
+      };
+      img.onerror = () => reject(new Error('Could not read image - try a different file'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function handleTokenFileUpload(file) {
   if (!file || !currentChar) return;
   const statusEl = document.getElementById('ci-token-status');
@@ -36951,7 +37053,7 @@ function renderUnifiedInventory() {
       badge: 'WPN', badgeColor: 'var(--red)',
       name: entry.name || phb?.name || 'Weapon',
       qty, weight: entry.weight || '',
-      sub: '',
+      sub: '', itemImgKey: entry.weaponKey,
       onClick: `openWeaponDetail(${idx})`,
       onEditClick: `openWeaponEdit(${idx})`,
       onRemove: `removeWeapon(${idx});renderFeatItemsWeapons()`,
@@ -36970,7 +37072,7 @@ function renderUnifiedInventory() {
       badge: isShieldItemType(phb?.type) ? 'SHLD' : 'ARM', badgeColor: 'var(--accent2)',
       name: entry.name || phb?.name || 'Armor',
       qty, weight: entry.weight || '',
-      sub: '',
+      sub: '', itemImgKey: entry.key,
       onClick: `openArmorDetail(${idx})`,
       onEditClick: `openArmorEdit(${idx})`,
       onRemove: `removeArmorOwned(${idx})`,
@@ -37007,7 +37109,7 @@ function renderUnifiedInventory() {
         name: getItemDisplayName(item),
         qty, weight: rowWeight,
         sub: [rarityLabel, attuneSub].filter(Boolean).join(' · '),
-        onClick, onRemove,
+        onClick, onRemove, itemImgKey: item.key,
         kind: 'magic', rowIdx: idx, weightEditable: !item.weaponKey, containerUid, isContainer: !!containerDef,
         equipped: !!item.equipped, equipLabel: 'Equipped',
         equipToggle: `toggleMagicWeaponEquipped(${idx},this.checked)`,
@@ -37018,7 +37120,7 @@ function renderUnifiedInventory() {
         name: getItemDisplayName(item),
         qty, weight: rowWeight,
         sub: [rarityLabel, attuneSub].filter(Boolean).join(' · '),
-        onClick, onRemove,
+        onClick, onRemove, itemImgKey: item.key,
         kind: 'magic', rowIdx: idx, weightEditable: isShieldItemType(item.type) || !item.armourKey, containerUid, isContainer: !!containerDef,
         equipped: !!item.equipped, equipLabel: 'Worn',
         equipToggle: `${isShieldItemType(item.type) ? 'toggleMagicShieldEquipped' : 'toggleMagicArmorEquipped'}(${idx},this.checked)`,
@@ -37035,7 +37137,7 @@ function renderUnifiedInventory() {
         name: getItemDisplayName(item),
         qty, weight: rowWeight,
         sub,
-        onClick, onRemove,
+        onClick, onRemove, itemImgKey: item.key,
         kind: 'magic', rowIdx: idx, weightEditable: true, containerUid, isContainer: !!containerDef,
       });
     }
@@ -37209,6 +37311,7 @@ function renderUnifiedInventory() {
     <div class="inv-row" data-kind="${r.kind}" data-idx="${r.rowIdx}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:${r.onClick ? 'pointer' : 'default'}"
       onclick="${r.onClick}" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
       <span onpointerdown="startInventoryDrag(event,'${r.kind}',${r.rowIdx})" onclick="event.stopPropagation()" style="cursor:grab;color:var(--text3);font-size:14px;flex-shrink:0;padding:0 2px;touch-action:none" title="Drag to reorder">⠿</span>
+      ${itemThumbImg(r.itemImgKey, 22)}
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
       ${r.equipToggle ? `<input type="checkbox" ${r.equipped?'checked':''} onclick="event.stopPropagation()" onchange="${r.equipToggle}" title="${r.equipLabel}" style="accent-color:${r.badgeColor};flex-shrink:0;cursor:pointer"/>` : ''}
       <div class="inv-row-name" style="flex:1;min-width:0;overflow:hidden">
@@ -38451,6 +38554,27 @@ function ensureMagicItems() {
 // Shows "Spell Scroll of Fireball (3rd Level)" once a spell is chosen, or
 // "Ring of Resistance (Fire)" once a damage type is chosen — otherwise
 // falls back to the item's own custom/default name.
+// ── Item art (item-images/{key}.webp on GitHub) ────────────────────
+// Predictable URL-by-convention, deliberately NOT stored per-character —
+// embedding image data/URLs in character JSON would regress the DM-panel
+// round-trip-size performance fix. Instead every render site builds the
+// URL from the catalog key at render time and lets it 404 silently
+// (onerror hides the <img>) for the majority of items that have no art,
+// same spirit as tokenUrl's sword-emoji fallback but resolved per-image
+// at render time instead of pre-known per-character.
+function itemImageUrl(key) {
+  if (!key) return '';
+  return `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch}/item-images/${key}.webp`;
+}
+// Small square thumbnail <img>, sized for inline rows. Returns '' (no
+// element at all) when there's no key — callers fall back to their
+// existing badge/icon in that case, same as before this existed.
+function itemThumbImg(key, sizePx) {
+  if (!key) return '';
+  const s = sizePx || 22;
+  return `<img src="${itemImageUrl(key)}" loading="lazy" style="width:${s}px;height:${s}px;object-fit:contain;border-radius:3px;background:var(--bg2);flex-shrink:0" onerror="this.style.display='none'" alt=""/>`;
+}
+
 function getItemDisplayName(item) {
   if ((item.type || '').toLowerCase() === 'scroll' && item.scrollSpellKey) {
     const spell = PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey);
@@ -40269,6 +40393,8 @@ function openCustomItemModal(idx, dmItem = null) {
   if (!dmItem) _ciDMTarget = null;
   const delBtn = document.getElementById('ci-delete-btn');
   if (delBtn) delBtn.style.display = 'none';
+  const artRow = document.getElementById('ci-item-art-row');
+  if (artRow) artRow.style.display = 'none'; // art upload is catalog-mode only — see openDMCatalogItemModal
   _ciEditIdx = (idx === undefined || idx === null) ? null : idx;
   const item = dmItem || (_ciEditIdx !== null ? currentChar.magicItems[_ciEditIdx] : null);
 
@@ -40776,6 +40902,29 @@ function openDMCatalogItemModal(key) {
     delBtn.textContent = isOverrideOfOfficial ? 'Revert to Original' : 'Delete';
   }
 
+  // Art upload needs a real, saved catalog key to hang the upload path
+  // off of (item-images/{key}.webp) — same constraint the character
+  // token uploader has ("save the character once first"). A brand-new
+  // item (key === null) shows the row disabled with an explanatory note
+  // rather than hiding it outright, so it's clear the option exists once
+  // the item is saved.
+  const artRow = document.getElementById('ci-item-art-row');
+  const artImg = document.getElementById('ci-item-art-img');
+  const artStatus = document.getElementById('ci-item-art-status');
+  const artWrap = document.getElementById('ci-item-art-wrap');
+  if (artRow) {
+    artRow.style.display = 'flex';
+    if (key) {
+      if (artWrap) artWrap.style.cursor = 'pointer';
+      if (artImg) { artImg.style.display = 'none'; artImg.src = itemImageUrl(key) + '?t=' + Date.now(); }
+      if (artStatus) artStatus.textContent = 'Click the thumbnail to upload/replace the image';
+    } else {
+      if (artWrap) artWrap.style.cursor = 'default';
+      if (artImg) { artImg.style.display = 'none'; artImg.removeAttribute('src'); }
+      if (artStatus) artStatus.textContent = 'Save the item first, then reopen it to add art';
+    }
+  }
+
   document.getElementById('ci-modal-title').textContent = key ? `Edit Catalog Item${isOverrideOfOfficial ? ' (DM Override)' : ''}` : 'New Catalog Item';
   document.getElementById('ci-item-name').value        = item?.name || '';
   document.getElementById('ci-rarity').value      = item?.rarity || 'uncommon';
@@ -40808,6 +40957,46 @@ function openDMCatalogItemModal(key) {
 
   openModal('custom-item-modal');
 }
+
+// Per-item art upload, direct from the catalog editor — the single-item
+// counterpart to the bulk Item Art Sync tool above. Especially useful
+// for homebrew items, which will never appear in a bulk art pack keyed
+// to official item names. Same item-images/{key}.webp convention and
+// same GH.getFileShaAtPath + GH.putBinaryFile pair as everything else
+// that writes to that folder, so this, the bulk sync tool, and every
+// render site all stay interchangeable — whichever path last uploaded
+// to a given key is what every view shows.
+async function dmUploadCatalogItemArt(file) {
+  const fileInput = document.getElementById('ci-item-art-file');
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Not an image file.', 'error'); if (fileInput) fileInput.value = ''; return; }
+  if (_ciMode !== 'catalog' || !_ciCatalogKey) {
+    toast('Save the item first, then reopen it to add art.', 'info');
+    if (fileInput) fileInput.value = '';
+    return;
+  }
+  const key = _ciCatalogKey;
+  const statusEl = document.getElementById('ci-item-art-status');
+  if (statusEl) statusEl.textContent = 'Uploading…';
+  try {
+    const base64 = await resizeImageToWebpBase64(file);
+    const path = `item-images/${key}.webp`;
+    const existingSha = await GH.getFileShaAtPath(path);
+    await GH.putBinaryFile(path, base64, existingSha);
+    // Cache-bust so the modal's own thumbnail shows the new art
+    // immediately rather than a browser-cached old copy or 404.
+    const imgEl = document.getElementById('ci-item-art-img');
+    if (imgEl) { imgEl.style.display = 'none'; imgEl.src = itemImageUrl(key) + '?t=' + Date.now(); }
+    if (statusEl) statusEl.textContent = 'Art uploaded.';
+    toast('Item art uploaded.', 'ok');
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'Upload failed — try again.';
+    toast('Upload failed: ' + e.message, 'error');
+  } finally {
+    if (fileInput) fileInput.value = '';
+  }
+}
+window.dmUploadCatalogItemArt = dmUploadCatalogItemArt;
 
 async function saveDMCatalogItem() {
   const name = document.getElementById('ci-item-name').value.trim();
@@ -41279,6 +41468,311 @@ function dmQuickGrantGear() {
   openGrantItemModal(name, 'gear');
 }
 window.dmQuickGrantGear = dmQuickGrantGear;
+
+// ═══════════════════════════════════════════════════════════
+// ITEM ART SYNC — bulk-match a zip of item images to DMG_MAGIC_ITEMS
+// keys by normalized filename, show the DM a match report, then upload
+// only on explicit confirmation. See HANDOFF10/11 for the design
+// decisions (no catalog data changes, base-filename-only for rarity
+// variants, item-images/{key}.webp path convention).
+// ═══════════════════════════════════════════════════════════
+
+// Normalizes both catalog item names and zip filenames to the same
+// comparable form: strip a trailing "(Rare)"-style rarity suffix (per
+// the decision to ignore rarity-variant art), fold curly quotes to
+// straight ones, drop apostrophes entirely, lowercase, and collapse
+// everything else non-alphanumeric to single underscores. Deliberately
+// NOT the same as the catalog's own key-generation convention (which is
+// itself inconsistent — "Veteran's Cane" -> veterans_cane but
+// "Charlatan's Die" -> charlatan_s_die) — matching on normalized *names*
+// on both sides sidesteps that inconsistency entirely.
+function _itemArtNormalize(s) {
+  return (s || '')
+    .trim()
+    .replace(/\s*\((?:common|uncommon|rare|very rare|legendary|artifact)\)\s*$/i, '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .toLowerCase()
+    .replace(/'/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+// Builds normalized-name -> [keys] indices for all four flat item
+// catalogs that share the item-images/{key}.webp namespace. Confirmed
+// (offline, against the real catalogs) that no key collides across any
+// pair of these four, so one shared upload namespace is safe. Magic
+// items use the live effective catalog (official + DM overrides/
+// additions); weapons/armor/gear are the file's fixed PHB catalogs,
+// since those aren't DM-editable the way magic items are.
+//
+// Armor gets a second, suffix-stripped index alongside the plain one:
+// the armor catalog's own names often omit the trailing word "Armor"
+// ("Padded", "Half Plate", "Splint") while the art pack's filenames
+// include it ("Padded Armor", "Half Plate Armor", "Splint Armor"). The
+// plain index is checked first so an exact match always wins; the
+// stripped index only kicks in as a fallback in _itemArtLookup.
+function _itemArtCatalogIndex() {
+  const magic = {}, weapon = {}, armor = {}, armorStripped = {}, gear = {};
+  const addTo = (idx, name, key) => { const n = _itemArtNormalize(name); if (n) (idx[n] = idx[n] || []).push(key); };
+
+  const magicItems = (typeof getEffectiveMagicItemsCatalog === 'function') ? getEffectiveMagicItemsCatalog() : DMG_MAGIC_ITEMS;
+  magicItems.forEach(it => { if (it.key && it.name) addTo(magic, it.name, it.key); });
+
+  (typeof PHB_WEAPONS !== 'undefined' ? PHB_WEAPONS : []).forEach(w => { if (w.key && w.name) addTo(weapon, w.name, w.key); });
+
+  (typeof PHB_ARMOUR !== 'undefined' ? PHB_ARMOUR : []).forEach(a => {
+    if (!a.key || !a.name) return;
+    addTo(armor, a.name, a.key);
+    addTo(armorStripped, a.name + ' armor', a.key); // e.g. "Padded" -> normalizes same as filename "Padded Armor"
+  });
+
+  (typeof PHB_GEAR !== 'undefined' ? PHB_GEAR : []).forEach(g => { if (g.key && g.name) addTo(gear, g.name, g.key); });
+
+  return { magic, weapon, armor, armorStripped, gear };
+}
+
+const _ITEM_ART_RARITY_SUFFIXES = ['_common','_uncommon','_rare','_very_rare','_legendary','_artifact','_primeval_vestige'];
+
+// Curated "named variant families" — groups of catalog items that are
+// meaningfully the same picture (a belt, a potion) but have entirely
+// different names/keys per sub-type, so they can't be detected by any
+// mechanical suffix/prefix rule. Add more entries here as art gets
+// synced and new families are noticed. `trigger` is the normalized
+// filename stem that should fan out to every catalog name matching
+// `pattern`.
+const ITEM_ART_VARIANT_FAMILIES = [
+  { trigger: 'belt_of_giant_strength',   pattern: /^belt of (hill|stone|fire|frost|cloud|storm) giant strength$/i },
+  { trigger: 'potion_of_giant_strength', pattern: /^potion of (hill|stone|fire|frost|cloud|storm) giant strength$/i },
+  { trigger: 'potion_of_healing',        pattern: /^potion of (greater |superior |supreme )?healing$/i },
+];
+
+// Builds normalized-name -> [keys] indices for all four flat item
+// catalogs that share the item-images/{key}.webp namespace, plus two
+// variant-grouping indices used only as later-priority fallbacks:
+//   - bonusTier: catalog names with a leading "+1/+2/+3 " stripped, so
+//     a bare filename like "Manual of Occult Anatomy" can fan out to
+//     all three +N keyed variants.
+//   - families: the curated ITEM_ART_VARIANT_FAMILIES table above.
+// Confirmed (offline, against the real catalogs) that no key collides
+// across any pair of the four flat catalogs, so one shared upload
+// namespace is safe. Magic items use the live effective catalog
+// (official + DM overrides/additions); weapons/armor/gear are the
+// file's fixed PHB catalogs, since those aren't DM-editable the way
+// magic items are.
+//
+// Armor gets a second, suffix-stripped index alongside the plain one:
+// the armor catalog's own names often omit the trailing word "Armor"
+// ("Padded", "Half Plate", "Splint") while the art pack's filenames
+// include it ("Padded Armor", "Half Plate Armor", "Splint Armor"). The
+// plain index is checked first so an exact match always wins; the
+// stripped index only kicks in as a fallback in _itemArtLookup.
+function _itemArtCatalogIndex() {
+  const magic = {}, weapon = {}, armor = {}, armorStripped = {}, gear = {}, bonusTier = {};
+  const addTo = (idx, name, key) => { const n = _itemArtNormalize(name); if (n) (idx[n] = idx[n] || []).push(key); };
+
+  const magicItems = (typeof getEffectiveMagicItemsCatalog === 'function') ? getEffectiveMagicItemsCatalog() : DMG_MAGIC_ITEMS;
+  magicItems.forEach(it => {
+    if (!it.key || !it.name) return;
+    addTo(magic, it.name, it.key);
+    // Bonus-tier catalog names appear in this file both as a leading
+    // "+1 Hoopak" and a trailing "Manual of Occult Anatomy +1" — index
+    // both stripped forms so a bare filename fans out to all tiers
+    // regardless of which convention that item happens to use.
+    const strippedPrefix = it.name.replace(/^\+\d+\s+/, '');
+    if (strippedPrefix !== it.name) addTo(bonusTier, strippedPrefix, it.key);
+    const strippedSuffix = it.name.replace(/\s+\+\d+$/, '');
+    if (strippedSuffix !== it.name) addTo(bonusTier, strippedSuffix, it.key);
+  });
+
+  (typeof PHB_WEAPONS !== 'undefined' ? PHB_WEAPONS : []).forEach(w => { if (w.key && w.name) addTo(weapon, w.name, w.key); });
+
+  (typeof PHB_ARMOUR !== 'undefined' ? PHB_ARMOUR : []).forEach(a => {
+    if (!a.key || !a.name) return;
+    addTo(armor, a.name, a.key);
+    addTo(armorStripped, a.name + ' armor', a.key); // e.g. "Padded" -> normalizes same as filename "Padded Armor"
+  });
+
+  (typeof PHB_GEAR !== 'undefined' ? PHB_GEAR : []).forEach(g => { if (g.key && g.name) addTo(gear, g.name, g.key); });
+
+  // Curated families: for each trigger, collect every magic-item key
+  // whose name matches the family's pattern.
+  const families = {};
+  ITEM_ART_VARIANT_FAMILIES.forEach(fam => {
+    const keys = magicItems.filter(it => it.key && it.name && fam.pattern.test(it.name)).map(it => it.key);
+    if (keys.length) families[fam.trigger] = keys;
+  });
+
+  return { magic, weapon, armor, armorStripped, gear, bonusTier, families };
+}
+
+// When a normalized name maps to several rarity-tiered keys sharing one
+// base name (e.g. reliquary_of_holy_memories_common/_rare/_legendary),
+// or when a variant-family/bonus-tier lookup found several keys, the
+// same one image applies to all of them — per the decision that a
+// belt/potion/tiered-item's art doesn't differ by which variant a
+// character happens to have. Dedupes, since a small number of catalog
+// entries (confirmed: "Windskiff") appear twice with an identical key —
+// a pre-existing catalog data duplicate, not something this function
+// should paper over by fixing the catalog, just something it shouldn't
+// double-upload because of.
+function _itemArtResolveKeys(keys) {
+  return [...new Set(keys)];
+}
+
+// Tries all four flat catalogs in order (magic items first, since
+// that's the most common case), then the armor-suffix fallback, then
+// the two variant-fanout mechanisms (bonus-tier prefix, curated named
+// families) — in that order, so an exact single-item match always wins
+// over a broader variant group when both exist. Returns
+// { keys: [...], catalog } or null.
+function _itemArtLookup(norm, idx) {
+  if (idx.magic[norm])         return { keys: _itemArtResolveKeys(idx.magic[norm]), catalog: 'magic' };
+  if (idx.weapon[norm])        return { keys: _itemArtResolveKeys(idx.weapon[norm]), catalog: 'weapon' };
+  if (idx.armor[norm])         return { keys: _itemArtResolveKeys(idx.armor[norm]), catalog: 'armor' };
+  if (idx.armorStripped[norm]) return { keys: _itemArtResolveKeys(idx.armorStripped[norm]), catalog: 'armor' };
+  if (idx.gear[norm])          return { keys: _itemArtResolveKeys(idx.gear[norm]), catalog: 'gear' };
+  if (idx.bonusTier[norm])     return { keys: _itemArtResolveKeys(idx.bonusTier[norm]), catalog: 'magic (all bonus tiers)' };
+  if (idx.families[norm])      return { keys: _itemArtResolveKeys(idx.families[norm]), catalog: 'magic (variant family)' };
+  return null;
+}
+
+let _itemArtMatchResults = null; // { matched: [{path,keys,name,catalog}], unmatched: [{path,name}] } — set by dmHandleItemArtZip, consumed by dmUploadMatchedItemArt
+
+async function dmHandleItemArtZip(file) {
+  const statusEl = document.getElementById('dm-item-art-status');
+  const reportEl = document.getElementById('dm-item-art-report');
+  const inputEl  = document.getElementById('dm-item-art-zip-input');
+  if (!file) return;
+  if (typeof JSZip === 'undefined') {
+    if (statusEl) statusEl.textContent = 'JSZip failed to load — check your connection and try again.';
+    return;
+  }
+  if (statusEl) statusEl.textContent = 'Reading zip…';
+  if (reportEl) reportEl.innerHTML = '';
+
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const catalogIndex = _itemArtCatalogIndex();
+    const matched = [];
+    const unmatched = [];
+
+    zip.forEach((relPath, entry) => {
+      if (entry.dir) return;
+      if (!/\.webp$/i.test(relPath)) return; // decision: art pack is .webp only
+      const fname = relPath.split('/').pop();
+      const stem = fname.replace(/\.webp$/i, '');
+      const norm = _itemArtNormalize(stem);
+      const hit = _itemArtLookup(norm, catalogIndex);
+      if (hit) {
+        matched.push({ path: relPath, keys: hit.keys, catalog: hit.catalog, name: stem });
+      } else {
+        unmatched.push({ path: relPath, name: stem });
+      }
+    });
+
+    _itemArtMatchResults = { matched, unmatched, zip };
+
+    const total = matched.length + unmatched.length;
+    const totalKeys = matched.reduce((n, m) => n + m.keys.length, 0);
+    if (statusEl) statusEl.textContent = `${matched.length} of ${total} images matched (→ ${totalKeys} catalog item${totalKeys===1?'':'s'}, incl. variants).`;
+
+    if (reportEl) {
+      reportEl.innerHTML = `
+        <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:6px;margin-bottom:6px">
+          ${matched.length ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--accent);margin-bottom:3px">✓ Matched (${matched.length} images → ${totalKeys} items)</div>` : ''}
+          ${matched.slice(0, 200).map(m => `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);padding:1px 0">${m.name} → <span style="color:var(--text2)">${m.keys.length > 1 ? `${m.keys.length} variants (${m.keys.join(', ')})` : m.keys[0]}</span> <span style="color:var(--text3);opacity:.6">(${m.catalog})</span></div>`).join('')}
+          ${matched.length > 200 ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);font-style:italic">…and ${matched.length - 200} more</div>` : ''}
+          ${unmatched.length ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--red);margin:6px 0 3px">✕ Unmatched (${unmatched.length}) — no catalog item found for these filenames</div>` : ''}
+          ${unmatched.slice(0, 200).map(u => `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);padding:1px 0">${u.name}</div>`).join('')}
+          ${unmatched.length > 200 ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);font-style:italic">…and ${unmatched.length - 200} more</div>` : ''}
+        </div>
+        ${matched.length ? `<button class="tbtn" style="font-size:10px;padding:5px 12px;color:var(--accent);border-color:var(--accent)" onclick="dmUploadMatchedItemArt()">⬆ Upload Matched (${totalKeys} items)</button>` : ''}
+      `;
+    }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'Failed to read zip: ' + e.message;
+  } finally {
+    if (inputEl) inputEl.value = '';
+  }
+}
+window.dmHandleItemArtZip = dmHandleItemArtZip;
+
+// Sequential (not parallel) uploads, mirroring dmBulkRest's pattern above
+// — avoids hammering the GitHub API with a burst of concurrent PUTs.
+// Reads each zip entry's bytes ONCE and re-uploads the same bytes to
+// every key in that entry's `keys` array (variant fan-out), rather than
+// re-reading the zip per key.
+//
+// Before each PUT, compares the local file's content against what's
+// already at that path — using the exact same SHA-1 "blob" hash Git (and
+// GitHub's own Contents API `sha` field) already uses to identify file
+// content, computed client-side via _gitBlobSha1FromBase64 below. If they
+// match byte-for-byte, the PUT is skipped entirely: no wasted commit, no
+// wasted upload time, and safe to re-run this same zip repeatedly (e.g.
+// after adding a few new images to an existing pack) without re-sending
+// anything that's already there unchanged. The GET to fetch the existing
+// sha still happens either way — there's no way to know what's already
+// there without asking — so this cuts the slower half of each pair
+// (the PUT, which uploads the full image body and creates a commit), not
+// the GET, on any item that hasn't actually changed.
+async function _gitBlobSha1FromBase64(base64) {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const full = new Uint8Array(header.length + bytes.length);
+  full.set(header, 0);
+  full.set(bytes, header.length);
+  const digest = await crypto.subtle.digest('SHA-1', full);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function dmUploadMatchedItemArt() {
+  const results = _itemArtMatchResults;
+  if (!results || !results.matched.length) return;
+  const statusEl = document.getElementById('dm-item-art-status');
+  const reportEl = document.getElementById('dm-item-art-report');
+  const { matched, zip } = results;
+
+  const totalKeys = matched.reduce((n, m) => n + m.keys.length, 0);
+  let done = 0, ok = 0, skipped = 0, failed = 0;
+  for (let i = 0; i < matched.length; i++) {
+    const m = matched[i];
+    let base64, localSha;
+    try {
+      base64 = await zip.file(m.path).async('base64');
+      localSha = await _gitBlobSha1FromBase64(base64); // computed once per image, reused for every fanned-out key below
+    } catch(e) {
+      failed += m.keys.length; done += m.keys.length;
+      console.warn('[item-art] failed to read/hash', m.path, e.message);
+      continue;
+    }
+    for (const key of m.keys) {
+      done++;
+      if (statusEl) statusEl.textContent = `Checking ${done}/${totalKeys}: ${key}…`;
+      try {
+        const path = `item-images/${key}.webp`;
+        const existingSha = await GH.getFileShaAtPath(path);
+        if (existingSha === localSha) {
+          skipped++; // identical content already at this path — no PUT needed
+          continue;
+        }
+        if (statusEl) statusEl.textContent = `Uploading ${done}/${totalKeys}: ${key}…`;
+        await GH.putBinaryFile(path, base64, existingSha);
+        ok++;
+      } catch(e) {
+        failed++;
+        console.warn('[item-art] upload failed for', key, e.message);
+      }
+    }
+  }
+
+  if (statusEl) statusEl.textContent = `Done — ${ok} uploaded, ${skipped} already up to date${failed ? `, ${failed} failed` : ''}.`;
+  if (reportEl) reportEl.innerHTML = '';
+  _itemArtMatchResults = null;
+  toast(`Item art sync: ${ok} uploaded, ${skipped} skipped (identical)${failed ? `, ${failed} failed` : ''}`, failed ? 'warn' : 'ok');
+}
+window.dmUploadMatchedItemArt = dmUploadMatchedItemArt;
 
 // Legacy stubs (called from existing code paths)
 function renderSpellList() { renderKnownSpells(); }
@@ -54897,9 +55391,10 @@ async function renderPartyOverview() {
               <div style="padding-left:15px;margin-top:2px">${rowsHTML}</div>
             </details>`;
         };
-        const poRow = (name, sub, color, onclick) => `
-          <div style="padding:5px 0;border-top:1px solid var(--border);${onclick ? 'cursor:pointer' : ''}" ${onclick ? `onclick="event.stopPropagation();${onclick}"` : ''}>
-            <div style="font-family:var(--font-ui);font-size:11px;font-weight:600;color:${color||'var(--text)'};${onclick ? "text-decoration:underline;text-decoration-color:transparent" : ''}" ${onclick ? `onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'"` : ''}>${name}${sub ? ` <span style="font-size:9px;font-weight:400;color:var(--text3)">${sub}</span>` : ''}</div>
+        const poRow = (name, sub, color, onclick, imgKey) => `
+          <div style="padding:5px 0;border-top:1px solid var(--border);${onclick ? 'cursor:pointer' : ''}display:flex;align-items:center;gap:6px" ${onclick ? `onclick="event.stopPropagation();${onclick}"` : ''}>
+            ${itemThumbImg(imgKey, 18)}
+            <div style="flex:1;min-width:0;font-family:var(--font-ui);font-size:11px;font-weight:600;color:${color||'var(--text)'};${onclick ? "text-decoration:underline;text-decoration-color:transparent" : ''}" ${onclick ? `onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'"` : ''}>${name}${sub ? ` <span style="font-size:9px;font-weight:400;color:var(--text3)">${sub}</span>` : ''}</div>
           </div>`;
 
         const magicWeaponNames = new Set(
@@ -54910,13 +55405,13 @@ async function renderPartyOverview() {
         const weaponsHTML = displayWeapons.map(w => {
           const nm = w.name || PHB_WEAPONS.find(x => x.key === w.weaponKey)?.name || 'Weapon';
           const idx = _partyOverviewItems.push(w) - 1;
-          return poRow(nm, w.equipped ? '· Equipped' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'weapon',_partyOverviewItems[${charIdx}])`);
+          return poRow(nm, w.equipped ? '· Equipped' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'weapon',_partyOverviewItems[${charIdx}])`, w.weaponKey);
         }).join('');
 
         const armorHTML = (c.armorOwned || []).map(a => {
           const nm = a.name || PHB_ARMOUR.find(x => x.key === a.key)?.name || 'Armor';
           const idx = _partyOverviewItems.push(a) - 1;
-          return poRow(nm, a.worn ? '· Worn' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'armor')`);
+          return poRow(nm, a.worn ? '· Worn' : '', null, `openInventoryItemDetailModal(_partyOverviewItems[${idx}],'armor')`, a.key);
         }).join('');
 
         const gearHTML = (c.equipment || []).map(g => {
@@ -54927,7 +55422,7 @@ async function renderPartyOverview() {
         const itemsHTML = (c.magicItems || []).map(item => {
           const idx = _partyOverviewItems.push(item) - 1;
           const effRarity = (typeof getEffectiveItemRarity === 'function' ? getEffectiveItemRarity(item) : item.rarity) || '';
-          return poRow(getItemDisplayName(item), effRarity ? `(${effRarity})` : '', RARITY_COLOURS[effRarity.toLowerCase()] || 'var(--text)', `openMagicItemDetailModal(_partyOverviewItems[${idx}])`);
+          return poRow(getItemDisplayName(item), effRarity ? `(${effRarity})` : '', RARITY_COLOURS[effRarity.toLowerCase()] || 'var(--text)', `openMagicItemDetailModal(_partyOverviewItems[${idx}])`, item.key);
         }).join('');
 
         const valuablesHTML = (c.valuables || []).map(v => {
