@@ -958,38 +958,73 @@ body.preview-readonly #mi-detail-edit-row * {
   position: relative;
 }
 /* Shared "outside the box, to the left, big" item-art treatment — used
-   by every item detail/edit modal (magic items, weapons, armor, gear),
-   as classes rather than one-off per-modal ID rules, specifically so
-   this stays identical across all five instead of drifting out of sync
-   the way it kept doing when each modal's image support was added
-   separately.
-   Uses position:fixed, not position:absolute — confirmed directly
-   (not inferred) that absolute positioning was being invisibly clipped
-   inside this app's actual embedding environment (an iframe inside an
-   Obsidian plugin), reproducibly and specifically whenever this rule
-   was active, regardless of how much room genuinely existed by any
-   width measurement. Two earlier attempts assumed the problem was "not
-   enough measured space" and tried to detect that via JS before
-   deciding whether to use this layout at all - both were addressing the
-   wrong layer of the problem: the issue isn't the measurement, it's
-   that position:absolute is clipped by whatever ancestor container
-   Obsidian's rendering introduces, independent of the computed
-   position being reasonable. position:fixed is specified to ignore
-   ordinary ancestor overflow:hidden clipping entirely (it only respects
-   an ancestor that creates a new containing block via transform/
-   filter/perspective/will-change, none of which this file's modal
-   structure uses), which is the actual fix for that specific failure
-   mode rather than another way of measuring around it.
-   Because position:fixed is always relative to the viewport (not any
-   ancestor), there's no static right:100% equivalent to give it here —
-   left/top are computed and set entirely by JS, once per modal open,
-   in positionItemDetailImgOutside() below. Until that runs, this sits
-   off-screen (see the negative default position) rather than flashing
-   at an arbitrary spot for one frame. */
+   by every item detail/edit modal (magic items, treasure, weapons,
+   armor, gear), as classes rather than one-off per-modal ID rules,
+   specifically so this stays identical across all five instead of
+   drifting out of sync the way it kept doing when each modal's image
+   support was added separately.
+
+   Previously positioned via JS (position:fixed, left/top computed once
+   per modal-open by measuring the modal's getBoundingClientRect() — see
+   the now-deleted long comment this replaced, and positionItemDetailImgOutside()
+   below, kept only as a no-op for backward compatibility with existing
+   call sites). That worked around position:absolute being invisibly
+   clipped inside this app's Obsidian-plugin iframe embedding, but it
+   meant the image's screen position was a snapshot taken at open-time,
+   not a live relationship to the modal — so a window resize moved the
+   modal (which re-centers itself via this very flexbox, instantly) while
+   the image sat still until the next JS resize-handler tick, producing
+   a visible lag/jitter between the two.
+
+   Fixed with a normal in-flow flex child instead: the image is a
+   sibling of .modal/.modal-box placed before it in the DOM, both direct
+   children of .modal-overlay (which is already `display:flex;
+   align-items:center; justify-content:center; gap:16px`). No
+   position:absolute or position:fixed on the image at all — so the
+   Obsidian clipping issue doesn't apply here in the first place (that
+   was specifically about out-of-flow elements; an ordinary flex child
+   has no such risk), and the two move together in the same paint frame
+   with zero JS, zero delay.
+
+   Stacking order: image comes first in the DOM so plain row layout puts
+   it on the LEFT of the modal when there's room (default flex-direction
+   is row) — but the requirement when there ISN'T room is the image drops
+   BELOW the modal, not above it. A first attempt used flex-wrap:wrap to
+   auto-stack, but flex-wrap keeps whatever order the items already have
+   when it forms lines, so the DOM order needed for "image on the left"
+   also put the image's line first (on top) once wrapped — visually
+   correct for neither orientation's actual requirement without also
+   reversing order specifically when wrapped, which plain CSS has no
+   selector for (there's no ":wrapped" state to key off). Trying to
+   synchronize a separate order-reversal media query against flex-wrap's
+   own content-based decision of exactly when to wrap was also rejected —
+   any mismatch between the two thresholds would show the image on the
+   wrong SIDE (not just wrong stacking order) for a range of widths.
+
+   Solved with one deterministic switch instead of two coordinating
+   mechanisms: flex-direction changes from row (side-by-side, image
+   left via DOM order) to column-reverse (stacked, image last =
+   bottom, modal first = top — same DOM order, opposite reading of it)
+   at a single width breakpoint below, chosen wide enough to comfortably
+   fit the largest modal (600px) + image (280px) + gap (16px) + overlay
+   padding (40px) ≈ 936px needed. */
+.item-detail-overlay { align-content: center; }
+@media (max-width: 960px) {
+  /* !important on align-items guards against the generic .modal-overlay
+     rule (align-items:flex-start, in the separate ≤640px block further
+     down) winning on source order at the narrowest widths — both target
+     this same element (it carries both classes) at equal specificity,
+     so without this the later-in-file rule would flip these back to
+     left-aligned instead of centered once both breakpoints are active
+     simultaneously. */
+  .item-detail-overlay { flex-direction: column-reverse; align-items: center !important; }
+  /* Stacking (not side-by-side) starts here, so the image no longer
+     needs to leave 62% of the width for the modal beside it — give it
+     more visual presence than the desktop side-by-side cap (38vw) would. */
+  .item-detail-img-outside img { max-width: 60vw !important; }
+}
 .item-detail-img-outside {
-  position: fixed;
-  left: -9999px;
-  top: -9999px;
+  flex-shrink: 0;
 }
 .item-detail-img-outside img {
   width: 280px;
@@ -1000,6 +1035,7 @@ body.preview-readonly #mi-detail-edit-row * {
   border-radius: 10px;
   background: var(--bg2);
   border: 1px solid var(--border);
+  display: block;
 
   box-shadow: 0 8px 24px rgba(0,0,0,.4);
 }
@@ -1498,28 +1534,6 @@ body.preview-readonly #mi-detail-edit-row * {
   .modal-box { width: calc(100vw - 16px) !important; max-width: none !important;
     max-height: calc(100vh - 60px) !important; margin: 8px; }
   .modal-overlay { padding: 8px; align-items: flex-start; padding-top: 30px; }
-  /* .item-detail-img-outside uses position:fixed on desktop (see the
-     base rule near .modal-header), with left/top computed by JS from
-     the modal's actual position. .modal/.modal-box are nearly full
-     viewport width on mobile, leaving no room for that, so this reverts
-     it to normal document flow instead. The image is the LAST child of
-     its modal in the HTML (after .item-detail-content-wrap in each of
-     the five modals using this), so reverting to position:static here
-     means it simply renders below the content by ordinary DOM order —
-     this plain media query is a backstop for genuinely small screens;
-     positionItemDetailImgOutside() (JS) also falls back to this same
-     static/stacked treatment on wider-but-still-tight windows, based on
-     the modal's actual measured position rather than a fixed viewport
-     width. */
-  .item-detail-img-outside {
-    position: static !important;
-    left: auto !important;
-    top: auto !important;
-    margin: 12px 0 0 0 !important;
-    display: flex !important;
-    justify-content: center !important;
-  }
-  .item-detail-img-outside img { max-width: 60vw !important; }
 
   /* Spell slots: allow wrapping */
   .slot-pips { gap: 6px; }
@@ -4127,7 +4141,8 @@ body.preview-readonly #mi-detail-edit-row * {
   </div>
 </div>
 
-<div class="modal-overlay hidden" id="gear-edit-modal">
+<div class="modal-overlay hidden item-detail-overlay" id="gear-edit-modal">
+  <div id="gear-edit-img" class="item-detail-img-outside"></div>
   <div class="modal-box" style="max-width:420px">
     <div class="modal-title">
       ✎ Edit Gear / Custom Item
@@ -4158,7 +4173,6 @@ body.preview-readonly #mi-detail-edit-row * {
       <button class="btn-primary" onclick="saveGearEdit()">Save</button>
       <div id="gear-edit-status" style="font-family:var(--font-ui);font-size:11px;margin-top:6px;min-height:16px"></div>
     </div>
-    <div id="gear-edit-img" class="item-detail-img-outside"></div>
   </div>
 </div>
 
@@ -5090,7 +5104,8 @@ body.preview-readonly #mi-detail-edit-row * {
   </div>
 </div>
 
-<div class="modal-overlay hidden" id="magic-item-detail-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+<div class="modal-overlay hidden item-detail-overlay" id="magic-item-detail-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div id="mi-detail-img" class="item-detail-img-outside"></div>
   <div class="modal" style="max-width:600px">
     <div class="modal-header">
       <span id="mi-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
@@ -5107,11 +5122,11 @@ body.preview-readonly #mi-detail-edit-row * {
         <button class="tbtn" style="font-size:10px;padding:5px 12px" onclick="editFromDetailModal()">✎ Edit Notes</button>
       </div>
     </div>
-    <div id="mi-detail-img" class="item-detail-img-outside"></div>
   </div>
 </div>
 
-<div class="modal-overlay hidden" id="treasure-detail-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+<div class="modal-overlay hidden item-detail-overlay" id="treasure-detail-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div id="td-detail-img" class="item-detail-img-outside"></div>
   <div class="modal" style="max-width:520px">
     <div class="modal-header">
       <span id="td-detail-title" style="font-family:var(--font-head);font-size:16px;letter-spacing:1px"></span>
@@ -5121,7 +5136,6 @@ body.preview-readonly #mi-detail-edit-row * {
       <div id="td-detail-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);letter-spacing:.3px;margin-bottom:12px"></div>
       <div id="td-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
     </div>
-    <div id="td-detail-img" class="item-detail-img-outside"></div>
   </div>
 </div>
 
@@ -5179,7 +5193,8 @@ body.preview-readonly #mi-detail-edit-row * {
      from weapon-edit-modal on purpose: that one is reached only via the
      pencil button now and is for changing the weapon's configuration, not
      for reading about it. -->
-<div class="modal-overlay hidden" id="weapon-detail-modal">
+<div class="modal-overlay hidden item-detail-overlay" id="weapon-detail-modal">
+  <div id="weapon-detail-img" class="item-detail-img-outside"></div>
   <div class="modal-box" style="max-width:520px;max-height:80vh;overflow-y:auto">
     <div class="modal-title">
       <span id="weapon-detail-title">Weapon</span>
@@ -5189,7 +5204,6 @@ body.preview-readonly #mi-detail-edit-row * {
       <div id="weapon-detail-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
       <div id="weapon-detail-body"></div>
     </div>
-    <div id="weapon-detail-img" class="item-detail-img-outside"></div>
   </div>
 </div>
 
@@ -5198,7 +5212,8 @@ body.preview-readonly #mi-detail-edit-row * {
      armor-edit-modal on purpose: that one is reached only via the pencil
      button now and is for changing the armor's configuration, not for
      reading about it. -->
-<div class="modal-overlay hidden" id="armor-detail-modal">
+<div class="modal-overlay hidden item-detail-overlay" id="armor-detail-modal">
+  <div id="armor-detail-img" class="item-detail-img-outside"></div>
   <div class="modal-box" style="max-width:520px;max-height:80vh;overflow-y:auto">
     <div class="modal-title">
       <span id="armor-detail-title">Armor</span>
@@ -5208,7 +5223,6 @@ body.preview-readonly #mi-detail-edit-row * {
       <div id="armor-detail-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
       <div id="armor-detail-body"></div>
     </div>
-    <div id="armor-detail-img" class="item-detail-img-outside"></div>
   </div>
 </div>
 
@@ -29291,7 +29305,14 @@ const SLOTS_FULL = [
 // Paladin/Ranger Features tables, which list 2 first-level slots at
 // character level 1, not level 2.
 const SLOTS_HALF = [
-  [],[2],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],
+  // Index 1 (class level 1) is deliberately empty — Paladins and Rangers
+  // don't gain the Spellcasting feature until level 2. Confirmed by
+  // direct comparison against the official table that every other index
+  // (2 through 20) already matches exactly; this was the only wrong one
+  // (it had duplicated level 2's [2] instead of being empty), which
+  // would have incorrectly granted a level-1 Paladin or Ranger two
+  // 1st-level spell slots.
+  [],[],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],
   [4,3,3],[4,3,3],[4,3,3,1],[4,3,3,1],[4,3,3,2],[4,3,3,2],
   [4,3,3,3,1],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2],
 ];
@@ -39323,73 +39344,23 @@ function itemDetailImgTag(key) {
   return `<img src="${itemImageUrl(key)}?t=${Date.now()}" loading="lazy" onload="console.log('[item-art] detail image loaded OK:', this.src)" onerror="console.error('[item-art] detail image failed to load:', this.src, new Date().toISOString());this.parentElement.style.display='none'" alt=""/>`;
 }
 
-// Positions the item-art image at a fixed screen coordinate, computed
-// from the modal's own actual rendered position, once per modal open
-// right after openModal(). Deferred via setTimeout because the
-// modal's/wrap's dimensions are only meaningful once the modal is no
-// longer display:none, which openModal just changed but the browser
-// hasn't necessarily laid out yet on the same tick.
-//
-// See the .item-detail-img-outside CSS comment for why this uses
-// position:fixed with JS-computed left/top instead of position:absolute
-// with CSS percentages — the short version: position:fixed escapes the
-// ancestor clipping that was actually causing the image to render
-// invisibly inside this app's Obsidian iframe embedding, which no
-// amount of measuring "available space" for a position:absolute element
-// could fix, since clipping and available space are different problems.
-//
-// Shrinks the image to fit whatever room is actually available to the
-// modal's left, rather than an all-or-nothing "fits at full 280px or
-// falls back to stacking inside" decision — an earlier version did the
-// latter, and its ~300px threshold kept falling back to the stacked
-// layout on perfectly ordinary desktop windows that had real, usable
-// room (150-250px) just not quite enough for the full-size image. The
-// explicit ask here was "outside to the left," consistently, not
-// "outside to the left only when there happens to be a lot of room" —
-// only genuinely too-narrow windows (under ~80px of usable space, where
-// even a shrunk image wouldn't be worth showing this way) fall back to
-// stacking below instead.
+// Positions the item-art image — see comment on the function below for
+// what this actually does now (nothing; layout moved to pure CSS).
+// No longer does any positioning — the image is now a plain CSS flex
+// sibling of the modal (see .item-detail-overlay / .item-detail-img-outside
+// in the stylesheet), which keeps it locked to the modal with zero JS and
+// zero resize lag, unlike the old per-open getBoundingClientRect()
+// snapshot this used to compute. Kept as a real (near-empty) function
+// rather than deleted outright, since it's still called from ~6 places
+// right after each modal's image content is set; this only clears any
+// leftover inline sizing a stale previous render might have left on the
+// <img> so CSS's own width/height take over cleanly.
 function positionItemDetailImgOutside(imgWrapId, contentWrapId) {
-  setTimeout(() => {
-    const wrap = document.getElementById(contentWrapId);
-    const imgWrap = document.getElementById(imgWrapId);
-    if (!wrap || !imgWrap) return;
-    const img = imgWrap.querySelector('img');
-    if (!img) {
-      imgWrap.style.cssText = '';
-      return;
-    }
-    // Reset any shrunk size from a previous item before measuring again —
-    // these modals are reused, so a smaller image sized for a previous,
-    // tighter window shouldn't linger and under-report how much room is
-    // actually available this time.
-    img.style.width = '';
-    img.style.height = '';
-    const modal = imgWrap.closest('.modal, .modal-box');
-    const modalRect = modal ? modal.getBoundingClientRect() : null;
-    const available = modalRect ? modalRect.left - 16 - 8 : 0;
-    if (available >= 80) {
-      const size = Math.min(280, available);
-      img.style.width = size + 'px';
-      img.style.height = size + 'px';
-      const imgWidth = imgWrap.offsetWidth || size;
-      const imgHeight = imgWrap.offsetHeight || size;
-      imgWrap.style.position = 'fixed';
-      imgWrap.style.left = (modalRect.left - imgWidth - 16) + 'px';
-      imgWrap.style.top = (modalRect.top + modalRect.height / 2 - imgHeight / 2) + 'px';
-      imgWrap.style.display = '';
-      imgWrap.style.justifyContent = '';
-      imgWrap.style.margin = '';
-    } else {
-      imgWrap.style.position = 'static';
-      imgWrap.style.left = '';
-      imgWrap.style.top = '';
-      imgWrap.style.display = 'flex';
-      imgWrap.style.justifyContent = 'center';
-      imgWrap.style.margin = '12px 0 0 0';
-    }
-  }, 0);
+  const imgWrap = document.getElementById(imgWrapId);
+  const img = imgWrap?.querySelector('img');
+  if (img) { img.style.width = ''; img.style.height = ''; }
 }
+
 
 function getItemDisplayName(item) {
   if ((item.type || '').toLowerCase() === 'scroll' && item.scrollSpellKey) {
