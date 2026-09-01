@@ -965,62 +965,79 @@ body.preview-readonly #mi-detail-edit-row * {
    support was added separately.
 
    Previously positioned via JS (position:fixed, left/top computed once
-   per modal-open by measuring the modal's getBoundingClientRect() — see
-   the now-deleted long comment this replaced, and positionItemDetailImgOutside()
-   below, kept only as a no-op for backward compatibility with existing
-   call sites). That worked around position:absolute being invisibly
-   clipped inside this app's Obsidian-plugin iframe embedding, but it
-   meant the image's screen position was a snapshot taken at open-time,
-   not a live relationship to the modal — so a window resize moved the
-   modal (which re-centers itself via this very flexbox, instantly) while
-   the image sat still until the next JS resize-handler tick, producing
-   a visible lag/jitter between the two.
+   per modal-open by measuring the modal's getBoundingClientRect()). That
+   worked around position:absolute being invisibly clipped inside this
+   app's Obsidian-plugin iframe embedding, but the image's screen
+   position was a snapshot taken at open-time, not a live relationship to
+   the modal, producing a visible lag/jitter on resize. Fixed by making
+   the image a normal in-flow sibling of .modal/.modal-box instead — no
+   position:absolute/fixed on it at all, so that clipping issue doesn't
+   apply, and the two move together with zero JS.
 
-   Fixed with a normal in-flow flex child instead: the image is a
-   sibling of .modal/.modal-box placed before it in the DOM, both direct
-   children of .modal-overlay (which is already `display:flex;
-   align-items:center; justify-content:center; gap:16px`). No
-   position:absolute or position:fixed on the image at all — so the
-   Obsidian clipping issue doesn't apply here in the first place (that
-   was specifically about out-of-flow elements; an ordinary flex child
-   has no such risk), and the two move together in the same paint frame
-   with zero JS, zero delay.
+   A flex-based version of this then centered the image+modal PAIR as a
+   single group (.modal-overlay's own justify-content:center centering
+   the whole flex line) — which is wrong: it visibly shifts the modal off
+   the true page center, since the group's combined width (image + gap +
+   modal) isn't symmetric around the modal alone. The actual requirement
+   is the modal itself centered on the page, with the image hanging off
+   its left edge as an attachment, not participating in the centering
+   math.
 
-   Stacking order: image comes first in the DOM so plain row layout puts
-   it on the LEFT of the modal when there's room (default flex-direction
-   is row) — but the requirement when there ISN'T room is the image drops
-   BELOW the modal, not above it. A first attempt used flex-wrap:wrap to
-   auto-stack, but flex-wrap keeps whatever order the items already have
-   when it forms lines, so the DOM order needed for "image on the left"
-   also put the image's line first (on top) once wrapped — visually
-   correct for neither orientation's actual requirement without also
-   reversing order specifically when wrapped, which plain CSS has no
-   selector for (there's no ":wrapped" state to key off). Trying to
-   synchronize a separate order-reversal media query against flex-wrap's
-   own content-based decision of exactly when to wrap was also rejected —
-   any mismatch between the two thresholds would show the image on the
-   wrong SIDE (not just wrong stacking order) for a range of widths.
-
-   Solved with one deterministic switch instead of two coordinating
-   mechanisms: flex-direction changes from row (side-by-side, image
-   left via DOM order) to column-reverse (stacked, image last =
-   bottom, modal first = top — same DOM order, opposite reading of it)
-   at a single width breakpoint below, chosen wide enough to comfortably
-   fit the largest modal (600px) + image (280px) + gap (16px) + overlay
-   padding (40px) ≈ 936px needed. */
-.item-detail-overlay { align-content: center; }
-@media (max-width: 960px) {
-  /* !important on align-items guards against the generic .modal-overlay
-     rule (align-items:flex-start, in the separate ≤640px block further
-     down) winning on source order at the narrowest widths — both target
-     this same element (it carries both classes) at equal specificity,
-     so without this the later-in-file rule would flip these back to
-     left-aligned instead of centered once both breakpoints are active
-     simultaneously. */
-  .item-detail-overlay { flex-direction: column-reverse; align-items: center !important; }
+   Solved with CSS Grid instead of flex: three columns, [image | modal |
+   empty mirror]. The image sits in column 1, right-aligned so it hugs
+   the modal. The modal sits in column 2. Column 3 has no content but is
+   the same width as column 1 — an invisible counterweight that makes
+   column 2 fall exactly on the page's true center, the same trick used
+   to center a caption under an image that has a wider sibling. Grid
+   track sizing (not percentages) determines column widths, so .modal's
+   own width:100% correctly fills up to its own max-width within column 2
+   without being confused by the wider overall grid. */
+.item-detail-overlay {
+  display: grid;
+  grid-template-columns: 280px auto 280px;
+  column-gap: 16px;
+  align-items: center;
+  justify-content: center;
+}
+.item-detail-overlay > .item-detail-img-outside {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+}
+.item-detail-overlay > .modal,
+.item-detail-overlay > .modal-box {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+}
+@media (max-width: 1250px) {
+  /* Side-by-side needs roughly 20 (overlay padding) + 280 (image) + 16
+     (gap) + up to 600 (the largest modal, mi-detail-modal) + 16 (gap) +
+     280 (mirror column) + 20 (overlay padding) ≈ 1232px to avoid
+     cramping — 1250px leaves a little slack. Below that, stack instead:
+     single column, image below the modal. `order` (Grid supports it
+     exactly like Flexbox) keeps the same DOM order — image first, so
+     it's still on the left whenever there IS room above this breakpoint
+     — while visually reversing which one renders first only in the
+     stacked case. */
+  .item-detail-overlay {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .item-detail-overlay > .modal,
+  .item-detail-overlay > .modal-box {
+    grid-column: 1;
+    order: 1;
+    justify-self: center;
+  }
+  .item-detail-overlay > .item-detail-img-outside {
+    grid-column: 1;
+    order: 2;
+    justify-self: center;
+  }
   /* Stacking (not side-by-side) starts here, so the image no longer
-     needs to leave 62% of the width for the modal beside it — give it
-     more visual presence than the desktop side-by-side cap (38vw) would. */
+     needs to leave room for the modal beside it — give it more visual
+     presence than the desktop side-by-side cap (38vw) would. */
   .item-detail-img-outside img { max-width: 60vw !important; }
 }
 .item-detail-img-outside {
@@ -16199,7 +16216,7 @@ const PHB_FEATS_FULL    = {
   ,"transmuted anatomy": {"name": "Transmuted Anatomy [Origin]", "type": "origin", "prereq": "", "minLevel": null, "asiScores": [], "scoresTxt": "", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Lengthened Stride. Your Speed increases by 5 feet. | Resilient Anatomy. You have Advantage on saving throws against effects that would compel you to shape-shift against your will. | Additionally, when you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}
   ,"abjuration adept": {"name": "Abjuration Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Shield", "2": "Lesser Restoration", "3": "Protection from Energy", "4": "Banishment", "5": "Mass Cure Wounds"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Abjuration Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Protective Ward. When you cast a spell from the Abjuration school using a spell slot, you or one creature you can see within 30 feet of yourself gains Temporary Hit Points equal to twice the level of spell slot expended."}
   ,"conjuration adept": {"name": "Conjuration Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Entangle", "2": "Misty Step", "3": "Conjure Animals", "4": "Dimension Door", "5": "Conjure Elemental"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Conjuration Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Persistent Conjuration. While maintaining Concentration on a spell from the Conjuration school, you gain a bonus to Constitution saving throws to maintain this Concentration. This bonus is equal to the ability modifier of the score increased by this feat."}
-  ,"divination adept": {"name": "Divination Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Detect Evil and Good", "2": "Mind Spike", "3": "Clairvoyance", "4": "Divination", "5": "Scrying"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Divination Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Prescient Intervention. When a creature you can see within 60 feet of yourself makes a D20 Test, you can take a Reaction to give that creature Advantage or Disadvantage (your choice) on that roll. | Once you use this benefit, you can't do so again until you finish a Long Rest. You can also regain use of this feature when you cast a spell from the Divination school using a spell slot."}
+  ,"divination adept": {"name": "Divination Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Detect Evil and Good", "2": "Mind Spike", "3": "Clairvoyance", "4": "Divination", "5": "Scrying"}, "usages": 1, "recovery": "long rest", "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Divination Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Prescient Intervention. When a creature you can see within 60 feet of yourself makes a D20 Test, you can take a Reaction to give that creature Advantage or Disadvantage (your choice) on that roll. | Once you use this benefit, you can't do so again until you finish a Long Rest. You can also regain use of this feature when you cast a spell from the Divination school using a spell slot."}
   ,"elemental familiar": {"name": "Elemental Familiar", "type": "general", "prereq": "Level 4+, Familiar Friend Feat", "minLevel": null, "asiScores": ["str","dex","con","int","wis","cha"], "scoresTxt": "+1 to one ability score of my choice", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 20. | Elemental Energy. You learn how to imbue your familiar with elemental power. When you cast the Find Familiar spell, choose Acid, Cold, Fire, Lightning, or Thunder damage. Your familiar is imbued with this energy until you cast Find Familiar again, granting it the following benefits: | Elemental Resistance. Your familiar has Resistance to the chosen damage type. Energy Pulse. As a Bonus Action, you command your familiar to unleash a burst of elemental energy. Your familiar must be within 120 feet of you and take a Reaction to unleash this burst. Each creature in a 5-foot Emanation originating from your familiar makes a Dexterity saving throw (DC 8 plus your spellcasting ability modifier for the Find Familiar spell and your Proficiency Bonus). On a failed save, a creature takes 2d4 damage of the chosen type, and if the creature is Medium or smaller, it has the Prone condition."}
   ,"enchantment adept": {"name": "Enchantment Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Dissonant Whispers", "2": "Enthrall", "3": "Hold Person", "4": "Dominate Beast", "5": "Modify Memory"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Enchantment Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Subtle Enchantments. When you cast a spell from the Enchantment school using a spell slot, you can cast it without any Verbal, Somatic, or Material components, except Material components that are consumed by the spell or that have a cost specified in the spell."}
   ,"evocation adept": {"name": "Evocation Adept", "type": "general", "prereq": "Level 4+, Spellcasting or Pact Magic Feature", "minLevel": null, "asiScores": ["int","wis","cha"], "scoresTxt": "+1 to Intelligence, Wisdom, or Charisma", "skills": [], "skillTxt": "", "tools": [], "languages": [], "langExtra": 0, "hasExpertise": false, "spells": [], "adeptSpells": {"1": "Chromatic Orb", "2": "Shatter", "3": "Fireball", "4": "Vitriolic Sphere", "5": "Wall of Force"}, "source": "Arcana Unleashed", "desc": "You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 20. | Additional Spells. Your prowess allows you to always have certain spells at the ready. When you have spell slots of a level specified in the Evocation Adept Spells table, you thereafter always have the spells listed for that level and lower prepared. | Fueled Evocation. Once per turn when you cast an Evocation spell and deal damage, you can roll up to two of your unexpended Hit Point Dice and add the total rolled to one of the spell's damage rolls. Those Hit Point Dice are then expended."}
@@ -16347,6 +16364,17 @@ const FEAT_EXTRA_CHOICES= {
   // ability picker of its own — see inheritAbilityFrom).
   "familiar friend":     { "type": "fixed_spell", "spellKey": "find_familiar",  "abilityPool": ["int","wis","cha"] },
   "warlike familiar":    { "type": "fixed_spell", "spellKey": "battle_familiar", "inheritAbilityFrom": "familiar friend" },
+  // Spellfire Spark: the "cast Sacred Flame as a Bonus Action, Proficiency
+  // Bonus times per Long Rest" resource counter already existed in
+  // PHB_FEATS (usages:"prof_bonus"), but nothing actually granted the
+  // Sacred Flame cantrip itself — a player would see a working counter
+  // with no spell behind it to spend it on.
+  "spellfire spark":     { "type": "fixed_spell", "spellKey": "sacred_flame", "abilityPool": ["int","wis","cha"] },
+  // Emerald Enclave Fledgling: always-prepared Speak with Animals, cast
+  // with a normal spell slot (or as a Ritual) — no "cast once free
+  // without a slot" clause here unlike the dragonmark feats and Spellfire
+  // Spark, so no separate Long Rest resource is needed for this one.
+  "emerald enclave fledgling": { "type": "fixed_spell", "spellKey": "speak_with_animals", "abilityPool": ["int","wis","cha"] },
   // Dragonmark feats (Eberron): each always-prepares 1-2 spells, castable
   // once free per Long Rest, with an extra spell unlocked at character
   // level 3 for most of them, plus an ability choice like fixed_spell.
@@ -18411,6 +18439,18 @@ const PHB_FEATS = {
   "wood_elf_magic": {"name":"Wood Elf Magic","type":"general","prereq":"Being a Wood Elf","minLevel":null,"desc":"You learn the magic of the primeval woods, which are revered and protected by your people. You learn one druid cantrip of your choice. You also learn the longstrider and pass without trace spells, each of which you can cast once without expending a spell slot. You regain the ability to cast these two spells in this way when you finish a long rest. Wisdom is your spellcasting ability for all three spells.","asi":{},"skills":[],"source":"2014"},
   "revenant_blade": {"name":"Revenant Blade","type":"general","prereq":"Being an Elf","minLevel":null,"desc":"You are descended from a master of the double-bladed scimitar, and some of that mastery has passed on to you. You gain the following benefits: | Increase your Strength or Dexterity by 1, to a maximum of 20. While you are holding a double-bladed scimitar with two hands, you gain a +1 bonus to Armor Class. A double-bladed scimitar has the finesse property when you wield it.","asi":{},"skills":[],"source":"2014"},
   "artificer_initiate": {"name":"Artificer Initiate","type":"general","prereq":"","minLevel":null,"desc":"You've learned some of an artificer's inventiveness: | You learn one cantrip of your choice from the artificer spell list, and you learn one 1st-level spell of your choice from that list. Intelligence is your spellcasting ability for these spells. You can cast this feat's 1st-level spell without a spell slot, and you must finish a long rest before you can cast it in this way again. You can also cast the spell using any spell slots you have. You gain proficiency with one type of artisan's tools of your choice, and you can use that type of tool as a spellcasting focus for any spell you cast that uses Intelligence as its spellcasting ability.","asi":{},"skills":[],"source":"2014"},
+  // Was entirely absent from PHB_FEATS (only existed in PHB_FEATS_FULL) —
+  // getOriginFeatOptions() and the feat-slot picker UI both read
+  // PHB_FEATS exclusively, so this feat was completely unselectable
+  // through the normal picker, not just missing its spell wiring. usages/
+  // recovery here covers Aberrant Fortitude (1/Long Rest Con-save
+  // reroll) using the same simple mechanism Divination Adept and
+  // Spellfire Spark use. The Aberrant Magic benefit (choose any cantrip +
+  // any level 1 spell from the Sorcerer list, Constitution fixed as the
+  // ability, free cast once per Short or Long Rest) still needs its
+  // spell-choice wired through SPELL_FEATS/FEAT_EXTRA_CHOICES — flagged
+  // separately, not completed in this pass.
+  "aberrant_dragonmark_feat": {"name":"Aberrant Dragonmark","type":"origin","prereq":"","minLevel":null,"desc":"You gain the following benefits. | Aberrant Fortitude. When you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. Once you've used this benefit, you can't use it again until you finish a Long Rest. | Aberrant Magic. You know one cantrip of your choice from the Sorcerer spell list. Also, choose a level 1 spell from that spell list. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Short or Long Rest. You can also cast this spell using any spell slots you have. Constitution is your spellcasting ability for this spell. | Aberrant Surge. When you cast the level 1 spell from this feat, you can expend one of your Hit Point Dice and roll it. If you roll an even number, you gain a number of Temporary Hit Points equal to the number rolled. If you roll an odd number, one creature within 30 feet of you (not including you) takes Force damage equal to the number rolled. If no other creatures are in range, you take the damage.","asi":{},"skills":[],"source":"EFotA","usages":1,"recovery":"long rest"},
   "eldritch_adept": {"name":"Eldritch Adept","type":"general","prereq":"Spellcasting or Pact Magic feature","minLevel":null,"desc":"Studying occult lore, you learn one Eldritch Invocation option of your choice from the warlock class. Your spellcasting ability for the invocation is Intelligence, Wisdom, or Charisma (choose when you select this feat). If the invocation has a prerequisite of any kind, you can choose that invocation only if you're a warlock who meets the prerequisite. | Whenever you gain a level, you can replace the invocation with another one from the warlock class.","asi":{},"skills":[],"source":"2014"},
   "fey_touched": {"name":"Fey Touched","type":"general","prereq":"Level 4+","minLevel":null,"desc":"Your exposure to the Feywild's magic grants you the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Fey Magic. Choose one level 1 spell from the Divination or Enchantment school of magic. You always have that spell and the Misty Step spell prepared. You can cast each of these spells without expending a spell slot. Once you cast either spell in this way, you can't cast that spell in this way again until you finish a Long Rest. You can also cast these spells using spell slots you have of the appropriate level. The spells' spellcasting ability is the ability increased by this feat.","asi":{},"skills":[],"source":"2014"},
   "fighting_initiate": {"name":"Fighting Initiate","type":"general","prereq":"Proficiency with a martial weapon","minLevel":null,"desc":"Your martial training has helped you develop a particular style of fighting. As a result, you learn one Fighting Style option of your choice from the fighter class. If you already have a style, the one you choose must be different. | Whenever you reach a level that grants the Ability Score Improvement feature, you can replace this feat's fighting style with another one from the fighter class that you don't have.","asi":{},"skills":[],"source":"2014"},
@@ -46297,31 +46337,18 @@ function renderResourceTracker() {
     if (usagesVal > 0) allDefs.push({ id, name: featName, _max: usagesVal, recovery: featData.recovery, desc: featData.desc || '' });
   }
 
-  // ── Dragonmark feat spell resources ──────────────────────
-  // Each spell a dragonmark feat grants (Alarm, Mage Armor, etc.) is
-  // independently castable once free per Long Rest — a separate tracked
-  // resource per spell, not the one-per-feat shape the generic "Feat
-  // resources" loop just above assumes (that loop reads usages/recovery
-  // straight off the feat's own data entry, which dragonmark feats don't
-  // have — they're driven by FEAT_EXTRA_CHOICES' dragonmark_spells type
-  // instead, same place the spell grant itself comes from).
-  Object.entries(currentChar.featSlots || {}).forEach(([slotId, dec]) => {
-    if (dec?.choice !== 'feat' || !dec.feat) return;
-    const cleanFeatName = dec.feat.toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
-    const extra = FEAT_EXTRA_CHOICES[cleanFeatName];
-    if (extra?.type !== 'dragonmark_spells') return;
-    const displayFeatName = dec.feat.replace(/\s*\[.*?\]/g, '').trim();
-    (extra.spells || []).forEach(s => {
-      if (level < (s.minLevel || 1)) return;
-      const sp = PHB_SPELL_LIST.find(x => x.key === s.key);
-      const id = 'dmfeat_' + slotId + '_' + s.key;
-      if (allDefs.find(d => d.id === id)) return;
-      allDefs.push({
-        id, name: `${sp?.name || s.key} (${displayFeatName})`, _max: 1, recovery: 'long rest',
-        desc: `${sp?.name || s.key}, granted by your ${displayFeatName} feat. You always have it prepared and can cast it once without expending a spell slot; you regain the ability to cast it this way when you finish a Long Rest.`,
-      });
-    });
-  });
+  // Dragonmark feats' individual spell grants (Alarm, Mage Armor, etc.)
+  // do NOT need their own resource-generation block here — the existing
+  // "Auto-generate resources from feat-granted leveled spells" section
+  // further below (feat_spell_<key>, reading getFeatGrantedSpells())
+  // already picks these up automatically, since dragonmark_spells grants
+  // populate spells.featSpells the same way Magic Initiate etc. do. A
+  // dedicated dmfeat_ block used to live here too, generating a second,
+  // differently-named ("Alarm (Mark of Warding)") resource for the exact
+  // same spell — a real, visible duplicate in the tracker (confirmed
+  // directly from a screenshot: two "Alarm" rows, one opening the spell,
+  // one opening the feature). Removed rather than kept as a second path,
+  // since the generic mechanism already does this correctly.
 
   // ── Invocation resources ────────────────────────────────
   // Some invocations grant per-rest abilities tracked as resources
@@ -47639,20 +47666,26 @@ function buildAllResourceDefs() {
     }
   }
 
-  // Dragonmark feat spell resources — same id scheme (dmfeat_<slotId>_<spellKey>)
-  // as renderResourceTracker's copy of this logic, required for Long Rest
-  // resets to clear the correct key.
-  Object.entries(currentChar.featSlots || {}).forEach(([slotId, dec]) => {
-    if (dec?.choice !== 'feat' || !dec.feat) return;
-    const cleanFeatName = dec.feat.toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
-    const extra = FEAT_EXTRA_CHOICES[cleanFeatName];
-    if (extra?.type !== 'dragonmark_spells') return;
-    (extra.spells || []).forEach(s => {
-      if (level < (s.minLevel || 1)) return;
-      const id = 'dmfeat_' + slotId + '_' + s.key;
-      add({ id, name: s.key, _max: 1, recovery: 'long rest' });
+  // Feat-granted leveled spells (Magic Initiate's 1st-level spell,
+  // dragonmark feats' Alarm/Mage Armor/etc., and anything else that
+  // works the same way) — cast once free, regained on a Long Rest.
+  // Uses the exact same id scheme (feat_spell_<key>) as the matching
+  // generator in renderResourceTracker, which is required for a Long
+  // Rest to actually reset the right key. This block was previously
+  // missing here entirely — every feat-granted spell resource (not just
+  // dragonmark ones) was visible in the tracker but never actually being
+  // reset on Long Rest, since this reset function had no matching entry
+  // for any of them. A dragonmark-specific dmfeat_ block used to live
+  // here instead, which duplicated (under a different id, so never
+  // deduped) the entries renderResourceTracker's generic mechanism
+  // already generates — confirmed directly from a screenshot showing
+  // two separate "Alarm" rows in the tracker.
+  if (typeof getFeatGrantedSpells === 'function') {
+    getFeatGrantedSpells().filter(s => s.level > 0).forEach(s => {
+      const id = `feat_spell_${s.key}`.replace(/[^a-z0-9_]/g,'_');
+      add({ id, name: s.name, recovery: 'long', _max: 1 });
     });
-  });
+  }
 
   // Custom (player-added) resources
   (currentChar.customResources || []).forEach(cr => {
