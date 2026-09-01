@@ -16347,6 +16347,29 @@ const FEAT_EXTRA_CHOICES= {
   // ability picker of its own — see inheritAbilityFrom).
   "familiar friend":     { "type": "fixed_spell", "spellKey": "find_familiar",  "abilityPool": ["int","wis","cha"] },
   "warlike familiar":    { "type": "fixed_spell", "spellKey": "battle_familiar", "inheritAbilityFrom": "familiar friend" },
+  // Dragonmark feats (Eberron): each always-prepares 1-2 spells, castable
+  // once free per Long Rest, with an extra spell unlocked at character
+  // level 3 for most of them, plus an ability choice like fixed_spell.
+  // Was entirely unwired before this — none of the 12 had ANY entry here,
+  // so the "always have prepared / cast free once per Long Rest" text was
+  // pure flavor with no actual spell grant or resource tracking behind
+  // it. "spells" lists every spell the feat can ever grant, each tagged
+  // with the character level it unlocks at (1 = granted immediately at
+  // feat selection); "cantrip" is the few that also grant a fixed cantrip
+  // outright (Mending, Message, Minor Illusion, Thunderclap), which needs
+  // no level gate or Long Rest tracking since cantrips aren't limited-use.
+  "mark of warding":      { "type": "dragonmark_spells", "spells": [{"key":"alarm","minLevel":1},{"key":"mage_armor","minLevel":1},{"key":"arcane_lock","minLevel":3}], "abilityPool": ["int","wis","cha"] },
+  "mark of finding":      { "type": "dragonmark_spells", "spells": [{"key":"hunters_mark","minLevel":1},{"key":"locate_object","minLevel":3}], "abilityPool": ["int","wis","cha"] },
+  "mark of healing":      { "type": "dragonmark_spells", "spells": [{"key":"cure_wounds","minLevel":1},{"key":"lesser_restoration","minLevel":3}], "abilityPool": ["int","wis","cha"] },
+  "mark of making":       { "type": "dragonmark_spells", "spells": [{"key":"magic_weapon","minLevel":1}], "cantrip": "mending", "abilityPool": ["int","wis","cha"] },
+  "mark of detection":    { "type": "dragonmark_spells", "spells": [{"key":"detect_magic","minLevel":1},{"key":"detect_poison_and_disease","minLevel":1},{"key":"see_invisibility","minLevel":3}], "abilityPool": ["int","wis","cha"] },
+  "mark of handling":     { "type": "dragonmark_spells", "spells": [{"key":"animal_friendship","minLevel":1},{"key":"speak_with_animals","minLevel":1}], "abilityPool": ["int","wis","cha"] },
+  "mark of hospitality":  { "type": "dragonmark_spells", "spells": [{"key":"purify_food_and_drink","minLevel":1},{"key":"unseen_servant","minLevel":1},{"key":"calm_emotions","minLevel":3}], "abilityPool": ["int","wis","cha"] },
+  "mark of passage":      { "type": "dragonmark_spells", "spells": [{"key":"misty_step","minLevel":1}], "abilityPool": ["int","wis","cha"] },
+  "mark of scribing":     { "type": "dragonmark_spells", "spells": [{"key":"comprehend_languages","minLevel":1},{"key":"magic_mouth","minLevel":3}], "cantrip": "message", "abilityPool": ["int","wis","cha"] },
+  "mark of sentinel":     { "type": "dragonmark_spells", "spells": [{"key":"shield","minLevel":1}], "abilityPool": ["int","wis","cha"] },
+  "mark of shadow":       { "type": "dragonmark_spells", "spells": [{"key":"invisibility","minLevel":1}], "cantrip": "minor_illusion", "abilityPool": ["int","wis","cha"] },
+  "mark of storm":        { "type": "dragonmark_spells", "spells": [{"key":"gust_of_wind","minLevel":3}], "cantrip": "thunderclap", "abilityPool": ["int","wis","cha"] },
   // Elemental Familiar / Otherworldly Familiar: the damage type is chosen
   // each time Find Familiar is cast, not fixed at feat-selection - no PC
   // resistance is granted (it's the familiar's, and this sheet has no
@@ -28597,12 +28620,45 @@ function refreshAutoHPMax() {
   }
 }
 
+// Dragonmark feats (Mark of Warding etc.) grant 1-3 spells, some of which
+// don't unlock until character level 3 — this was computed once at
+// feat-selection time in applyFeatDetailEffects, which correctly handles
+// the case where the feat is taken AT level 3+, but doesn't handle a
+// character who took the feat at level 1 and later leveled up: the
+// second spell would never retroactively appear without something
+// re-checking. Runs on every recalcAll() (so on every level change),
+// looking at every feat slot to find dragonmark feats and refreshing
+// their featSpells entry to match the current level — idempotent, so
+// calling it repeatedly with no level change is a no-op.
+function syncDragonmarkFeatSpells() {
+  if (!currentChar?.featSlots) return;
+  const charLv = getLevel();
+  let changed = false;
+  Object.entries(currentChar.featSlots).forEach(([slotId, dec]) => {
+    if (dec?.choice !== 'feat' || !dec.feat) return;
+    const cleanName = dec.feat.toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
+    const extra = FEAT_EXTRA_CHOICES[cleanName];
+    if (extra?.type !== 'dragonmark_spells') return;
+    const wantKeys = (extra.spells || []).filter(s => charLv >= (s.minLevel || 1)).map(s => s.key);
+    if (extra.cantrip) wantKeys.push(extra.cantrip);
+    ensureSpellData();
+    if (!currentChar.spells.featSpells) currentChar.spells.featSpells = {};
+    const haveKeys = currentChar.spells.featSpells[slotId] || [];
+    if (JSON.stringify(haveKeys) !== JSON.stringify(wantKeys)) {
+      currentChar.spells.featSpells[slotId] = wantKeys;
+      changed = true;
+    }
+  });
+  if (changed && typeof renderKnownSpells === 'function') renderKnownSpells();
+}
+
 function recalcAll() {
   if (!currentChar) return;
   syncMagicWeaponsToInventory(); // keep equipped magic weapons in sync with the Attacks panel
   syncMagicArmorToInventory();   // keep ac_armor_key in sync with equipped magic armor
   syncMagicAmmoToInventory();    // keep ammoBonus in sync with assigned magic ammunition
   if (typeof syncArcaneArcherLoreSkills === 'function') syncArcaneArcherLoreSkills(); // Arcana/Nature auto-grant + replacement picks
+  if (typeof syncDragonmarkFeatSpells === 'function') syncDragonmarkFeatSpells(); // re-evaluate level-3-gated dragonmark spell grants
   applyFeatSlotEffects();   // ensure feat bonuses (speed, HP, etc.) are up to date
   // calcSpeed() was never actually called here — it correctly factors in
   // Exhaustion's −5 ft/level penalty (and everything else: Unarmored
@@ -46068,7 +46124,18 @@ function renderResourceTracker() {
         // default rather than an intentional level-1 unlock, so clamp it.
         if (eLv >= Math.max(3, r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) {
           const matchingFeature = subFeaturesForDesc.find(f => f.name === r.name);
-          allDefs.push(matchingFeature && !r.desc ? { ...r, desc: matchingFeature.desc } : r);
+          // _resClass: eCls was missing here entirely — a subclass resource
+          // (Arcane Ward, Superiority Dice, Psionic Energy Dice, etc.) was
+          // silently falling through renderResourceEntry()'s "def._resClass
+          // ? getClassLevelCount(...) : level" check to the raw character-
+          // wide level instead of this specific class's own level, for any
+          // multiclass character. Confirmed directly: a Wizard 1/Fighter 6
+          // Abjurer's Arcane Ward (2×level+int_mod) was computing off level
+          // 7 instead of Wizard's actual level of 1. Base CLASS resources
+          // (Lay on Hands, Channel Divinity, etc., in the loop above this
+          // one) already had this tag; only the SUBCLASS resource loop
+          // below was missing it.
+          allDefs.push({ ...(matchingFeature && !r.desc ? { ...r, desc: matchingFeature.desc } : r), _resClass: eCls });
         }
       });
     }
@@ -46229,6 +46296,32 @@ function renderResourceTracker() {
       : typeof featData.usages === 'number' ? featData.usages : 1;
     if (usagesVal > 0) allDefs.push({ id, name: featName, _max: usagesVal, recovery: featData.recovery, desc: featData.desc || '' });
   }
+
+  // ── Dragonmark feat spell resources ──────────────────────
+  // Each spell a dragonmark feat grants (Alarm, Mage Armor, etc.) is
+  // independently castable once free per Long Rest — a separate tracked
+  // resource per spell, not the one-per-feat shape the generic "Feat
+  // resources" loop just above assumes (that loop reads usages/recovery
+  // straight off the feat's own data entry, which dragonmark feats don't
+  // have — they're driven by FEAT_EXTRA_CHOICES' dragonmark_spells type
+  // instead, same place the spell grant itself comes from).
+  Object.entries(currentChar.featSlots || {}).forEach(([slotId, dec]) => {
+    if (dec?.choice !== 'feat' || !dec.feat) return;
+    const cleanFeatName = dec.feat.toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
+    const extra = FEAT_EXTRA_CHOICES[cleanFeatName];
+    if (extra?.type !== 'dragonmark_spells') return;
+    const displayFeatName = dec.feat.replace(/\s*\[.*?\]/g, '').trim();
+    (extra.spells || []).forEach(s => {
+      if (level < (s.minLevel || 1)) return;
+      const sp = PHB_SPELL_LIST.find(x => x.key === s.key);
+      const id = 'dmfeat_' + slotId + '_' + s.key;
+      if (allDefs.find(d => d.id === id)) return;
+      allDefs.push({
+        id, name: `${sp?.name || s.key} (${displayFeatName})`, _max: 1, recovery: 'long rest',
+        desc: `${sp?.name || s.key}, granted by your ${displayFeatName} feat. You always have it prepared and can cast it once without expending a spell slot; you regain the ability to cast it this way when you finish a Long Rest.`,
+      });
+    });
+  });
 
   // ── Invocation resources ────────────────────────────────
   // Some invocations grant per-rest abilities tracked as resources
@@ -46978,7 +47071,7 @@ function renderFontOfMagicModal() {
   if (!body || !currentChar) return;
 
   const slotInfo = _getSorcSlotInfo();
-  const spMax  = getResourceMax((PHB_CLASS_RESOURCES['sorcerer']||[]).find(r=>r.id==='sorcery_points'), getLevel(), getProf());
+  const spMax  = getResourceMax((PHB_CLASS_RESOURCES['sorcerer']||[]).find(r=>r.id==='sorcery_points'), getClassLevelCount('sorcerer') || getLevel(), getProf());
   const spUsed = parseInt(currentChar.resources['sorcery_points']) || 0;
   const spCurrent = spMax - spUsed;
 
@@ -47054,7 +47147,7 @@ function convertSlotToSP(lv) {
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
   if (!currentChar.resources) currentChar.resources = {};
 
-  const slots = getSpellSlots('sorcerer', getLevel()) || [];
+  const slots = getSpellSlots('sorcerer', getClassLevelCount('sorcerer') || getLevel()) || [];
   const bonusSlots = currentChar._fontOfMagicBonusSlots?.[lv] || 0;
   const total = (slots[lv - 1] || 0) + bonusSlots;
 
@@ -47075,7 +47168,7 @@ function convertSlotToSP(lv) {
   }
 
   const spGained = FONT_OF_MAGIC_SLOT_TO_SP[lv];
-  const spMax  = getResourceMax((PHB_CLASS_RESOURCES['sorcerer']||[]).find(r=>r.id==='sorcery_points'), getLevel(), getProf());
+  const spMax  = getResourceMax((PHB_CLASS_RESOURCES['sorcerer']||[]).find(r=>r.id==='sorcery_points'), getClassLevelCount('sorcerer') || getLevel(), getProf());
   const spUsed = parseInt(currentChar.resources['sorcery_points']) || 0;
   currentChar.resources['sorcery_points'] = Math.max(0, spUsed - spGained); // fewer SP "used" = more available
 
@@ -47094,12 +47187,12 @@ function convertSPToSlot(lv) {
   if (!currentChar.resources) currentChar.resources = {};
 
   const cost = FONT_OF_MAGIC_SP_TO_SLOT[lv];
-  const spMax  = getResourceMax((PHB_CLASS_RESOURCES['sorcerer']||[]).find(r=>r.id==='sorcery_points'), getLevel(), getProf());
+  const spMax  = getResourceMax((PHB_CLASS_RESOURCES['sorcerer']||[]).find(r=>r.id==='sorcery_points'), getClassLevelCount('sorcerer') || getLevel(), getProf());
   const spUsed = parseInt(currentChar.resources['sorcery_points']) || 0;
   const spCurrent = spMax - spUsed;
   if (spCurrent < cost) return; // can't afford
 
-  const slots = getSpellSlots('sorcerer', getLevel()) || [];
+  const slots = getSpellSlots('sorcerer', getClassLevelCount('sorcerer') || getLevel()) || [];
   const total = slots[lv - 1] || 0;
 
   // Find a used slot to restore first (covers it back to "available")
@@ -47458,7 +47551,7 @@ function buildAllResourceDefs() {
       // reachable before the subclass itself could even be chosen.
       [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])]
         .filter(r => eLv >= Math.max(3, r.minLevel||1))
-        .forEach(add);
+        .forEach(r => add({ ...r, _resClass: eCls }));
       // Auto-generated subclass feature resources
       const subData = PHB_SUBCLASSES[eSubKey];
       (subData?.features||[]).forEach(f => {
@@ -47472,7 +47565,11 @@ function buildAllResourceDefs() {
         const label = f.resourceLabel || f.name;
         const usagesIsNumber = typeof f.usages === 'number';
         const usagesIsArray  = Array.isArray(f.usages);
-        const resDef = { id, name: label, recovery: f.recovery };
+        // _resClass here too — an auto-generated subclass-feature resource
+        // (e.g. a homebrew subclass's custom limited-use feature) has the
+        // exact same "which class's level counts" problem as the dedicated
+        // subclass resources just above, for the same reason.
+        const resDef = { id, name: label, recovery: f.recovery, _resClass: eCls };
         if (usagesIsNumber) resDef._max = f.usages;
         else if (usagesIsArray) resDef.maxByLevel = f.usages; // level-indexed array, e.g. Zealot's Healing Pool
         else if (f.usages === 'prof_bonus') resDef._max = prof;
@@ -47542,6 +47639,21 @@ function buildAllResourceDefs() {
     }
   }
 
+  // Dragonmark feat spell resources — same id scheme (dmfeat_<slotId>_<spellKey>)
+  // as renderResourceTracker's copy of this logic, required for Long Rest
+  // resets to clear the correct key.
+  Object.entries(currentChar.featSlots || {}).forEach(([slotId, dec]) => {
+    if (dec?.choice !== 'feat' || !dec.feat) return;
+    const cleanFeatName = dec.feat.toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
+    const extra = FEAT_EXTRA_CHOICES[cleanFeatName];
+    if (extra?.type !== 'dragonmark_spells') return;
+    (extra.spells || []).forEach(s => {
+      if (level < (s.minLevel || 1)) return;
+      const id = 'dmfeat_' + slotId + '_' + s.key;
+      add({ id, name: s.key, _max: 1, recovery: 'long rest' });
+    });
+  });
+
   // Custom (player-added) resources
   (currentChar.customResources || []).forEach(cr => {
     add({ id: cr.id, name: cr.name, desc: cr.desc || '', recovery: cr.recovery, _max: cr.max, isCustom: true, recoveryNote: cr.recoveryNote || '' });
@@ -47610,7 +47722,17 @@ function doLongRest() {
       else currentChar.resources[def.id] = 0;
     }
     if (def.type === 'pool') {
-      const max = getResourceMax(def, level, prof);
+      // Was using the character's overall level unconditionally here,
+      // bypassing _resClass entirely even where it's set — a multiclass
+      // character's Lay on Hands (Paladin) or Arcane Ward (Wizard) pool
+      // was being reset to a value computed off total character level
+      // instead of that specific class's own level, on every Long Rest.
+      // This is a genuinely separate bug from the display-side one fixed
+      // above in renderResourceEntry(): even after the tracker correctly
+      // *showed* the right max, resting would silently overwrite it with
+      // the wrong one.
+      const effLevel = def._resClass ? getClassLevelCount(def._resClass) : level;
+      const max = getResourceMax(def, effLevel, prof);
       currentChar.resources[def.id] = max;
     }
   }
@@ -51389,7 +51511,7 @@ function renderFeatDetailBody() {
             + '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">' + (extra.prompt || 'Choose a skill') + '</div>'
             + '<div style="display:flex;gap:6px;flex-wrap:wrap">' + _spBtns + '</div>'
             + '</div>';
-    } else if (extra.type === 'fixed_spell' || extra.type === 'fixed_spell_choice') {
+    } else if (extra.type === 'fixed_spell' || extra.type === 'fixed_spell_choice' || extra.type === 'dragonmark_spells') {
       // Arcana Unleashed: a feat that grants one specific spell (fixed by
       // the feat, or picked from a small named pool) plus, usually, a
       // choice of spellcasting ability for it. Warlike Familiar has
@@ -51406,6 +51528,28 @@ function renderFeatDetailBody() {
                 <div class="choice-pill ${chosenKey===sp.key?'selected':''}" onclick="_featDetailState.spellChoice='${sp.key}';renderFeatDetailBody()">${sp.name}</div>
               `).join('')}
             </div>
+          </div>
+        `;
+      } else if (extra.type === 'dragonmark_spells') {
+        // Dragonmark feats grant several spells at once, some gated behind
+        // character level 3 — list all of them with their unlock level,
+        // plus any bonus cantrip, rather than the single-spell box below.
+        const _charLvForDisplay = typeof getLevel === 'function' ? getLevel() : 1;
+        const _dmSpellRows = (extra.spells || []).map(s => {
+          const sp = PHB_SPELL_LIST.find(x => x.key === s.key);
+          const unlocked = _charLvForDisplay >= (s.minLevel || 1);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${unlocked?'var(--gold-faint)':'var(--bg3)'};border:1px solid ${unlocked?'var(--gold)':'var(--border)'};border-radius:var(--radius);margin-bottom:6px">
+            <span style="font-family:var(--font-ui);font-size:12px;color:${unlocked?'var(--gold)':'var(--text3)'}">${sp?.name || s.key}</span>
+            <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:auto">${(s.minLevel||1) > 1 ? `At character level ${s.minLevel}` : 'Granted now'}${unlocked ? '' : ' (not yet)'}</span>
+          </div>`;
+        }).join('');
+        const cantripSp = extra.cantrip ? PHB_SPELL_LIST.find(x => x.key === extra.cantrip) : null;
+        html += `
+          <div style="margin-bottom:14px">
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Spells Granted</div>
+            ${_dmSpellRows}
+            ${cantripSp ? `<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:4px">Also grants the ${cantripSp.name} cantrip, always known.</div>` : ''}
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px">Each spell above can be cast once free per Long Rest, tracked on your Resource tab.</div>
           </div>
         `;
       } else {
@@ -51659,6 +51803,21 @@ function applyFeatDetail() {
     ensureSpellData();
     currentChar.spells.featSpells = currentChar.spells.featSpells || {};
     currentChar.spells.featSpells[slotId] = [_featDetailState.spellChoice];
+    currentChar.spells.featSpellNames = currentChar.spells.featSpellNames || {};
+    currentChar.spells.featSpellNames[slotId] = _cleanFeatNameForSave;
+  } else if (_extraForSave?.type === 'dragonmark_spells') {
+    // Dragonmark feats grant 1-3 spells, some of which don't unlock until
+    // character level 3 — computed fresh here off the level at save time,
+    // and kept in sync afterward by syncDragonmarkFeatSpells() (called
+    // from recalcAll) so a character who takes the feat at level 1 and
+    // later reaches level 3 actually gets the second spell added, rather
+    // than being stuck with whatever was true at selection time.
+    ensureSpellData();
+    currentChar.spells.featSpells = currentChar.spells.featSpells || {};
+    const _charLvForDm = typeof getLevel === 'function' ? getLevel() : 1;
+    const _grantedDmKeys = (_extraForSave.spells || []).filter(s => _charLvForDm >= (s.minLevel||1)).map(s => s.key);
+    if (_extraForSave.cantrip) _grantedDmKeys.push(_extraForSave.cantrip);
+    currentChar.spells.featSpells[slotId] = _grantedDmKeys;
     currentChar.spells.featSpellNames = currentChar.spells.featSpellNames || {};
     currentChar.spells.featSpellNames[slotId] = _cleanFeatNameForSave;
   }
