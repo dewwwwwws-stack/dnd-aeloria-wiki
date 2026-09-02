@@ -5727,7 +5727,7 @@ body.preview-readonly #mi-detail-edit-row * {
       <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
         <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Granted Proficiencies</div>
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px;line-height:1.4">
-          For a feat/feature whose baked-in skill/tool/language data is missing or wrong. Skill Proficiency checks the skill on; Expertise also doubles it. Tools and Languages are comma-separated — use the exact catalog name (e.g. "Thieves' Tools", "Draconic").
+          For a feat/feature whose baked-in skill/tool/language data is missing or wrong. Skill Proficiency checks the skill on; Expertise also doubles it.
         </div>
         <div style="margin-bottom:8px">
           <label class="field-label">Skill Proficiency</label>
@@ -5738,12 +5738,12 @@ body.preview-readonly #mi-detail-edit-row * {
           <div id="fg-skill-expertise" style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px"></div>
         </div>
         <div style="margin-bottom:8px">
-          <label class="field-label">Tool Proficiencies <span style="font-weight:400;text-transform:none;color:var(--text3)">(comma-separated)</span></label>
-          <input class="info-input" type="text" id="fg-prof-tools" placeholder="e.g. Thieves' Tools, Herbalism Kit">
+          <label class="field-label">Tool Proficiencies</label>
+          <div id="fg-tool-profs" style="margin-top:4px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px"></div>
         </div>
         <div>
-          <label class="field-label">Languages <span style="font-weight:400;text-transform:none;color:var(--text3)">(comma-separated)</span></label>
-          <input class="info-input" type="text" id="fg-prof-languages" placeholder="e.g. Draconic, Infernal">
+          <label class="field-label">Languages</label>
+          <div id="fg-lang-profs" style="margin-top:4px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px"></div>
         </div>
       </div>
 
@@ -32814,6 +32814,15 @@ function populateSpellsTab() {
   renderKnownSpells();
   renderSpellbookVisibility();
   renderSpellbookList();
+  // Browse Spells has no collapse/expand control in the current UI (its
+  // toggleSpellBrowser()/_browserOpen machinery is leftover from an
+  // earlier version that had one) — the panel is always visible, but
+  // nothing ever populated it on first load; only the panel's own filter
+  // controls (search, level/school dropdowns, "My classes only") called
+  // renderSpellBrowser(), each via their own onchange/oninput. So it sat
+  // empty until the player touched one of those, which looked like
+  // needing to collapse and reopen the panel to get it to "load".
+  renderSpellBrowser();
   renderAttacksPanel();
   renderSpellsActiveEffects();
   const notesEl = document.getElementById('sp-notes');
@@ -36886,10 +36895,17 @@ function renderScalingTableHTML(table, featuresByLevel, clsKey, currentLv, subKe
 }
 window.renderScalingTableHTML = renderScalingTableHTML;
 
-function renderScalingTable(cls, sub, clsLevel) {
+// Same table-building logic as renderScalingTable(), but returns each
+// logical table (base progression, an optional subclass resource table
+// like Battle Master's Superiority Dice, an optional spell-slot table)
+// as a separate array entry instead of one concatenated HTML string.
+// renderScalingTable() below is just this joined — existing callers see
+// no change — but callers that want to lay multiple tables out
+// side-by-side instead of stacked can use the array form directly.
+function renderScalingTableParts(cls, sub, clsLevel) {
   const key = cls?.toLowerCase();
   const subL = sub?.toLowerCase() || '';
-  if (!key || !PHB_CLASSES[key]) return '';
+  if (!key || !PHB_CLASSES[key]) return [];
 
   // Spell slot table for casters
   const spellType = CLASS_SPELL_TABLE_TYPE[key];
@@ -36901,7 +36917,7 @@ function renderScalingTable(cls, sub, clsLevel) {
   // to the "class/shortkey" PHB_SUBCLASSES actually uses.
   const subKey = sub ? getSubclassKey(key, sub) : null;
   const featuresByLevel = getClassFeaturesByLevel(key, subKey);
-  let html = '';
+  const parts = [];
 
   // ── Main class progression table — every class gets one now, not just
   // the handful that had hand-authored numeric columns. Where curated
@@ -36931,7 +36947,7 @@ function renderScalingTable(cls, sub, clsLevel) {
           const lv = i + 1;
           return { level: lv, prof: '+' + (Math.ceil(lv / 4) + 1) };
         }) };
-  html += renderScalingTableHTML(baseTable, featuresByLevel, key, currentLv, subKey);
+  parts.push(renderScalingTableHTML(baseTable, featuresByLevel, key, currentLv, subKey));
 
   // Battle Master's Superiority Dice (levels 3/7/10/15/18) is a genuinely
   // separate subclass resource table, not part of every Fighter's base
@@ -36939,7 +36955,7 @@ function renderScalingTable(cls, sub, clsLevel) {
   // Features column here: the base Fighter table above already covers
   // every base-class feature by level.
   if (key === 'fighter' && subL.includes('battle master')) {
-    html += renderScalingTableHTML(CLASS_SCALING_TABLES['fighter_battle_master'], null, key, currentLv);
+    parts.push(renderScalingTableHTML(CLASS_SCALING_TABLES['fighter_battle_master'], null, key, currentLv));
   }
 
   // Spell slot table (array-row shape) — every other caster. Warlock is
@@ -36950,7 +36966,7 @@ function renderScalingTable(cls, sub, clsLevel) {
     const isWarlock = spellType === 'warlock';
     const isKnownCasterTable = KNOWN_CASTER_TABLE_CLASSES.includes(spellType);
     const countColLabel = isWarlock ? 'Slots' : (isKnownCasterTable ? 'Known' : 'Prepared');
-    html += `<div style="margin:8px 0">
+    parts.push(`<div style="margin:8px 0">
       <div style="font-family:var(--font-ui);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${slotData.title}</div>
       ${slotData.note ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-bottom:4px">${slotData.note}</div>` : ''}
       <table style="width:100%;border-collapse:collapse;font-family:var(--font-body);font-size:10px">
@@ -36981,10 +36997,17 @@ function renderScalingTable(cls, sub, clsLevel) {
           }).join('')}
         </tbody>
       </table>
-    </div>`;
+    </div>`);
   }
-  
-  return html;
+
+  return parts;
+}
+window.renderScalingTableParts = renderScalingTableParts;
+
+// Unchanged behavior for any existing caller that just wants one HTML
+// blob — every logical table concatenated together, exactly like before.
+function renderScalingTable(cls, sub, clsLevel) {
+  return renderScalingTableParts(cls, sub, clsLevel).join('');
 }
 window.renderScalingTable = renderScalingTable;
 
@@ -43206,6 +43229,43 @@ function _fgRenderSkillCheckboxes() {
   `).join('');
 }
 
+// Tools and Languages get the same checkbox treatment as Skills, grouped
+// under their existing catalog categories (getToolProfCategories() /
+// PHB_LANGUAGE_CATEGORIES — the exact same lists the character sheet's
+// own Tool/Language proficiency panels already use) instead of a free-
+// text comma-separated field, so a DM picks from the real catalog rather
+// than needing to type an exact matching name. Each checkbox carries the
+// real display name in data-name; saveFeatGrants() reads those directly
+// rather than re-deriving names from slugified ids.
+function _fgRenderToolLanguageCheckboxes() {
+  const toolWrap = document.getElementById('fg-tool-profs');
+  const langWrap = document.getElementById('fg-lang-profs');
+  if (!toolWrap || !langWrap) return;
+  const existing = _dmFeatGrants[_fgEditKey]?.proficiencies || {};
+  const toolSet = new Set((existing.tools || []).map(t => toolProfKey(t)));
+  const langSet = new Set((existing.languages || []).map(l => toolProfKey(l)));
+
+  const renderGroup = (categories, cssClass, checkedSet) =>
+    Object.entries(categories).map(([cat, names]) => `
+      <div style="margin-bottom:6px">
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${cat}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px 10px">
+          ${names.map(n => {
+            const k = toolProfKey(n);
+            const safeName = n.replace(/"/g,'&quot;');
+            return `<label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:10px;color:var(--text2);cursor:pointer">
+              <input type="checkbox" class="${cssClass}" data-name="${safeName}" ${checkedSet.has(k)?'checked':''}> ${n}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('');
+
+  toolWrap.innerHTML = renderGroup(getToolProfCategories(), 'fg-tool-cb', toolSet);
+  langWrap.innerHTML = renderGroup(PHB_LANGUAGE_CATEGORIES, 'fg-lang-cb', langSet);
+}
+window._fgRenderToolLanguageCheckboxes = _fgRenderToolLanguageCheckboxes;
+
 // Marks the Native Resource fields as "will be saved as an override" the
 // moment the DM touches them — purely cosmetic (a status line), the real
 // decision of whether to actually store an override happens in
@@ -43310,9 +43370,8 @@ function openFeatGrantsModal(overrideKey, label) {
   renderFeatGrantedSpells();
   renderFeatGrantedResources();
   _fgRenderSkillCheckboxes();
+  _fgRenderToolLanguageCheckboxes();
   _fgRenderNativeSections(overrideKey);
-  document.getElementById('fg-prof-tools').value = (existing.proficiencies?.tools || []).join(', ');
-  document.getElementById('fg-prof-languages').value = (existing.proficiencies?.languages || []).join(', ');
   openModal('feat-grants-modal', true);
 }
 window.openFeatGrantsModal = openFeatGrantsModal;
@@ -43495,10 +43554,8 @@ async function saveFeatGrants() {
 
   const skillProfs = SKILLS.filter(sk => document.getElementById(`fg-sk-prof-${sk.key}`)?.checked).map(sk => sk.key);
   const skillExpertise = SKILLS.filter(sk => document.getElementById(`fg-sk-exp-${sk.key}`)?.checked).map(sk => sk.key);
-  const tools = (document.getElementById('fg-prof-tools')?.value || '')
-    .split(',').map(s => s.trim()).filter(Boolean);
-  const languages = (document.getElementById('fg-prof-languages')?.value || '')
-    .split(',').map(s => s.trim()).filter(Boolean);
+  const tools = Array.from(document.querySelectorAll('.fg-tool-cb:checked')).map(el => el.dataset.name);
+  const languages = Array.from(document.querySelectorAll('.fg-lang-cb:checked')).map(el => el.dataset.name);
   const proficiencies = (skillProfs.length || skillExpertise.length || tools.length || languages.length)
     ? { skills: skillProfs, expertise: skillExpertise, tools, languages }
     : null;
@@ -44800,15 +44857,27 @@ function renderClassFeatures() {
     </div>`;
   }).join('');
 
-  // Append scaling tables for each class
+  // Progression tables for each class — laid out side-by-side (wrapping
+  // to a new row only when the container runs out of width) instead of
+  // stacked one full-width table after another. A multiclass character
+  // can easily rack up 4+ of these (base progression + spell-slot table
+  // per caster class, plus any subclass resource table like Battle
+  // Master's Superiority Dice); stacking them vertically turned this into
+  // a very long scroll. Each logical table keeps its own unchanged
+  // rendering (renderScalingTableParts reuses the exact same HTML
+  // renderScalingTable always produced) — only the layout changed.
   const scalingDiv = document.createElement('div');
-  scalingDiv.style.cssText = 'margin-top:10px';
+  scalingDiv.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px';
   allClasses.forEach(entry => {
     const eCls = entry.class?.toLowerCase() || '';
     const eLv  = entry.levels?.length || 0;
     const eSub = entry.subclass || '';
-    const tableHtml = renderScalingTable(eCls, eSub, eLv);
-    if (tableHtml) scalingDiv.innerHTML += tableHtml;
+    renderScalingTableParts(eCls, eSub, eLv).forEach(partHtml => {
+      const item = document.createElement('div');
+      item.style.cssText = 'flex:1 1 260px;min-width:260px;max-width:420px';
+      item.innerHTML = partHtml;
+      scalingDiv.appendChild(item);
+    });
   });
   block.appendChild(scalingDiv);
 }
@@ -47593,7 +47662,7 @@ function renderResourceTracker() {
   const _allFeatNames = new Set();
 
   // 1. Manual feats in feats[]
-  (currentChar.feats || []).forEach(f => { const n = f.name || f; if (n && !f._auto) _allFeatNames.add(n); });
+  (currentChar.feats || []).forEach(f => { const n = typeof f === 'string' ? f : (f?.name || null); if (n && !f._auto) _allFeatNames.add(n); });
 
   // 2. Feat slot decisions (ASI/feat level-up choices)
   const _slotDecs = currentChar.featSlots || {};
@@ -47683,7 +47752,7 @@ function renderResourceTracker() {
     const miKey = `magic initiate (${variant})`;
     // Check feat is taken (in feats[] or featSlot decisions)
     const hasMI = (currentChar.feats||[]).some(f =>
-      (f.name||f||'').toLowerCase().includes(`magic initiate (${variant})`)
+      (typeof f === 'string' ? f : (f?.name || '')).toLowerCase().includes(`magic initiate (${variant})`)
     ) || (getFeatSlotDecisions && (() => {
       try {
         const decs = Object.values(getFeatSlotDecisions());
@@ -48951,7 +49020,7 @@ function buildAllResourceDefs() {
   // including the same id scheme, or Long/Short Rest will reset the wrong key and the
   // displayed resource will never visually clear)
   const _allFeatNamesForReset = new Set();
-  (currentChar.feats||[]).filter(f => !f._auto).forEach(f => { const n = f.name||f; if(n) _allFeatNamesForReset.add(n); });
+  (currentChar.feats||[]).filter(f => !f._auto).forEach(f => { const n = typeof f === 'string' ? f : (f?.name || null); if(n) _allFeatNamesForReset.add(n); });
   Object.values(currentChar.featSlots||{}).forEach(dec => {
     if (dec?.choice === 'feat' && dec.feat) _allFeatNamesForReset.add(dec.feat);
     if (dec?.locked && dec.feat) _allFeatNamesForReset.add(dec.feat);
@@ -55448,6 +55517,28 @@ window.updateCustomThemeSeed = updateCustomThemeSeed;
 // FEATURES TAB
 // ═══════════════════════════════════════════════════════════
 
+// Some subclasses (Great Old One, and likely others) have BOTH a raw
+// bonusSpells array (the machine-readable list actually used to grant the
+// spells — see getSubclassBonusSpells()) AND a hand-authored features[]
+// entry whose prose already spells out that exact same list level-by-
+// level (e.g. "Great Old One Spells"). populateFeaturesTab() used to
+// always build its own auto-generated "Bonus Spells (Always Prepared)"
+// card from bonusSpells on top of that, so a subclass with both ended up
+// showing the same list twice — once auto-generated, once hand-written.
+// This checks whether an existing features[] entry already names every
+// spell in the list, so the synthetic card can be skipped when it would
+// just be a duplicate. When a subclass's bonusSpells ISN'T already
+// described anywhere (the more common case), nothing changes — the
+// synthetic card still renders exactly as before, since it's the only
+// place that information exists.
+function _dmBonusSpellsAlreadyDescribed(subData, spellDisplayNames) {
+  if (!subData?.features?.length || !spellDisplayNames?.length) return false;
+  return subData.features.some(f => {
+    const text = ((f.name||'') + ' ' + (f.desc||'')).toLowerCase();
+    return spellDisplayNames.every(name => text.includes(name.toLowerCase()));
+  });
+}
+
 function populateFeaturesTab() {
   renderRacialTraits(); // always refresh racial traits section
   const el = document.getElementById('feat-unified-list');
@@ -55732,13 +55823,16 @@ function populateFeaturesTab() {
             return `Level ${actualCharLv}: ${groups[lv].join(', ')}`;
           });
           const choiceLabel = currentChar.class_choices?.[choiceKey] || matchedKey;
-          entries.push({
-            level: subclassUnlockCharLv,
-            id: `sub_bonusspells_choice_${ci}`, name: `Bonus Spells (Always Prepared) — ${choiceLabel}`,
-            source: entry.subclass, sourceType: 'Subclass',
-            desc: `These spells are always prepared because of my ${choiceLabel} choice, and don't count against my prepared spells limit.|${spellLines.join('|')}`,
-            usages: null, recovery: null,
-          });
+          const _bsdNames = Object.values(groups).flat();
+          if (!_dmBonusSpellsAlreadyDescribed(eSubData, _bsdNames)) {
+            entries.push({
+              level: subclassUnlockCharLv,
+              id: `sub_bonusspells_choice_${ci}`, name: `Bonus Spells (Always Prepared) — ${choiceLabel}`,
+              source: entry.subclass, sourceType: 'Subclass',
+              desc: `These spells are always prepared because of my ${choiceLabel} choice, and don't count against my prepared spells limit.|${spellLines.join('|')}`,
+              usages: null, recovery: null,
+            });
+          }
         } else {
           entries.push({
             level: subclassUnlockCharLv,
@@ -55771,13 +55865,16 @@ function populateFeaturesTab() {
           const actualCharLv = clsLvToCharLv(eCls, lv);
           return `Level ${actualCharLv}: ${groups[lv].join(', ')}`;
         });
-        entries.push({
-          level: subclassUnlockCharLv,
-          id: `sub_bonusspells_${ci}`, name: 'Bonus Spells (Always Prepared)',
-          source: entry.subclass, sourceType: 'Subclass',
-          desc: `These spells are always prepared and don't count against your prepared spells limit.|${spellLines.join('|')}`,
-          usages: null, recovery: null,
-        });
+        const _bsNames = Object.values(groups).flat();
+        if (!_dmBonusSpellsAlreadyDescribed(eSubData, _bsNames)) {
+          entries.push({
+            level: subclassUnlockCharLv,
+            id: `sub_bonusspells_${ci}`, name: 'Bonus Spells (Always Prepared)',
+            source: entry.subclass, sourceType: 'Subclass',
+            desc: `These spells are always prepared and don't count against your prepared spells limit.|${spellLines.join('|')}`,
+            usages: null, recovery: null,
+          });
+        }
       }
       (eSubData.features || []).filter(f => Math.max(3, f.level) <= eLv && f.name?.trim()).forEach((f, i) => {
         // Strip level suffix like " (Drakewarden 7)" for clean display
@@ -56187,15 +56284,20 @@ function populateFeaturesTab() {
 
   el.innerHTML = typeof linkifyGlossaryTerms === 'function' ? linkifyGlossaryTerms(html2) : html2;
 
-  // Append scaling tables at top of Features tab
+  // Progression tables — same side-by-side layout as the other panel
+  // that shows these (see the comment there for why).
   const scalingWrap = document.createElement('div');
-  scalingWrap.style.cssText = 'margin-bottom:16px';
+  scalingWrap.style.cssText = 'margin-bottom:16px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px';
   getAllClasses().forEach(entry => {
     const eCls = entry.class?.toLowerCase() || '';
     const eLv  = entry.levels?.length || 0;
     const eSub = entry.subclass || '';
-    const tableHtml = renderScalingTable(eCls, eSub, eLv);
-    if (tableHtml) { const w = document.createElement('div'); w.innerHTML = tableHtml; scalingWrap.appendChild(w); }
+    renderScalingTableParts(eCls, eSub, eLv).forEach(partHtml => {
+      const item = document.createElement('div');
+      item.style.cssText = 'flex:1 1 260px;min-width:260px;max-width:420px';
+      item.innerHTML = partHtml;
+      scalingWrap.appendChild(item);
+    });
   });
   if (scalingWrap.children.length) el.insertBefore(scalingWrap, el.firstChild);
 }
