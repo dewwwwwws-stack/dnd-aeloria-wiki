@@ -6871,6 +6871,13 @@ function switchPage(page) {
   if (page === 'forms') renderFormsTab();
   if (page === 'tables') populateFeaturesTab();
   if (page === 'feats') { renderFeatSlotsPanel(); renderFeatsList(); }
+  // Every other tab re-renders itself on switch so it always reflects
+  // whatever changed since it was last shown — level-ups, DM grants,
+  // other modals, anything. Spells was missing from this list entirely,
+  // so navigating away and back never refreshed it; the only way to see
+  // a change was whatever render call the thing that made the change
+  // happened to trigger directly, which not every code path did.
+  if (page === 'spells') populateSpellsTab();
   if (page === 'inventory') {
     renderFeatItemsWeapons(); // chains to armor + unified inventory automatically
     renderMagicItemsPanel();
