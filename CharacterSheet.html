@@ -4081,7 +4081,7 @@ body.preview-readonly #mi-detail-edit-row * {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
           <div>
             <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Feats &amp; Features Catalog</div>
-            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px">Edit RAW text and configure grants for any feat, class/subclass feature, race/subrace trait, or background — changes are visible to every player.</div>
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px">Edit RAW text and configure grants for any feat, class/subclass feature, race/subrace trait, background, or spell — changes are visible to every player.</div>
           </div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
@@ -4093,6 +4093,7 @@ body.preview-readonly #mi-detail-edit-row * {
             <option value="subrace">🧬 Subrace Traits</option>
             <option value="background">📜 Backgrounds</option>
             <option value="classchoice">🔀 Class Choices</option>
+            <option value="spell">📖 Spells</option>
           </select>
           <input class="spell-search-input" id="dm-feats-search" placeholder="Search name or text…" title="Searches names and full description text. Supports * and ? wildcards."
             oninput="debouncedDmRenderFeatsList()" style="flex:1;min-width:120px"/>
@@ -5672,15 +5673,50 @@ body.preview-readonly #mi-detail-edit-row * {
     <div style="padding:16px 20px;overflow-y:auto;flex:1">
       <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:12px">Any character with this feat/feature — at the required level, matching subclass if applicable — automatically gets everything configured here. Changes are visible to every player immediately.</div>
 
-      <div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Granted Spells</div>
+      <div id="fg-native-resource-section" style="border-top:1px solid var(--border);padding-top:10px;display:none">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">⚙ Already Wired In — Native Resource</div>
+        <div id="fg-native-resource-default" style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px;line-height:1.4"></div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:1">
+            <label class="field-label">Uses</label>
+            <input class="info-input" type="number" min="0" id="fg-native-usages" oninput="_fgOnNativeResourceEdited()">
+          </div>
+          <div style="flex:1">
+            <label class="field-label">Recovers On</label>
+            <select class="choice-select" id="fg-native-recovery" onchange="_fgOnNativeResourceEdited()">
+              <option value="short">Short Rest</option>
+              <option value="long">Long Rest</option>
+              <option value="dawn">Dawn</option>
+              <option value="dusk">Dusk</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div id="fg-native-resource-status" style="font-family:var(--font-ui);font-size:9px;color:var(--text3)"></div>
+          <button type="button" class="tbtn" style="font-size:9px;padding:3px 8px" onclick="resetFeatNativeResource()">Reset to Catalog Default</button>
+        </div>
+      </div>
+
+      <div id="fg-adept-spells-section" style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px;display:none">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">⚙ Already Wired In — Adept Spell Table</div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px;line-height:1.4">
+          This feat always-prepares one spell per spell-slot level (1st through 5th) once the character has a slot of that level. Edit any row to replace it.
+        </div>
+        <div id="fg-adept-spells-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px"></div>
+        <div style="display:flex;align-items:center;justify-content:flex-end">
+          <button type="button" class="tbtn" style="font-size:9px;padding:3px 8px" onclick="resetFeatAdeptSpells()">Reset to Catalog Default</button>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Granted Spells <span style="font-weight:400;text-transform:none">(additional, on top of anything above)</span></div>
         <div id="fg-granted-spells-list" style="display:flex;flex-direction:column;gap:8px"></div>
         <datalist id="fg-spell-names"></datalist>
         <button class="tbtn" style="font-size:10px;padding:5px 12px;margin-top:8px" onclick="addFeatGrantedSpell()">+ Add Granted Spell</button>
       </div>
 
       <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
-        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Granted Resources</div>
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Granted Resources <span style="font-weight:400;text-transform:none">(additional, on top of anything above)</span></div>
         <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px;line-height:1.4">
           For a tracked ability that isn't a spell — e.g. Rage uses, Channel Divinity, Ki points. Each gets its own pip-tracked entry in the Resources tracker.
         </div>
@@ -23096,7 +23132,96 @@ function _dmGrantKeyLabel(overrideKey) {
   return sep === -1 ? rest : rest.slice(sep + 1);
 }
 
-// Mirrors syncMagicItemGrantedResources() — keeps currentChar.customResources
+// ── Native mechanic overrides ────────────────────────────────────────
+// Several feats and class/subclass features have mechanics baked directly
+// into their CATALOG entry, not routed through the generic _dmFeatGrants
+// "Grants" system at all: a feat's own usages/recovery fields (e.g.
+// Divination Adept's "Prescient Intervention" reaction — 1 use, Long
+// Rest, on PHB_FEATS_FULL directly), and the 8 Arcana Unleashed "Adept"
+// feats' adeptSpells table (which spell each spell-slot level grants).
+// The "Grants" system alone could only ADD to these — it had no way to
+// correct or replace what's already wired in, which just produced a
+// second, duplicate resource on the sheet. These two functions are the
+// override layer: every place that reads a feat/feature's native
+// usages/recovery or adeptSpells now checks here FIRST, falling back to
+// the catalog default only if the DM hasn't overridden it. Stored
+// alongside the additive grants in the same _dmFeatGrants[key] object,
+// under nativeResourceOverride / adeptSpellsOverride, so one "Grants"
+// modal covers both correcting what exists and adding what's new.
+
+// {usages, recovery} if the DM overrode this feat/feature's native
+// resource, else null (meaning: use whatever the catalog itself says).
+function _dmNativeResourceOverride(overrideKey) {
+  const ov = _dmFeatGrants[overrideKey]?.nativeResourceOverride;
+  if (!ov || !ov.usages || !ov.recovery) return null;
+  return ov;
+}
+window._dmNativeResourceOverride = _dmNativeResourceOverride;
+
+// The catalog's own baked-in usages/recovery for a feat or class/subclass
+// feature, resolved from PHB_FEATS_FULL/PHB_CLASSES/PHB_SUBCLASSES. Used
+// to pre-fill the Grants modal with what's ALREADY there — races,
+// backgrounds, and class choices don't have this kind of native resource
+// in this codebase, so they return null.
+function _dmGetNativeResourceDefault(overrideKey) {
+  if (overrideKey.startsWith('feat:')) {
+    const featName = overrideKey.slice(5);
+    const featData = Object.values(PHB_FEATS_FULL).find(f => f.name === featName)
+                   || Object.values(PHB_FEATS).find(f => f.name === featName);
+    if (featData?.usages && featData?.recovery) return { usages: featData.usages, recovery: featData.recovery };
+    return null;
+  }
+  if (overrideKey.startsWith('class:') || overrideKey.startsWith('subclass:')) {
+    const isSubclassKey = overrideKey.startsWith('subclass:');
+    const rest = overrideKey.slice(isSubclassKey ? 'subclass:'.length : 'class:'.length);
+    const sep = rest.indexOf(':');
+    if (sep === -1) return null;
+    const key = rest.slice(0, sep), featureName = rest.slice(sep + 1);
+    const src = isSubclassKey ? PHB_SUBCLASSES[key] : PHB_CLASSES[key];
+    const f = (src?.features || []).find(x => x.name === featureName);
+    if (f?.usages && f?.recovery && !f.isTable) return { usages: f.usages, recovery: f.recovery };
+    return null;
+  }
+  return null;
+}
+window._dmGetNativeResourceDefault = _dmGetNativeResourceDefault;
+
+// A human-readable description of a catalog "usages" value for display in
+// the Grants modal — these can be a flat number, 'prof_bonus', a level-
+// indexed array, or an arbitrary formula string, and the modal shows
+// what the default actually means rather than just a raw JSON blob.
+function _dmDescribeNativeUsages(usages) {
+  if (typeof usages === 'number') return String(usages);
+  if (usages === 'prof_bonus') return 'Proficiency Bonus';
+  if (Array.isArray(usages)) return `varies by level (${usages.join('/')})`;
+  if (typeof usages === 'string') return `formula: ${usages}`;
+  return String(usages);
+}
+window._dmDescribeNativeUsages = _dmDescribeNativeUsages;
+
+// The 8 Arcana Unleashed "Adept" feats' baked-in adeptSpells table — the
+// same lookup the character sheet's own spell-locking logic uses (see
+// ADEPT_FEAT_KEYS in buildKnownSpellRows). Exposed here so the catalog
+// key format (`feat:${name}`) can find its way back to the underlying
+// PHB_FEATS_FULL key, which is what adeptSpells is actually stored under.
+const ADEPT_FEAT_CATALOG_KEYS = ['abjuration adept','conjuration adept','divination adept','enchantment adept',
+  'evocation adept','illusion adept','necromancy adept','transmutation adept'];
+function _dmAdeptFeatKeyFromOverrideKey(overrideKey) {
+  if (!overrideKey.startsWith('feat:')) return null;
+  const featName = overrideKey.slice(5);
+  return ADEPT_FEAT_CATALOG_KEYS.find(k => PHB_FEATS_FULL[k]?.name === featName) || null;
+}
+window._dmAdeptFeatKeyFromOverrideKey = _dmAdeptFeatKeyFromOverrideKey;
+
+// {levelStr: spellName} if the DM overrode this Adept feat's spell table,
+// else null (use the catalog default from PHB_FEATS_FULL[key].adeptSpells).
+function _dmAdeptSpellsOverride(overrideKey) {
+  const ov = _dmFeatGrants[overrideKey]?.adeptSpellsOverride;
+  return ov && Object.keys(ov).length ? ov : null;
+}
+window._dmAdeptSpellsOverride = _dmAdeptSpellsOverride;
+
+
 // in sync with every currently-active feat/feature grant's "resources"
 // list (generic named abilities) AND the "limited"-use spells among its
 // "spells" list (those need their own pip-tracked pool too, same as an
@@ -31808,7 +31933,8 @@ function buildKnownSpellRows() {
     ADEPT_FEAT_KEYS.forEach(featKey => {
       const featData = PHB_FEATS_FULL[featKey];
       if (!featData?.adeptSpells || !hasFeat(featKey)) return;
-      Object.entries(featData.adeptSpells).forEach(([lvStr, spellName]) => {
+      const adeptSpells = _dmAdeptSpellsOverride(`feat:${featData.name}`) || featData.adeptSpells;
+      Object.entries(adeptSpells).forEach(([lvStr, spellName]) => {
         const spLevel = parseInt(lvStr);
         const phb = PHB_SPELL_LIST.find(s => s.name.toLowerCase() === spellName.toLowerCase());
         if (!phb || _shownKeys.has(phb.key)) return;
@@ -42900,6 +43026,23 @@ function _dmGetAllBackgroundRows() {
     }));
 }
 
+// Spells: every entry in PHB_SPELL_LIST. Uses the exact same `spell:${key}`
+// override key renderSpellDetailBody() already builds and reads via
+// getEffectiveText() for the spell detail modal every player already
+// uses — this is a browsing front-end onto storage that was already
+// live, not a new edit surface. No Grants button here: a spell doesn't
+// grant itself anything, it's the thing being granted, so only the RAW
+// text (mechanics/description) is editable.
+function _dmGetAllSpellRows() {
+  return PHB_SPELL_LIST.map(sp => ({
+    overrideKey: `spell:${sp.key}`,
+    name: sp.name,
+    desc: sp.descFull || sp.desc || '',
+    prereq: '',
+    source: `${sp.level === 0 ? 'Cantrip' : 'Level ' + sp.level} · ${sp.school}`,
+  }));
+}
+
 // Class choices: every entry in PHB_CLASS_CHOICES[clsKey] — the "pick one
 // of these options" mechanics (Fighting Style, Divine Order, Rage of the
 // Wilds aspects, etc.), each with a short desc explaining what it does.
@@ -42943,6 +43086,7 @@ function dmRenderFeatsList() {
              : type === 'subrace' ? _dmGetAllSubraceRows()
              : type === 'background' ? _dmGetAllBackgroundRows()
              : type === 'classchoice' ? _dmGetAllClassChoiceRows()
+             : type === 'spell' ? _dmGetAllSpellRows()
              : _dmGetAllFeatRows();
 
   const filtered = rows.filter(r => {
@@ -42967,9 +43111,11 @@ function dmRenderFeatsList() {
 
   list.innerHTML = truncationNoticeHtml + toRender.map(r => {
     const isDM = !!(_dmTextOverrides[r.overrideKey] || '').trim();
-    const grant = _dmFeatGrants[r.overrideKey];
+    const isSpellRow = r.overrideKey.startsWith('spell:');
+    const grant = isSpellRow ? null : _dmFeatGrants[r.overrideKey];
     const hasProfs = !!(grant?.proficiencies && (grant.proficiencies.skills?.length || grant.proficiencies.expertise?.length || grant.proficiencies.tools?.length || grant.proficiencies.languages?.length));
-    const hasGrants = !!(grant?.spells?.length || grant?.resources?.length || hasProfs);
+    const hasNativeOverride = !!(grant?.nativeResourceOverride || grant?.adeptSpellsOverride);
+    const hasGrants = !!(grant?.spells?.length || grant?.resources?.length || hasProfs || hasNativeOverride);
     const effectiveDesc = getEffectiveText(r.overrideKey, r.desc);
     const preview = effectiveDesc.slice(0, 100) + (effectiveDesc.length > 100 ? '…' : '');
     return `
@@ -42985,7 +43131,7 @@ function dmRenderFeatsList() {
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmEditFeatText(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name + ' — ' + r.source).replace(/"/g,'&quot;')})" title="Edit RAW text">✎ Edit</button>
-          <button class="tbtn" style="font-size:9px;padding:3px 8px;${hasGrants?'color:var(--accent2);border-color:var(--accent2)':''}" onclick="openFeatGrantsModal(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name + ' — ' + r.source).replace(/"/g,'&quot;')})" title="Configure granted spells/resources">🪄 Grants</button>
+          ${isSpellRow ? '' : `<button class="tbtn" style="font-size:9px;padding:3px 8px;${hasGrants?'color:var(--accent2);border-color:var(--accent2)':''}" onclick="openFeatGrantsModal(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name + ' — ' + r.source).replace(/"/g,'&quot;')})" title="Configure granted spells/resources">🪄 Grants</button>`}
         </div>
       </div>
     `;
@@ -42998,6 +43144,18 @@ window.dmRenderFeatsList = dmRenderFeatsList;
 // current effective text fresh (in case another DM edited it since this
 // list was last rendered) and opens the shared override-edit modal.
 function dmEditFeatText(overrideKey, label) {
+  // Spells get their own fast-path lookup rather than joining
+  // _dmGetAllSpellRows() into the combined list below — that list is
+  // rebuilt on every call, and re-mapping the (much larger) full spell
+  // list just to resolve one fallback string would be wasteful for the
+  // common case of editing a feat/feature, not a spell.
+  if (overrideKey.startsWith('spell:')) {
+    const spellKey = overrideKey.slice('spell:'.length);
+    const sp = PHB_SPELL_LIST.find(s => s.key === spellKey);
+    const fallback = sp ? (sp.descFull || sp.desc || '') : '';
+    openTextOverrideModal(overrideKey, label, getEffectiveText(overrideKey, fallback));
+    return;
+  }
   const allRows = [
     ..._dmGetAllFeatRows(), ..._dmGetAllClassFeatureRows(), ..._dmGetAllSubclassFeatureRows(),
     ..._dmGetAllRaceFeatureRows(), ..._dmGetAllSubraceRows(), ..._dmGetAllBackgroundRows(),
@@ -43017,6 +43175,9 @@ let _fgEditKey = null;
 let _fgGrantedSpellsDraft = [];
 let _fgGrantedResourcesDraft = [];
 let _fgSpellDatalistPopulated = false;
+let _fgNativeResourceDefault = null;   // catalog default {usages, recovery} | null
+let _fgAdeptFeatKey = null;            // set only when editing one of the 8 Adept feats
+let _fgAdeptSpellsDraft = {};          // {levelStr: spellName}
 
 function _fgPopulateSpellDatalist() {
   if (_fgSpellDatalistPopulated) return;
@@ -43045,10 +43206,103 @@ function _fgRenderSkillCheckboxes() {
   `).join('');
 }
 
+// Marks the Native Resource fields as "will be saved as an override" the
+// moment the DM touches them — purely cosmetic (a status line), the real
+// decision of whether to actually store an override happens in
+// saveFeatGrants() based on whether the values differ from blank/catalog.
+function _fgOnNativeResourceEdited() {
+  const status = document.getElementById('fg-native-resource-status');
+  if (status) status.textContent = 'Edited — will save as an override.';
+}
+window._fgOnNativeResourceEdited = _fgOnNativeResourceEdited;
+
+// Renders the "Already Wired In" section for whatever's baked into the
+// catalog for this feat/feature — a native usages/recovery resource
+// and/or (for the 8 Adept feats) the adeptSpells table — pre-filled with
+// the current EFFECTIVE value (an existing DM override if one's already
+// saved, otherwise the catalog's own default), so the DM sees and edits
+// what's really there instead of guessing.
+function _fgRenderNativeSections(overrideKey) {
+  const resSection = document.getElementById('fg-native-resource-section');
+  const adeptSection = document.getElementById('fg-adept-spells-section');
+  const existing = _dmFeatGrants[overrideKey] || {};
+
+  _fgNativeResourceDefault = _dmGetNativeResourceDefault(overrideKey);
+  const resOverride = existing.nativeResourceOverride;
+  if (_fgNativeResourceDefault || resOverride) {
+    resSection.style.display = '';
+    const effUsages = resOverride?.usages ?? _fgNativeResourceDefault?.usages;
+    const effRecovery = resOverride?.recovery ?? _fgNativeResourceDefault?.recovery ?? 'long';
+    document.getElementById('fg-native-usages').value =
+      typeof effUsages === 'number' ? effUsages : '';
+    document.getElementById('fg-native-recovery').value = effRecovery;
+    const defaultLine = _fgNativeResourceDefault
+      ? `Catalog default: ${_dmDescribeNativeUsages(_fgNativeResourceDefault.usages)} use(s), ${_fgNativeResourceDefault.recovery}`
+      : 'No catalog default — this override adds a resource that wasn\'t there before.';
+    document.getElementById('fg-native-resource-default').textContent = defaultLine;
+    document.getElementById('fg-native-resource-status').textContent = resOverride ? 'Currently overridden.' : '';
+  } else {
+    resSection.style.display = 'none';
+  }
+
+  _fgAdeptFeatKey = _dmAdeptFeatKeyFromOverrideKey(overrideKey);
+  if (_fgAdeptFeatKey) {
+    adeptSection.style.display = '';
+    const catalogDefault = PHB_FEATS_FULL[_fgAdeptFeatKey]?.adeptSpells || {};
+    const override = _dmAdeptSpellsOverride(overrideKey);
+    _fgAdeptSpellsDraft = { ...catalogDefault, ...(override || {}) };
+    renderFeatAdeptSpells();
+  } else {
+    adeptSection.style.display = 'none';
+    _fgAdeptSpellsDraft = {};
+  }
+}
+
+function renderFeatAdeptSpells() {
+  const list = document.getElementById('fg-adept-spells-list');
+  if (!list) return;
+  list.innerHTML = [1,2,3,4,5].map(lv => `
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);width:70px;flex-shrink:0">Lv ${lv} slot:</div>
+      <input class="info-input" type="text" list="fg-spell-names" style="flex:1" value="${(_fgAdeptSpellsDraft[lv]||'').replace(/"/g,'&quot;')}"
+        oninput="_fgUpdateAdeptSpell(${lv}, this.value)" placeholder="No spell at this level">
+    </div>
+  `).join('');
+}
+window.renderFeatAdeptSpells = renderFeatAdeptSpells;
+
+function _fgUpdateAdeptSpell(level, value) {
+  if ((value || '').trim()) _fgAdeptSpellsDraft[level] = value.trim();
+  else delete _fgAdeptSpellsDraft[level];
+}
+window._fgUpdateAdeptSpell = _fgUpdateAdeptSpell;
+
+function resetFeatNativeResource() {
+  if (!_fgNativeResourceDefault) {
+    document.getElementById('fg-native-usages').value = '';
+    document.getElementById('fg-native-recovery').value = 'long';
+  } else {
+    document.getElementById('fg-native-usages').value =
+      typeof _fgNativeResourceDefault.usages === 'number' ? _fgNativeResourceDefault.usages : '';
+    document.getElementById('fg-native-recovery').value = _fgNativeResourceDefault.recovery;
+  }
+  document.getElementById('fg-native-resource-status').textContent = 'Reset — will clear the override on save.';
+  document.getElementById('fg-native-usages').dataset.resetToDefault = '1';
+}
+window.resetFeatNativeResource = resetFeatNativeResource;
+
+function resetFeatAdeptSpells() {
+  if (!_fgAdeptFeatKey) return;
+  _fgAdeptSpellsDraft = { ...(PHB_FEATS_FULL[_fgAdeptFeatKey]?.adeptSpells || {}) };
+  renderFeatAdeptSpells();
+}
+window.resetFeatAdeptSpells = resetFeatAdeptSpells;
+
 function openFeatGrantsModal(overrideKey, label) {
   _fgEditKey = overrideKey;
   document.getElementById('fg-modal-title').textContent = 'Grants — ' + label;
   document.getElementById('fg-status').textContent = '';
+  document.getElementById('fg-native-usages').dataset.resetToDefault = '';
   _fgPopulateSpellDatalist();
   const existing = _dmFeatGrants[overrideKey] || {};
   _fgGrantedSpellsDraft = (existing.spells || []).map(gs => ({ ...gs }));
@@ -43056,6 +43310,7 @@ function openFeatGrantsModal(overrideKey, label) {
   renderFeatGrantedSpells();
   renderFeatGrantedResources();
   _fgRenderSkillCheckboxes();
+  _fgRenderNativeSections(overrideKey);
   document.getElementById('fg-prof-tools').value = (existing.proficiencies?.tools || []).join(', ');
   document.getElementById('fg-prof-languages').value = (existing.proficiencies?.languages || []).join(', ');
   openModal('feat-grants-modal', true);
@@ -43248,9 +43503,38 @@ async function saveFeatGrants() {
     ? { skills: skillProfs, expertise: skillExpertise, tools, languages }
     : null;
 
+  // Native resource override — only actually stored if it differs from the
+  // catalog's own default (or there's no default at all, meaning this
+  // adds a resource that wasn't there before). "Reset to Catalog Default"
+  // sets a flag on the input so saving always clears any prior override,
+  // even if the fields still visually show the default value.
+  const nativeUsagesEl = document.getElementById('fg-native-usages');
+  const nativeResetClicked = nativeUsagesEl?.dataset.resetToDefault === '1';
+  const nativeUsagesNum = parseInt(nativeUsagesEl?.value);
+  const nativeRecovery = document.getElementById('fg-native-recovery')?.value || 'long';
+  let nativeResourceOverride = null;
+  if (!nativeResetClicked && nativeUsagesNum > 0) {
+    const isSameAsDefault = _fgNativeResourceDefault
+      && _fgNativeResourceDefault.usages === nativeUsagesNum
+      && _fgNativeResourceDefault.recovery === nativeRecovery;
+    if (!isSameAsDefault) nativeResourceOverride = { usages: nativeUsagesNum, recovery: nativeRecovery };
+  }
+
+  // Adept spell table override — only stored if it actually differs from
+  // the catalog default for this specific Adept feat.
+  let adeptSpellsOverride = null;
+  if (_fgAdeptFeatKey) {
+    const catalogDefault = PHB_FEATS_FULL[_fgAdeptFeatKey]?.adeptSpells || {};
+    const draftKeys = Object.keys(_fgAdeptSpellsDraft);
+    const defaultKeys = Object.keys(catalogDefault);
+    const sameAsDefault = draftKeys.length === defaultKeys.length
+      && draftKeys.every(k => (catalogDefault[k]||'').toLowerCase() === (_fgAdeptSpellsDraft[k]||'').toLowerCase());
+    if (!sameAsDefault && draftKeys.length) adeptSpellsOverride = { ..._fgAdeptSpellsDraft };
+  }
+
   try {
-    if (spells.length || resources.length || proficiencies) {
-      _dmFeatGrants[_fgEditKey] = { spells, resources, proficiencies };
+    if (spells.length || resources.length || proficiencies || nativeResourceOverride || adeptSpellsOverride) {
+      _dmFeatGrants[_fgEditKey] = { spells, resources, proficiencies, nativeResourceOverride, adeptSpellsOverride };
     } else {
       delete _dmFeatGrants[_fgEditKey];
     }
@@ -47289,13 +47573,18 @@ function renderResourceTracker() {
       if (eLv < Math.max(3, f.level||1)) return;
       const id = 'scfeat_' + eSubKey.replace(/[^a-z0-9]/g,'_') + '_' + f.name.replace(/[^a-z0-9]/gi,'_').toLowerCase();
       if (allDefs.find(d => d.id === id)) return;
-      const usagesVal = typeof f.usages === 'number' ? f.usages
+      // DM override wins outright — a flat corrected number/recovery,
+      // bypassing the formula resolution below entirely.
+      const _nativeOv = _dmNativeResourceOverride(`subclass:${eSubKey}:${f.name}`);
+      const usagesVal = _nativeOv ? (_nativeOv.usages === 'prof_bonus' ? prof : _nativeOv.usages)
+        : typeof f.usages === 'number' ? f.usages
         : Array.isArray(f.usages) ? (f.usages[Math.min(eLv, f.usages.length-1)] || 1)
         : f.usages === 'prof_bonus' ? prof
         : f.usages === 'int_mod' ? abilityMod(getAbilities().int)
         : typeof f.usages === 'string' ? (() => { try { const abs=getAbilities(); const level=eLv,prof2=prof; return Math.max(1, Number(new Function('level','prof','int_mod','str_mod','dex_mod','con_mod','wis_mod','cha_mod','return '+f.usages)(eLv,prof,abilityMod(abs.int),abilityMod(abs.str),abilityMod(abs.dex),abilityMod(abs.con),abilityMod(abs.wis),abilityMod(abs.cha)))||1); } catch(e){return 1;} })()
         : 1;
-      if (usagesVal > 0) allDefs.push({ id, name: f.name, _max: usagesVal, recovery: f.recovery, desc: f.desc });
+      const recoveryVal = _nativeOv ? _nativeOv.recovery : f.recovery;
+      if (usagesVal > 0) allDefs.push({ id, name: f.name, _max: usagesVal, recovery: recoveryVal, desc: f.desc });
     });
   });
 
@@ -47343,12 +47632,15 @@ function renderResourceTracker() {
     const featData = featKey
       ? (PHB_FEATS[featKey] || PHB_FEATS_FULL[featKey])
       : null;
-    if (!featData?.usages || !featData?.recovery) continue;
+    const _nativeOv = _dmNativeResourceOverride(`feat:${featName}`);
+    if (!_nativeOv && (!featData?.usages || !featData?.recovery)) continue;
     const id = 'feat_res_' + (featKey||featName).replace(/[^a-z0-9]/g,'_');
     if (allDefs.find(d => d.id === id)) continue;
-    const usagesVal = featData.usages === 'prof_bonus' ? prof
+    const usagesVal = _nativeOv ? (_nativeOv.usages === 'prof_bonus' ? prof : _nativeOv.usages)
+      : featData.usages === 'prof_bonus' ? prof
       : typeof featData.usages === 'number' ? featData.usages : 1;
-    if (usagesVal > 0) allDefs.push({ id, name: featName, _max: usagesVal, recovery: featData.recovery, desc: featData.desc || '' });
+    const recoveryVal = _nativeOv ? _nativeOv.recovery : featData.recovery;
+    if (usagesVal > 0) allDefs.push({ id, name: featName, _max: usagesVal, recovery: recoveryVal, desc: featData?.desc || '' });
   }
 
   // Dragonmark feats' individual spell grants (Alarm, Mage Armor, etc.)
@@ -48612,14 +48904,18 @@ function buildAllResourceDefs() {
         }
         const id = 'scfeat_' + eSubKey.replace(/[^a-z0-9]/g,'_') + '_' + f.name.replace(/[^a-z0-9]/gi,'_').toLowerCase();
         const label = f.resourceLabel || f.name;
+        // DM override wins outright — a flat corrected number/recovery,
+        // bypassing the formula/array resolution below entirely.
+        const _nativeOv = _dmNativeResourceOverride(`subclass:${eSubKey}:${f.name}`);
         const usagesIsNumber = typeof f.usages === 'number';
         const usagesIsArray  = Array.isArray(f.usages);
         // _resClass here too — an auto-generated subclass-feature resource
         // (e.g. a homebrew subclass's custom limited-use feature) has the
         // exact same "which class's level counts" problem as the dedicated
         // subclass resources just above, for the same reason.
-        const resDef = { id, name: label, recovery: f.recovery, _resClass: eCls };
-        if (usagesIsNumber) resDef._max = f.usages;
+        const resDef = { id, name: label, recovery: _nativeOv ? _nativeOv.recovery : f.recovery, _resClass: eCls };
+        if (_nativeOv) resDef._max = _nativeOv.usages === 'prof_bonus' ? prof : _nativeOv.usages;
+        else if (usagesIsNumber) resDef._max = f.usages;
         else if (usagesIsArray) resDef.maxByLevel = f.usages; // level-indexed array, e.g. Zealot's Healing Pool
         else if (f.usages === 'prof_bonus') resDef._max = prof;
         else resDef.maxFormula = f.usages; // e.g. "int_mod" — resolved by getResourceMax()
@@ -48682,9 +48978,13 @@ function buildAllResourceDefs() {
     const featKeyForReset = Object.keys(PHB_FEATS).find(k => PHB_FEATS[k].name === featName)
                           || Object.keys(PHB_FEATS_FULL).find(k => PHB_FEATS_FULL[k].name === featName);
     const featData = featKeyForReset ? (PHB_FEATS[featKeyForReset] || PHB_FEATS_FULL[featKeyForReset]) : null;
-    if (featData?.usages && featData?.recovery) {
+    const _nativeOvReset = _dmNativeResourceOverride(`feat:${featName}`);
+    if (_nativeOvReset || (featData?.usages && featData?.recovery)) {
       const id = 'feat_res_' + (featKeyForReset||featName).replace(/[^a-z0-9]/g,'_');
-      add({ id, name: featName, _max: featData.usages === 'prof_bonus' ? prof : featData.usages, recovery: featData.recovery });
+      const usagesVal = _nativeOvReset ? (_nativeOvReset.usages === 'prof_bonus' ? prof : _nativeOvReset.usages)
+        : featData.usages === 'prof_bonus' ? prof : featData.usages;
+      const recoveryVal = _nativeOvReset ? _nativeOvReset.recovery : featData.recovery;
+      add({ id, name: featName, _max: usagesVal, recovery: recoveryVal });
     }
   }
 
