@@ -3938,6 +3938,7 @@ body.preview-readonly #mi-detail-edit-row * {
         <button class="dm-tab active" onclick="switchDMTab('party')" id="dm-tab-party" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid var(--accent);background:none;color:var(--accent);cursor:pointer;white-space:nowrap">Party</button>
         <button class="dm-tab" onclick="switchDMTab('campaigns')" id="dm-tab-campaigns" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Campaigns</button>
         <button class="dm-tab" onclick="switchDMTab('items')" id="dm-tab-items" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Items</button>
+        <button class="dm-tab" onclick="switchDMTab('feats')" id="dm-tab-feats" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Feats &amp; Features</button>
         <button class="dm-tab" onclick="switchDMTab('admin')" id="dm-tab-admin" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Admin</button>
       </div>
 
@@ -4065,6 +4066,44 @@ body.preview-readonly #mi-detail-edit-row * {
 
         <div id="dm-items-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
         <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 320px);overflow-y:auto"></div>
+      </div>
+
+      <!-- Feats & Features Tab — DM catalog editor for feats, class
+           features, and subclass features. Reuses the exact same
+           _dmTextOverrides / openTextOverrideModal / getEffectiveText
+           mechanism already wired into the character sheet's own feat and
+           class-feature info popups (see openFeatInfoModal and
+           openClassFeatureInfoModal) — this tab is a centralized browser
+           on top of that same storage, not a new editing system, so any
+           edit made here shows up identically wherever that feat/feature
+           is displayed to a player, and vice versa. -->
+      <div id="dm-pane-feats" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+          <div>
+            <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Feats &amp; Features Catalog</div>
+            <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px">Edit RAW text and configure grants for any feat, class/subclass feature, race/subrace trait, or background — changes are visible to every player.</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
+          <select class="spell-filter-sel" id="dm-feats-type" onchange="dmRenderFeatsList()" style="flex-shrink:0">
+            <option value="feat">⭐ Feats</option>
+            <option value="classfeature">🎓 Class Features</option>
+            <option value="subclassfeature">🛡 Subclass Features</option>
+            <option value="racefeature">🧬 Race Features</option>
+            <option value="subrace">🧬 Subrace Traits</option>
+            <option value="background">📜 Backgrounds</option>
+            <option value="classchoice">🔀 Class Choices</option>
+          </select>
+          <input class="spell-search-input" id="dm-feats-search" placeholder="Search name or text…" title="Searches names and full description text. Supports * and ? wildcards."
+            oninput="debouncedDmRenderFeatsList()" style="flex:1;min-width:120px"/>
+          <select class="spell-filter-sel" id="dm-feats-source" onchange="dmRenderFeatsList()">
+            <option value="">All Sources</option>
+            <option value="dm">DM Edited</option>
+            <option value="official">Unedited</option>
+          </select>
+        </div>
+        <div id="dm-feats-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
+        <div id="dm-feats-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 280px);overflow-y:auto"></div>
       </div>
 
       <div id="dm-pane-admin" style="display:none">
@@ -5611,6 +5650,72 @@ body.preview-readonly #mi-detail-edit-row * {
       <button class="btn-primary" onclick="saveTextOverride()">Save</button>
       <button class="tbtn" id="tov-reset-btn" style="display:none;color:var(--red);border-color:var(--red)" onclick="resetTextOverride()">Reset to Default</button>
       <button class="tbtn" onclick="closeModal('text-override-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Feat/Feature GRANTS editor — Phase 2 of the DM catalog editor.
+     Configures structured spell and resource grants for a feat, class
+     feature, or subclass feature (as opposed to text-override-modal
+     above, which only edits description text). Reuses the exact same
+     grant shapes and consuming logic as a magic item's grantedSpells/
+     grantedResources (see getFeatCatalogGrantedSpells() and
+     syncFeatCatalogGrantedResources()), just with the "itemCharges" and
+     "spellbook" frequency options omitted, since there's no per-feat
+     charge pool or spellbook concept the way an item has. -->
+<div class="modal-overlay hidden" id="feat-grants-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
+  <div class="modal-box" style="max-width:600px;display:flex;flex-direction:column;max-height:85vh">
+    <div class="modal-header" style="flex-shrink:0">
+      <span class="modal-title" id="fg-modal-title">Configure Grants</span>
+      <button class="modal-close" onclick="closeModal('feat-grants-modal')">×</button>
+    </div>
+    <div style="padding:16px 20px;overflow-y:auto;flex:1">
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:12px">Any character with this feat/feature — at the required level, matching subclass if applicable — automatically gets everything configured here. Changes are visible to every player immediately.</div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Granted Spells</div>
+        <div id="fg-granted-spells-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        <datalist id="fg-spell-names"></datalist>
+        <button class="tbtn" style="font-size:10px;padding:5px 12px;margin-top:8px" onclick="addFeatGrantedSpell()">+ Add Granted Spell</button>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Granted Resources</div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px;line-height:1.4">
+          For a tracked ability that isn't a spell — e.g. Rage uses, Channel Divinity, Ki points. Each gets its own pip-tracked entry in the Resources tracker.
+        </div>
+        <div id="fg-granted-resources-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px"></div>
+        <button type="button" class="tbtn" style="font-size:10px" onclick="addFeatGrantedResource()">+ Add Granted Resource</button>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:10px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Granted Proficiencies</div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:8px;line-height:1.4">
+          For a feat/feature whose baked-in skill/tool/language data is missing or wrong. Skill Proficiency checks the skill on; Expertise also doubles it. Tools and Languages are comma-separated — use the exact catalog name (e.g. "Thieves' Tools", "Draconic").
+        </div>
+        <div style="margin-bottom:8px">
+          <label class="field-label">Skill Proficiency</label>
+          <div id="fg-skill-profs" style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px"></div>
+        </div>
+        <div style="margin-bottom:8px">
+          <label class="field-label">Skill Expertise</label>
+          <div id="fg-skill-expertise" style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px"></div>
+        </div>
+        <div style="margin-bottom:8px">
+          <label class="field-label">Tool Proficiencies <span style="font-weight:400;text-transform:none;color:var(--text3)">(comma-separated)</span></label>
+          <input class="info-input" type="text" id="fg-prof-tools" placeholder="e.g. Thieves' Tools, Herbalism Kit">
+        </div>
+        <div>
+          <label class="field-label">Languages <span style="font-weight:400;text-transform:none;color:var(--text3)">(comma-separated)</span></label>
+          <input class="info-input" type="text" id="fg-prof-languages" placeholder="e.g. Draconic, Infernal">
+        </div>
+      </div>
+
+      <div id="fg-status" style="font-family:var(--font-ui);font-size:10px;margin-top:10px"></div>
+    </div>
+    <div style="display:flex;gap:8px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0">
+      <button class="btn-primary" onclick="saveFeatGrants()">Save</button>
+      <button class="tbtn" onclick="closeModal('feat-grants-modal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -7244,7 +7349,7 @@ let _dmData = null;   // cached _dm.json content
 let _dmSHA  = null;   // sha for saves
 
 function switchDMTab(tab) {
-  ['party','campaigns','items','admin'].forEach(t => {
+  ['party','campaigns','items','feats','admin'].forEach(t => {
     const pane = document.getElementById(`dm-pane-${t}`);
     const btn  = document.getElementById(`dm-tab-${t}`);
     if (!pane || !btn) return;
@@ -7256,6 +7361,7 @@ function switchDMTab(tab) {
   if (tab === 'admin')     { dmLoadAdminCharList(); if (typeof dmLoadGlyphDefaults === 'function') dmLoadGlyphDefaults(); if (typeof loadDMCustomLanguages === 'function') loadDMCustomLanguages(); }
   if (tab === 'campaigns') dmLoadCampaigns();
   if (tab === 'items')     dmRenderItemsList();
+  if (tab === 'feats')     dmRenderFeatsList();
 }
 window.switchDMTab = switchDMTab;
 
@@ -12085,6 +12191,12 @@ function enterApp() {
   // and not time-critical mid-session).
   loadDMTextOverrides();
   if (!_textOverridesPollTimer) _textOverridesPollTimer = setInterval(loadDMTextOverrides, 60000);
+
+  // Load DM-configured spell/resource grants for feats and class/subclass
+  // features (structured, not just RAW text) — same polling cadence as
+  // the text overrides above, since these change about as often.
+  loadDMFeatGrants();
+  if (!_featGrantsPollTimer) _featGrantsPollTimer = setInterval(loadDMFeatGrants, 60000);
 
   // DM-added homebrew languages (e.g. "Old Khaelori") — loaded once at
   // session start so they're available for every player to check off,
@@ -22824,6 +22936,323 @@ async function saveDMItemOverrides() {
   _dmItemsSHA = sha;
 }
 
+// ── DM feat/feature GRANTS (structured spell + resource grants, distinct
+// from the RAW-text overrides above) — Phase 2 of the catalog editor.
+// Same shared-GH-file pattern, same self-healing sha-retry save. Shape:
+// { overrideKey: { spells: [ {spellName, spellKey, grantType, usesMax,
+// recovery, fixedDC, fixedAtk, ritual, desc} ], resources: [ {name, desc,
+// usesMax, recovery} ] } }, keyed by the exact same overrideKey format
+// _dmTextOverrides already uses (`feat:${name}` / `class:${key}:${name}` /
+// `subclass:${key}:${name}` / `race:${key}:${name}` / `background:${key}`)
+// — one DM edit surface, two kinds of data living under the same key
+// namespace.
+let _dmFeatGrants = {};
+let _dmFeatGrantsSHA = null;
+let _dmFeatGrantsLoadedOnce = false;
+let _featGrantsPollTimer = null;
+
+async function loadDMFeatGrants() {
+  try {
+    const { content, sha } = await GH.getFile('_dm_feat_grants.json');
+    _dmFeatGrants = content.grants || {};
+    _dmFeatGrantsSHA = sha;
+    _dmFeatGrantsLoadedOnce = true;
+  } catch (e) {
+    console.warn('[DM feat grants] failed to load, keeping previous state:', e.message);
+    if (!_dmFeatGrantsLoadedOnce) { _dmFeatGrants = {}; _dmFeatGrantsSHA = null; }
+  }
+  // Refresh anything currently visible that depends on active grants
+  if (currentChar) {
+    if (typeof syncFeatCatalogGrantedResources === 'function') syncFeatCatalogGrantedResources();
+    if (typeof renderKnownSpells === 'function') renderKnownSpells();
+    if (typeof renderResourceTracker === 'function') renderResourceTracker();
+  }
+  if (typeof dmRenderFeatsList === 'function') dmRenderFeatsList();
+}
+
+async function saveDMFeatGrants() {
+  try {
+    await GH.putFile('_dm_feat_grants.json', { grants: _dmFeatGrants }, _dmFeatGrantsSHA);
+  } catch (e) {
+    if (e.status !== 422 && e.status !== 409) throw e;
+    const { content, sha } = await GH.getFile('_dm_feat_grants.json');
+    _dmFeatGrants = Object.assign({}, content.grants || {}, _dmFeatGrants);
+    _dmFeatGrantsSHA = sha;
+    await GH.putFile('_dm_feat_grants.json', { grants: _dmFeatGrants }, _dmFeatGrantsSHA);
+  }
+  const { sha } = await GH.getFile('_dm_feat_grants.json');
+  _dmFeatGrantsSHA = sha;
+}
+
+// Does the current character actually have the feat/feature this
+// overrideKey refers to, right now, at their current level? Reuses the
+// exact same eligibility logic the rest of the sheet already trusts —
+// hasFeat() for feats, and a level/subclass check built from
+// getAllClasses()/getSubclassKey() for class and subclass features —
+// rather than re-deriving "does this character have X" a third way.
+function _dmGrantKeyIsActiveForChar(overrideKey) {
+  if (!currentChar || !overrideKey) return false;
+  if (overrideKey.startsWith('feat:')) {
+    const featName = overrideKey.slice(5).replace(/\s*\[.*?\]/g, '').trim();
+    return typeof hasFeat === 'function' && hasFeat(featName);
+  }
+  // class:${clsKey}:${featureName} / subclass:${subKey}:${featureName} — this
+  // is the SAME key format populateFeaturesTab() already builds for the
+  // main Features tab (see its overrideKey construction), not the
+  // classfeature: prefix earlier code here used — those were two
+  // disconnected namespaces for the same data, so a DM edit made from
+  // the catalog never showed up on the actual Features tab players use.
+  // Standardized on class:/subclass: everywhere so both surfaces agree.
+  if (overrideKey.startsWith('class:') || overrideKey.startsWith('subclass:')) {
+    const isSubclassKey = overrideKey.startsWith('subclass:');
+    const prefixLen = isSubclassKey ? 'subclass:'.length : 'class:'.length;
+    const rest = overrideKey.slice(prefixLen);
+    const sep = rest.indexOf(':');
+    if (sep === -1) return false;
+    const key = rest.slice(0, sep);
+    const featureName = rest.slice(sep + 1);
+    let requiredLevel = null;
+    if (isSubclassKey && typeof PHB_SUBCLASSES !== 'undefined' && PHB_SUBCLASSES[key]) {
+      const f = (PHB_SUBCLASSES[key].features || []).find(x => x.name === featureName);
+      if (f) requiredLevel = f.level || 1;
+    } else if (!isSubclassKey && typeof PHB_CLASSES !== 'undefined' && PHB_CLASSES[key]) {
+      const f = (PHB_CLASSES[key].features || []).find(x => x.name === featureName);
+      if (f) requiredLevel = f.level || 1;
+    }
+    if (requiredLevel === null) return false;
+    const classes = typeof getAllClasses === 'function' ? getAllClasses() : [];
+    if (isSubclassKey) {
+      return classes.some(entry => {
+        const subKey = entry.subclass ? getSubclassKey(entry.class, entry.subclass) : null;
+        return subKey === key && (entry.levels?.length || 0) >= requiredLevel;
+      });
+    }
+    return classes.some(entry => (entry.class||'').toLowerCase() === key && (entry.levels?.length || 0) >= requiredLevel);
+  }
+  // race:${raceKey}:${featureOrTraitName} — applies to any character of
+  // that race, regardless of subrace (a grant on a subrace-specific trait
+  // entry just won't come up for characters of a different subrace in
+  // practice, since the DM would only be editing that entry for a
+  // reason tied to it).
+  if (overrideKey.startsWith('race:')) {
+    const rest = overrideKey.slice('race:'.length);
+    const sep = rest.indexOf(':');
+    const raceKey = sep === -1 ? rest : rest.slice(0, sep);
+    return (currentChar.race || '').toLowerCase() === raceKey.toLowerCase();
+  }
+  // background:${bgKey} — applies to any character with that background.
+  if (overrideKey.startsWith('background:')) {
+    const bgKey = overrideKey.slice('background:'.length);
+    return (currentChar.background || '').toLowerCase() === bgKey.toLowerCase();
+  }
+  // classchoice:${clsKey}:${defId} — applies once the character has that
+  // class AND has actually made the choice (a picked value stored under
+  // class_choices[defId]), not merely being eligible to make it.
+  if (overrideKey.startsWith('classchoice:')) {
+    const rest = overrideKey.slice('classchoice:'.length);
+    const sep = rest.indexOf(':');
+    if (sep === -1) return false;
+    const clsKey = rest.slice(0, sep);
+    const defId = rest.slice(sep + 1);
+    const hasClass = (typeof getAllClasses === 'function' ? getAllClasses() : [])
+      .some(entry => (entry.class||'').toLowerCase() === clsKey.toLowerCase());
+    if (!hasClass) return false;
+    const val = currentChar.class_choices?.[defId];
+    return val !== undefined && val !== null && val !== '';
+  }
+  return false;
+}
+
+// A stable, deterministic resource id for a given (grant key, spell-or-
+// resource label) pair — no random generation needed the way items use,
+// since a character can't own two independent "copies" of the same feat
+// the way they can own two copies of an item; the overrideKey + label is
+// already a unique, stable identity to key off of.
+function _dmFeatGrantResourceId(overrideKey, label) {
+  const slug = s => (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  return `featgrant_${slug(overrideKey)}_${slug(label)}`;
+}
+
+// A human-readable label for a grant key, used as the "source" shown next
+// to a granted spell/resource (e.g. "Fey Touched", "Rage", "Elf").
+function _dmGrantKeyLabel(overrideKey) {
+  if (overrideKey.startsWith('feat:')) return overrideKey.slice(5);
+  if (overrideKey.startsWith('background:')) {
+    const bgKey = overrideKey.slice('background:'.length);
+    return PHB_BACKGROUNDS?.[bgKey]?.name || bgKey;
+  }
+  if (overrideKey.startsWith('classchoice:')) {
+    const rest = overrideKey.slice('classchoice:'.length);
+    const sep = rest.indexOf(':');
+    if (sep === -1) return rest;
+    const clsKey = rest.slice(0, sep), defId = rest.slice(sep + 1);
+    return (PHB_CLASS_CHOICES[clsKey] || []).find(d => d.id === defId)?.label || defId;
+  }
+  const prefixes = ['class:', 'subclass:', 'race:'];
+  const prefix = prefixes.find(p => overrideKey.startsWith(p));
+  if (!prefix) return overrideKey;
+  const rest = overrideKey.slice(prefix.length);
+  const sep = rest.indexOf(':');
+  return sep === -1 ? rest : rest.slice(sep + 1);
+}
+
+// Mirrors syncMagicItemGrantedResources() — keeps currentChar.customResources
+// in sync with every currently-active feat/feature grant's "resources"
+// list (generic named abilities) AND the "limited"-use spells among its
+// "spells" list (those need their own pip-tracked pool too, same as an
+// item's limited-use granted spell). Runs on every render, so a DM
+// editing a grant, or a character gaining/losing the feature at a level
+// change, is picked up automatically without any explicit migration step.
+function syncFeatCatalogGrantedResources() {
+  if (!currentChar) return;
+  if (!currentChar.customResources) currentChar.customResources = [];
+  const liveIds = new Set();
+
+  Object.entries(_dmFeatGrants).forEach(([key, grant]) => {
+    if (!_dmGrantKeyIsActiveForChar(key)) return;
+    const label = _dmGrantKeyLabel(key);
+
+    (grant.resources || []).forEach(gr => {
+      if (!gr.name) return;
+      const resId = _dmFeatGrantResourceId(key, gr.name);
+      liveIds.add(resId);
+      let res = currentChar.customResources.find(r => r.id === resId);
+      if (!res) {
+        currentChar.customResources.push({
+          id: resId, name: gr.name, desc: gr.desc || '',
+          max: gr.usesMax || 1, recovery: gr.recovery || 'long', recoveryNote: '',
+          _fromFeatGrant: key,
+        });
+      } else {
+        res.name = gr.name;
+        res.desc = gr.desc || '';
+        res.max = gr.usesMax || 1;
+        res.recovery = gr.recovery || 'long';
+      }
+    });
+
+    (grant.spells || []).forEach(gs => {
+      if (gs.grantType !== 'limited' || !gs.spellName) return;
+      const resId = _dmFeatGrantResourceId(key, gs.spellName);
+      liveIds.add(resId);
+      let res = currentChar.customResources.find(r => r.id === resId);
+      const name = `${label}: ${gs.spellName}`;
+      if (!res) {
+        currentChar.customResources.push({
+          id: resId, name, desc: gs.desc || '',
+          max: gs.usesMax || 1, recovery: gs.recovery || 'long', recoveryNote: '',
+          _fromFeatGrant: key,
+        });
+      } else {
+        res.name = name;
+        res.desc = gs.desc || '';
+        res.max = gs.usesMax || 1;
+        res.recovery = gs.recovery || 'long';
+      }
+    });
+  });
+
+  // Drop anything tagged as coming from a feat grant that's no longer
+  // live — grant removed by the DM, spell/resource entry deleted from
+  // it, or the character no longer qualifies (feat removed, level too
+  // low, wrong subclass).
+  currentChar.customResources = currentChar.customResources.filter(r => !r._fromFeatGrant || liveIds.has(r.id));
+}
+window.syncFeatCatalogGrantedResources = syncFeatCatalogGrantedResources;
+
+// Generic granted spells from feats/class features/subclass features,
+// configured by the DM via the Feats & Features catalog editor. Same
+// output shape as getMagicItemGrantedSpells() so it can be merged into
+// buildKnownSpellRows() with the same rendering/toggle logic — including
+// 'itemLimited' grants, which read their pip usage from the
+// customResources entry syncFeatCatalogGrantedResources() maintains.
+function getFeatCatalogGrantedSpells() {
+  if (!currentChar) return [];
+  ensureSpellData();
+  const result = [];
+  Object.entries(_dmFeatGrants).forEach(([key, grant]) => {
+    if (!grant?.spells?.length) return;
+    if (!_dmGrantKeyIsActiveForChar(key)) return;
+    const label = _dmGrantKeyLabel(key);
+    grant.spells.forEach(gs => {
+      if (!gs.spellName) return;
+      const phb = PHB_SPELL_LIST.find(s => s.key === gs.spellKey)
+               || PHB_SPELL_LIST.find(s => s.name.toLowerCase() === gs.spellName.toLowerCase());
+      if (!phb) return;
+      const grantType = gs.grantType === 'limited' ? 'itemLimited'
+                       : gs.grantType === 'alwaysPrepared' ? 'alwaysPrepared' : 'atWill';
+      result.push({
+        key: phb.key, name: phb.name, level: phb.level,
+        source: 'feat', itemName: label,
+        grantType,
+        usesMax: gs.usesMax, recovery: gs.recovery,
+        _resourceId: grantType === 'itemLimited' ? _dmFeatGrantResourceId(key, gs.spellName) : null,
+        fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
+        ritual: gs.ritual || phb.ritual || false,
+        available: true,
+      });
+    });
+  });
+  return result;
+}
+window.getFeatCatalogGrantedSpells = getFeatCatalogGrantedSpells;
+
+// Skill/tool/language proficiencies granted by feats/features, configured
+// by the DM. Same "track what we granted last time, clear it, rebuild
+// from what's currently active" approach as the existing
+// syncArcaneArcherLoreSkills() — so a DM edit, a feat being removed, or a
+// level change that drops a feature's eligibility all clean up correctly,
+// while never touching a proficiency the player set some other way
+// (manually, from a class, background, race, etc.).
+function syncFeatCatalogGrantedProficiencies() {
+  if (!currentChar) return;
+  if (!currentChar.skill_profs)    currentChar.skill_profs    = {};
+  if (!currentChar.skill_expert)   currentChar.skill_expert   = {};
+  if (!currentChar.toolProfs)      currentChar.toolProfs      = {};
+  if (!currentChar.languageProfs)  currentChar.languageProfs  = {};
+
+  const prev = currentChar._featGrantProfs || {};
+  (prev.skills    || []).forEach(k => { if (currentChar.skill_profs[k])   delete currentChar.skill_profs[k]; });
+  (prev.expertise || []).forEach(k => { if (currentChar.skill_expert[k])  delete currentChar.skill_expert[k]; });
+  (prev.tools     || []).forEach(k => { if (currentChar.toolProfs[k])     delete currentChar.toolProfs[k]; });
+  (prev.languages || []).forEach(k => { if (currentChar.languageProfs[k]) delete currentChar.languageProfs[k]; });
+
+  const grantedSkills = [], grantedExpertise = [], grantedTools = [], grantedLanguages = [];
+
+  Object.entries(_dmFeatGrants).forEach(([key, grant]) => {
+    if (!grant?.proficiencies) return;
+    if (!_dmGrantKeyIsActiveForChar(key)) return;
+    const p = grant.proficiencies;
+    (p.skills || []).forEach(skKey => {
+      currentChar.skill_profs[skKey] = true;
+      grantedSkills.push(skKey);
+    });
+    (p.expertise || []).forEach(skKey => {
+      currentChar.skill_profs[skKey] = true; // expertise implies proficiency
+      currentChar.skill_expert[skKey] = true;
+      if (!grantedSkills.includes(skKey)) grantedSkills.push(skKey);
+      grantedExpertise.push(skKey);
+    });
+    (p.tools || []).forEach(toolName => {
+      const key2 = toolProfKey(toolName);
+      currentChar.toolProfs[key2] = true;
+      grantedTools.push(key2);
+    });
+    (p.languages || []).forEach(langName => {
+      const key2 = toolProfKey(langName);
+      currentChar.languageProfs[key2] = true;
+      grantedLanguages.push(key2);
+    });
+  });
+
+  currentChar._featGrantProfs = {
+    skills: grantedSkills, expertise: grantedExpertise,
+    tools: grantedTools, languages: grantedLanguages,
+  };
+}
+window.syncFeatCatalogGrantedProficiencies = syncFeatCatalogGrantedProficiencies;
+
+
 // ── DM text overrides (RAW-text corrections for anything baked into the
 // sheet — class/subclass features, racial traits, feats, spells) ─────────
 // Same shared-GH-file pattern as the item overrides above, including the
@@ -22904,6 +23333,7 @@ async function saveTextOverride() {
     status.textContent = '';
     closeModal('text-override-modal');
     if (typeof populateFeaturesTab === 'function' && document.getElementById('feat-unified-list')) populateFeaturesTab();
+    if (typeof dmRenderFeatsList === 'function' && document.getElementById('dm-pane-feats')?.style.display !== 'none') dmRenderFeatsList();
     if (typeof renderSpellDetailBody === 'function' && _spellDetailKey) {
       const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
       if (sp) renderSpellDetailBody(sp, sp.level);
@@ -22927,6 +23357,7 @@ async function resetTextOverride() {
     status.textContent = '';
     closeModal('text-override-modal');
     if (typeof populateFeaturesTab === 'function' && document.getElementById('feat-unified-list')) populateFeaturesTab();
+    if (typeof dmRenderFeatsList === 'function' && document.getElementById('dm-pane-feats')?.style.display !== 'none') dmRenderFeatsList();
     if (typeof renderSpellDetailBody === 'function' && _spellDetailKey) {
       const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
       if (sp) renderSpellDetailBody(sp, sp.level);
@@ -23728,7 +24159,13 @@ function getMulticlassCasterLevel() {
     const lvCount = entry.levels?.length || 0;
     const type = MC_CASTER_TYPE[cls] || 'none';
     if (type === 'full')    casterLevel += lvCount;
-    else if (type === 'half')   casterLevel += Math.floor(lvCount / 2);
+    // 2024 PHB: Paladin/Ranger multiclassing text reads "Add half your
+    // Paladin [or Ranger] levels (rounded UP)" — this changed from 2014's
+    // round-down, matching Spellcasting moving to level 1 for both classes.
+    // (Artificer also rounds up, but isn't in MC_CASTER_TYPE as a caster
+    // here.) Confirmed against the class's own official multiclassing
+    // entry, not just inferred from the slot-table shift.
+    else if (type === 'half')   casterLevel += Math.ceil(lvCount / 2);
     else if (type === 'none') {
       // Check for third-caster subclass
       const thirdSubs = MC_THIRD_CASTER_SUBCLASSES[cls] || [];
@@ -24536,6 +24973,9 @@ function getSkillProfSources(skillKey) {
   }
   if (skName && currentChar._skilledSkills?.includes(skName)) {
     sources.push('Skilled feat');
+  }
+  if (currentChar._featGrantProfs?.skills?.includes(skillKey) || currentChar._featGrantProfs?.expertise?.includes(skillKey)) {
+    sources.push('Feat/Feature grant');
   }
   if (!sources.length && (currentChar.skill_profs?.[skillKey] || currentChar.skill_expert?.[skillKey])) {
     sources.push('Manually set / other source');
@@ -26824,7 +27264,9 @@ function computeSpellSlotsForChar(char) {
       const lvCount = entry.levels?.length || 0;
       const type = MC_CASTER_TYPE[cls] || 'none';
       if (type === 'full') casterLevel += lvCount;
-      else if (type === 'half') casterLevel += Math.floor(lvCount/2);
+      // 2024 PHB: Paladin/Ranger round UP for multiclassing, not down — see
+      // getMulticlassCasterLevel() for the same fix and its rationale.
+      else if (type === 'half') casterLevel += Math.ceil(lvCount/2);
       else if (type === 'none') {
         const thirdSubs = MC_THIRD_CASTER_SUBCLASSES[cls] || [];
         if (thirdSubs.some(s => sub.includes(s))) casterLevel += Math.floor(lvCount/3);
@@ -26854,9 +27296,9 @@ function computeSpellSlotsForChar(char) {
     const max = (SLOTS_WARLOCK[idx] || [])[0] || 0;
     if (max > 0) {
       let usedCount = 0;
-      for (let i = 0; i < max; i++) if (used[`slot_${slotLevel}_${i}`]) usedCount++;
-      if (usedCount === 0 && typeof used[`slot_${slotLevel}`] !== 'undefined') {
-        usedCount = Math.min(parseInt(used[`slot_${slotLevel}`]) || 0, max);
+      for (let i = 0; i < max; i++) if (used[`pact_slot_${i}`]) usedCount++;
+      if (usedCount === 0 && typeof used['pact_slot'] !== 'undefined') {
+        usedCount = Math.min(parseInt(used['pact_slot']) || 0, max);
       }
       warlock = { slotLevel, max, used: usedCount };
     }
@@ -27149,7 +27591,7 @@ const RULES_GLOSSARY = {
   "milestones": {"name":"Milestones","source":"DMG","html":"<p>You can also award XP when characters complete significant milestones. When preparing your adventure, designate certain events or challenges as milestones, as with the following examples:</p><ul><li>Accomplishing one in a series of goals necessary to complete the adventure.</li><li>Discovering a hidden location or piece of information relevant to the adventure.</li><li>Reaching an important destination.</li></ul><p>When awarding XP, treat a major milestone as a hard encounter and a minor milestone as an easy encounter. If you want to reward your players for their progress through an adventure with something more than XP and treasure, give them additional small rewards at milestone points. Here are some examples:</p><ul><li>The adventurers gain the benefit of a short rest.</li><li>Characters can recover a Hit Die or a low-level spell slot.</li><li>Characters can regain the use of magic items that have had their limited uses expended.</li></ul>"},
   "mixing potions": {"name":"Mixing Potions","source":"DMG","html":"<p>A character might drink one potion while still under the effects of another, or pour several potions into a single container. The strange ingredients used in creating potions can result in unpredictable interactions.</p><p>When a character mixes two potions together, you can roll on the Potion Miscibility table. If more than two are combined, roll again for each subsequent potion, combining the results. Unless the effects are immediately obvious, reveal them only when they become evident.</p><p><em>[Table: Potion Miscibility - see book for full table]</em></p>"},
   "monster": {"name":"Monster","source":"XPHB","html":"<p>A monster is a creature controlled by the DM, even if the creature is benevolent.</p>"},
-  "multiclassing": {"name":"Multiclassing","source":"PHB","html":"<p>Multiclassing allows you to gain levels in multiple classes. Doing so lets you mix the abilities of those classes to realize a character concept that might not be reflected in one of the standard class options.</p><p>With this rule, you have the option of gaining a level in a new class whenever you advance in level, instead of gaining a level in your current class. Your levels in all your classes are added together to determine your character level. For example, if you have three levels in wizard and two in fighter, you're a 5th-level character.</p><p>As you advance in levels, you might primarily remain a member of your original class with just a few levels in another class, or you might change course entirely. never looking back at the class you left behind. You might even start progressing in a third or fourth class. Compared to a single-class character of the same level, you'll sacrifice some focus in exchange for versatility.</p><p><strong>Prerequisites</strong></p><p>To qualify for a new class, you must meet the ability score prerequisites for both your current class and your new one, as shown in the Multiclassing Prerequisites table. For example, a barbarian who decides to multiclass into the druid class must have both Strength and Wisdom scores of 13 or higher. Without the full training that a beginning character receives, you must be a quick study in your new class, having a natural aptitude that is reflected by higher-than-average ability scores.</p><p><em>[Table: Multiclassing Prerequisites - see book for full table]</em></p><p><strong>Experience Points</strong></p><p>The experience point cost to gain a level is always based on your total character level, as shown in the Character Advancement table in chapter I, not your level in a particular class. So, if you are a cleric 6/fighter 1, you must gain enough XP to reach 8th level before you can take your second level as a fighter or your seventh level as a cleric.</p><p><strong>Hit Points and Hit Dice</strong></p><p>You gain the hit points from your new class as described for levels after 1st. You gain the 1st-level hit points for a class only when you are a 1st-level character.</p><p>You add together the Hit Dice granted by all your classes to form your pool of Hit Dice. if the Hit Dice are the same die type, you can simply pool them together. For example, both the fighter and the paladin have a d10, so if you are a paladin 5/fighter 5, you have ten d10 Hit Dice. If your classes give you Hit Dice of different types, keep track of them separately. If you are a paladin 5/cleric 5, for example, you have five d10 Hit Dice and five d8 Hit Dice.</p><p><strong>Proficiency Bonus</strong></p><p>Your proficiency bonus is always based on your total character level, as shown in the Character Advancement table in chapter 1, not your level in a particular class. For example, if you are a fighter 3/rogue 2, you have the proficiency bonus of a 5th-level character, which is +3.</p><p><strong>Proficiencies</strong></p><p>When you gain a level in a class other than your first, you gain only some of that class's starting proficiencies, as shown in the Multiclassing Proficiencies table.</p><p><em>[Table: Multiclassing Proficiencies - see book for full table]</em></p><p><strong>Class Features</strong></p><p>When you gain a new level in a class, you get its features for that level. A few features, however, have additional rules when you're multiclassing: Channel Divinity, Extra Attack, Unarmored Defense, and Spellcasting.</p><p><strong>Channel Divinity</strong></p><p>If you already have the Channel Divinity feature and gain a level in a class that also grants the feature, you gain the Channel Divinity effects granted by that class, but getting the feature again doesn't give you an additional use of it. You gain additional uses only when you reach a class level that explicitly grants them to you. For example, if you are a cleric 6/paladin 4, you can use Channel Divinity twice between rests because you are high enough level in the cleric class to have more uses. Whenever you use the feature, you can choose any of the Channel Divinity effects available to you from your two classes.</p><p><strong>Extra Attack</strong></p><p>If you gain the Extra Attack class feature from more than one class, the features don't add together. You can't make more than two attacks with this feature unless it says you do (as the fighter's version of Extra Attack does). Similarly, the warlock's eldritch invocation Thirsting Blade doesn't give you additional attacks if you also have Extra Attack.</p><p><strong>Unarmored Defense</strong></p><p>If you already have the Unarmored Defense feature, you can't gain it again from another class.</p><p><strong>Spellcasting</strong></p><p>Your capacity for spellcasting depends partly on your combined levels in all your spellcasting classes and partly on your individual levels in those classes. Once you have the Spellcasting feature from more than one class, use the rules below. If you multiclass but have the Spellcasting feature from only one class, you follow the rules as described in that class.</p><p><strong>Spells Known and Prepared</strong></p><p>You determine what spells you know and can prepare for each class individually, as if you were a single-classed member of that class. If you are a ranger 4/wizard 3, for example, you know three 1st-level ranger spells based on your levels in the ranger class. As 3rd-level wizard, you know three wizard cantrips, and your spellbook contains ten wizard spells, two of which (the two you gained when you reached 3rd level as a wizard) can be 2nd-level spells. If your intelligence is 16, you can prepare six wizard spells from your spellbook.</p><p>Each spell you know and prepare is associated with one of your classes, and you use the spellcasting ability of that class when you cast the spell. Similarly, a spellcasting focus, such as a holy symbol, can be used only for the spells from the class associated with that focus.</p><p><strong>Spell Slots</strong></p><p>You determine your available spell slots by adding together all your levels in the bard, cleric, druid, sorcerer, and wizard classes, half your levels (rounded down) in the paladin and ranger classes, and a third of your fighter or rogue levels (rounded down) if you have the Eldritch Knight or the Arcane Trickster feature. Use this total to determine your spell slots by consulting the Multiclass Spellcaster table.</p><p>If you have more than one spellcasting class, this table might give you spell slots of a level that is higher than the spells you know or can prepare. You can use those slots, but only to cast your lower-level spells. If a lower-level spell that you cast, like burning hands, has an enhanced effect when cast using a higher-level slot, you can use the enhanced effect, even though you don't have any spells of that higher level.</p><p>For example, if you are the aforementioned ranger 4/wizard 3. you count as a 5th-level character when determining your spell slots: you have four 1st-level slots, three 2nd-level slots, and two 3rd-level slots. However, you don't know any 3rd-level spells, nor do you know any 2nd-level ranger spells. You can use the spell slots of those levels to cast the spells you do know-and potentially enhance their effects.</p><p><strong>Pact Magic</strong></p><p>If you have both the Spellcasting class feature and the Pact Magic class feature from the warlock class, you can use the spell slots you gain from the Pact Magic feature to cast spells you know or have prepared from classes with the Spellcasting class feature, and you can use the spell slots you gain from the Spellcasting class feature to cast warlock spells you know.</p><p><em>[Table: Multiclass Spellcaster: Spell Slots per Spell Level - see book for full table]</em></p>"},
+  "multiclassing": {"name":"Multiclassing","source":"XPHB","html":"<p>Multiclassing allows you to gain levels in multiple classes. With this rule, you have the option of gaining a level in a new class whenever you advance in level instead of gaining a level in your current class. Doing so lets you mix the abilities of those classes to realize a character concept that might not be reflected in a single class.</p><p><strong>Prerequisites</strong></p><p>To qualify for a new class, you must have a score of at least 13 in the primary ability of the new class and your current classes. For example, a Barbarian who decides to multiclass into the Druid class must have Strength and Wisdom scores of 13 or higher, since Strength is the primary ability for Barbarians and Wisdom is the primary ability for Druids.</p><p><strong>Experience Points</strong></p><p>The Experience Point cost to gain a level is based on your total character level, not your level in a particular class, as shown in the Character Advancement table in this chapter. For example, if you are a level 6 Cleric / level 1 Fighter, you must gain enough XP to reach level 8 before you can take your second level as a Fighter or your seventh level as a Cleric.</p><p><strong>Hit Points and Hit Point Dice</strong></p><p>You gain the Hit Points from your new class as described for levels after 1. You gain the level 1 Hit Points for a class only when your total character level is 1.</p><p>Add together the Hit Dice granted by all your classes to form your pool of Hit Dice. If these dice are the same die type, you can pool them together. For example, both the Fighter and the Paladin have a d10 Hit Die, so if you are a level 5 Fighter / level 5 Paladin, you have ten d10 Hit Dice. If your classes give you Hit Dice of different types, track them separately. If you are a level 5 Cleric / level 5 Paladin, for example, you have five d8 Hit Dice and five d10 Hit Dice.</p><p><strong>Proficiency Bonus</strong></p><p>Your Proficiency Bonus is based on your total character level, not your level in a particular class, as shown in the Character Advancement table. For example, if you are a level 3 Fighter / level 2 Rogue, you have the Proficiency Bonus of a level 5 character, which is +3.</p><p><strong>Proficiencies</strong></p><p>When you gain your first level in a class other than your initial class, you gain only some of the new class's starting proficiencies, as detailed in each class's description in chapter 3.</p><p><strong>Class Features</strong></p><p>When you gain a new level in a class, you get its features for that level. A few features have additional rules when you're multiclassing. Check the information about multiclassing included in each of your classes' descriptions.</p><p>Special rules apply to Extra Attack, Spellcasting, and features (such as Unarmored Defense) that give you alternative ways to calculate your Armor Class.</p><p><strong><em>Armor Class.</em></strong> If you have multiple ways to calculate your Armor Class, you can benefit from only one at a time. For example, a Monk/Sorcerer with a Monk's Unarmored Defense feature and a Sorcerer's Draconic Resilience feature must choose only one of those features as a way to calculate Armor Class.</p><p><strong><em>Extra Attack.</em></strong> If you gain the Extra Attack feature from more than one class, the features don't stack. You can't make more than two attacks with this feature unless you have a feature that says you can (such as the Fighter's Two Extra Attacks feature).</p><p>Similarly, the Warlock's Thirsting Blade invocation, which grants you the Extra Attack feature with your pact weapon, doesn't give you additional attacks if you also have Extra Attack.</p><p><strong><em>Spellcasting.</em></strong> Your capacity for spellcasting depends partly on your combined levels in all your spellcasting classes and partly on your individual levels in those classes. Once you have the Spellcasting feature from more than one class, use the rules below. If you multiclass but have the Spellcasting feature from only one class, follow the rules for that class.</p><p><strong>Multiclass Spellcaster: Spell Slots per Spell Level</strong></p><table style=\"width:100%;border-collapse:collapse;margin:8px 0;font-size:12px\"><thead><tr><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">Level</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">1</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">2</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">3</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">4</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">5</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">6</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">7</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">8</th><th style=\"text-align:center;padding:4px 6px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase\">9</th></tr></thead><tbody><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">5</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">6</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">7</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">8</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">9</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">10</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">11</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">12</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">13</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">14</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">15</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">16</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">—</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">17</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">18</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">19</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td></tr><tr><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2);font-weight:600;color:var(--text2)\">20</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">4</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">3</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">2</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td><td style=\"text-align:center;padding:3px 6px;border-bottom:1px solid var(--border2)\">1</td></tr></tbody></table><p><strong><em>Spells Prepared.</em></strong> You determine what spells you can prepare for each class individually, as if you were a single-classed member of that class. If you are a level 4 Ranger / level 3 Sorcerer, for example, you can prepare five level 1 Ranger spells, and you can prepare six Sorcerer spells of level 1 or 2 (as well as four Sorcerer cantrips).</p><p>Each spell you prepare is associated with one of your classes, and you use the spellcasting ability of that class when you cast the spell.</p><p><strong><em>Cantrips.</em></strong> If a cantrip of yours increases in power at higher levels, the increase is based on your total character level, not your level in a particular class, unless the spell says otherwise.</p><p><strong><em>Spell Slots.</em></strong> You determine your available spell slots by adding together the following:</p><ul><li>All your levels in the Bard, Cleric, Druid, Sorcerer, and Wizard classes</li><li>Half your levels (round up) in the Paladin and Ranger classes</li><li>One third of your Fighter or Rogue levels (round down) if you have the Eldritch Knight or Arcane Trickster subclass.</li></ul><p>Then look up this total level in the Level column of the Multiclass Spellcaster table. You use the slots for that level to cast spells of an appropriate level from any class whose Spellcasting feature you have.</p><p>This table might give you spell slots of a higher level than the spells you prepare. You can use those slots but only to cast your lower-level spells. If a lower-level spell that you cast, like Burning Hands, has an enhanced effect when cast at a higher level, you can use the enhanced effect as normal.</p><p>For example, if you are a level 4 Ranger / level 3 Sorcerer, you count as a level 5 character when determining your spell slots, counting all your levels as a Sorcerer and half your Ranger levels. As shown in the Multiclass Spellcaster table, you have four level 1 spell slots, three level 2 slots, and two level 3 slots. However, you can't prepare any level 3 spells, nor can you prepare any level 2 Ranger spells. You can use the spell slots of those levels to cast the spells you do prepare-and potentially enhance their effects.</p><p><strong><em>Pact Magic.</em></strong> If you have the Pact Magic feature from the Warlock class and the Spellcasting feature, you can use the spell slots you gain from Pact Magic to cast spells you have prepared from classes with the Spellcasting feature, and you can use the spell slots you gain from the Spellcasting feature to cast Warlock spells you have prepared.</p>"},
   "nonplayer character": {"name":"Nonplayer Character","source":"XPHB","html":"<p>A nonplayer character (NPC) is a monster that has a personal name and a distinct personality.</p>"},
   "object": {"name":"Object","source":"XPHB","html":"<p>An object is a nonliving, distinct thing. Composite things, like buildings, comprise more than one object.</p>"},
   "occupied space": {"name":"Occupied Space","source":"XPHB","html":"<p>A space is occupied if a creature is in it or if it is completely filled by objects.</p>"},
@@ -28702,6 +29144,7 @@ function recalcAll() {
   syncMagicArmorToInventory();   // keep ac_armor_key in sync with equipped magic armor
   syncMagicAmmoToInventory();    // keep ammoBonus in sync with assigned magic ammunition
   if (typeof syncArcaneArcherLoreSkills === 'function') syncArcaneArcherLoreSkills(); // Arcana/Nature auto-grant + replacement picks
+  if (typeof syncFeatCatalogGrantedProficiencies === 'function') syncFeatCatalogGrantedProficiencies(); // DM-configured feat/feature skill/tool/language grants
   if (typeof syncDragonmarkFeatSpells === 'function') syncDragonmarkFeatSpells(); // re-evaluate level-3-gated dragonmark spell grants
   applyFeatSlotEffects();   // ensure feat bonuses (speed, HP, etc.) are up to date
   // calcSpeed() was never actually called here — it correctly factors in
@@ -29406,14 +29849,16 @@ const SLOTS_FULL = [
 // Paladin/Ranger Features tables, which list 2 first-level slots at
 // character level 1, not level 2.
 const SLOTS_HALF = [
-  // Index 1 (class level 1) is deliberately empty — Paladins and Rangers
-  // don't gain the Spellcasting feature until level 2. Confirmed by
-  // direct comparison against the official table that every other index
-  // (2 through 20) already matches exactly; this was the only wrong one
-  // (it had duplicated level 2's [2] instead of being empty), which
-  // would have incorrectly granted a level-1 Paladin or Ranger two
-  // 1st-level spell slots.
-  [],[],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],
+  // 2024 PHB moved Paladin/Ranger Spellcasting to level 1 (previously level 2
+  // in 2014) — confirmed via the class's own catalog entry here
+  // (PHB_CLASSES.paladin/ranger list "Spellcasting" as a level-1 feature
+  // with 2 prepared spells at level 1) and independently via the official
+  // class text ("Spellcasting can now be used at Level 1"). Per multiple
+  // sources checked, every OTHER breakpoint in the table is unchanged from
+  // 2014 (2nd-level slots still at 5, 3rd at 9, 4th at 13, 5th at 17) — only
+  // the very first slot became available one level earlier, so level 1 here
+  // just duplicates level 2's value; nothing else in the table moved.
+  [],[2],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],
   [4,3,3],[4,3,3],[4,3,3,1],[4,3,3,1],[4,3,3,2],[4,3,3,2],
   [4,3,3,3,1],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2],
 ];
@@ -30374,7 +30819,14 @@ function _renderSpellSlotsInner() {
     (PHB_CLASSES[cls]?.spellcasting?.type === 'warlock');
 
   if (isWarlock) {
-    renderPactMagicSlots(container, level);
+    // Use the Warlock class entry's own level count rather than overall
+    // character level — normally identical for a true single-class
+    // Warlock, but this keeps Pact Magic scaling off warlock levels
+    // specifically even if legacy class fields and classes[] ever
+    // disagree (this branch is otherwise unreachable for multiclass
+    // Warlocks, which are caught earlier by the hasWarlock check above).
+    const warlockLv = getAllClasses().find(e => e.class?.toLowerCase() === 'warlock')?.levels?.length || level;
+    renderPactMagicSlots(container, warlockLv);
     return;
   }
 
@@ -30434,12 +30886,19 @@ function renderPactMagicSlots(container, level) {
 }
 
 function makeSlotBlock(slotLevel, total, ORDINALS, isPact) {
-  const usedKey = `slot_${slotLevel}`;
+  // Pact Magic slots use a dedicated key namespace (pact_slot_<i>) instead
+  // of slot_<level>_<i> — a multiclass character's regular spell slots and
+  // Pact Magic slots can land on the same spell level (e.g. Wizard 5 /
+  // Warlock 5 both have 3rd-level slots), and sharing the level-keyed
+  // scheme meant toggling one pool silently used/restored the other pool's
+  // slot too, since they were literally the same storage key.
+  const keyFor  = (i) => isPact ? `pact_slot_${i}` : `slot_${slotLevel}_${i}`;
+  const usedKey = isPact ? 'pact_slot' : `slot_${slotLevel}`;
   // Count individual pip states; fall back to legacy aggregate key
   let used = 0;
   let hasPerPip = false;
   for (let pi = 0; pi < total; pi++) {
-    if (currentChar.spell_slots_used[`slot_${slotLevel}_${pi}`]) { used++; hasPerPip = true; }
+    if (currentChar.spell_slots_used[keyFor(pi)]) { used++; hasPerPip = true; }
   }
   if (!hasPerPip) {
     // Legacy: use aggregate key
@@ -30451,10 +30910,10 @@ function makeSlotBlock(slotLevel, total, ORDINALS, isPact) {
   let pipsHTML = '';
   // Each pip independently toggles used/available
   for (let i = 0; i < total; i++) {
-    const isUsed = currentChar.spell_slots_used[`slot_${slotLevel}_${i}`] || false;
+    const isUsed = currentChar.spell_slots_used[keyFor(i)] || false;
     const pipClass = isUsed ? 'used' : (isPact ? 'avail short-rest' : 'avail');
     pipsHTML += `<div class="slot-pip ${pipClass}"
-      onclick="toggleSlotPipIndividual(${slotLevel}, ${i})"
+      onclick="toggleSlotPipIndividual(${slotLevel}, ${i}, ${!!isPact})"
       title="${isUsed ? 'Used - click to restore' : 'Available - click to use'} (${ORDINALS[slotLevel]}-level${isPact ? ' Pact Magic' : ''} slot)"></div>`;
   }
 
@@ -30495,18 +30954,17 @@ function useRodOfPactKeeper(ownedIdx) {
     toast('Requires Pact Magic (Warlock levels).', 'warn');
     return;
   }
-  const slotLevel = getWarlockSlotLevel(warlockLevel);
   const totalSlots = (SLOTS_WARLOCK[warlockLevel] || [])[0] || 0;
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
   let restoredIdx = -1;
   for (let i = 0; i < totalSlots; i++) {
-    if (currentChar.spell_slots_used[`slot_${slotLevel}_${i}`]) { restoredIdx = i; break; }
+    if (currentChar.spell_slots_used[`pact_slot_${i}`]) { restoredIdx = i; break; }
   }
   if (restoredIdx === -1) {
     toast('No expended Pact Magic slots to restore.', 'warn');
     return;
   }
-  currentChar.spell_slots_used[`slot_${slotLevel}_${restoredIdx}`] = false;
+  currentChar.spell_slots_used[`pact_slot_${restoredIdx}`] = false;
   item._rodPactSlotUsedThisRest = true;
   if (typeof renderSpellSlots === 'function') renderSpellSlots();
   if (typeof renderResourceTracker === 'function') renderResourceTracker();
@@ -30532,13 +30990,11 @@ function useRodOfPactKeeperFromResource() {
 }
 window.useRodOfPactKeeperFromResource = useRodOfPactKeeperFromResource;
 
-function toggleSlotPipIndividual(slotLevel, pipIdx) {
+function toggleSlotPipIndividual(slotLevel, pipIdx, isPact) {
   if (!currentChar) return;
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
-  const key = `slot_${slotLevel}_${pipIdx}`;
+  const key = isPact ? `pact_slot_${pipIdx}` : `slot_${slotLevel}_${pipIdx}`;
   currentChar.spell_slots_used[key] = !currentChar.spell_slots_used[key];
-  // Update the aggregate count for compatibility (used = count of true pips)
-  const total = parseInt(document.querySelectorAll(`.slot-level-block`).length); // approx
   renderSpellSlots();
   debouncedSave();
 }
@@ -31339,7 +31795,16 @@ function buildKnownSpellRows() {
     const ADEPT_FEAT_KEYS = ['abjuration adept','conjuration adept','divination adept','enchantment adept',
       'evocation adept','illusion adept','necromancy adept','transmutation adept'];
     const slotInfo = computeSpellSlotsForChar(currentChar);
-    const maxSlotLevel = Math.max(0, ...(slotInfo.levels||[]).map(l => l.max > 0 ? l.level : 0));
+    // Pact Magic slots count too — a Warlock's Pact Magic slots are real
+    // spell slots (they just recover on a Short Rest), so a multiclass
+    // Warlock shouldn't have their Adept-feat spells locked behind their
+    // much smaller pool of regular slots when their pact slot level is
+    // already higher.
+    const maxSlotLevel = Math.max(
+      0,
+      ...(slotInfo.levels||[]).map(l => l.max > 0 ? l.level : 0),
+      slotInfo.warlock?.max > 0 ? slotInfo.warlock.slotLevel : 0
+    );
     ADEPT_FEAT_KEYS.forEach(featKey => {
       const featData = PHB_FEATS_FULL[featKey];
       if (!featData?.adeptSpells || !hasFeat(featKey)) return;
@@ -31370,6 +31835,14 @@ function buildKnownSpellRows() {
     if (_shownKeys.has(sp.key)) return;
     _shownKeys.add(sp.key);
     rows.push({ ...sp, pipType:'item-spell', locked:true, label:sp.itemName });
+  });
+
+  // DM-configured spell grants on feats/class features/subclass features —
+  // same merged, deduped treatment as every other automatic source above.
+  getFeatCatalogGrantedSpells().forEach(sp => {
+    if (_shownKeys.has(sp.key)) return;
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'feat-spell', locked:true, label:sp.itemName });
   });
 
   getPactTomeCantrips().forEach(sp => {
@@ -39455,6 +39928,8 @@ function ensureMagicItems() {
     if (!item._uid) item._uid = 'mi_' + Math.random().toString(36).slice(2, 10);
   });
   syncMagicItemGrantedResources();
+  if (typeof syncFeatCatalogGrantedResources === 'function') syncFeatCatalogGrantedResources();
+  if (typeof syncFeatCatalogGrantedProficiencies === 'function') syncFeatCatalogGrantedProficiencies();
   syncGeniesVessel();
 }
 
@@ -42274,6 +42749,532 @@ function dmRenderItemsList() {
 }
 window.dmRenderItemsList = dmRenderItemsList;
 
+// ── Feats & Features Tab — DM catalog browser/editor ────────────────────
+// Surfaces every feat, class/subclass feature, race feature, subrace
+// trait, and background in one searchable list so the DM doesn't have to
+// hunt through the character sheet's own tabs to find the pencil-edit
+// icon on each one individually. Editing text itself is NOT a new
+// mechanism — every row's Edit button calls openTextOverrideModal() with
+// the exact same overrideKey format already used at the point-of-display
+// call sites (openFeatInfoModal's `feat:${featName}`,
+// openClassFeatureInfoModal's `class:${cls}:${featureName}` /
+// `subclass:${subKey}:${featureName}`, populateFeaturesTab's
+// `race:${raceKey}:${featureName}`, and the Background tab's
+// `background:${bgKey}`), so this reads and writes the same shared
+// _dmTextOverrides storage everywhere else on the sheet already does.
+// The Grants button on each row additionally configures structured
+// spell/resource/proficiency grants (see _dmFeatGrants above).
+
+let _dmFeatsSearchDebounce = null;
+function debouncedDmRenderFeatsList() {
+  if (_dmFeatsSearchDebounce) clearTimeout(_dmFeatsSearchDebounce);
+  _dmFeatsSearchDebounce = setTimeout(() => {
+    _dmFeatsSearchDebounce = null;
+    dmRenderFeatsList();
+  }, 180);
+}
+window.debouncedDmRenderFeatsList = debouncedDmRenderFeatsList;
+
+// Flattens PHB_FEATS_FULL + legacy PHB_FEATS into one deduped list of
+// { overrideKey, name, desc, prereq, source } rows. The two catalogs are
+// keyed differently and sometimes contain the same feat by name (see
+// findFeatCatalogEntry, which already has to handle this same overlap for
+// the player-facing lookup) — de-dupe by name here too, preferring
+// PHB_FEATS_FULL's entry since that's the catalog everywhere else treats
+// as authoritative.
+function _dmGetAllFeatRows() {
+  const byName = new Map();
+  [PHB_FEATS_FULL, PHB_FEATS].forEach(cat => {
+    Object.values(cat || {}).forEach(f => {
+      if (!f?.name || byName.has(f.name)) return;
+      byName.set(f.name, {
+        overrideKey: `feat:${f.name}`,
+        name: f.name,
+        desc: f.desc || '',
+        prereq: f.prereq || '',
+        source: f.type ? f.type.charAt(0).toUpperCase() + f.type.slice(1) : 'Feat',
+      });
+    });
+  });
+  return Array.from(byName.values());
+}
+
+// Class features: every entry in PHB_CLASSES[cls].features, tagged with
+// that class's display name as the source. Uses the exact same
+// `class:${clsKey}:${featureName}` key format the main Features tab
+// (populateFeaturesTab) already builds, so edits made here show up there.
+function _dmGetAllClassFeatureRows() {
+  const rows = [];
+  Object.entries(PHB_CLASSES).forEach(([clsKey, cls]) => {
+    (cls.features || []).forEach(f => {
+      if (!f?.name) return;
+      rows.push({
+        overrideKey: `class:${clsKey}:${f.name}`,
+        name: f.name,
+        desc: f.desc || '',
+        prereq: f.level ? `${cls.name || clsKey} ${f.level}` : (cls.name || clsKey),
+        source: cls.name || clsKey,
+      });
+    });
+  });
+  return rows;
+}
+
+// Subclass features: every entry in PHB_SUBCLASSES[subKey].features,
+// tagged with that subclass's display name — uses the exact same
+// `subclass:${subKey}:${featureName}` key format the main Features tab
+// already builds for subclass features, so edits made here line up with
+// the ones shown on the character sheet.
+function _dmGetAllSubclassFeatureRows() {
+  const rows = [];
+  Object.entries(PHB_SUBCLASSES).forEach(([subKey, sub]) => {
+    (sub.features || []).forEach(f => {
+      if (!f?.name) return;
+      rows.push({
+        overrideKey: `subclass:${subKey}:${f.name}`,
+        name: f.name,
+        desc: f.desc || '',
+        prereq: f.level ? `${sub.name || subKey} ${f.level}` : (sub.name || subKey),
+        source: sub.name || subKey,
+      });
+    });
+  });
+  return rows;
+}
+
+// Race features: every entry in PHB_RACES[raceKey].features — uses the
+// exact same `race:${raceKey}:${featureName}` key the main Features tab
+// already builds for racial features (see populateFeaturesTab's
+// sourceType === 'Race' branch), so edits made here take effect there.
+function _dmGetAllRaceFeatureRows() {
+  const rows = [];
+  Object.entries(PHB_RACES).forEach(([raceKey, race]) => {
+    (race.features || []).forEach(f => {
+      if (!f?.name) return;
+      rows.push({
+        overrideKey: `race:${raceKey}:${f.name}`,
+        name: f.name,
+        desc: f.desc || '',
+        prereq: f.level ? `${race.name || raceKey} ${f.level}` : (race.name || raceKey),
+        source: race.name || raceKey,
+      });
+    });
+  });
+  return rows;
+}
+
+// Subrace traits: each subrace only carries a single flavor/trait text
+// block (no structured features array the way a base race or class
+// does) — the main Features tab shows this as one entry named
+// "${subraceName} Traits" under the base race's key, so this reuses that
+// exact same `race:${raceKey}:${subraceName} Traits` key.
+function _dmGetAllSubraceRows() {
+  const rows = [];
+  Object.entries(PHB_RACES).forEach(([raceKey, race]) => {
+    Object.entries(race.subraces || {}).forEach(([subKey, sub]) => {
+      if (!sub?.name || !(sub.trait || '').trim()) return;
+      rows.push({
+        overrideKey: `race:${raceKey}:${sub.name} Traits`,
+        name: sub.name,
+        desc: sub.trait || '',
+        prereq: race.name || raceKey,
+        source: race.name || raceKey,
+      });
+    });
+  });
+  return rows;
+}
+
+// Backgrounds: each has a single flavor/trait text block — uses the
+// existing `background:${bgKey}` key already wired up elsewhere on the
+// character sheet (Background tab's own edit pencil).
+function _dmGetAllBackgroundRows() {
+  return Object.entries(PHB_BACKGROUNDS)
+    .filter(([, bg]) => (bg.trait || '').trim())
+    .map(([bgKey, bg]) => ({
+      overrideKey: `background:${bgKey}`,
+      name: bg.name,
+      desc: bg.trait || '',
+      prereq: '',
+      source: 'Background',
+    }));
+}
+
+// Class choices: every entry in PHB_CLASS_CHOICES[clsKey] — the "pick one
+// of these options" mechanics (Fighting Style, Divine Order, Rage of the
+// Wilds aspects, etc.), each with a short desc explaining what it does.
+// Uses the same `classchoice:${clsKey}:${defId}` key renderChoiceDef()
+// already builds when showing these to a player in the Class Choices tab.
+// Scoped to the base per-class table only — subclass-specific choices
+// (getSubclassChoiceDefs) are generated dynamically per subclass rather
+// than living in one static list, so they aren't bulk-browsable here;
+// their descriptions are still individually DM-editable via the pencil
+// on the Class Choices tab itself, using the same key format.
+function _dmGetAllClassChoiceRows() {
+  const rows = [];
+  Object.entries(PHB_CLASS_CHOICES).forEach(([clsKey, defs]) => {
+    (defs || []).forEach(def => {
+      if (!def?.id || !def?.desc) return;
+      rows.push({
+        overrideKey: `classchoice:${clsKey}:${def.id}`,
+        name: def.label || def.id,
+        desc: def.desc || '',
+        prereq: def.minLevel ? `${clsKey.charAt(0).toUpperCase()+clsKey.slice(1)} ${def.minLevel}` : (clsKey.charAt(0).toUpperCase()+clsKey.slice(1)),
+        source: clsKey.charAt(0).toUpperCase() + clsKey.slice(1),
+      });
+    });
+  });
+  return rows;
+}
+
+function dmRenderFeatsList() {
+  const list  = document.getElementById('dm-feats-list');
+  const count = document.getElementById('dm-feats-count');
+  if (!list) return;
+
+  const type = document.getElementById('dm-feats-type')?.value || 'feat';
+  const q    = (document.getElementById('dm-feats-search')?.value || '').trim();
+  const matchQ = buildSearchMatcher(q);
+  const srcF = document.getElementById('dm-feats-source')?.value || '';
+
+  const rows = type === 'classfeature' ? _dmGetAllClassFeatureRows()
+             : type === 'subclassfeature' ? _dmGetAllSubclassFeatureRows()
+             : type === 'racefeature' ? _dmGetAllRaceFeatureRows()
+             : type === 'subrace' ? _dmGetAllSubraceRows()
+             : type === 'background' ? _dmGetAllBackgroundRows()
+             : type === 'classchoice' ? _dmGetAllClassChoiceRows()
+             : _dmGetAllFeatRows();
+
+  const filtered = rows.filter(r => {
+    const isDM = !!(_dmTextOverrides[r.overrideKey] || '').trim();
+    if (q && !queryMatchesFields(matchQ, r.name, r.desc)) return false;
+    if (srcF === 'dm' && !isDM) return false;
+    if (srcF === 'official' && isDM) return false;
+    return true;
+  }).sort((a,b) => a.name.localeCompare(b.name));
+
+  if (count) count.textContent = `${filtered.length} ${filtered.length===1?'entry':'entries'}`;
+
+  // Same render cap as the Items tab — class+subclass features across every
+  // class easily runs into the hundreds, and an empty/broad search
+  // shouldn't build that many DOM rows at once.
+  const DM_FEATS_RENDER_CAP = 150;
+  const truncated = filtered.length > DM_FEATS_RENDER_CAP;
+  const toRender = truncated ? filtered.slice(0, DM_FEATS_RENDER_CAP) : filtered;
+  const truncationNoticeHtml = truncated
+    ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);padding:6px 8px;text-align:center;border-bottom:1px solid var(--border);margin-bottom:4px">Showing first ${DM_FEATS_RENDER_CAP} of ${filtered.length} — keep typing to narrow it down</div>`
+    : '';
+
+  list.innerHTML = truncationNoticeHtml + toRender.map(r => {
+    const isDM = !!(_dmTextOverrides[r.overrideKey] || '').trim();
+    const grant = _dmFeatGrants[r.overrideKey];
+    const hasProfs = !!(grant?.proficiencies && (grant.proficiencies.skills?.length || grant.proficiencies.expertise?.length || grant.proficiencies.tools?.length || grant.proficiencies.languages?.length));
+    const hasGrants = !!(grant?.spells?.length || grant?.resources?.length || hasProfs);
+    const effectiveDesc = getEffectiveText(r.overrideKey, r.desc);
+    const preview = effectiveDesc.slice(0, 100) + (effectiveDesc.length > 100 ? '…' : '');
+    return `
+      <div class="sp-browser-row" style="grid-template-columns:1fr auto;align-items:center">
+        <div style="min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-family:var(--font-body);font-size:13px;color:var(--text);font-weight:500">${r.name}</span>
+            <span class="sp-browser-school">${r.source}</span>
+            ${isDM ? '<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">DM EDITED</span>' : ''}
+            ${hasGrants ? '<span class="sp-tag" style="color:var(--accent2);border-color:var(--accent2)">HAS GRANTS</span>' : ''}
+          </div>
+          <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:1px;line-height:1.4">${preview}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmEditFeatText(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name + ' — ' + r.source).replace(/"/g,'&quot;')})" title="Edit RAW text">✎ Edit</button>
+          <button class="tbtn" style="font-size:9px;padding:3px 8px;${hasGrants?'color:var(--accent2);border-color:var(--accent2)':''}" onclick="openFeatGrantsModal(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name + ' — ' + r.source).replace(/"/g,'&quot;')})" title="Configure granted spells/resources">🪄 Grants</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+window.dmRenderFeatsList = dmRenderFeatsList;
+
+// Thin wrapper so each list row doesn't need to inline the full
+// getEffectiveText() lookup in its onclick attribute — resolves the
+// current effective text fresh (in case another DM edited it since this
+// list was last rendered) and opens the shared override-edit modal.
+function dmEditFeatText(overrideKey, label) {
+  const allRows = [
+    ..._dmGetAllFeatRows(), ..._dmGetAllClassFeatureRows(), ..._dmGetAllSubclassFeatureRows(),
+    ..._dmGetAllRaceFeatureRows(), ..._dmGetAllSubraceRows(), ..._dmGetAllBackgroundRows(),
+    ..._dmGetAllClassChoiceRows(),
+  ];
+  const fallback = allRows.find(r => r.overrideKey === overrideKey)?.desc || '';
+  openTextOverrideModal(overrideKey, label, getEffectiveText(overrideKey, fallback));
+}
+window.dmEditFeatText = dmEditFeatText;
+
+// ── Feat/Feature Grants modal — Phase 2 ─────────────────────────────────
+// Same draft-while-open pattern as the magic item catalog editor's
+// _ciGrantedSpellsDraft/_ciGrantedResourcesDraft: edits live only in these
+// module-level arrays until Save actually commits them into _dmFeatGrants
+// and persists via saveDMFeatGrants().
+let _fgEditKey = null;
+let _fgGrantedSpellsDraft = [];
+let _fgGrantedResourcesDraft = [];
+let _fgSpellDatalistPopulated = false;
+
+function _fgPopulateSpellDatalist() {
+  if (_fgSpellDatalistPopulated) return;
+  const dl = document.getElementById('fg-spell-names');
+  if (!dl || typeof PHB_SPELL_LIST === 'undefined') return;
+  dl.innerHTML = PHB_SPELL_LIST.map(s => `<option value="${s.name.replace(/"/g,'&quot;')}"></option>`).join('');
+  _fgSpellDatalistPopulated = true;
+}
+
+function _fgRenderSkillCheckboxes() {
+  const profWrap = document.getElementById('fg-skill-profs');
+  const expWrap  = document.getElementById('fg-skill-expertise');
+  if (!profWrap || !expWrap) return;
+  const existing = _dmFeatGrants[_fgEditKey]?.proficiencies || {};
+  const profSet = new Set(existing.skills || []);
+  const expSet  = new Set(existing.expertise || []);
+  profWrap.innerHTML = SKILLS.map(sk => `
+    <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:10px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" id="fg-sk-prof-${sk.key}" ${profSet.has(sk.key)?'checked':''}> ${sk.name}
+    </label>
+  `).join('');
+  expWrap.innerHTML = SKILLS.map(sk => `
+    <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:10px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" id="fg-sk-exp-${sk.key}" ${expSet.has(sk.key)?'checked':''}> ${sk.name}
+    </label>
+  `).join('');
+}
+
+function openFeatGrantsModal(overrideKey, label) {
+  _fgEditKey = overrideKey;
+  document.getElementById('fg-modal-title').textContent = 'Grants — ' + label;
+  document.getElementById('fg-status').textContent = '';
+  _fgPopulateSpellDatalist();
+  const existing = _dmFeatGrants[overrideKey] || {};
+  _fgGrantedSpellsDraft = (existing.spells || []).map(gs => ({ ...gs }));
+  _fgGrantedResourcesDraft = (existing.resources || []).map(gr => ({ ...gr }));
+  renderFeatGrantedSpells();
+  renderFeatGrantedResources();
+  _fgRenderSkillCheckboxes();
+  document.getElementById('fg-prof-tools').value = (existing.proficiencies?.tools || []).join(', ');
+  document.getElementById('fg-prof-languages').value = (existing.proficiencies?.languages || []).join(', ');
+  openModal('feat-grants-modal', true);
+}
+window.openFeatGrantsModal = openFeatGrantsModal;
+
+function addFeatGrantedSpell() {
+  _fgGrantedSpellsDraft.push({
+    spellName: '', spellKey: null, grantType: 'atWill',
+    usesMax: 1, recovery: 'long', fixedDC: null, fixedAtk: null, ritual: false, desc: '',
+  });
+  renderFeatGrantedSpells();
+}
+window.addFeatGrantedSpell = addFeatGrantedSpell;
+
+function removeFeatGrantedSpell(idx) {
+  _fgGrantedSpellsDraft.splice(idx, 1);
+  renderFeatGrantedSpells();
+}
+window.removeFeatGrantedSpell = removeFeatGrantedSpell;
+
+function updateFeatGrantedSpellField(idx, field, value) {
+  const gs = _fgGrantedSpellsDraft[idx];
+  if (!gs) return;
+  gs[field] = value;
+  if (field === 'grantType') renderFeatGrantedSpells(); // toggle limited-use fields visibility
+}
+window.updateFeatGrantedSpellField = updateFeatGrantedSpellField;
+
+function renderFeatGrantedSpells() {
+  const list = document.getElementById('fg-granted-spells-list');
+  if (!list) return;
+  if (!_fgGrantedSpellsDraft.length) {
+    list.innerHTML = `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:6px 0">No granted spells yet</div>`;
+    return;
+  }
+  list.innerHTML = _fgGrantedSpellsDraft.map((gs, idx) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;position:relative">
+      <span style="position:absolute;top:6px;right:6px;cursor:pointer;color:var(--text3);font-size:13px;line-height:1" onclick="removeFeatGrantedSpell(${idx})" title="Remove">×</span>
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <div style="flex:1">
+          <label class="field-label">Spell</label>
+          <input class="info-input" type="text" list="fg-spell-names" value="${(gs.spellName||'').replace(/"/g,'&quot;')}"
+            oninput="updateFeatGrantedSpellField(${idx},'spellName',this.value)" placeholder="e.g. Misty Step">
+        </div>
+        <div style="flex:1">
+          <label class="field-label">Frequency</label>
+          <select class="choice-select" onchange="updateFeatGrantedSpellField(${idx},'grantType',this.value)">
+            <option value="atWill" ${gs.grantType==='atWill'?'selected':''}>At Will</option>
+            <option value="alwaysPrepared" ${gs.grantType==='alwaysPrepared'?'selected':''}>Always Prepared</option>
+            <option value="limited" ${gs.grantType==='limited'?'selected':''}>Limited Uses</option>
+          </select>
+        </div>
+      </div>
+      ${gs.grantType === 'alwaysPrepared' ? `
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:6px">Always available to cast without taking up a normal prepared-spell slot — but casting it still costs a real spell slot. Use "At Will" instead if it should cost no slot at all.</div>
+      ` : ''}
+      ${gs.grantType === 'limited' ? `
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:1">
+            <label class="field-label">Max Uses</label>
+            <input class="info-input" type="number" min="1" value="${gs.usesMax||1}"
+              oninput="updateFeatGrantedSpellField(${idx},'usesMax',parseInt(this.value)||1)">
+          </div>
+          <div style="flex:1">
+            <label class="field-label">Recovers On</label>
+            <select class="choice-select" onchange="updateFeatGrantedSpellField(${idx},'recovery',this.value)">
+              <option value="short" ${gs.recovery==='short'?'selected':''}>Short Rest</option>
+              <option value="long" ${!gs.recovery||gs.recovery==='long'?'selected':''}>Long Rest</option>
+              <option value="dawn" ${gs.recovery==='dawn'?'selected':''}>Dawn</option>
+              <option value="dusk" ${gs.recovery==='dusk'?'selected':''}>Dusk</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:6px">
+          <label class="field-label">Resource Description <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional — shown in the Resources tracker)</span></label>
+          <textarea class="sheet-textarea" style="min-height:40px;font-size:11px" oninput="updateFeatGrantedSpellField(${idx},'desc',this.value)" placeholder="e.g. Once per Long Rest">${(gs.desc||'').replace(/</g,'&lt;')}</textarea>
+        </div>
+      ` : ''}
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label class="field-label">Fixed Save DC (optional)</label>
+          <input class="info-input" type="number" value="${gs.fixedDC||''}" placeholder="-"
+            oninput="updateFeatGrantedSpellField(${idx},'fixedDC',parseInt(this.value)||null)">
+        </div>
+        <div style="flex:1">
+          <label class="field-label">Fixed Attack Bonus (optional)</label>
+          <input class="info-input" type="number" value="${gs.fixedAtk||''}" placeholder="-"
+            oninput="updateFeatGrantedSpellField(${idx},'fixedAtk',parseInt(this.value)||null)">
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+window.renderFeatGrantedSpells = renderFeatGrantedSpells;
+
+function addFeatGrantedResource() {
+  _fgGrantedResourcesDraft.push({ name: '', desc: '', usesMax: 1, recovery: 'long' });
+  renderFeatGrantedResources();
+}
+window.addFeatGrantedResource = addFeatGrantedResource;
+
+function removeFeatGrantedResource(idx) {
+  _fgGrantedResourcesDraft.splice(idx, 1);
+  renderFeatGrantedResources();
+}
+window.removeFeatGrantedResource = removeFeatGrantedResource;
+
+function updateFeatGrantedResourceField(idx, field, value) {
+  const gr = _fgGrantedResourcesDraft[idx];
+  if (!gr) return;
+  gr[field] = value;
+}
+window.updateFeatGrantedResourceField = updateFeatGrantedResourceField;
+
+function renderFeatGrantedResources() {
+  const list = document.getElementById('fg-granted-resources-list');
+  if (!list) return;
+  if (!_fgGrantedResourcesDraft.length) {
+    list.innerHTML = `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:6px 0">No granted resources yet</div>`;
+    return;
+  }
+  list.innerHTML = _fgGrantedResourcesDraft.map((gr, idx) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:8px;position:relative">
+      <span style="position:absolute;top:6px;right:6px;cursor:pointer;color:var(--text3);font-size:13px;line-height:1" onclick="removeFeatGrantedResource(${idx})" title="Remove">×</span>
+      <div style="margin-bottom:6px">
+        <label class="field-label">Name</label>
+        <input class="info-input" type="text" value="${(gr.name||'').replace(/"/g,'&quot;')}"
+          oninput="updateFeatGrantedResourceField(${idx},'name',this.value)" placeholder="e.g. Rage">
+      </div>
+      <div style="margin-bottom:6px">
+        <label class="field-label">Description <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional)</span></label>
+        <textarea class="sheet-textarea" style="min-height:50px;font-size:11px" oninput="updateFeatGrantedResourceField(${idx},'desc',this.value)" placeholder="What does using this actually do?">${(gr.desc||'').replace(/</g,'&lt;')}</textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label class="field-label">Max Uses</label>
+          <input class="info-input" type="number" min="1" value="${gr.usesMax||1}"
+            oninput="updateFeatGrantedResourceField(${idx},'usesMax',parseInt(this.value)||1)">
+        </div>
+        <div style="flex:1">
+          <label class="field-label">Recovers On</label>
+          <select class="choice-select" onchange="updateFeatGrantedResourceField(${idx},'recovery',this.value)">
+            <option value="short" ${gr.recovery==='short'?'selected':''}>Short Rest</option>
+            <option value="long" ${!gr.recovery||gr.recovery==='long'?'selected':''}>Long Rest</option>
+            <option value="dawn" ${gr.recovery==='dawn'?'selected':''}>Dawn</option>
+            <option value="dusk" ${gr.recovery==='dusk'?'selected':''}>Dusk</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+window.renderFeatGrantedResources = renderFeatGrantedResources;
+
+async function saveFeatGrants() {
+  if (!_fgEditKey) return;
+  const status = document.getElementById('fg-status');
+  status.textContent = 'Saving…';
+  status.style.color = 'var(--text2)';
+
+  const spells = _fgGrantedSpellsDraft
+    .filter(gs => (gs.spellName || '').trim())
+    .map(gs => {
+      const spellName = gs.spellName.trim();
+      const phb = (typeof PHB_SPELL_LIST !== 'undefined') &&
+        PHB_SPELL_LIST.find(s => s.name.toLowerCase() === spellName.toLowerCase());
+      return {
+        spellName, spellKey: phb?.key || null,
+        grantType: ['limited','alwaysPrepared'].includes(gs.grantType) ? gs.grantType : 'atWill',
+        usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
+        fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
+        ritual: !!gs.ritual, desc: (gs.desc || '').trim(),
+      };
+    });
+  const resources = _fgGrantedResourcesDraft
+    .filter(gr => (gr.name || '').trim())
+    .map(gr => ({
+      name: gr.name.trim(), desc: (gr.desc || '').trim(),
+      usesMax: gr.usesMax || 1, recovery: gr.recovery || 'long',
+    }));
+
+  const skillProfs = SKILLS.filter(sk => document.getElementById(`fg-sk-prof-${sk.key}`)?.checked).map(sk => sk.key);
+  const skillExpertise = SKILLS.filter(sk => document.getElementById(`fg-sk-exp-${sk.key}`)?.checked).map(sk => sk.key);
+  const tools = (document.getElementById('fg-prof-tools')?.value || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  const languages = (document.getElementById('fg-prof-languages')?.value || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  const proficiencies = (skillProfs.length || skillExpertise.length || tools.length || languages.length)
+    ? { skills: skillProfs, expertise: skillExpertise, tools, languages }
+    : null;
+
+  try {
+    if (spells.length || resources.length || proficiencies) {
+      _dmFeatGrants[_fgEditKey] = { spells, resources, proficiencies };
+    } else {
+      delete _dmFeatGrants[_fgEditKey];
+    }
+    await saveDMFeatGrants();
+    status.textContent = '';
+    closeModal('feat-grants-modal');
+    if (typeof dmRenderFeatsList === 'function' && document.getElementById('dm-pane-feats')?.style.display !== 'none') dmRenderFeatsList();
+    if (currentChar) {
+      if (typeof syncFeatCatalogGrantedResources === 'function') syncFeatCatalogGrantedResources();
+      if (typeof syncFeatCatalogGrantedProficiencies === 'function') syncFeatCatalogGrantedProficiencies();
+      if (typeof renderKnownSpells === 'function') renderKnownSpells();
+      if (typeof renderResourceTracker === 'function') renderResourceTracker();
+      if (typeof renderSkillsBlock === 'function') renderSkillsBlock();
+    }
+    toast('Grants updated.', 'ok');
+  } catch (e) {
+    status.style.color = 'var(--red)';
+    status.textContent = 'Failed to save: ' + e.message;
+  }
+}
+window.saveFeatGrants = saveFeatGrants;
+
+
+
 // Flips an item's player-visibility. Works the same way any other DM edit
 // does — writes a full override into _dmItemOverrides (merged on top of the
 // baked catalog by getEffectiveMagicItemsCatalog), so it persists and syncs
@@ -44195,7 +45196,14 @@ function renderChoiceDef(def, _choiceCls) {
   let isUnfilled = false;
 
   let inner = `<span class="choice-label">${def.label}</span>`;
-  if (def.desc) inner += `<div class="choice-desc">${def.desc}</div>`;
+  const _ccOverrideKey = def.id ? `classchoice:${_choiceCls}:${def.id}` : null;
+  const _ccEffectiveDesc = _ccOverrideKey ? getEffectiveText(_ccOverrideKey, def.desc || '') : (def.desc || '');
+  if (_ccEffectiveDesc) {
+    const _ccPencil = (isDM && _ccOverrideKey)
+      ? `<span style="cursor:pointer;color:var(--text3);font-size:10px;margin-left:4px" title="Edit RAW text" onclick="event.stopPropagation();openTextOverrideModal(${JSON.stringify(_ccOverrideKey).replace(/"/g,'&quot;')},${JSON.stringify(def.label + ' — Class Choice').replace(/"/g,'&quot;')},${JSON.stringify(_ccEffectiveDesc).replace(/"/g,'&quot;')})">✎</span>`
+      : '';
+    inner += `<div class="choice-desc">${_ccEffectiveDesc}${_ccPencil}</div>`;
+  }
 
   if (def.type === 'radio') {
     isUnfilled = !saved;
@@ -45786,6 +46794,8 @@ function applyChoiceEffects() {
   // than only after the Inventory tab next renders.
   const hasAbolethBrain = (currentChar.magicItems || []).some(i => i.key === 'aboleth_brain');
   if (typeof syncMagicItemGrantedResources === 'function') syncMagicItemGrantedResources();
+  if (typeof syncFeatCatalogGrantedResources === 'function') syncFeatCatalogGrantedResources();
+  if (typeof syncFeatCatalogGrantedProficiencies === 'function') syncFeatCatalogGrantedProficiencies();
 
   // Warlock (The Genie patron): auto-grant/remove Genie's Vessel - see
   // syncGeniesVessel() for the full rationale. Called here too (not just
@@ -46921,22 +47931,21 @@ window.restorePsionicDice = restorePsionicDice;
 // ── Magical Cunning: restore half (round up) of expended Pact Magic slots ──
 function restorePactSlots() {
   const level   = getClassEntry('warlock')?.levels?.length || 0;
-  const slotLv  = getWarlockSlotLevel(level);
   const total   = (SLOTS_WARLOCK[level] || [0])[0] || 0;
   if (!currentChar.spell_slots_used) currentChar.spell_slots_used = {};
 
   // Count currently used pact slots
   let usedCount = 0;
   for (let i = 0; i < total; i++) {
-    if (currentChar.spell_slots_used[`slot_${slotLv}_${i}`]) usedCount++;
+    if (currentChar.spell_slots_used[`pact_slot_${i}`]) usedCount++;
   }
   const restoreCount = Math.ceil(usedCount / 2);
 
   // Clear that many used slots (highest index first)
   let cleared = 0;
   for (let i = total - 1; i >= 0 && cleared < restoreCount; i--) {
-    if (currentChar.spell_slots_used[`slot_${slotLv}_${i}`]) {
-      currentChar.spell_slots_used[`slot_${slotLv}_${i}`] = false;
+    if (currentChar.spell_slots_used[`pact_slot_${i}`]) {
+      currentChar.spell_slots_used[`pact_slot_${i}`] = false;
       cleared++;
     }
   }
@@ -47523,7 +48532,16 @@ function doShortRest() {
   // Warlocks recover Pact Magic slots on Short Rest (any class in multiclass)
   const hasWarlock = getAllClasses().some(e => e.class?.toLowerCase() === 'warlock');
   if (hasWarlock) {
-    currentChar.spell_slots_used = {};
+    // Only clear Pact Magic's own keys — spell_slots_used is shared
+    // storage for every class's spell slots, and this used to reset the
+    // whole object, which meant a Short Rest also fully restored a
+    // multiclass character's regular (non-Warlock) spell slots. Those
+    // only recover on a Long Rest per RAW; only Pact Magic recovers here.
+    if (currentChar.spell_slots_used) {
+      Object.keys(currentChar.spell_slots_used)
+        .filter(k => k === 'pact_slot' || k.startsWith('pact_slot_'))
+        .forEach(k => delete currentChar.spell_slots_used[k]);
+    }
     restored.push('Pact Magic Slots');
     renderSpellSlots();
   }
@@ -51303,7 +52321,7 @@ function openClassFeatureInfoModal(cls, featureName, subKey) {
   const bodyEl  = document.getElementById('feat-info-body');
   if (titleEl) titleEl.textContent = featureName;
   if (bodyEl) {
-    const overrideKey = isFromSubclass ? `classfeature:${subKey}:${featureName}` : `classfeature:${cls.toLowerCase()}:${featureName}`;
+    const overrideKey = isFromSubclass ? `subclass:${subKey}:${featureName}` : `class:${cls.toLowerCase()}:${featureName}`;
     const effectiveDesc = getEffectiveText(overrideKey, feature?.desc || '');
     const editPencil = isDM
       ? `<div style="text-align:right;margin-bottom:4px"><span style="cursor:pointer;color:var(--text3);font-size:11px" title="Edit RAW text" onclick="openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(featureName + ' — Class Feature').replace(/"/g,'&quot;')},${JSON.stringify(effectiveDesc).replace(/"/g,'&quot;')})">✎ Edit RAW text</span></div>`
