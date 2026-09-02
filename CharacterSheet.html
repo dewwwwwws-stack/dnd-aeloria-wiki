@@ -40055,6 +40055,16 @@ function syncMagicItemGrantedResources() {
   items.forEach(item => {
     if (!Array.isArray(item.grantedResources) || !item.grantedResources.length) return;
     if (!item._uid) return; // can't build a stable id without this — ensureMagicItems() backfills it
+    // Attunement-gated items only grant their resources while actually
+    // attuned — same rule every other attunement-gated item effect in
+    // this file already follows (spell bonuses, the Rod of the Pact
+    // Keeper's regain-a-slot button, Diviner's Dice). An item that
+    // doesn't require attunement at all grants normally just by being
+    // owned. Skipping the whole item here means its resource ids never
+    // make it into liveIds below, so the existing cleanup pass removes
+    // them exactly like the item itself had been taken off — no special
+    // extra removal logic needed for this case.
+    if (item.attunement && !item.attuned) return;
     item.grantedResources.forEach((gr, i) => {
       if (!gr.name) return;
       const slug = gr.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -48098,6 +48108,13 @@ function renderResourceTracker() {
       id: cr.id, name: cr.name, desc: cr.desc || '',
       recovery: cr.recovery, _max: cr.max, minLevel: cr.minLevel,
       isCustom: true, recoveryNote: cr.recoveryNote || '', _builtin: cr._builtin || false,
+      // Auto-managed by syncMagicItemGrantedResources() / syncFeatCatalogGrantedResources()
+      // — these track whatever the item/feat's catalog data says and add
+      // or remove themselves automatically. A player editing or deleting
+      // one directly would just have it silently reappear (or drift back
+      // out of sync) on the next render, so the edit/delete controls
+      // below are hidden for these specifically.
+      _autoManaged: !!(cr._fromMagicItem || cr._fromFeatGrant),
     });
   });
 
@@ -48407,8 +48424,9 @@ function renderResourceEntry(def, level, prof) {
       onclick="openResourceDetail(${_escAttr(_ttName)}, ${_escAttr(_ttDesc)}, ${_escAttr(_ttMeta)}, ${def.isCustom ? `'${def.id}'` : 'null'}, ${(!def.isCustom && !def._spellKey) ? `'${_ttJumpName}'` : 'null'}, ${def._spellKey ? `'${def._spellKey}'` : 'null'})">${def.name||def.label}${_dieBadge}</span>
     <span style="display:flex;align-items:center;gap:5px">
       <span class="resource-recovery ${recovery}">${recLabel}</span>
-      ${(def.isCustom && !def._builtin) ? `<span style="cursor:pointer;color:var(--text3);font-size:12px;line-height:1;padding:0 2px" title="Edit this resource" onclick="event.stopPropagation();openEditCustomResource('${def.id}')">&#9998;</span>` : ''}
-      ${(def.isCustom && !def._builtin) ? `<span style="cursor:pointer;color:var(--text3);font-size:13px;line-height:1;padding:0 2px" title="Remove this resource" onclick="event.stopPropagation();removeCustomResource('${def.id}')">×</span>` : ''}
+      ${(def.isCustom && !def._builtin && (!def._autoManaged || isDM)) ? `<span style="cursor:pointer;color:var(--text3);font-size:12px;line-height:1;padding:0 2px" title="${def._autoManaged ? 'DM override — normally auto-managed by the item/feat that grants it' : 'Edit this resource'}" onclick="event.stopPropagation();openEditCustomResource('${def.id}')">&#9998;</span>` : ''}
+      ${(def.isCustom && !def._builtin && (!def._autoManaged || isDM)) ? `<span style="cursor:pointer;color:var(--text3);font-size:13px;line-height:1;padding:0 2px" title="${def._autoManaged ? 'DM override — remove this manually (it will reappear if the item/feat still grants it, unless removed there too)' : 'Remove this resource'}" onclick="event.stopPropagation();removeCustomResource('${def.id}')">×</span>` : ''}
+      ${(def._autoManaged && !isDM) ? `<span style="color:var(--text3);font-size:9px;font-family:var(--font-ui)" title="Managed automatically by the item/feat that grants it — add or remove the source instead">🔒</span>` : ''}
     </span>
   </div>`;
   if (def.recoveryNote) {
@@ -51255,7 +51273,7 @@ function renderFeatsList() {
         ${feat.name ? `<button class="tbtn" style="font-size:9px;padding:2px 8px;margin-right:4px" title="View full feat details" onclick="openFeatInfoModal('${feat.name.replace(/'/g,"\\'")}')">&#8505; Info</button>` : ''}
         <button class="row-del-btn" onclick="removeFeat(${realIdx})">✕</button>
       </div>
-      ${desc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:5px;line-height:1.5;padding-top:5px;border-top:1px solid var(--border)">${formatFeatDescHtml(desc)}${(isDM && featOverrideKey) ? `<span style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px" title="Edit RAW text" onclick="event.stopPropagation();openTextOverrideModal(${JSON.stringify(featOverrideKey).replace(/"/g,'&quot;')},${JSON.stringify(phbData.name + ' — Feat').replace(/"/g,'&quot;')},${JSON.stringify(desc).replace(/"/g,'&quot;')})">✎</span>` : ''}</div>` : ''}
+      ${desc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:5px;line-height:1.5;padding-top:5px;border-top:1px solid var(--border)">${formatFeatDescHtml(desc)}${(isDM && featOverrideKey) ? `<span style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px" title="Edit RAW text" onclick="event.stopPropagation();openTextOverrideModal(${JSON.stringify(featOverrideKey).replace(/"/g,'&quot;')},${JSON.stringify(phbData.name + ' — Feat').replace(/"/g,'&quot;')},${JSON.stringify(desc).replace(/"/g,'&quot;')})">✎</span>` : ''}${(isDM && featOverrideKey) ? `<span style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px" title="Configure granted spells/resources/proficiencies" onclick="event.stopPropagation();openFeatGrantsModal(${JSON.stringify(featOverrideKey).replace(/"/g,'&quot;')},${JSON.stringify(phbData.name + ' — Feat').replace(/"/g,'&quot;')})">🪄</span>` : ''}</div>` : ''}
     `;
     list.appendChild(div);
   });
@@ -52902,7 +52920,7 @@ function openFeatInfoModal(featName) {
     const overrideKey = `feat:${featName}`;
     const effectiveDesc = getEffectiveText(overrideKey, phb?.desc || '');
     const editPencil = isDM
-      ? `<div style="text-align:right;margin-bottom:4px"><span style="cursor:pointer;color:var(--text3);font-size:11px" title="Edit RAW text" onclick="openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(featName + ' — Feat').replace(/"/g,'&quot;')},${JSON.stringify(effectiveDesc).replace(/"/g,'&quot;')})">✎ Edit RAW text</span></div>`
+      ? `<div style="text-align:right;margin-bottom:4px"><span style="cursor:pointer;color:var(--text3);font-size:11px" title="Edit RAW text" onclick="openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(featName + ' — Feat').replace(/"/g,'&quot;')},${JSON.stringify(effectiveDesc).replace(/"/g,'&quot;')})">✎ Edit RAW text</span> <span style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:8px" title="Configure granted spells/resources/proficiencies" onclick="openFeatGrantsModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(featName + ' — Feat').replace(/"/g,'&quot;')})">🪄 Grants</span></div>`
       : '';
     bodyEl.innerHTML = `
       ${editPencil}
@@ -52993,7 +53011,7 @@ function openClassFeatureInfoModal(cls, featureName, subKey) {
     const overrideKey = isFromSubclass ? `subclass:${subKey}:${featureName}` : `class:${cls.toLowerCase()}:${featureName}`;
     const effectiveDesc = getEffectiveText(overrideKey, feature?.desc || '');
     const editPencil = isDM
-      ? `<div style="text-align:right;margin-bottom:4px"><span style="cursor:pointer;color:var(--text3);font-size:11px" title="Edit RAW text" onclick="openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(featureName + ' — Class Feature').replace(/"/g,'&quot;')},${JSON.stringify(effectiveDesc).replace(/"/g,'&quot;')})">✎ Edit RAW text</span></div>`
+      ? `<div style="text-align:right;margin-bottom:4px"><span style="cursor:pointer;color:var(--text3);font-size:11px" title="Edit RAW text" onclick="openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(featureName + ' — Class Feature').replace(/"/g,'&quot;')},${JSON.stringify(effectiveDesc).replace(/"/g,'&quot;')})">✎ Edit RAW text</span> <span style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:8px" title="Configure granted spells/resources/proficiencies" onclick="openFeatGrantsModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(featureName + ' — Class Feature').replace(/"/g,'&quot;')})">🪄 Grants</span></div>`
       : '';
     const usageBits = [];
     if (sourceName) usageBits.push(`${sourceName}${feature?.level ? ' ' + feature.level : ''}`);
@@ -56542,6 +56560,13 @@ function populateFeaturesTab() {
     // from the [+] parser, once as the old appended plain-text lines).
 
     const editPencil = (isDM && overrideKey) ? `<span class="tov-edit-pencil" style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px" title="Edit RAW text" onclick="event.stopPropagation();openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(e.source + ' — ' + e.name).replace(/"/g,'&quot;')},${JSON.stringify(_descForRender||'').replace(/"/g,'&quot;')})">✎</span>` : '';
+    // Same Grants configuration the DM Panel's Feats & Features catalog
+    // browser already offers (granted spells/resources/proficiencies,
+    // native usages/recovery overrides, Adept spell table overrides) —
+    // available right here too, so a DM spotting something wrong on a
+    // character's own Features tab doesn't have to go find the matching
+    // catalog entry in a separate tab to fix it.
+    const grantsPencil = (isDM && overrideKey && !e.isHtml) ? `<span style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px" title="Configure granted spells/resources/proficiencies" onclick="event.stopPropagation();openFeatGrantsModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(e.source + ' — ' + e.name).replace(/"/g,'&quot;')})">🪄</span>` : '';
 
     // Feat entries (from a feat slot, a background's origin feat, or the
     // free-text Feats list) open the same full feat-info modal the Feats
@@ -56565,6 +56590,7 @@ function populateFeaturesTab() {
         <span class="feat-pill-badge" style="--pill-colour:${typeColour}"><span class="feat-pill-dot"></span>${e.name}</span>
         <span class="feat-pill-source">${e.source}</span>
         ${editPencil}
+        ${grantsPencil}
         ${chosenStr}
         ${usageStr}
       </div>
