@@ -53,7 +53,13 @@
   --gold-faint: #f0e8fa;
   --gold-glow:  rgba(124,77,196,0.15);
   --exh-colour: #8a6a2a;
-  --src-race: #7c4dc4; --src-class: #c44dbd; --src-subclass: #4d6dc4; --src-feat: #cabc47;
+  /* Fixed across every theme (not derived per-theme like other vars) —
+     reuses the same palette as spell schools (SPELL_SCHOOL_COLORS) so
+     source-type colors read consistently regardless of which theme or
+     custom accent color is active. Deliberately NOT redefined in any
+     other [data-theme] block below, and excluded from CUSTOM_THEME_VARS
+     so Custom Theme can't set an inline override on top of it either. */
+  --src-race: #3d8bef; --src-class: #e0483f; --src-subclass: #d936c9; --src-feat: #e8883a;
 
   --radius:     6px;
   --radius-lg:  10px;
@@ -112,7 +118,7 @@
   --gold-faint: #241c34;
   --gold-glow:  rgba(168,117,232,0.15);
   --exh-colour: #a8843a;
-  --src-race: #a875e8; --src-class: #e875db; --src-subclass: #758fe8; --src-feat: #ece571;
+
 }
 
 /* ── PSIONIC ────────────────────────────────────────────── */
@@ -130,7 +136,7 @@
   --text: #c8c8ca; --text2: #a0a0a4; --text3: #86868c; --text-hi: #f0f0f2;
   --gold: #d1506a; --gold-dim: #a83d54; --gold-faint: #3a1f28;
   --gold-glow: rgba(209,80,106,0.15); --exh-colour: #c98a3a;
-  --src-race: #d1506a; --src-class: #d18c50; --src-subclass: #d150c0; --src-feat: #4ad774;
+
 }
 [data-theme="psionic-light"] {
   --bg: #fbeef0; --bg2: #fffafb; --bg3: #f5dde2; --panel: #fffafb;
@@ -146,7 +152,7 @@
   --text: #28282c; --text2: #58585e; --text3: #6c6c74; --text-hi: #18181c;
   --gold: #b3395a; --gold-dim: #8a2c46; --gold-faint: #f5dde2;
   --gold-glow: rgba(179,57,90,0.12); --exh-colour: #a3702a;
-  --src-race: #b3395a; --src-class: #b36939; --src-subclass: #b339ab; --src-feat: #33b952;
+
 }
 
 /* ── FOREST ─────────────────────────────────────────────── */
@@ -164,7 +170,7 @@
   --text: #c8c8ca; --text2: #a0a0a4; --text3: #86868c; --text-hi: #f0f0f2;
   --gold: #6fae5c; --gold-dim: #568a47; --gold-faint: #1e2c21;
   --gold-glow: rgba(111,174,92,0.15); --exh-colour: #c9a24c;
-  --src-race: #6fae5c; --src-class: #5cae80; --src-subclass: #a6ae5c; --src-feat: #6f56b4;
+
 }
 [data-theme="forest-light"] {
   --bg: #f2f6ec; --bg2: #fbfdf7; --bg3: #e4ecd8; --panel: #fbfdf7;
@@ -180,7 +186,7 @@
   --text: #28282c; --text2: #58585e; --text3: #6c6c74; --text-hi: #18181c;
   --gold: #4a8038; --gold-dim: #386228; --gold-faint: #e4ecd8;
   --gold-glow: rgba(74,128,56,0.12); --exh-colour: #8a6a1e;
-  --src-race: #4a8038; --src-class: #388056; --src-subclass: #7a8038; --src-feat: #483385;
+
 }
 
 /* ── ARCANE ─────────────────────────────────────────────── */
@@ -198,7 +204,7 @@
   --text: #c8c8ca; --text2: #a0a0a4; --text3: #86868c; --text-hi: #f0f0f2;
   --gold: #5868d8; --gold-dim: #2e41c5; --gold-faint: #1a1d2d;
   --gold-glow: rgba(88,104,216,0.15); --exh-colour: #c9a24c;
-  --src-race: #5868d8; --src-class: #9d58d8; --src-subclass: #58bdd8; --src-feat: #dd8753;
+
 }
 [data-theme="arcane-light"] {
   --bg: #f0f1f9; --bg2: #ffffff; --bg3: #dee1f2; --panel: #ffffff;
@@ -214,7 +220,7 @@
   --text: #28282c; --text2: #58585e; --text3: #6c6c74; --text-hi: #18181c;
   --gold: #2c42d6; --gold-dim: #2335b1; --gold-faint: #dee1f2;
   --gold-glow: rgba(44,66,214,0.12); --exh-colour: #8a6a1e;
-  --src-race: #2c42d6; --src-class: #872cd6; --src-subclass: #2cb3d6; --src-feat: #dc6926;
+
 }
 
 /* ── INFERNAL ───────────────────────────────────────────── */
@@ -232,7 +238,7 @@
   --text: #c8c8ca; --text2: #a0a0a4; --text3: #86868c; --text-hi: #f0f0f2;
   --gold: #c81f1f; --gold-dim: #931717; --gold-faint: #2d1a1a;
   --gold-glow: rgba(200,31,31,0.15); --exh-colour: #c47a28;
-  --src-race: #c81f1f; --src-class: #c8901f; --src-subclass: #c81f90; --src-feat: #19ce74;
+
 }
 [data-theme="infernal-light"] {
   --bg: #f9f0f0; --bg2: #ffffff; --bg3: #f2dede; --panel: #ffffff;
@@ -248,7 +254,7 @@
   --text: #28282c; --text2: #58585e; --text3: #6c6c74; --text-hi: #18181c;
   --gold: #a51414; --gold-dim: #7c0f0f; --gold-faint: #f2dede;
   --gold-glow: rgba(165,20,20,0.12); --exh-colour: #9a6030;
-  --src-race: #a51414; --src-class: #a57514; --src-subclass: #a51475; --src-feat: #0faa5d;
+
 }
 
 /* ── FROST ──────────────────────────────────────────────── */
@@ -266,7 +272,7 @@
   --text: #c8c8ca; --text2: #a0a0a4; --text3: #86868c; --text-hi: #f0f0f2;
   --gold: #3ec4e0; --gold-dim: #2f9cb4; --gold-faint: #142632;
   --gold-glow: rgba(62,196,224,0.15); --exh-colour: #c9a24c;
-  --src-race: #3ec4e0; --src-class: #3e58e0; --src-subclass: #3ee090; --src-feat: #e63871;
+
 }
 [data-theme="frost-light"] {
   --bg: #eef6fb; --bg2: #ffffff; --bg3: #dceaf4; --panel: #ffffff;
@@ -282,7 +288,7 @@
   --text: #28282c; --text2: #58585e; --text3: #6c6c74; --text-hi: #18181c;
   --gold: #4a90c4; --gold-dim: #396f98; --gold-faint: #dceaf4;
   --gold-glow: rgba(74,144,196,0.12); --exh-colour: #a8843a;
-  --src-race: #4a90c4; --src-class: #554ac4; --src-subclass: #4ac4a7; --src-feat: #ca444e;
+
 }
 
 /* ── PARCHMENT ──────────────────────────────────────────── */
@@ -300,7 +306,7 @@
   --text: #c8c8ca; --text2: #a0a0a4; --text3: #86868c; --text-hi: #f0f0f2;
   --gold: #b8863f; --gold-dim: #8a652f; --gold-faint: #402d12;
   --gold-glow: rgba(184,134,63,0.15); --exh-colour: #9a7a4a;
-  --src-race: #b8863f; --src-class: #99b83f; --src-subclass: #b83f49; --src-feat: #39b3be;
+
 }
 [data-theme="parchment-light"] {
   --bg: #fcf6ed; --bg2: #ffffff; --bg3: #f9ebd8; --panel: #ffffff;
@@ -316,7 +322,7 @@
   --text: #28282c; --text2: #58585e; --text3: #6c6c74; --text-hi: #18181c;
   --gold: #9b6e2e; --gold-dim: #775524; --gold-faint: #f9ebd8;
   --gold-glow: rgba(155,110,46,0.12); --exh-colour: #7a6242;
-  --src-race: #9b6e2e; --src-class: #7f9b2e; --src-subclass: #9b2e37; --src-feat: #2996a0;
+
 }
 
 /* ── SHADOW (plain grayscale) ───────────────────────────── */
@@ -334,7 +340,7 @@
   --text: #c8c8ca; --text2: #a0a0a4; --text3: #86868c; --text-hi: #f0f0f2;
   --gold: #3aa89a; --gold-dim: #2d8578; --gold-faint: #1a1a1e;
   --gold-glow: rgba(58,168,154,0.15); --exh-colour: #8a8040;
-  --src-race: #3aa89a; --src-class: #3a6da8; --src-subclass: #3aa851; --src-feat: #ae3480;
+
 }
 [data-theme="shadow-light"] {
   --bg: #f4f4f6; --bg2: #ffffff; --bg3: #e4e4e8; --panel: #ffffff;
@@ -350,7 +356,7 @@
   --text: #28282c; --text2: #58585e; --text3: #6c6c74; --text-hi: #18181c;
   --gold: #1f8a7e; --gold-dim: #186a60; --gold-faint: #e4e4e8;
   --gold-glow: rgba(31,138,126,0.12); --exh-colour: #8a6a1e;
-  --src-race: #1f8a7e; --src-class: #1f4f8a; --src-subclass: #1f8a37; --src-feat: #8e1b61;
+
 }
 
 /* ── RESET ──────────────────────────────────────────────── */
@@ -2631,13 +2637,33 @@ body.preview-readonly #mi-detail-edit-row * {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .feat-pill-badge {
-  display: inline-block;
+  display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--font-label); font-size: 12px; font-weight: 700;
   padding: 2px 10px; border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--pill-colour) 45%, transparent);
-  background: color-mix(in srgb, var(--pill-colour) 15%, var(--bg2));
-  color: var(--pill-colour);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg2));
+  color: var(--accent);
   line-height: 1.5;
+}
+/* Small colored dot carrying the per-source color (Race/Class/Subclass/
+   Feat) that the badge itself used to be tinted with — see the legend at
+   the top of the Features tab (.feat-source-legend below) for what each
+   color means. --pill-colour is still set per-item in the inline style,
+   just consumed here instead of by the badge's own color/border/bg. */
+.feat-pill-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--pill-colour); flex-shrink: 0;
+}
+.feat-source-legend {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  padding-bottom: 10px; margin-bottom: 4px;
+}
+.feat-source-legend-item {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--font-ui); font-size: 10px; color: var(--text3);
+}
+.feat-source-legend-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
 }
 .feat-pill-source {
   font-family: var(--font-ui); font-size: 10px; color: var(--text3);
@@ -4082,6 +4108,7 @@ body.preview-readonly #mi-detail-edit-row * {
           <div>
             <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Feats &amp; Features Catalog</div>
             <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:2px">Edit RAW text and configure grants for any feat, class/subclass feature, race/subrace trait, background, or spell — changes are visible to every player.</div>
+            <div id="dm-feats-char-context" style="font-family:var(--font-ui);font-size:10px;color:var(--accent2);margin-top:4px"></div>
           </div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
@@ -36847,7 +36874,13 @@ window.getClassFeaturesByLevel = getClassFeaturesByLevel;
 // feature too, not just a base class one.
 function renderScalingTableHTML(table, featuresByLevel, clsKey, currentLv, subKey) {
   if (!table) return '';
-  const cols = featuresByLevel ? [...table.columns, { key: '__features__', label: 'Features' }] : table.columns;
+  // Features used to always get appended as the last column here
+  // regardless of where the caller put everything else — now the caller
+  // (renderScalingTableParts) positions the __features__ marker directly
+  // in table.columns wherever it belongs (right after Prof, before any
+  // spell-slot columns), so this just renders columns in whatever order
+  // it's given.
+  const cols = table.columns;
   return `<div style="margin:8px 0">
     <div style="font-family:var(--font-ui);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${table.title}</div>
     ${table.note ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-bottom:4px">${table.note}</div>` : ''}
@@ -36954,6 +36987,51 @@ function renderScalingTableParts(cls, sub, clsLevel) {
           const lv = i + 1;
           return { level: lv, prof: '+' + (Math.ceil(lv / 4) + 1) };
         }) };
+
+  // Features sits right after the base columns (Prof, or whatever curated
+  // numeric columns a class has) and before any spell-slot columns get
+  // appended below — reads left-to-right as "who are you, what do you
+  // get, then what can you cast", rather than being pushed all the way
+  // to the far right past nine numeric slot columns.
+  if (featuresByLevel) {
+    baseTable.columns = [...baseTable.columns, { key: '__features__', label: 'Features' }];
+  }
+
+  // Spell slot columns (Cantrips, Known/Prepared, 1st–9th) merge directly
+  // into the SAME table/row as the base progression, rather than a second
+  // full-width table underneath — one row per level either way, so there
+  // was nothing to gain from splitting it, just wasted space wherever the
+  // two tables didn't happen to end up the same height. Warlock is
+  // excluded since its Pact Magic numbers are already the curated base
+  // table above (it has its own combined shape already).
+  if (spellType && spellType !== 'warlock') {
+    const slotData = SPELL_SLOT_TABLES[spellType];
+    const isKnownCasterTable = KNOWN_CASTER_TABLE_CLASSES.includes(spellType);
+    const countColLabel = isKnownCasterTable ? 'Known' : 'Prepared';
+    baseTable.columns = [
+      ...baseTable.columns,
+      { key: 'cantrips', label: 'Cantrips' },
+      { key: 'spellcount', label: countColLabel },
+      ...[1,2,3,4,5,6,7,8,9].map(n => ({ key: `slot${n}`, label: String(n) })),
+    ];
+    const slotByLevel = {};
+    slotData.rows.forEach(row => {
+      const [lv, cantrips, prep, ...slots] = row;
+      slotByLevel[lv] = { cantrips, spellcount: prep, slots };
+    });
+    // Rows come from the base table's own level range — a row with no
+    // matching slot data (caster hasn't unlocked spellcasting yet at that
+    // level, e.g. Eldritch Knight before 3rd) just falls back to the '-'
+    // renderScalingTableHTML already shows for any missing column value.
+    baseTable.rows.forEach(row => {
+      const s = slotByLevel[row.level];
+      if (!s) return;
+      row.cantrips = s.cantrips || null;
+      row.spellcount = s.spellcount || null;
+      [1,2,3,4,5,6,7,8,9].forEach((n,i) => { row[`slot${n}`] = s.slots[i] || null; });
+    });
+  }
+
   parts.push(renderScalingTableHTML(baseTable, featuresByLevel, key, currentLv, subKey));
 
   // Battle Master's Superiority Dice (levels 3/7/10/15/18) is a genuinely
@@ -36963,48 +37041,6 @@ function renderScalingTableParts(cls, sub, clsLevel) {
   // every base-class feature by level.
   if (key === 'fighter' && subL.includes('battle master')) {
     parts.push(renderScalingTableHTML(CLASS_SCALING_TABLES['fighter_battle_master'], null, key, currentLv));
-  }
-
-  // Spell slot table (array-row shape) — every other caster. Warlock is
-  // excluded here since its Pact Magic numbers were already rendered above
-  // as the curated base table.
-  if (spellType && spellType !== 'warlock') {
-    const slotData = SPELL_SLOT_TABLES[spellType];
-    const isWarlock = spellType === 'warlock';
-    const isKnownCasterTable = KNOWN_CASTER_TABLE_CLASSES.includes(spellType);
-    const countColLabel = isWarlock ? 'Slots' : (isKnownCasterTable ? 'Known' : 'Prepared');
-    parts.push(`<div style="margin:8px 0">
-      <div style="font-family:var(--font-ui);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${slotData.title}</div>
-      ${slotData.note ? `<div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-bottom:4px">${slotData.note}</div>` : ''}
-      <table style="width:100%;border-collapse:collapse;font-family:var(--font-body);font-size:10px">
-        <thead>
-          <tr>
-            <th style="text-align:left;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Lv</th>
-            <th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">Cantrips</th>
-            <th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">${countColLabel}</th>
-            ${[1,2,3,4,5,6,7,8,9].map(n=>`<th style="text-align:center;padding:2px 3px;color:var(--text3);font-weight:normal;border-bottom:1px solid var(--border)">${n}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${slotData.rows.map(row => {
-            const [lv,cantrips,prep,...slots] = row;
-            const isCurrentLevel = lv === currentLv;
-            const isFuture = lv > currentLv;
-            const rowStyle = isCurrentLevel 
-              ? 'background:rgba(var(--accent-rgb,11,124,3),.15);outline:1px solid var(--accent);outline-offset:-1px'
-              : '';
-            const col = isFuture ? 'var(--text3)' : 'var(--text)';
-            const cellStyle = `padding:2px 3px;text-align:center;color:${col}`;
-            return `<tr style="${rowStyle}">
-              <td style="padding:2px 3px;color:${col}">${lv}</td>
-              <td style="${cellStyle}">${cantrips || '-'}</td>
-              <td style="${cellStyle}">${prep || '-'}</td>
-              ${slots.map(s=>`<td style="${cellStyle}">${s || '-'}</td>`).join('')}
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>`);
   }
 
   return parts;
@@ -43105,6 +43141,13 @@ function dmRenderFeatsList() {
   const count = document.getElementById('dm-feats-count');
   if (!list) return;
 
+  const charContextEl = document.getElementById('dm-feats-char-context');
+  if (charContextEl) {
+    charContextEl.textContent = currentChar
+      ? `Grant/Remove and Hide/Unhide buttons below apply to: ${currentChar.name || 'this character'}`
+      : 'Load a character to grant/remove feats or hide broken features for them specifically.';
+  }
+
   const type = document.getElementById('dm-feats-type')?.value || 'feat';
   const q    = (document.getElementById('dm-feats-search')?.value || '').trim();
   const matchQ = buildSearchMatcher(q);
@@ -43142,12 +43185,29 @@ function dmRenderFeatsList() {
   list.innerHTML = truncationNoticeHtml + toRender.map(r => {
     const isDM = !!(_dmTextOverrides[r.overrideKey] || '').trim();
     const isSpellRow = r.overrideKey.startsWith('spell:');
+    const isFeatRow = r.overrideKey.startsWith('feat:');
     const grant = isSpellRow ? null : _dmFeatGrants[r.overrideKey];
     const hasProfs = !!(grant?.proficiencies && (grant.proficiencies.skills?.length || grant.proficiencies.expertise?.length || grant.proficiencies.tools?.length || grant.proficiencies.languages?.length));
     const hasNativeOverride = !!(grant?.nativeResourceOverride || grant?.adeptSpellsOverride);
     const hasGrants = !!(grant?.spells?.length || grant?.resources?.length || hasProfs || hasNativeOverride);
     const effectiveDesc = getEffectiveText(r.overrideKey, r.desc);
     const preview = effectiveDesc.slice(0, 100) + (effectiveDesc.length > 100 ? '…' : '');
+
+    // Per-character controls — only meaningful with a character actually
+    // loaded, since "grant"/"hide" always target currentChar specifically.
+    const charHasFeat = isFeatRow && !!currentChar && hasFeat(r.name.replace(/\s*\[.*?\]/g,'').trim());
+    const isHiddenForChar = !isFeatRow && !!currentChar && dmIsFeatureHiddenForCharacter(r.overrideKey);
+    let charBtn = '';
+    if (currentChar && isFeatRow) {
+      charBtn = charHasFeat
+        ? `<button class="tbtn" style="font-size:9px;padding:3px 8px;color:var(--red);border-color:var(--red)" onclick="dmRemoveFeatFromCharacter(${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Remove this feat from ${(currentChar.name||'this character').replace(/"/g,'&quot;')}">− Remove</button>`
+        : `<button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmGrantFeatToCharacter(${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Grant this feat to ${(currentChar.name||'this character').replace(/"/g,'&quot;')}">+ Grant</button>`;
+    } else if (currentChar && !isSpellRow) {
+      charBtn = isHiddenForChar
+        ? `<button class="tbtn" style="font-size:9px;padding:3px 8px;color:var(--amber);border-color:var(--amber)" onclick="dmToggleFeatureHiddenForCharacter(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Unhide — show this again for ${(currentChar.name||'this character').replace(/"/g,'&quot;')}">✓ Unhide</button>`
+        : `<button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmToggleFeatureHiddenForCharacter(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Hide — broken/moot for ${(currentChar.name||'this character').replace(/"/g,'&quot;')} specifically">🚫 Hide</button>`;
+    }
+
     return `
       <div class="sp-browser-row" style="grid-template-columns:1fr auto;align-items:center">
         <div style="min-width:0">
@@ -43156,12 +43216,15 @@ function dmRenderFeatsList() {
             <span class="sp-browser-school">${r.source}</span>
             ${isDM ? '<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">DM EDITED</span>' : ''}
             ${hasGrants ? '<span class="sp-tag" style="color:var(--accent2);border-color:var(--accent2)">HAS GRANTS</span>' : ''}
+            ${charHasFeat ? `<span class="sp-tag" style="color:var(--green);border-color:var(--green)">HAS IT${currentChar.name ? ' — '+currentChar.name : ''}</span>` : ''}
+            ${isHiddenForChar ? `<span class="sp-tag" style="color:var(--amber);border-color:var(--amber)">HIDDEN${currentChar.name ? ' FOR '+currentChar.name : ''}</span>` : ''}
           </div>
           <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:1px;line-height:1.4">${preview}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmEditFeatText(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name + ' — ' + r.source).replace(/"/g,'&quot;')})" title="Edit RAW text">✎ Edit</button>
           ${isSpellRow ? '' : `<button class="tbtn" style="font-size:9px;padding:3px 8px;${hasGrants?'color:var(--accent2);border-color:var(--accent2)':''}" onclick="openFeatGrantsModal(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name + ' — ' + r.source).replace(/"/g,'&quot;')})" title="Configure granted spells/resources">🪄 Grants</button>`}
+          ${charBtn}
         </div>
       </div>
     `;
@@ -43195,6 +43258,87 @@ function dmEditFeatText(overrideKey, label) {
   openTextOverrideModal(overrideKey, label, getEffectiveText(overrideKey, fallback));
 }
 window.dmEditFeatText = dmEditFeatText;
+
+// ── Per-character feature overrides ─────────────────────────────────────
+// Everything above (RAW text, Grants) edits the CATALOG — it changes the
+// entry for every character who has it. This is the other half: fixing
+// one specific character whose feature list is wrong, broken, or just
+// doesn't apply to this table — without touching the catalog at all.
+//
+// Feats are a real, freeform list already (currentChar.feats), so
+// granting/removing one here is a real, full add/remove — hasFeat() and
+// everything downstream (Grants eligibility included) sees it exactly as
+// if the player had picked it normally.
+//
+// Class, subclass, race, background, and class-choice features aren't
+// stored as a discrete list at all — they're computed live from the
+// character's class/subclass/race/background selections. There's no
+// "list" to add or remove an entry from, so for these the lever is a
+// per-character HIDE flag instead (currentChar._dmHiddenFeatures,
+// keyed by the same overrideKey format everything else here already
+// uses) — it suppresses the Features tab card for a specific broken
+// or moot feature, but doesn't retroactively make the character stop
+// technically having it for other purposes (Grants eligibility, etc.).
+// That's a real scope limit: this hides the symptom, it doesn't
+// un-teach a class feature the character mechanically still has.
+
+function dmGrantFeatToCharacter(featName) {
+  if (!currentChar) { toast('No character loaded.', 'warn'); return; }
+  if (!currentChar.feats) currentChar.feats = [];
+  const clean = s => (s || '').replace(/\s*\[.*?\]/g, '').trim().toLowerCase();
+  if (currentChar.feats.some(f => clean(f.name || f) === clean(featName)) || hasFeat(clean(featName))) {
+    toast(`${currentChar.name || 'This character'} already has "${featName}".`, 'warn');
+    return;
+  }
+  currentChar.feats.push({ name: featName, _dmGranted: true });
+  debouncedSave();
+  if (typeof recalcAll === 'function') recalcAll();
+  if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
+  if (typeof renderFeatsList === 'function') renderFeatsList();
+  dmRenderFeatsList();
+  toast(`Granted "${featName}" to ${currentChar.name || 'character'}.`, 'ok');
+}
+window.dmGrantFeatToCharacter = dmGrantFeatToCharacter;
+
+function dmRemoveFeatFromCharacter(featName) {
+  if (!currentChar) { toast('No character loaded.', 'warn'); return; }
+  const clean = s => (s || '').replace(/\s*\[.*?\]/g, '').trim().toLowerCase();
+  const before = (currentChar.feats || []).length;
+  currentChar.feats = (currentChar.feats || []).filter(f => clean(f.name || f) !== clean(featName));
+  if (currentChar.feats.length === before) {
+    toast(`"${featName}" isn't in this character's free-text feat list (it may come from a feat slot choice instead — remove it from there).`, 'warn');
+    return;
+  }
+  debouncedSave();
+  if (typeof recalcAll === 'function') recalcAll();
+  if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
+  if (typeof renderFeatsList === 'function') renderFeatsList();
+  dmRenderFeatsList();
+  toast(`Removed "${featName}" from ${currentChar.name || 'character'}.`, 'ok');
+}
+window.dmRemoveFeatFromCharacter = dmRemoveFeatFromCharacter;
+
+function dmIsFeatureHiddenForCharacter(overrideKey) {
+  return !!currentChar?._dmHiddenFeatures?.includes(overrideKey);
+}
+window.dmIsFeatureHiddenForCharacter = dmIsFeatureHiddenForCharacter;
+
+function dmToggleFeatureHiddenForCharacter(overrideKey, label) {
+  if (!currentChar) { toast('No character loaded.', 'warn'); return; }
+  if (!currentChar._dmHiddenFeatures) currentChar._dmHiddenFeatures = [];
+  const idx = currentChar._dmHiddenFeatures.indexOf(overrideKey);
+  if (idx >= 0) {
+    currentChar._dmHiddenFeatures.splice(idx, 1);
+    toast(`"${label}" is visible again for ${currentChar.name || 'character'}.`, 'ok');
+  } else {
+    currentChar._dmHiddenFeatures.push(overrideKey);
+    toast(`Hidden "${label}" for ${currentChar.name || 'character'}.`, 'ok');
+  }
+  debouncedSave();
+  if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
+  dmRenderFeatsList();
+}
+window.dmToggleFeatureHiddenForCharacter = dmToggleFeatureHiddenForCharacter;
 
 // ── Feat/Feature Grants modal — Phase 2 ─────────────────────────────────
 // Same draft-while-open pattern as the magic item catalog editor's
@@ -44864,24 +45008,24 @@ function renderClassFeatures() {
     </div>`;
   }).join('');
 
-  // Progression tables for each class — laid out side-by-side (wrapping
-  // to a new row only when the container runs out of width) instead of
-  // stacked one full-width table after another. A multiclass character
-  // can easily rack up 4+ of these (base progression + spell-slot table
-  // per caster class, plus any subclass resource table like Battle
-  // Master's Superiority Dice); stacking them vertically turned this into
-  // a very long scroll. Each logical table keeps its own unchanged
-  // rendering (renderScalingTableParts reuses the exact same HTML
-  // renderScalingTable always produced) — only the layout changed.
+  // Progression tables for each class — one full-width table per row.
+  // These used to be laid out side-by-side to avoid a long vertical
+  // stack when a multiclass character has several, but now that each
+  // class's spell-slot columns merge directly into its own base table
+  // (see renderScalingTableParts) instead of being a second table, a
+  // single class's table is wide enough on its own that two side-by-side
+  // just squeezed the Features column into an unreadable sliver. Each
+  // class still gets its own clearly separated block; there just isn't a
+  // second one crammed in next to it anymore.
   const scalingDiv = document.createElement('div');
-  scalingDiv.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px';
+  scalingDiv.style.cssText = 'margin-top:10px;display:flex;flex-direction:column;gap:16px';
   allClasses.forEach(entry => {
     const eCls = entry.class?.toLowerCase() || '';
     const eLv  = entry.levels?.length || 0;
     const eSub = entry.subclass || '';
     renderScalingTableParts(eCls, eSub, eLv).forEach(partHtml => {
       const item = document.createElement('div');
-      item.style.cssText = 'flex:1 1 260px;min-width:260px;max-width:420px';
+      item.style.cssText = 'width:100%';
       item.innerHTML = partHtml;
       scalingDiv.appendChild(item);
     });
@@ -55360,7 +55504,11 @@ function _rotateHue(hex, deg, sAdjust) {
 const CUSTOM_THEME_VARS = ['--bg','--bg2','--bg3','--panel','--border','--border2','--accent','--accent-dim',
   '--accent-bg','--accent2','--accent3','--purple','--accent-rgb','--red','--red-dim','--red-bg',
   '--green','--amber','--exh-colour','--text','--text2','--text3','--text-hi','--gold','--gold-dim',
-  '--gold-faint','--gold-glow','--src-race','--src-class','--src-subclass','--src-feat'];
+  '--gold-faint','--gold-glow'];
+// --src-race/--src-class/--src-subclass/--src-feat deliberately excluded —
+// those are now fixed across every theme (see the :root block), reusing
+// the same palette as spell schools, and Custom Theme shouldn't be able
+// to override that consistency with an accent-derived inline value.
 
 function deriveCustomTheme(seeds) {
   const { bg, panel, accent, text, red, green, amber, isDark } = seeds;
@@ -55391,10 +55539,6 @@ function deriveCustomTheme(seeds) {
     '--text': text, '--text2': text2, '--text3': text3, '--text-hi': textHi,
     '--gold': accent, '--gold-dim': accentDim, '--gold-faint': accentBg,
     '--gold-glow': `rgba(${accentRgb.r},${accentRgb.g},${accentRgb.b},0.15)`,
-    '--src-race': accent,
-    '--src-class': _rotateHue(accent, 40),
-    '--src-subclass': _rotateHue(accent, -40),
-    '--src-feat': _rotateHue(accent, 150, 0.05),
   };
 }
 
@@ -56117,7 +56261,22 @@ function populateFeaturesTab() {
   // same `entries` pass so the underlying data never has to be collected
   // twice.
   const tableEntries    = entries.filter(e => e.isTable);
-  const nonTableEntries = entries.filter(e => !e.isTable);
+  // A DM can hide a specific broken/moot class/subclass/race/background/
+  // class-choice feature for THIS character specifically (see
+  // dmToggleFeatureHiddenForCharacter) — filtered out here before
+  // anything renders, using the exact same overrideKey format the edit
+  // pencil below computes, so "hide" always targets the same identity
+  // "edit text" and "grants" already use for that entry.
+  const _dmHidden = currentChar._dmHiddenFeatures || [];
+  const nonTableEntries = entries.filter(e => !e.isTable).filter(e => {
+    if (!_dmHidden.length || e.isHtml) return true;
+    let key = null;
+    if (e.sourceType === 'Class') key = `class:${cls}:${e.name}`;
+    else if (e.sourceType === 'Subclass' && subKey) key = `subclass:${subKey}:${e.name}`;
+    else if (e.sourceType === 'Race') key = `race:${race}:${e.name}`;
+    else if (e.sourceType === 'Background Feat') key = `feat:${e.name}`;
+    return !key || !_dmHidden.includes(key);
+  });
 
   const tablesEl = document.getElementById('tables-tab-list');
   if (tablesEl) {
@@ -56254,7 +56413,7 @@ function populateFeaturesTab() {
       ${clickAttr}
     >
       <div class="feat-pill-row">
-        <span class="feat-pill-badge" style="--pill-colour:${typeColour}">${e.name}</span>
+        <span class="feat-pill-badge" style="--pill-colour:${typeColour}"><span class="feat-pill-dot"></span>${e.name}</span>
         <span class="feat-pill-source">${e.source}</span>
         ${editPencil}
         ${chosenStr}
@@ -56291,22 +56450,40 @@ function populateFeaturesTab() {
 
   el.innerHTML = typeof linkifyGlossaryTerms === 'function' ? linkifyGlossaryTerms(html2) : html2;
 
-  // Progression tables — same side-by-side layout as the other panel
-  // that shows these (see the comment there for why).
+  // Progression tables — one full-width table per class, per row. See
+  // the comment on the other panel that shows these for why (spell-slot
+  // columns now merge into each class's own base table, so a single
+  // class's table is wide enough that two side-by-side no longer fit).
   const scalingWrap = document.createElement('div');
-  scalingWrap.style.cssText = 'margin-bottom:16px;display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px';
+  scalingWrap.style.cssText = 'margin-bottom:16px;display:flex;flex-direction:column;gap:16px';
   getAllClasses().forEach(entry => {
     const eCls = entry.class?.toLowerCase() || '';
     const eLv  = entry.levels?.length || 0;
     const eSub = entry.subclass || '';
     renderScalingTableParts(eCls, eSub, eLv).forEach(partHtml => {
       const item = document.createElement('div');
-      item.style.cssText = 'flex:1 1 260px;min-width:260px;max-width:420px';
+      item.style.cssText = 'width:100%';
       item.innerHTML = partHtml;
       scalingWrap.appendChild(item);
     });
   });
   if (scalingWrap.children.length) el.insertBefore(scalingWrap, el.firstChild);
+
+  // Legend goes above everything — progression tables included — since it
+  // explains the pip colors used both on the feature pill list further
+  // down AND (not visually, but for consistency) matches the same
+  // --src-* colors race/class/subclass features are grouped by elsewhere.
+  // Inserted last, before el.firstChild, so it lands before scalingWrap
+  // regardless of whether scalingWrap ended up attached above.
+  const legendDiv = document.createElement('div');
+  legendDiv.className = 'feat-source-legend';
+  legendDiv.innerHTML = `
+    <span class="feat-source-legend-item"><span class="feat-source-legend-dot" style="background:var(--src-race)"></span>Race</span>
+    <span class="feat-source-legend-item"><span class="feat-source-legend-dot" style="background:var(--src-class)"></span>Class</span>
+    <span class="feat-source-legend-item"><span class="feat-source-legend-dot" style="background:var(--src-subclass)"></span>Subclass</span>
+    <span class="feat-source-legend-item"><span class="feat-source-legend-dot" style="background:var(--src-feat)"></span>Feat</span>
+  `;
+  el.insertBefore(legendDiv, el.firstChild);
 }
 
 // ── Shared feature card renderer ───────────────────────────
