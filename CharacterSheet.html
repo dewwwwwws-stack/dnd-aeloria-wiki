@@ -50591,16 +50591,78 @@ function lookupBackgroundEquipmentItem(name) {
     const cLower = catalogName.toLowerCase();
     return cLower === lower || (singularLower && cLower === singularLower);
   };
+  // type+key added on top of the original weight/desc lookup — lets
+  // callers (applyBackgroundEquipmentChoice/applyClassEquipmentChoice)
+  // route a weapon into currentChar.weapons and armor into
+  // currentChar.armorOwned instead of always landing in the generic Gear
+  // list regardless of what was actually matched. Order stays Gear ->
+  // Weapons -> Armor since that's already how ambiguous names historically
+  // resolved here (e.g. catalogs with an overlapping "Net" gear item).
   const gear = PHB_GEAR.find(g => nameMatches(g.name));
-  if (gear) return { weight: gear.weight || '', desc: gear.desc || '' };
+  if (gear) return { type: 'gear', key: gear.key || null, weight: gear.weight || '', desc: gear.desc || '' };
   const weapon = PHB_WEAPONS.find(w => nameMatches(w.name));
-  if (weapon) return { weight: weapon.weight || '', desc: weapon.type ? `${weapon.type}${weapon.list ? ' · ' + weapon.list : ''}` : '' };
+  if (weapon) return { type: 'weapon', key: weapon.key, weight: weapon.weight || '', desc: weapon.type ? `${weapon.type}${weapon.list ? ' · ' + weapon.list : ''}` : '' };
   const armour = PHB_ARMOUR.find(a => nameMatches(a.name));
-  if (armour) return { weight: armour.weight || '', desc: armour.type || (armour.baseAC ? `AC ${armour.baseAC}` : '') };
+  if (armour) return { type: 'armor', key: armour.key, weight: armour.weight || '', desc: armour.type || (armour.baseAC ? `AC ${armour.baseAC}` : '') };
   return null;
 }
 
-// Splits a background item name into a clean base name + real quantity.
+// Routes one resolved background/class starting-equipment item to
+// whichever array the rest of the sheet actually expects for its type —
+// a matched weapon into currentChar.weapons, matched armor into
+// currentChar.armorOwned, anything else (tools, adventuring gear,
+// containers, ...) into currentChar.equipment same as before. Previously
+// everything landed in currentChar.equipment regardless of type, so a
+// background- or class-granted weapon or armor piece never showed up in
+// the Attacks panel or contributed to AC — it just sat there as an inert
+// Gear row. Entry shapes mirror _grantEntryFor()'s weapon/armor cases
+// (the DM's "Grant Free Item" flow), the other place these same arrays
+// already get built from a catalog key. flagKey ("_bgGranted"/
+// "_clsGranted") is stamped onto every shape so the matching undo
+// function can find and remove exactly these rows again later, regardless
+// of which array they ended up in.
+function _pushResolvedStartingEquipment(cleanName, resolvedQty, catalogMatch, flagKey) {
+  if (catalogMatch?.type === 'weapon') {
+    if (!currentChar.weapons) currentChar.weapons = [];
+    currentChar.weapons.push({
+      weaponKey: catalogMatch.key, name: cleanName, attackBonus: 0, damageBonus: 0,
+      customDamage: null, desc: null, qty: resolvedQty, weight: catalogMatch.weight || null,
+      equipped: true, proficient: true, versatileMode: false, offhand: false,
+      [flagKey]: true,
+    });
+    return;
+  }
+  if (catalogMatch?.type === 'armor') {
+    if (!currentChar.armorOwned) currentChar.armorOwned = [];
+    currentChar.armorOwned.push({
+      key: catalogMatch.key, name: cleanName, customAC: 0, magicBonus: 0,
+      weight: catalogMatch.weight || null, notes: null, worn: false,
+      [flagKey]: true,
+    });
+    return;
+  }
+  if (!currentChar.equipment) currentChar.equipment = [];
+  currentChar.equipment.push({
+    name: cleanName, qty: resolvedQty,
+    weight: catalogMatch?.weight || '',
+    desc: catalogMatch?.desc || '',
+    [flagKey]: true,
+  });
+}
+
+// Finds and removes a previously-granted (via flagKey) starting-equipment
+// row, checking all three possible destination arrays — the caller
+// doesn't need to know ahead of time which one a given item landed in.
+function _removeResolvedStartingEquipment(cleanName, resolvedQty, flagKey) {
+  const wIdx = (currentChar.weapons || []).findIndex(w => w[flagKey] && w.name === cleanName && w.qty === resolvedQty);
+  if (wIdx !== -1) { currentChar.weapons.splice(wIdx, 1); return; }
+  const aIdx = (currentChar.armorOwned || []).findIndex(a => a[flagKey] && a.name === cleanName);
+  if (aIdx !== -1) { currentChar.armorOwned.splice(aIdx, 1); return; }
+  const eIdx = (currentChar.equipment || []).findIndex(e => e[flagKey] && e.name === cleanName && e.qty === resolvedQty);
+  if (eIdx !== -1) currentChar.equipment.splice(eIdx, 1);
+}
+
+
 // Two different kinds of parenthetical show up in background equipment
 // text: a stated count ("Parchment (12 sheets)", "Oil (3 flasks)",
 // "Rations (3 days' worth)" — always starts with a digit) and a
@@ -50634,12 +50696,7 @@ function applyBackgroundEquipmentChoice(bgKey, choice, containerId) {
     (bg.equipmentA || []).forEach(it => {
       const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
       const catalogMatch = lookupBackgroundEquipmentItem(cleanName);
-      currentChar.equipment.push({
-        name: cleanName, qty: resolvedQty,
-        weight: catalogMatch?.weight || '',
-        desc: catalogMatch?.desc || '',
-        _bgGranted: true,
-      });
+      _pushResolvedStartingEquipment(cleanName, resolvedQty, catalogMatch, '_bgGranted');
     });
     currentChar.currency.gp = (currentChar.currency.gp || 0) + (bg.goldA || 0);
   } else {
@@ -50655,6 +50712,7 @@ function applyBackgroundEquipmentChoice(bgKey, choice, containerId) {
   if (gpEl) gpEl.value = currentChar.currency.gp;
   if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal();
   if (typeof renderEquipList === 'function') renderEquipList();
+  if (typeof renderFeatItemsWeapons === 'function') renderFeatItemsWeapons(); // chains to armor too — a granted weapon/armor now needs this, not just the Gear list
   debouncedSave();
   toast(`Applied Option ${choice} from ${bg.name}.`, 'ok');
   renderBackgroundEquipmentChoice(bgKey, containerId);
@@ -50797,12 +50855,7 @@ function applyClassEquipmentChoice(clsKey, choiceLabel, containerId) {
   choice.items.forEach(it => {
     const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
     const catalogMatch = lookupBackgroundEquipmentItem(cleanName);
-    currentChar.equipment.push({
-      name: cleanName, qty: resolvedQty,
-      weight: catalogMatch?.weight || '',
-      desc: catalogMatch?.desc || '',
-      _clsGranted: true,
-    });
+    _pushResolvedStartingEquipment(cleanName, resolvedQty, catalogMatch, '_clsGranted');
   });
   currentChar.currency.gp = (currentChar.currency.gp || 0) + (choice.gold || 0);
   currentChar._clsEquipChoice = { clsKey, choice: choiceLabel };
@@ -50811,6 +50864,7 @@ function applyClassEquipmentChoice(clsKey, choiceLabel, containerId) {
   if (gpEl) gpEl.value = currentChar.currency.gp;
   if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal();
   if (typeof renderEquipList === 'function') renderEquipList();
+  if (typeof renderFeatItemsWeapons === 'function') renderFeatItemsWeapons(); // chains to armor too
   debouncedSave();
   toast(`Applied Option ${choiceLabel} from ${PHB_CLASSES[clsKey]?.name || clsKey}.`, 'ok');
   renderClassEquipmentChoice(clsKey, containerId);
@@ -50828,8 +50882,7 @@ function undoClassEquipmentChoice() {
 
   choice.items.forEach(it => {
     const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
-    const idx = (currentChar.equipment || []).findIndex(e => e._clsGranted && e.name === cleanName && e.qty === resolvedQty);
-    if (idx !== -1) currentChar.equipment.splice(idx, 1);
+    _removeResolvedStartingEquipment(cleanName, resolvedQty, '_clsGranted');
   });
   currentChar.currency.gp = Math.max(0, (currentChar.currency.gp || 0) - (choice.gold || 0));
   currentChar._clsEquipChoice = null;
@@ -50846,11 +50899,12 @@ function undoBackgroundEquipmentChoice() {
     // Remove exactly the rows this choice added (matched by the
     // _bgGranted flag plus name+qty), not just anything with a matching
     // name — the player may separately own an item that happens to share
-    // a name with something their background granted.
+    // a name with something their background granted. Checks weapons/
+    // armorOwned/equipment since a granted weapon or armor piece now
+    // lands in its proper section instead of always being in equipment.
     (bg.equipmentA || []).forEach(it => {
       const { name: cleanName, qty: resolvedQty } = splitBackgroundItemQty(it.name, it.qty);
-      const idx = (currentChar.equipment || []).findIndex(e => e._bgGranted && e.name === cleanName && e.qty === resolvedQty);
-      if (idx !== -1) currentChar.equipment.splice(idx, 1);
+      _removeResolvedStartingEquipment(cleanName, resolvedQty, '_bgGranted');
     });
     currentChar.currency.gp = Math.max(0, (currentChar.currency.gp || 0) - (bg.goldA || 0));
   } else {
