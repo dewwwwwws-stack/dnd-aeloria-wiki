@@ -2888,10 +2888,18 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
           <div class="panel" style="margin-top:10px" id="class-choices-panel">
             <div class="panel-title">
-              <span onclick="toggleProfPanelExpanded('classchoices')" style="cursor:pointer;flex:1;min-width:0">Class Choices</span>
-              <span id="class-choices-unset-badge" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);border:1px solid var(--amber);border-radius:10px;padding:1px 7px;margin-right:6px;letter-spacing:.3px;cursor:pointer" onclick="toggleProfPanelExpanded('classchoices')" title="Choices still needing a pick"></span>
-              <span id="class-choices-subtitle" style="font-size:9px;color:var(--text3)"></span>
-              <span id="classchoices-profs-arrow" onclick="toggleProfPanelExpanded('classchoices')" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);cursor:pointer;margin-left:6px">▸</span>
+              <span onclick="toggleProfPanelExpanded('classchoices')" style="cursor:pointer;flex:1;min-width:0;order:1">Class Choices</span>
+              <span id="class-choices-unset-badge" style="display:none;font-family:var(--font-ui);font-size:9px;color:var(--amber);border:1px solid var(--amber);border-radius:10px;padding:1px 7px;margin-right:6px;letter-spacing:.3px;cursor:pointer;order:2" onclick="toggleProfPanelExpanded('classchoices')" title="Choices still needing a pick"></span>
+              <span id="classchoices-profs-arrow" onclick="toggleProfPanelExpanded('classchoices')" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);cursor:pointer;margin-left:6px;order:3">▸</span>
+              <!-- flex-basis:100% + its own order — a long "Class (Subclass)"
+                   subtitle wrapping onto its own line used to land it right
+                   where the arrow (next in DOM) also wrapped to, producing
+                   visually overlapping text. Explicit order keeps the arrow
+                   on the title's own line every time, and flex-basis:100%
+                   drops the subtitle to a clean full-width line below
+                   whenever it doesn't fit next to the title, instead of the
+                   two competing for the same wrapped line. -->
+              <span id="class-choices-subtitle" style="font-size:9px;color:var(--text3);order:4;flex-basis:100%;text-align:right"></span>
             </div>
             <div id="classchoices-profs-summary" style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.6;cursor:pointer" onclick="toggleProfPanelExpanded('classchoices')"></div>
             <div id="classchoices-profs-expanded" style="display:none;margin-top:6px">
@@ -5713,7 +5721,11 @@ body.preview-readonly #mi-detail-edit-row * {
         <div style="display:flex;gap:8px;margin-bottom:6px">
           <div style="flex:1">
             <label class="field-label">Uses</label>
-            <input class="info-input" type="number" min="0" id="fg-native-usages" oninput="_fgOnNativeResourceEdited()">
+            <select class="choice-select" id="fg-native-usages-type" onchange="_fgOnNativeUsagesTypeChange()">
+              <option value="fixed">Fixed Number</option>
+              <option value="prof_bonus">Proficiency Bonus (scales with level)</option>
+              <option value="ability_mod">Ability Modifier</option>
+            </select>
           </div>
           <div style="flex:1">
             <label class="field-label">Recovers On</label>
@@ -5725,6 +5737,24 @@ body.preview-readonly #mi-detail-edit-row * {
             </select>
           </div>
         </div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div id="fg-native-usages-fixed-wrap" style="flex:1">
+            <label class="field-label">Number</label>
+            <input class="info-input" type="number" min="0" id="fg-native-usages" oninput="_fgOnNativeResourceEdited()">
+          </div>
+          <div id="fg-native-usages-ability-wrap" style="flex:1;display:none">
+            <label class="field-label">Which Ability</label>
+            <select class="choice-select" id="fg-native-usages-ability" onchange="_fgOnNativeResourceEdited()">
+              <option value="str_mod">Strength</option>
+              <option value="dex_mod">Dexterity</option>
+              <option value="con_mod">Constitution</option>
+              <option value="int_mod">Intelligence</option>
+              <option value="wis_mod">Wisdom</option>
+              <option value="cha_mod">Charisma</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-bottom:6px">Proficiency Bonus and Ability Modifier both recompute automatically as the character levels up or their scores change — same live formula the catalog itself already uses for things like Tinker's Magic or Favored Enemy, not a snapshot taken now.</div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div id="fg-native-resource-status" style="font-family:var(--font-ui);font-size:9px;color:var(--text3)"></div>
           <button type="button" class="tbtn" style="font-size:9px;padding:3px 8px" onclick="resetFeatNativeResource()">Reset to Catalog Default</button>
@@ -23294,6 +23324,8 @@ window._dmGetNativeResourceDefault = _dmGetNativeResourceDefault;
 function _dmDescribeNativeUsages(usages) {
   if (typeof usages === 'number') return String(usages);
   if (usages === 'prof_bonus') return 'Proficiency Bonus';
+  const abilityNames = { str_mod:'Strength', dex_mod:'Dexterity', con_mod:'Constitution', int_mod:'Intelligence', wis_mod:'Wisdom', cha_mod:'Charisma' };
+  if (abilityNames[usages]) return `${abilityNames[usages]} Modifier`;
   if (Array.isArray(usages)) return `varies by level (${usages.join('/')})`;
   if (typeof usages === 'string') return `formula: ${usages}`;
   return String(usages);
@@ -23560,6 +23592,7 @@ async function saveTextOverride() {
     closeModal('text-override-modal');
     if (typeof populateFeaturesTab === 'function' && document.getElementById('feat-unified-list')) populateFeaturesTab();
     if (typeof dmRenderFeatsList === 'function' && document.getElementById('dm-pane-feats')?.style.display !== 'none') dmRenderFeatsList();
+    if (typeof renderResourceTracker === 'function') renderResourceTracker();
     if (typeof renderSpellDetailBody === 'function' && _spellDetailKey) {
       const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
       if (sp) renderSpellDetailBody(sp, sp.level);
@@ -23584,6 +23617,7 @@ async function resetTextOverride() {
     closeModal('text-override-modal');
     if (typeof populateFeaturesTab === 'function' && document.getElementById('feat-unified-list')) populateFeaturesTab();
     if (typeof dmRenderFeatsList === 'function' && document.getElementById('dm-pane-feats')?.style.display !== 'none') dmRenderFeatsList();
+    if (typeof renderResourceTracker === 'function') renderResourceTracker();
     if (typeof renderSpellDetailBody === 'function' && _spellDetailKey) {
       const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
       if (sp) renderSpellDetailBody(sp, sp.level);
@@ -43561,6 +43595,42 @@ function _fgOnNativeResourceEdited() {
 }
 window._fgOnNativeResourceEdited = _fgOnNativeResourceEdited;
 
+const _FG_ABILITY_MOD_KEYS = ['str_mod','dex_mod','con_mod','int_mod','wis_mod','cha_mod'];
+
+// Sets the Uses Type dropdown and shows/fills whichever sub-field matches
+// a given effective usages value — a plain number, the 'prof_bonus'
+// keyword, or one of the six '*_mod' ability-modifier keys (the exact
+// same vocabulary resolveFeatureUsage() already understands everywhere
+// else in the sheet, e.g. Tinker's Magic's "int_mod" or Favored Enemy's
+// "wis_mod" — this UI is just a friendlier way to produce those same
+// values instead of a DM needing to know the raw string). Anything else
+// (an array, an arbitrary custom formula) falls back to Fixed Number
+// blank — this simplified picker only covers the three common cases the
+// request was for, not full formula editing.
+function _fgApplyUsagesToUI(effUsages) {
+  const typeSel = document.getElementById('fg-native-usages-type');
+  const fixedInput = document.getElementById('fg-native-usages');
+  const abilitySel = document.getElementById('fg-native-usages-ability');
+  let type = 'fixed';
+  if (effUsages === 'prof_bonus') type = 'prof_bonus';
+  else if (_FG_ABILITY_MOD_KEYS.includes(effUsages)) type = 'ability_mod';
+  typeSel.value = type;
+  fixedInput.value = type === 'fixed' && typeof effUsages === 'number' ? effUsages : '';
+  abilitySel.value = type === 'ability_mod' ? effUsages : 'wis_mod';
+  _fgOnNativeUsagesTypeChange(false);
+}
+
+// Toggles which sub-field (plain number vs ability picker) is visible
+// based on the Uses Type dropdown. Proficiency Bonus needs no sub-field
+// at all — it's a fixed formula with nothing left to configure.
+function _fgOnNativeUsagesTypeChange(markEdited = true) {
+  const type = document.getElementById('fg-native-usages-type').value;
+  document.getElementById('fg-native-usages-fixed-wrap').style.display = type === 'fixed' ? '' : 'none';
+  document.getElementById('fg-native-usages-ability-wrap').style.display = type === 'ability_mod' ? '' : 'none';
+  if (markEdited) _fgOnNativeResourceEdited();
+}
+window._fgOnNativeUsagesTypeChange = _fgOnNativeUsagesTypeChange;
+
 // Renders the "Already Wired In" section for whatever's baked into the
 // catalog for this feat/feature — a native usages/recovery resource
 // and/or (for the 8 Adept feats) the adeptSpells table — pre-filled with
@@ -43578,8 +43648,7 @@ function _fgRenderNativeSections(overrideKey) {
     resSection.style.display = '';
     const effUsages = resOverride?.usages ?? _fgNativeResourceDefault?.usages;
     const effRecovery = resOverride?.recovery ?? _fgNativeResourceDefault?.recovery ?? 'long';
-    document.getElementById('fg-native-usages').value =
-      typeof effUsages === 'number' ? effUsages : '';
+    _fgApplyUsagesToUI(effUsages);
     document.getElementById('fg-native-recovery').value = effRecovery;
     const defaultLine = _fgNativeResourceDefault
       ? `Catalog default: ${_dmDescribeNativeUsages(_fgNativeResourceDefault.usages)} use(s), ${_fgNativeResourceDefault.recovery}`
@@ -43624,11 +43693,10 @@ window._fgUpdateAdeptSpell = _fgUpdateAdeptSpell;
 
 function resetFeatNativeResource() {
   if (!_fgNativeResourceDefault) {
-    document.getElementById('fg-native-usages').value = '';
+    _fgApplyUsagesToUI(null);
     document.getElementById('fg-native-recovery').value = 'long';
   } else {
-    document.getElementById('fg-native-usages').value =
-      typeof _fgNativeResourceDefault.usages === 'number' ? _fgNativeResourceDefault.usages : '';
+    _fgApplyUsagesToUI(_fgNativeResourceDefault.usages);
     document.getElementById('fg-native-recovery').value = _fgNativeResourceDefault.recovery;
   }
   document.getElementById('fg-native-resource-status').textContent = 'Reset — will clear the override on save.';
@@ -43852,14 +43920,22 @@ async function saveFeatGrants() {
   // even if the fields still visually show the default value.
   const nativeUsagesEl = document.getElementById('fg-native-usages');
   const nativeResetClicked = nativeUsagesEl?.dataset.resetToDefault === '1';
-  const nativeUsagesNum = parseInt(nativeUsagesEl?.value);
+  const nativeUsagesType = document.getElementById('fg-native-usages-type')?.value || 'fixed';
+  // Same three-way vocabulary resolveFeatureUsage() already understands
+  // everywhere else (a flat number, the 'prof_bonus' keyword, or one of
+  // the six '*_mod' ability-modifier keys) — this UI just builds one of
+  // those values instead of requiring the DM to type it as a raw formula.
+  const nativeUsagesVal = nativeUsagesType === 'prof_bonus' ? 'prof_bonus'
+    : nativeUsagesType === 'ability_mod' ? (document.getElementById('fg-native-usages-ability')?.value || 'wis_mod')
+    : parseInt(nativeUsagesEl?.value);
   const nativeRecovery = document.getElementById('fg-native-recovery')?.value || 'long';
   let nativeResourceOverride = null;
-  if (!nativeResetClicked && nativeUsagesNum > 0) {
+  const nativeUsagesIsValid = nativeUsagesType === 'fixed' ? (nativeUsagesVal > 0) : !!nativeUsagesVal;
+  if (!nativeResetClicked && nativeUsagesIsValid) {
     const isSameAsDefault = _fgNativeResourceDefault
-      && _fgNativeResourceDefault.usages === nativeUsagesNum
+      && _fgNativeResourceDefault.usages === nativeUsagesVal
       && _fgNativeResourceDefault.recovery === nativeRecovery;
-    if (!isSameAsDefault) nativeResourceOverride = { usages: nativeUsagesNum, recovery: nativeRecovery };
+    if (!isSameAsDefault) nativeResourceOverride = { usages: nativeUsagesVal, recovery: nativeRecovery };
   }
 
   // Adept spell table override — only stored if it actually differs from
@@ -47801,12 +47877,24 @@ function renderResourceTracker() {
     // Same "attach the real feature text" fix as subclass resources below —
     // PHB_CLASS_RESOURCES/SUPPLEMENTAL_CLASS_RESOURCES entries never carry
     // desc themselves, so look it up from the base class's own features
-    // array by name match.
+    // array by name match. Also attaches an overrideKey so the resource
+    // detail popup can offer a DM edit pencil: a resource with its own
+    // desc gets a new classresource:${cls}:${id} key of its own; one that
+    // falls back to the matching class feature's text reuses that
+    // feature's EXISTING class:${cls}:${name} key instead of inventing a
+    // second, disconnected override for the same underlying text — editing
+    // either the feature (Features tab) or the resource (this popup)
+    // updates the same thing.
     const classFeaturesForDesc = PHB_CLASSES[eCls]?.features || [];
     const withDesc = r => {
-      if (r.desc) return r;
+      if (r.desc) {
+        const key = `classresource:${eCls}:${r.id}`;
+        return { ...r, desc: getEffectiveText(key, r.desc), _overrideKey: key };
+      }
       const m = classFeaturesForDesc.find(f => f.name === r.name);
-      return m ? { ...r, desc: m.desc } : r;
+      if (!m) return r;
+      const key = `class:${eCls}:${m.name}`;
+      return { ...r, desc: getEffectiveText(key, m.desc), _overrideKey: key };
     };
 
     // Core class resources (using class's own level)
@@ -47841,6 +47929,16 @@ function renderResourceTracker() {
         // default rather than an intentional level-1 unlock, so clamp it.
         if (eLv >= Math.max(3, r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) {
           const matchingFeature = subFeaturesForDesc.find(f => f.name === r.name);
+          let withOverride;
+          if (r.desc) {
+            const key = `subclassresource:${eSubKey}:${r.id}`;
+            withOverride = { ...r, desc: getEffectiveText(key, r.desc), _overrideKey: key };
+          } else if (matchingFeature) {
+            const key = `subclass:${eSubKey}:${matchingFeature.name}`;
+            withOverride = { ...r, desc: getEffectiveText(key, matchingFeature.desc), _overrideKey: key };
+          } else {
+            withOverride = r;
+          }
           // _resClass: eCls was missing here entirely — a subclass resource
           // (Arcane Ward, Superiority Dice, Psionic Energy Dice, etc.) was
           // silently falling through renderResourceEntry()'s "def._resClass
@@ -47852,7 +47950,7 @@ function renderResourceTracker() {
           // (Lay on Hands, Channel Divinity, etc., in the loop above this
           // one) already had this tag; only the SUBCLASS resource loop
           // below was missing it.
-          allDefs.push({ ...(matchingFeature && !r.desc ? { ...r, desc: matchingFeature.desc } : r), _resClass: eCls });
+          allDefs.push({ ...withOverride, _resClass: eCls });
         }
       });
     }
@@ -47955,7 +48053,7 @@ function renderResourceTracker() {
       // DM override wins outright — a flat corrected number/recovery,
       // bypassing the formula resolution below entirely.
       const _nativeOv = _dmNativeResourceOverride(`subclass:${eSubKey}:${f.name}`);
-      const usagesVal = _nativeOv ? (_nativeOv.usages === 'prof_bonus' ? prof : _nativeOv.usages)
+      const usagesVal = _nativeOv ? resolveFeatureUsage(_nativeOv.usages, eLv)
         : typeof f.usages === 'number' ? f.usages
         : Array.isArray(f.usages) ? (f.usages[Math.min(eLv, f.usages.length-1)] || 1)
         : f.usages === 'prof_bonus' ? prof
@@ -48015,9 +48113,8 @@ function renderResourceTracker() {
     if (!_nativeOv && (!featData?.usages || !featData?.recovery)) continue;
     const id = 'feat_res_' + (featKey||featName).replace(/[^a-z0-9]/g,'_');
     if (allDefs.find(d => d.id === id)) continue;
-    const usagesVal = _nativeOv ? (_nativeOv.usages === 'prof_bonus' ? prof : _nativeOv.usages)
-      : featData.usages === 'prof_bonus' ? prof
-      : typeof featData.usages === 'number' ? featData.usages : 1;
+    const usagesVal = _nativeOv ? resolveFeatureUsage(_nativeOv.usages, level)
+      : resolveFeatureUsage(featData.usages, level) || 1;
     const recoveryVal = _nativeOv ? _nativeOv.recovery : featData.recovery;
     if (usagesVal > 0) allDefs.push({ id, name: featName, _max: usagesVal, recovery: recoveryVal, desc: featData?.desc || '' });
   }
@@ -48421,7 +48518,7 @@ function renderResourceEntry(def, level, prof) {
   let html = `<div class="resource-header">
     <span class="resource-name" style="cursor:pointer"
       data-tt="${_ttDesc}" data-tt-name="${_ttName}" data-tt-meta="${_ttMeta}"
-      onclick="openResourceDetail(${_escAttr(_ttName)}, ${_escAttr(_ttDesc)}, ${_escAttr(_ttMeta)}, ${def.isCustom ? `'${def.id}'` : 'null'}, ${(!def.isCustom && !def._spellKey) ? `'${_ttJumpName}'` : 'null'}, ${def._spellKey ? `'${def._spellKey}'` : 'null'})">${def.name||def.label}${_dieBadge}</span>
+      onclick="openResourceDetail(${_escAttr(_ttName)}, ${_escAttr(_ttDesc)}, ${_escAttr(_ttMeta)}, ${def.isCustom ? `'${def.id}'` : 'null'}, ${(!def.isCustom && !def._spellKey) ? `'${_ttJumpName}'` : 'null'}, ${def._spellKey ? `'${def._spellKey}'` : 'null'}, ${def._overrideKey ? _escAttr(def._overrideKey) : 'null'})">${def.name||def.label}${_dieBadge}</span>
     <span style="display:flex;align-items:center;gap:5px">
       <span class="resource-recovery ${recovery}">${recLabel}</span>
       ${(def.isCustom && !def._builtin && (!def._autoManaged || isDM)) ? `<span style="cursor:pointer;color:var(--text3);font-size:12px;line-height:1;padding:0 2px" title="${def._autoManaged ? 'DM override — normally auto-managed by the item/feat that grants it' : 'Edit this resource'}" onclick="event.stopPropagation();openEditCustomResource('${def.id}')">&#9998;</span>` : ''}
@@ -48962,7 +49059,7 @@ window.openAddResourceModal = openAddResourceModal;
 // resources had no way to be edited at all once created; the only action
 // available was removing and re-adding from scratch.
 let _resourceDetailJumpName = null;
-function openResourceDetail(name, desc, meta, customId, jumpName, spellKey) {
+function openResourceDetail(name, desc, meta, customId, jumpName, spellKey, overrideKey) {
   if (spellKey) {
     // Racial/feat-granted spell resources (e.g. "Cast Hunter's Mark once
     // without a slot") aren't Features-tab cards at all — they're spells,
@@ -48985,9 +49082,21 @@ function openResourceDetail(name, desc, meta, customId, jumpName, spellKey) {
   // reused here (most resource popups are literally that same RAW text)
   // showed its literal " | " separators as visible text with no bolding,
   // instead of matching how the same text already renders elsewhere.
-  body.innerHTML = desc
+  //
+  // overrideKey (when present — class/subclass resources with a real
+  // catalog identity; not set for custom or feat/item-granted resources,
+  // which are already editable their own way) gets a DM edit pencil, same
+  // pattern as openFeatInfoModal/openClassFeatureInfoModal. desc arriving
+  // here has already had getEffectiveText() applied by the caller, so the
+  // pencil's fallback text (what shows if you clear the override) is
+  // resolved through the same key again here just to be safe against any
+  // future caller that passes raw text instead.
+  const editPencil = (isDM && overrideKey)
+    ? `<div style="text-align:right;margin-bottom:6px"><span style="cursor:pointer;color:var(--text3);font-size:11px" title="Edit RAW text" onclick="openTextOverrideModal(${JSON.stringify(overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(name + ' — Resource').replace(/"/g,'&quot;')},${JSON.stringify(getEffectiveText(overrideKey, desc)).replace(/"/g,'&quot;')})">✎ Edit RAW text</span></div>`
+    : '';
+  body.innerHTML = editPencil + (desc
     ? `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${formatFeatureDescHtml(desc)}</div>`
-    : '<em style="color:var(--text3)">No description available.</em>';
+    : '<em style="color:var(--text3)">No description available.</em>');
   if (typeof linkifyGlossaryTerms === 'function') body.innerHTML = linkifyGlossaryTerms(body.innerHTML, name);
 
   const jumpBtn = document.getElementById('resource-detail-jump-btn');
@@ -49307,7 +49416,11 @@ function buildAllResourceDefs() {
         // exact same "which class's level counts" problem as the dedicated
         // subclass resources just above, for the same reason.
         const resDef = { id, name: label, recovery: _nativeOv ? _nativeOv.recovery : f.recovery, _resClass: eCls };
-        if (_nativeOv) resDef._max = _nativeOv.usages === 'prof_bonus' ? prof : _nativeOv.usages;
+        if (_nativeOv) {
+          if (_nativeOv.usages === 'prof_bonus') resDef._max = prof;
+          else if (typeof _nativeOv.usages === 'number') resDef._max = _nativeOv.usages;
+          else resDef.maxFormula = _nativeOv.usages; // ability-mod key (e.g. "wis_mod") — resolved by getResourceMax()
+        }
         else if (usagesIsNumber) resDef._max = f.usages;
         else if (usagesIsArray) resDef.maxByLevel = f.usages; // level-indexed array, e.g. Zealot's Healing Pool
         else if (f.usages === 'prof_bonus') resDef._max = prof;
@@ -49374,8 +49487,8 @@ function buildAllResourceDefs() {
     const _nativeOvReset = _dmNativeResourceOverride(`feat:${featName}`);
     if (_nativeOvReset || (featData?.usages && featData?.recovery)) {
       const id = 'feat_res_' + (featKeyForReset||featName).replace(/[^a-z0-9]/g,'_');
-      const usagesVal = _nativeOvReset ? (_nativeOvReset.usages === 'prof_bonus' ? prof : _nativeOvReset.usages)
-        : featData.usages === 'prof_bonus' ? prof : featData.usages;
+      const usagesVal = _nativeOvReset ? resolveFeatureUsage(_nativeOvReset.usages, level)
+        : resolveFeatureUsage(featData.usages, level);
       const recoveryVal = _nativeOvReset ? _nativeOvReset.recovery : featData.recovery;
       add({ id, name: featName, _max: usagesVal, recovery: recoveryVal });
     }
@@ -52812,6 +52925,20 @@ window.featPrereqWarningMarker = featPrereqWarningMarker;
 function formatFeatDescHtml(desc) {
   if (!desc) return '';
   const segments = desc.split('|').map(s => s.trim()).filter(Boolean);
+  // Standard Markdown emphasis, anywhere in a segment: *text* italic,
+  // **text** bold, ***text*** both. Order matters — triple must be
+  // consumed first, or the double-asterisk pass would match two of a
+  // triple's three asterisks and leave the third stranded as a stray
+  // italic marker. Each pass fully removes the asterisks it matches, so
+  // by the time the single-asterisk pass runs, every double/triple pair
+  // is already gone and can't be re-matched as two separate italics.
+  // Restricted to one line (no linebreak) inside each pair so a stray
+  // lone "*" elsewhere in the text can't accidentally swallow the rest
+  // of the paragraph as emphasis.
+  const formatMdEmphasis = s => s
+    .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
   return segments.map((seg, i) => {
     const marginStyle = i === segments.length - 1 ? '' : 'margin-bottom:8px;';
     // A label is one or more Title-Case words at the very start of the
@@ -52827,9 +52954,9 @@ function formatFeatDescHtml(desc) {
     // period entirely and falling through as an unbolded plain paragraph.
     const m = seg.match(/^([A-Z][A-Za-z'\u2019\-]*(?:\s(?:[A-Z][A-Za-z'\u2019\-]*|and|or|of|the|a|an|in|to|for|with|from|by|your|my)){0,6}\.)(\s+)([\s\S]+)$/);
     if (m) {
-      return `<div style="${marginStyle}"><strong>${m[1]}</strong> ${m[3]}</div>`;
+      return `<div style="${marginStyle}"><strong>${m[1]}</strong> ${formatMdEmphasis(m[3])}</div>`;
     }
-    return `<div style="${marginStyle}">${seg}</div>`;
+    return `<div style="${marginStyle}">${formatMdEmphasis(seg)}</div>`;
   }).join('');
 }
 
@@ -55417,7 +55544,12 @@ function _initTooltip() {
     if (!desc && !name) return;
     document.getElementById('tt-name').textContent = name;
     document.getElementById('tt-meta').textContent = meta;
-    document.getElementById('tt-desc').textContent = desc.replace(/\|/g,' · ');
+    // Same formatter the Features tab / detail modals use (bold "Label."
+    // sub-headings, proper paragraph breaks) instead of the old plain-text
+    // "|" → " · " swap, which just ran every paragraph together with a
+    // middot between them and no way to bold anything since this was
+    // .textContent, not .innerHTML.
+    document.getElementById('tt-desc').innerHTML = formatFeatureDescHtml(desc);
     const hintEl = document.getElementById('tt-hint');
     if (hint) { hintEl.textContent = hint; hintEl.style.display = ''; }
     else       { hintEl.style.display = 'none'; }
