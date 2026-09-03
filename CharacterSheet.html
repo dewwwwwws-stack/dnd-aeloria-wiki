@@ -14505,8 +14505,8 @@ const PHB_CLASS_RESOURCES     = {
       "desc": "Once per Long Rest, when you finish a Short Rest, you can choose to expend this feature to recover spell slots with a combined level \u2264 half your Wizard level (rounded up), none above 5th level."
     }
   ],
-  "artificer": [{"id":"flash_of_genius","name":"Flash of Genius","maxFormula":"Math.max(1,int_mod)","recovery":"long rest","minLevel":7},{"id":"replicated_items","name":"Replicated Items","maxFormula":"level>=18?6:level>=14?5:level>=10?4:level>=6?3:2","recovery":"long rest","minLevel":2}],
-  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","dieFormula":"level<5?'4d6':level<9?'6d8':level<13?'8d'+( level<11?'8':'10'):level<17?'10d10':'12d12'","recovery":"short rest"},{"id":"psionic_restoration","name":"Psionic Restoration","type":"activate-recovery","recoveryAction":"restorePsionicDice","desc":"Meditate for 1 minute. At the end of it, regain all expended Psionic Energy Dice. Once you use this feature, you can't do so again until you finish a Long Rest.","_max":1,"recovery":"long rest","minLevel":5}]
+  "artificer": [{"id":"flash_of_genius","name":"Flash of Genius","maxFormula":"Math.max(1,int_mod)","recovery":"long rest","minLevel":7},{"id":"replicated_items","name":"Replicated Items","featureName":"Replicate Magic Item","maxFormula":"level>=18?6:level>=14?5:level>=10?4:level>=6?3:2","recovery":"long rest","minLevel":2}],
+  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","featureName":"Psionic Power","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","dieFormula":"level<5?'4d6':level<9?'6d8':level<13?'8d'+( level<11?'8':'10'):level<17?'10d10':'12d12'","recovery":"short rest"},{"id":"psionic_restoration","name":"Psionic Restoration","type":"activate-recovery","recoveryAction":"restorePsionicDice","desc":"Meditate for 1 minute. At the end of it, regain all expended Psionic Energy Dice. Once you use this feature, you can't do so again until you finish a Long Rest.","_max":1,"recovery":"long rest","minLevel":5}]
 };
 const PHB_SUBCLASS_RESOURCES = {
   "barbarian/berserker": [
@@ -14610,6 +14610,7 @@ const PHB_SUBCLASS_RESOURCES = {
     {
       "id": "sc_bm_superiority",
       "name": "Superiority Dice",
+      "featureName": "Combat Superiority",
       "maxByLevel": [
         0,
         0,
@@ -14648,6 +14649,7 @@ const PHB_SUBCLASS_RESOURCES = {
     {
       "id": "sc_psi_dice",
       "name": "Psionic Energy Dice",
+      "featureName": "Psionic Power",
       "type": "formula",
       "maxFormula": "level<5?4:level<9?6:level<13?8:level<17?10:12",
       "dieFormula": "level<5?'4d6':level<9?'6d8':level<11?'8d8':level<13?'8d10':level<17?'10d10':'12d12'",
@@ -14744,6 +14746,7 @@ const PHB_SUBCLASS_RESOURCES = {
     {
       "id": "sc_soulknife_dice",
       "name": "Psionic Energy Dice",
+      "featureName": "Psionic Power",
       "type": "formula",
       "maxFormula": "level<5?4:level<9?6:level<13?8:level<17?10:12",
       "dieFormula": "level<5?'4d6':level<9?'6d8':level<11?'8d8':level<13?'8d10':level<17?'10d10':'12d12'",
@@ -16952,6 +16955,7 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
     {
       "id": "faithful_steed",
       "name": "Faithful Steed",
+      "_spellKey": "find_steed",
       "recovery": "long",
       "minLevel": 5,
       "maxByLevel": [
@@ -17080,6 +17084,7 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
     {
       "id": "contact_patron",
       "name": "Contact Patron",
+      "_spellKey": "commune",
       "recovery": "long",
       "minLevel": 9,
       "maxByLevel": [
@@ -17111,6 +17116,7 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
     {
       "id": "mystic_arcanum_6",
       "name": "Mystic Arcanum (6th)",
+      "featureName": "Mystic Arcanum",
       "recovery": "long",
       "minLevel": 11,
       "maxByLevel": [0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1]
@@ -17118,6 +17124,7 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
     {
       "id": "mystic_arcanum_7",
       "name": "Mystic Arcanum (7th)",
+      "featureName": "Mystic Arcanum",
       "recovery": "long",
       "minLevel": 13,
       "maxByLevel": [0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1]
@@ -17125,6 +17132,7 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
     {
       "id": "mystic_arcanum_8",
       "name": "Mystic Arcanum (8th)",
+      "featureName": "Mystic Arcanum",
       "recovery": "long",
       "minLevel": 15,
       "maxByLevel": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1]
@@ -17132,6 +17140,7 @@ const SUPPLEMENTAL_CLASS_RESOURCES    = {
     {
       "id": "mystic_arcanum_9",
       "name": "Mystic Arcanum (9th)",
+      "featureName": "Mystic Arcanum",
       "recovery": "long",
       "minLevel": 17,
       "maxByLevel": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1]
@@ -17353,6 +17362,7 @@ const SUPPLEMENTAL_SUBCLASS_RESOURCES = {
     {
       "id": "telekinetic_master",
       "name": "Telekinetic Master",
+      "_spellKey": "telekinesis",
       "recovery": "long",
       "maxByLevel": [
         0,
@@ -17477,6 +17487,7 @@ const SUPPLEMENTAL_SUBCLASS_RESOURCES = {
     {
       "id": "fey_reinforcements",
       "name": "Fey Reinforcements",
+      "_spellKey": "summon_fey",
       "recovery": "long",
       "maxByLevel": [
         0,
@@ -17935,10 +17946,11 @@ const RACIAL_RESOURCES                = {
     }
   ],
   "tiefling": [
-    {"id": "hellish_rebuke_racial", "name": "Hellish Rebuke", "recovery": "long", "maxByLevel": [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "Cast Hellish Rebuke as a reaction once per Long Rest."},
+    {"id": "hellish_rebuke_racial", "name": "Hellish Rebuke", "_spellKey": "hellish_rebuke", "recovery": "long", "maxByLevel": [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "Cast Hellish Rebuke as a reaction once per Long Rest."},
     {
       "id": "darkness_racial",
       "name": "Darkness",
+      "_spellKey": "darkness",
       "recovery": "long",
       "maxByLevel": [
         0,
@@ -18001,7 +18013,7 @@ const RACIAL_RESOURCES                = {
       "desc": "Become Large size for 10 min as a Bonus Action."
     }
   ],
-  "gnome": [{"id":"speak_with_animals_racial","name":"Speak with Animals","recovery":"long","minLevel":1,"maxByLevel":[0,1,1,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],"desc":"Cast Speak with Animals without a spell slot (PB uses per Long Rest)."}]
+  "gnome": [{"id":"speak_with_animals_racial","name":"Speak with Animals","_spellKey":"speak_with_animals","recovery":"long","minLevel":1,"maxByLevel":[0,1,1,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],"desc":"Cast Speak with Animals without a spell slot (PB uses per Long Rest)."}]
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -41761,6 +41773,18 @@ function addMagicItemToCharacter(char, key) {
     });
   }
 
+  // This was missing entirely — grantedSpells (above) gets copied from
+  // the catalog onto every new item, but grantedResources never did, for
+  // any item, ever. No per-character resource-id bookkeeping needed here
+  // like grantedSpells' limited-use case has: syncMagicItemGrantedResources()
+  // already runs on every render and builds/maintains the actual
+  // customResources entries directly from item.grantedResources, keyed
+  // off this item's own _uid — it just needs the field to actually exist
+  // on the owned item to find in the first place.
+  if (def.grantedResources?.length) {
+    newItem.grantedResources = def.grantedResources.map(gr => ({ ...gr }));
+  }
+
   char.magicItems.push(newItem);
   return { added: true, item: newItem };
 }
@@ -42898,6 +42922,19 @@ async function saveDMCatalogItem() {
           mi.isAmmo     = isAmmo;
           mi.desc       = desc;
           mi.effects    = Object.keys(effects).length ? effects : null;
+          // These two were missing entirely — every other definitional
+          // field above already propagated to an already-owned copy, but
+          // a DM adding/editing a granted spell or resource on an
+          // existing catalog item (e.g. adding a second granted resource
+          // to Aboleth Brain) never reached characters who already had
+          // the item in their inventory. syncMagicItemGrantedResources()
+          // rebuilds each resource's tracking id fresh from the item's
+          // _uid + the resource's (slugified) name every time it runs, so
+          // simply overwriting the array here is enough — a resource
+          // whose name is unchanged keeps the same id and its usage
+          // count automatically, no extra merge bookkeeping needed.
+          mi.grantedResources = grantedResources.length ? grantedResources : null;
+          mi.grantedSpells    = grantedSpells.length ? grantedSpells : null;
         });
         await GH.putFile(`${entry.id}.json`, entry.char, entry.sha);
         broadcastCharUpdate(entry.id, 'magicItems');
@@ -47904,7 +47941,7 @@ function renderResourceTracker() {
         const key = `classresource:${eCls}:${r.id}`;
         return { ...r, desc: getEffectiveText(key, r.desc), _overrideKey: key };
       }
-      const m = classFeaturesForDesc.find(f => f.name === r.name);
+      const m = classFeaturesForDesc.find(f => f.name === (r.featureName || r.name));
       if (!m) return r;
       const key = `class:${eCls}:${m.name}`;
       return { ...r, desc: getEffectiveText(key, m.desc), _overrideKey: key };
@@ -47941,7 +47978,7 @@ function renderResourceTracker() {
         // underlying resource data has minLevel:1 as an unexamined
         // default rather than an intentional level-1 unlock, so clamp it.
         if (eLv >= Math.max(3, r.minLevel||1) && (getResourceMax(r, eLv, prof) > 0 || r.type === 'modal-button') && !allDefs.find(d => d.id === r.id)) {
-          const matchingFeature = subFeaturesForDesc.find(f => f.name === r.name);
+          const matchingFeature = subFeaturesForDesc.find(f => f.name === (r.featureName || r.name));
           let withOverride;
           if (r.desc) {
             const key = `subclassresource:${eSubKey}:${r.id}`;
@@ -48504,7 +48541,13 @@ function renderResourceEntry(def, level, prof) {
   const _ttDesc = (def.desc||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const _ttName = (def.name||def.label||'').replace(/"/g,'&quot;');
   const _ttMeta = def.recoveryNote ? `Manual only - ${def.recoveryNote}` : recovery ? `Recovers on ${recovery === 'short' ? 'Short Rest' : recovery === 'long' ? 'Long Rest' : recovery}` : '';
-  const _ttJumpName = (def.name||def.label||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  // A resource's own display name doesn't always match the class/subclass
+  // feature that actually grants it (e.g. Psion's "Psionic Energy Dice"
+  // resource comes from a feature named "Psionic Power") — featureName,
+  // when the catalog entry has one, points the jump button at the real
+  // Features-tab card instead of silently failing to find one named after
+  // the resource itself.
+  const _ttJumpName = (def.featureName||def.name||def.label||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
   const recLabel = recovery === 'short' ? 'SR' : recovery === 'long' ? 'LR' : recovery === 'dusk' ? 'DUSK' : recovery === 'dawn' ? 'DAWN' : 'MANUAL';
 
   // Evaluate dieFormula if present (e.g. psionic energy dice size)
