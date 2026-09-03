@@ -48979,8 +48979,14 @@ function openResourceDetail(name, desc, meta, customId, jumpName, spellKey) {
   document.getElementById('resource-detail-title').textContent = name || 'Resource';
   document.getElementById('resource-detail-meta').textContent = meta || '';
   const body = document.getElementById('resource-detail-body');
+  // Same formatter the Features tab pills use (bold "Label." sub-headings,
+  // " | "-separated paragraphs, inline [TABLE:...]/[+] tables) — this used
+  // to just do a bare \n-to-<br> replace, so any feature/feat description
+  // reused here (most resource popups are literally that same RAW text)
+  // showed its literal " | " separators as visible text with no bolding,
+  // instead of matching how the same text already renders elsewhere.
   body.innerHTML = desc
-    ? `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${desc.replace(/\n/g, '<br>')}</div>`
+    ? `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${formatFeatureDescHtml(desc)}</div>`
     : '<em style="color:var(--text3)">No description available.</em>';
   if (typeof linkifyGlossaryTerms === 'function') body.innerHTML = linkifyGlossaryTerms(body.innerHTML, name);
 
