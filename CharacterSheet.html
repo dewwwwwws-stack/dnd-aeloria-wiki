@@ -38034,18 +38034,26 @@ function openWeaponDetail(idx) {
   const name = entry.name || phb?.name || 'Weapon';
   document.getElementById('weapon-detail-title').textContent = name;
 
+  // A weapon entry tied to an owned magic item (entry._fromMagicItem) has
+  // its own distinct artwork under the magic item's own catalog key — the
+  // mundane weapon type's key (entry.weaponKey, e.g. "dagger") only ever
+  // pointed at the generic version. linkedItem needs computing here,
+  // before the image tag is built, rather than further down where it was
+  // only used for pills/description — this modal was always showing the
+  // plain mundane weapon picture even for a magic item, never the item's
+  // own art.
+  const linkedItem = entry._fromMagicItem
+    ? (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem)
+    : null;
+
   const imgEl = document.getElementById('weapon-detail-img');
-  if (imgEl) imgEl.innerHTML = itemDetailImgTag(entry.weaponKey);
+  if (imgEl) imgEl.innerHTML = itemDetailImgTag(linkedItem?.key || entry.weaponKey);
 
   const properties = (phb?.properties || [])
     .map(p => p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
     .join(', ');
   const masteryDesc = phb?.mastery ? getWeaponMasteryDesc(phb.mastery, phb.mastery_desc) : '';
   const rangeTxt = phb?.thrown_range ? `${phb.range} (thrown ${phb.thrown_range})` : (phb?.range || entry.range || '');
-
-  const linkedItem = entry._fromMagicItem
-    ? (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem)
-    : null;
 
   const pills = [
     phb?.type ? `<span class="meta-pill">${phb.type}</span>` : '',
@@ -38388,13 +38396,18 @@ function openArmorDetail(idx) {
   const name = entry.name || phb?.name || 'Armor';
   document.getElementById('armor-detail-title').textContent = name;
 
-  const imgEl2 = document.getElementById('armor-detail-img');
-  if (imgEl2) imgEl2.innerHTML = itemDetailImgTag(entry.key);
-
-  const ac = entry.customAC || phb?.ac;
+  // Same fix as openWeaponDetail — an armor entry tied to an owned magic
+  // item has its own artwork under the magic item's own catalog key, not
+  // the mundane armor type's key. linkedItem needs to exist before the
+  // image tag is built.
   const linkedItem = entry._fromMagicItem
     ? (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem)
     : null;
+
+  const imgEl2 = document.getElementById('armor-detail-img');
+  if (imgEl2) imgEl2.innerHTML = itemDetailImgTag(linkedItem?.key || entry.key);
+
+  const ac = entry.customAC || phb?.ac;
 
   const pills = [
     phb?.type ? `<span class="meta-pill">${phb.type} Armor</span>` : '',
