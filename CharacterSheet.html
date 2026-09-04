@@ -13295,7 +13295,7 @@ const PHB_INVOCATIONS = [
   { "name":"Gift of the Depths (5+)",                "clean":"Gift of the Depths",                "minLevel":5, "pact":null, "cantripReq":null, "grantedSpell":"water_breathing", "grantType":"atWill", "desc":"I can breathe underwater, and I gain a Swim Speed equal to my Speed. I can also cast Water Breathing once without expending a spell slot. I regain the ability to cast it in this way again when I finish a long rest.", "effects":[] },
   { "name":"Gift of the Protectors (PoT, 9+)",       "clean":"Gift of the Protectors",            "minLevel":9, "pact":"tome","cantripReq":null, "desc":"A new page appears in my Book of Shadows when I conjure it. With my permission, a creature can take an action to write its name on that page, which can contain a number of names equal to my Charisma modifier (minimum of one name). When any creature whose name is on the page is reduced to 0 Hit Points but not killed outright, the creature magically drops to 1 Hit Point instead. Once this magic is triggered, no creature can benefit from it until I finish a long rest. As a Magic action, I can erase a name on the page by touching it.", "effects":[] },
   { "name":"Investment of the Chain Master (PoC, 5+)","clean":"Investment of the Chain Master",   "minLevel":5, "pact":"chain","cantripReq":null, "desc":"When I cast Find Familiar, I infuse the summoned familiar with a measure of my eldritch power, granting the creature the following benefits. | Aerial or Aquatic. The familiar gains either a Fly Speed or a Swim Speed (my choice) of 40 feet. | Quick Attack. As a bonus action, I can command the familiar to take the Attack action. | Necrotic or Radiant Damage. Whenever the familiar deals Bludgeoning, Piercing, or Slashing damage, I can make it deal Necrotic or Radiant damage instead. | My Save DC. If the familiar forces a creature to make a saving throw, it uses my spell save DC. | Resistance. When the familiar takes damage, I can take a reaction to grant it resistance against that damage.", "effects":[] },
-  { "name":"Lessons of the First Ones (2+)",         "clean":"Lessons of the First Ones",         "minLevel":2, "pact":null, "cantripReq":null, "desc":"I have received knowledge from an elder entity of the multiverse, allowing me to gain one Origin feat of my choice. Repeatable. I can gain this invocation more than once. Each time I do so, I choose a different Origin feat.", "effects":[] },
+  { "name":"Lessons of the First Ones (2+)",         "clean":"Lessons of the First Ones",         "minLevel":2, "pact":null, "cantripReq":null, "repeatable":true, "desc":"I have received knowledge from an elder entity of the multiverse, allowing me to gain one Origin feat of my choice. Repeatable. I can gain this invocation more than once. Each time I do so, I choose a different Origin feat.", "effects":[] },
   { "name":"Lifedrinker (PoB, 9+)",                  "clean":"Lifedrinker",                       "minLevel":9, "pact":"blade","cantripReq":null, "desc":"Once per turn when I hit a creature with my pact weapon, I can deal an extra 1d6 Necrotic, Psychic, or Radiant damage (my choice) to the creature, and I can expend one of my Hit Point Dice to roll it and regain a number of Hit Points equal to the roll plus my Constitution modifier (minimum of 1 Hit Point).", "effects":[] },
   { "name":"Mask of Many Faces (2+)",                "clean":"Mask of Many Faces",                "minLevel":2, "pact":null, "cantripReq":null, "grantedSpell":"disguise_self", "grantType":"atWill", "desc":"I can cast Disguise Self without expending a spell slot.", "effects":[] },
   { "name":"Master of Myriad Forms (5+)",            "clean":"Master of Myriad Forms",            "minLevel":5, "pact":null, "cantripReq":null, "grantedSpell":"alter_self",   "grantType":"atWill", "desc":"I can cast Alter Self without expending a spell slot.", "effects":[] },
@@ -43230,6 +43230,33 @@ async function saveDMCatalogItem() {
           // count automatically, no extra merge bookkeeping needed.
           mi.grantedResources = grantedResources.length ? grantedResources : null;
           mi.grantedSpells    = grantedSpells.length ? grantedSpells : null;
+
+          // Sync the linked charge-resource in the Resources panel too.
+          // Owned items don't store charges on themselves — addMagicItemToCharacter
+          // creates a separate customResources entry (keyed by _resourceId) at
+          // add-time from the catalog's charges — so editing charges here has to
+          // reach into that entry the same way saveCustomItemModal already does
+          // for player-owned custom items, or the pip tracker keeps showing
+          // whatever max/recovery existed when the item was originally added.
+          if (!entry.char.customResources) entry.char.customResources = [];
+          if (hasCharges) {
+            let res = mi._resourceId ? entry.char.customResources.find(r => r.id === mi._resourceId) : null;
+            if (!res) {
+              const resId = 'item_' + mi._uid;
+              res = { id: resId, name, desc: '', max: chargeMax, recovery: chargeRecovery, recoveryNote: chargeNote, _fromMagicItem: mi._uid };
+              entry.char.customResources.push(res);
+              mi._resourceId = resId;
+            } else {
+              res.max          = chargeMax;
+              res.recovery      = chargeRecovery;
+              res.recoveryNote  = chargeNote;
+              res.name          = name;
+            }
+          } else if (mi._resourceId) {
+            entry.char.customResources = entry.char.customResources.filter(r => r.id !== mi._resourceId);
+            if (entry.char.resources) delete entry.char.resources[mi._resourceId];
+            mi._resourceId = null;
+          }
         });
         await GH.putFile(`${entry.id}.json`, entry.char, entry.sha);
         broadcastCharUpdate(entry.id, 'magicItems');
@@ -47601,6 +47628,25 @@ function renderInvocationsModal() {
     const fullDesc  = FULL_DESCS[inv.clean] || inv.desc || '';
     const instances = selectedByName[inv.clean] || [];
 
+    if (inv.repeatable && !inv.cantripPick) {
+      // Non-cantrip repeatable (e.g. Lessons of the First Ones) — no per-instance
+      // data to pick here; the granted Origin feat is chosen via its own slot in
+      // the Feats & ASI panel (one slot per instance, wired in getFeatSlots()).
+      const canAdd2 = ok && !isFull;
+      return `<div style="background:var(--bg3);border:1px solid ${instances.length?'var(--accent)':'var(--border)'};border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;${ok?'':'opacity:.5'}">
+        <div style="font-family:var(--font-title);font-size:13px;font-weight:600;color:${instances.length?'var(--accent)':'var(--text)'};margin-bottom:3px">${inv.clean} <span style="font-size:9px;color:var(--text3);font-family:var(--font-ui);font-weight:400;letter-spacing:.5px">REPEATABLE</span></div>
+        ${prereqTxt ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);opacity:.7;margin-bottom:5px">Prerequisite: ${prereqTxt}</div>` : ''}
+        ${!ok ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--red);margin-bottom:5px">🔒 ${inv.minLevel > warlockLv ? `Requires Warlock level ${inv.minLevel}` : 'Prerequisites not met'}</div>` : ''}
+        <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px">${fullDesc}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--font-ui);font-size:11px;color:var(--text2)">Taken ${instances.length}×</span>
+          ${canAdd2 ? `<button class="tbtn" style="font-size:10px;padding:4px 10px;background:var(--bg);border:1px solid var(--border)" onclick="addRepeatableInvocation('${inv.clean.replace(/'/g,"\\'")}',null)">+ Add another</button>` : (isFull && !instances.length ? `<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Invocation slots full.</span>` : '')}
+          ${instances.length ? `<button class="tbtn" style="font-size:10px;padding:4px 10px;background:var(--red-dim,#3a1515);color:var(--red)" onclick="removeInvocationByKey('${inv.clean.replace(/'/g,"\\'")}|')">Remove one</button>` : ''}
+        </div>
+        ${instances.length ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px">Pick each Origin feat in the Feats &amp; ASI panel — one slot per instance.</div>` : ''}
+      </div>`;
+    }
+
     if (inv.repeatable) {
       // Show selected instances + add button
       const cantripList = getPickableCantrips(inv.cantripPick);
@@ -47696,8 +47742,10 @@ function addRepeatableInvocation(invName, cantripKey) {
     toast(`Already at your invocation limit (${maxCount} at Warlock level ${warlockLv}) - remove one first. Pact Boons count toward this total too.`, 'warn');
     return;
   }
-  // Prevent same cantrip being added twice for the same invocation
-  const alreadyUsed = arr.some(e => typeof e === 'object' && e.name === invName && e.cantrip === cantripKey);
+  // Prevent same cantrip being added twice for the same invocation.
+  // Non-cantrip repeatables (e.g. Lessons of the First Ones) pass cantripKey=null
+  // and are always allowed to stack — there's no cantrip to dedupe against.
+  const alreadyUsed = cantripKey && arr.some(e => typeof e === 'object' && e.name === invName && e.cantrip === cantripKey);
   if (alreadyUsed) return;
   arr.push({ name: invName, cantrip: cantripKey });
   currentChar.class_choices.eldritch_invocations = arr;
@@ -47778,7 +47826,7 @@ function removeInvocationByKey(key) {
     if (idx === -1) idx = arr.findIndex(e => (typeof e === 'string' ? e : e.name) === invName);
   } else {
     const [invName, cantripKey] = key.split('|');
-    idx = arr.findIndex(e => typeof e === 'object' && e.name === invName && e.cantrip === cantripKey);
+    idx = arr.findIndex(e => typeof e === 'object' && e.name === invName && (e.cantrip === cantripKey || (!e.cantrip && !cantripKey)));
   }
   if (idx >= 0) arr.splice(idx, 1);
   currentChar.class_choices.eldritch_invocations = arr;
