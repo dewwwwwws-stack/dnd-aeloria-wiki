@@ -38388,9 +38388,10 @@ function openWeaponDetail(idx) {
     bodyHtml += `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${descSrc.replace(/\n/g, '<br>')}</div>`;
   }
   if (linkedItem?.desc) {
+    const liveDesc = getEffectiveItemDesc(linkedItem);
     bodyHtml += `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
       <div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px">Magic Item - ${(linkedItem.customName || linkedItem.name || '').replace(/</g,'&lt;')}</div>
-      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${linkedItem.desc.replace(/\n/g, '<br>')}</div>
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${liveDesc.replace(/\n/g, '<br>')}</div>
     </div>`;
   }
   const finalBodyHtml = bodyHtml || '<em style="color:var(--text3)">No description available.</em>';
@@ -38733,9 +38734,10 @@ function openArmorDetail(idx) {
     bodyHtml += `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${descSrc.replace(/\n/g, '<br>')}</div>`;
   }
   if (linkedItem?.desc) {
+    const liveDesc = getEffectiveItemDesc(linkedItem);
     bodyHtml += `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
       <div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px">Magic Item - ${(linkedItem.customName || linkedItem.name || '').replace(/</g,'&lt;')}</div>
-      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${linkedItem.desc.replace(/\n/g, '<br>')}</div>
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${liveDesc.replace(/\n/g, '<br>')}</div>
     </div>`;
   }
   const finalBodyHtml = bodyHtml || '<em style="color:var(--text3)">No description available.</em>';
@@ -40330,7 +40332,31 @@ window.getEffectiveItemRarity = getEffectiveItemRarity;
 // view only ever showed the boilerplate "if the spell is on your list…"
 // text, never what the scroll's specific spell actually does.
 function getEffectiveItemDesc(item) {
-  const base = item?.desc || '';
+  // Prefer the item's *current* catalog description over whatever text was
+  // frozen onto the owned copy at add-time (addMagicItemToCharacter copies
+  // desc: def.desc once and never again) — otherwise every catalog
+  // description edit (reformatting a wall of text, fixing a typo, adding
+  // markdown) needs a manual remove+re-add on every character who already
+  // owns the item before it shows up. Falls back to the item's own stored
+  // text for fully custom items (no catalog key) or if its catalog entry
+  // has since been deleted.
+  const live = item?.key ? getEffectiveMagicItemsCatalog().find(i => i.key === item.key) : null;
+  let base = item?.desc || '';
+  if (live?.desc) {
+    if (live.tiers) {
+      // Named-tier items — re-derive from the live tier's own text/dice,
+      // same substitution refreshVariableItemText does, just against fresh
+      // catalog text instead of the stale _baseDesc snapshot.
+      const tier = live.tiers[String(item.magicBonus || 1)] || live.tiers['1'];
+      base = tier?.dice
+        ? live.desc.replace(/\d+d\d+(?:\s*\+\s*\d+)?\s*Hit Points/i, `${tier.dice} Hit Points`)
+        : live.desc;
+    } else if (item.magicBonus && (live.rarityByBonus || item.rarityByBonus)) {
+      base = getCleanedItemDesc(live.desc, item.magicBonus, live.rarityByBonus || item.rarityByBonus);
+    } else {
+      base = live.desc;
+    }
+  }
   if ((item?.type || '').toLowerCase() === 'scroll' && item?.scrollSpellKey) {
     const spell = PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey);
     if (spell) {
