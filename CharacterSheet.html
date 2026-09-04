@@ -1236,6 +1236,7 @@ body.preview-readonly #mi-detail-edit-row * {
 .sp-known-row.unprepared { opacity: .55; }
 .sp-pip {
   width: 10px; height: 10px;
+  aspect-ratio: 1;
   border-radius: 50%;
   border: 2px solid var(--border2);
   flex-shrink: 0;
@@ -1259,10 +1260,9 @@ body.preview-readonly #mi-detail-edit-row * {
    center dot so it doesn't read as identical to either. */
 .sp-pip.ritual-only::after {
   content: '';
-  position: absolute; top: 50%; left: 50%;
+  position: absolute; inset: 0; margin: auto;
   width: 3px; height: 3px; border-radius: 50%;
   background: var(--pip-color, currentColor);
-  transform: translate(-50%, -50%);
 }
 /* Fill/border colors for prepared/cantrip/subclass/feat-spell/ritual-only/
    subclass-locked now come from the spell's school (see SPELL_SCHOOL_COLORS
@@ -11218,11 +11218,7 @@ const _RLABELS={skilled:'Skilled — Elegant & Learned',novice:'Novice — Simpl
   constellation:'Constellation — Stellar & Discrete',pulse:'Pulse — Beating & Vital'};
 
 function labels(name,level,school,style,w,h=null){
-  if(!h) h=w;
-  const ls=level===0?'Cantrip':`Level ${level}`;
-  return `<text x="${w/2}" y="28" text-anchor="middle" font-family="Jost,sans-serif" font-size="25" fill="#cccccc" font-style="italic">${name}</text>
-<text x="${w/2}" y="52" text-anchor="middle" font-family="Jost,sans-serif" font-size="18" fill="#777">${ls} ${school}</text>
-<text x="${w/2}" y="74" text-anchor="middle" font-family="Jost,sans-serif" font-size="17" fill="#555" font-style="italic">${_RLABELS[style]||style}</text>`;
+  return '';
 }
 
 function svg(content,w,h){ return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">${content}</svg>`; }
