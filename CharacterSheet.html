@@ -3854,7 +3854,7 @@ body.preview-readonly #mi-detail-edit-row * {
         <div id="companion-choice-btns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       </div>
       <div id="battle-familiar-panel" style="display:none;margin-bottom:16px"></div>
-      <div id="companion-blocks" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px"></div>
+      <div id="companion-blocks" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px"></div>
     </div>
   </div>
 
@@ -3989,6 +3989,7 @@ body.preview-readonly #mi-detail-edit-row * {
       <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;scrollbar-width:none">
         <button class="dm-tab active" onclick="switchDMTab('party')" id="dm-tab-party" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid var(--accent);background:none;color:var(--accent);cursor:pointer;white-space:nowrap">Party</button>
         <button class="dm-tab" onclick="switchDMTab('keystats')" id="dm-tab-keystats" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Key Stats</button>
+        <button class="dm-tab" onclick="switchDMTab('summons')" id="dm-tab-summons" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Summons</button>
         <button class="dm-tab" onclick="switchDMTab('campaigns')" id="dm-tab-campaigns" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Campaigns</button>
         <button class="dm-tab" onclick="switchDMTab('items')" id="dm-tab-items" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Items</button>
         <button class="dm-tab" onclick="switchDMTab('feats')" id="dm-tab-feats" style="padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap">Feats &amp; Features</button>
@@ -4018,6 +4019,16 @@ body.preview-readonly #mi-detail-edit-row * {
         <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Key Stats At A Glance</div>
         <div id="dm-keystats-party-switcher" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"></div>
         <div id="dm-key-stats" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- Summons Tab -->
+      <div id="dm-pane-summons" style="display:none">
+        <div style="font-family:var(--font-ui);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Summons, Familiars &amp; Companions</div>
+        <input type="text" class="info-input" id="dm-summon-search" placeholder="Search by name…" style="margin-bottom:8px" oninput="renderDMSummonBestiary()"/>
+        <select class="info-input" id="dm-summon-group-filter" style="margin-bottom:10px" onchange="renderDMSummonBestiary()">
+          <option value="">All Groups</option>
+        </select>
+        <div id="dm-summon-list" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
 
       <!-- Initiative Tab -->
@@ -4896,6 +4907,26 @@ body.preview-readonly #mi-detail-edit-row * {
     </div>
     <div id="mdm-roll" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:8px"></div>
     <div id="mdm-body" style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="summon-image-modal">
+  <div class="modal-box" style="max-width:400px">
+    <div class="modal-title">
+      Set Summon Image
+      <span class="modal-close" onclick="closeModal('summon-image-modal')">&#x2715;</span>
+    </div>
+    <div id="sim-label" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px"></div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div id="sim-art-wrap" style="position:relative;width:64px;height:64px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);flex-shrink:0;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('sim-file').click()" title="Click to upload an image">
+        <img id="sim-art-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none" onload="this.style.display='block';document.getElementById('sim-art-fallback').style.display='none'" onerror="this.style.display='none';document.getElementById('sim-art-fallback').style.display='flex'"/>
+        <span id="sim-art-fallback" style="font-size:20px;color:var(--text3)">🖼</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div id="sim-status" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">Click the thumbnail to upload an image</div>
+      </div>
+    </div>
+    <input type="file" id="sim-file" accept="image/*" style="display:none" onchange="dmUploadSummonImage(this.files[0])"/>
   </div>
 </div>
 
@@ -7569,7 +7600,7 @@ let _dmData = null;   // cached _dm.json content
 let _dmSHA  = null;   // sha for saves
 
 function switchDMTab(tab) {
-  ['party','keystats','campaigns','items','feats','admin'].forEach(t => {
+  ['party','keystats','summons','campaigns','items','feats','admin'].forEach(t => {
     const pane = document.getElementById(`dm-pane-${t}`);
     const btn  = document.getElementById(`dm-tab-${t}`);
     if (!pane || !btn) return;
@@ -7587,6 +7618,7 @@ function switchDMTab(tab) {
   // but if the DM opens Key Stats first, before ever visiting Party, there's
   // nothing cached yet, so fall back to a real load.
   if (tab === 'keystats')  { if (_dmLastGroups) renderDMKeyStats(_dmLastGroups); else loadDMCharList(); }
+  if (tab === 'summons')   renderDMSummonBestiary();
 }
 window.switchDMTab = switchDMTab;
 
@@ -23625,6 +23657,134 @@ const AU_MAGIC_ITEMS = [
 let _dmItemOverrides = {}; // { catalogKey: fullItemObject }
 let _dmItemsSHA = null;
 let _dmItemsLoadedOnce = false; // becomes true after the first successful load this session
+
+// Summon/familiar/companion images use the exact same convention as item
+// art (see dmUploadCatalogItemArt/itemImageUrl) - a real uploaded file at a
+// predictable path, not a URL pasted into a JSON catalog. No load/save
+// round-trip needed at all: existence is just whether the file is there.
+const SUMMON_ART_BRANCH = 'main';
+const _dmSummonSlugify = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+function summonImageUrl(imgKey) {
+  if (!imgKey) return '';
+  return `https://${GH.owner}.github.io/${GH.repo}/summon-images/${_dmSummonSlugify(imgKey)}.webp`;
+}
+
+function getAllSummonCreatures() {
+  const list = [];
+  const seen = new Set();
+
+  // 1. SUMMON_SPELL_DEFS - keyed per-form when forms share a display name
+  // (Bestial Spirit Air/Land/Water etc. can look genuinely different from
+  // each other), otherwise one entry per spell.
+  Object.entries(SUMMON_SPELL_DEFS).forEach(([key, def]) => {
+    if (def.noStatBlock) return;
+    const baseName = def.creatureName || def.name;
+    if (def.forms?.length) {
+      def.forms.forEach(form => {
+        const imgKey = `${key}::${form}`;
+        if (seen.has(imgKey)) return;
+        seen.add(imgKey);
+        list.push({ imgKey, name: `${baseName} (${form})`, group: 'Summon Spells' });
+      });
+    } else {
+      if (seen.has(key)) return;
+      seen.add(key);
+      list.push({ imgKey: key, name: baseName, group: 'Summon Spells' });
+    }
+  });
+
+  // 2. COMPANION_DEFS - every class/subclass's companions array. Uniquely
+  // named, so keyed by name alone - shared across whichever group(s) list
+  // the same creature (e.g. Skeleton appears under both Pact of the Chain
+  // and the Necromancer's Undead Familiar).
+  Object.entries(COMPANION_DEFS).forEach(([groupKey, groupDef]) => {
+    (groupDef.companions || []).forEach(c => {
+      const imgKey = `familiar::${_dmSummonSlugify(c.name)}`;
+      if (seen.has(imgKey)) return;
+      seen.add(imgKey);
+      list.push({ imgKey, name: c.name, group: groupDef.tabLabel || 'Companions & Familiars' });
+    });
+  });
+
+  // 3. PACT_CHAIN_COMPANIONS - Warlock's Pact of the Chain special forms.
+  (PACT_CHAIN_COMPANIONS.companions || []).forEach(c => {
+    const imgKey = `familiar::${_dmSummonSlugify(c.name)}`;
+    if (seen.has(imgKey)) return;
+    seen.add(imgKey);
+    list.push({ imgKey, name: c.name, group: 'Pact of the Chain' });
+  });
+
+  // 4. EYE_OF_WATCHER_COMPANION - a standalone special-familiar constant
+  // living outside COMPANION_DEFS entirely (unlike every other companion
+  // group, which is a property inside that object), so the loop above
+  // never touches it on its own.
+  (EYE_OF_WATCHER_COMPANION.companions || []).forEach(c => {
+    const imgKey = `familiar::${_dmSummonSlugify(c.name)}`;
+    if (seen.has(imgKey)) return;
+    seen.add(imgKey);
+    list.push({ imgKey, name: c.name, group: EYE_OF_WATCHER_COMPANION.tabLabel || 'Familiars' });
+  });
+
+  return list.sort((a, b) => a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group));
+}
+window.getAllSummonCreatures = getAllSummonCreatures;
+
+function renderDMSummonBestiary() {
+  const listEl = document.getElementById('dm-summon-list');
+  const filterEl = document.getElementById('dm-summon-group-filter');
+  if (!listEl || !filterEl) return;
+
+  const all = getAllSummonCreatures();
+
+  // Rebuild the group dropdown's options only when the group set actually
+  // changes, so an open selection isn't reset out from under the DM every
+  // time this re-renders (e.g. after saving an image).
+  const groups = [...new Set(all.map(c => c.group))].sort();
+  const groupsKey = groups.join('|');
+  if (filterEl.dataset.groupsKey !== groupsKey) {
+    const cur = filterEl.value;
+    filterEl.innerHTML = '<option value="">All Groups</option>' + groups.map(g => `<option value="${g}">${g}</option>`).join('');
+    filterEl.value = groups.includes(cur) ? cur : '';
+    filterEl.dataset.groupsKey = groupsKey;
+  }
+
+  const query = (document.getElementById('dm-summon-search')?.value || '').toLowerCase().trim();
+  const groupFilter = filterEl.value;
+
+  const matches = all.filter(c => {
+    if (groupFilter && c.group !== groupFilter) return false;
+    if (query && !c.name.toLowerCase().includes(query)) return false;
+    return true;
+  });
+
+  if (!matches.length) {
+    listEl.innerHTML = '<div style="padding:16px;text-align:center;font-family:var(--font-ui);font-size:11px;color:var(--text3)">No creatures match.</div>';
+    return;
+  }
+
+  let curGroup = null;
+  listEl.innerHTML = matches.map(c => {
+    const safeKey = c.imgKey.replace(/'/g,"\\'");
+    const url = summonImageUrl(c.imgKey);
+    const notesKey = getSummonNotesKey(c.imgKey);
+    const hasNotes = !!(_dmTextOverrides[notesKey] || '').trim();
+    const groupHeader = c.group !== curGroup ? (curGroup = c.group,
+      `<div style="font-family:var(--font-ui);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-top:10px;margin-bottom:2px">${c.group}</div>`) : '';
+    return `${groupHeader}
+      <div style="background:var(--bg3);border-radius:var(--radius);padding:6px 10px;display:flex;align-items:center;gap:10px">
+        <div style="position:relative;width:36px;height:36px;border-radius:4px;border:1px dashed var(--border);background:var(--bg2);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;display:none" onload="this.style.display='block'" onerror="this.style.display='none'"/>
+        </div>
+        <div style="flex:1;font-family:var(--font-ui);font-size:12px;color:var(--text);display:flex;align-items:center;gap:6px">
+          ${c.name}
+          ${hasNotes ? '<span title="Has DM notes" style="font-size:10px">📝</span>' : ''}
+        </div>
+        <button class="tbtn" style="font-size:10px;padding:4px 10px" onclick="openDMSummonImageEditor('${safeKey}',${JSON.stringify(c.name).replace(/"/g,'&quot;')})">Image</button>
+        <button class="tbtn" style="font-size:10px;padding:4px 10px" onclick="openTextOverrideModal(${JSON.stringify(notesKey).replace(/"/g,'&quot;')},${JSON.stringify(c.name + ' - DM Notes').replace(/"/g,'&quot;')},${JSON.stringify(getEffectiveText(notesKey, '')).replace(/"/g,'&quot;')})">${hasNotes ? 'Edit' : 'Add'} Notes</button>
+      </div>`;
+  }).join('');
+}
+window.renderDMSummonBestiary = renderDMSummonBestiary;
 
 async function loadDMItemOverrides() {
   try {
@@ -56063,7 +56223,7 @@ const SUMMON_SPELL_KEYS = new Set([
   'summon_fiend','summon_lesser_demons','summon_shadowspawn','summon_undead',
   'summon_astral_entity','conjure_animals','conjure_elemental','conjure_fey',
   'conjure_minor_elementals','conjure_woodland_beings','animate_dead',
-  'find_familiar','find_steed','danse_macabre','infernal_calling','create_undead',
+  'find_steed','danse_macabre','infernal_calling','create_undead',
   // Arcana Unleashed (third-party) additions - Battle Familiar upgrades an
   // existing Find Familiar familiar (or conjures its own) rather than being
   // a wholly separate creature; Summon Dinosaur/Summon Plant follow the
@@ -56099,7 +56259,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Air','Land','Water'],
     ac: lv => 11 + lv,
     hp: (lv, form) => form === 'Air' ? 20 + (lv-2)*5 : 30 + (lv-2)*5,
-    speed: form => form==='Air' ? '30 ft, Fly 60 ft' : form==='Water' ? '30 ft, Swim 30 ft' : '30 ft, Climb 30 ft',
+    speed: (lv, form) => form==='Air' ? '30 ft, Fly 60 ft' : form==='Water' ? '30 ft, Swim 30 ft' : '30 ft, Climb 30 ft',
     type:'Beast', size:'Small or Medium',
     scores:{str:18,dex:11,con:16,int:4,wis:14,cha:5},
     senses:'Darkvision 60 ft, passive Perception 12',
@@ -56122,7 +56282,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Brute','Flyer','Stalker'],
     ac: (lv,form) => form==='Brute' ? 13+lv : 11+lv,
     hp: (lv,form) => (form==='Brute' ? 30 : 20) + (lv-2)*5,
-    speed: form => `40 ft, Swim 30 ft${form==='Flyer' ? ', Fly 30 ft (hover)' : ''}`,
+    speed: (lv, form) => `40 ft, Swim 30 ft${form==='Flyer' ? ', Fly 30 ft (hover)' : ''}`,
     type:'Celestial, Fey, or Fiend (your choice)', size:'Medium',
     scores:{str:16,dex:16,con:12,int:8,wis:13,cha:10},
     conditionImmunities:'Charmed, Frightened',
@@ -56238,7 +56398,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Air','Earth','Fire','Water'],
     ac: lv => 11 + lv,
     hp: lv => 50 + (lv-4)*10,
-    speed: form => form==='Air' ? '40 ft, Fly 40 ft (hover)' : form==='Earth' ? '40 ft, Burrow 40 ft' : form==='Water' ? '40 ft, Swim 40 ft' : '40 ft',
+    speed: (lv, form) => form==='Air' ? '40 ft, Fly 40 ft (hover)' : form==='Earth' ? '40 ft, Burrow 40 ft' : form==='Water' ? '40 ft, Swim 40 ft' : '40 ft',
     type:'Elemental', size:'Large',
     scores:{str:18,dex:15,con:17,int:4,wis:10,cha:16},
     resistances: (lv, form) => form==='Air' ? 'Lightning, Thunder' : form==='Earth' ? 'Piercing, Slashing' : form==='Water' ? 'Acid' : '',
@@ -56264,7 +56424,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Fungus','Tree','Vine'],
     ac: (lv,form) => form==='Tree' ? 13+lv : 11+lv,
     hp: lv => 50 + (lv-5)*10,
-    speed: form => form==='Vine' ? '40 ft, Climb 40 ft' : '40 ft',
+    speed: (lv, form) => form==='Vine' ? '40 ft, Climb 40 ft' : '40 ft',
     type:'Plant', size:'Large',
     scores:{str:17,dex:13,con:14,int:10,wis:13,cha:10},
     vulnerabilities: (lv, form) => form==='Tree' ? 'Fire' : (form==='Fungus' || form==='Vine') ? 'Slashing' : null,
@@ -56304,7 +56464,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Demon','Devil','Yugoloth'],
     ac: lv => 12 + lv,
     hp: (lv,form) => form==='Demon' ? 50+(lv-6)*15 : form==='Devil' ? 40+(lv-6)*15 : 60+(lv-6)*15,
-    speed: form => form==='Demon' ? '40 ft, Climb 40 ft' : form==='Devil' ? '40 ft, Fly 60 ft' : '40 ft',
+    speed: (lv, form) => form==='Demon' ? '40 ft, Climb 40 ft' : form==='Devil' ? '40 ft, Fly 60 ft' : '40 ft',
     type:'Fiend', size:'Medium',
     scores:{str:13,dex:16,con:15,int:10,wis:10,cha:16},
     resistances:'Fire', immunities:'Poison', conditionImmunities:'Poisoned',
@@ -56324,7 +56484,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Ghostly','Putrid','Skeletal'],
     ac: lv => 11 + lv,
     hp: (lv,form) => form==='Skeletal' ? 20+(lv-3)*10 : 30+(lv-3)*10,
-    speed: form => form==='Ghostly' ? '30 ft, Fly 40 ft (hover)' : '30 ft',
+    speed: (lv, form) => form==='Ghostly' ? '30 ft, Fly 40 ft (hover)' : '30 ft',
     type:'Undead', size:'Medium',
     scores:{str:12,dex:16,con:15,int:4,wis:10,cha:9},
     immunities:'Necrotic, Poison', conditionImmunities:'Exhaustion, Frightened, Paralyzed, Poisoned',
@@ -56348,7 +56508,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Crystal','Ectoplasmic','Ghostly'],
     ac: (lv, form) => form === 'Crystal' ? 11 + lv + 2 : 11 + lv,
     hp: lv => 40 + (lv - 3) * 10,
-    speed: form => form === 'Ghostly' ? '30 ft, Fly 30 ft' : '30 ft',
+    speed: (lv, form) => form === 'Ghostly' ? '30 ft, Fly 30 ft' : '30 ft',
     type:'Aberration', size:'Medium', alignment:'Neutral',
     scores:{str:16, dex:12, con:11, int:16, wis:12, cha:10},
     immunities:'Psychic',
@@ -56426,7 +56586,7 @@ const SUMMON_SPELL_DEFS = {
     forms:['Skeleton','Zombie'],
     ac: (lv, form) => form === 'Skeleton' ? 14 : 8,
     hp: (lv, form) => form === 'Skeleton' ? 13 : 15,
-    speed: form => form === 'Skeleton' ? '30 ft' : '20 ft',
+    speed: (lv, form) => form === 'Skeleton' ? '30 ft' : '20 ft',
     type:'Undead', size:'Medium',
     scores: (lv, form) => form === 'Skeleton'
       ? {str:10,dex:16,con:15,int:6,wis:8,cha:5}
@@ -56682,7 +56842,7 @@ function renderSummonTab() {
 
   const ac = typeof def.ac === 'function' ? def.ac(slotLv, form) : def.ac;
   const hp = typeof def.hp === 'function' ? def.hp(slotLv, form) : 0;
-  const spd = typeof def.speed === 'function' ? def.speed(form) : def.speed;
+  const spd = typeof def.speed === 'function' ? def.speed(slotLv, form) : def.speed;
   const attacks   = typeof def.attacks   === 'function' ? def.attacks(slotLv, form)   : [];
   const traits    = typeof def.traits    === 'function' ? def.traits(slotLv, form)    : (def.traits || []);
   const reactions = typeof def.reactions === 'function' ? def.reactions(slotLv, form) : (def.reactions || []);
@@ -56701,6 +56861,15 @@ function renderSummonTab() {
   const savedHP = currentChar._summonHP?.[spellKey];
   const curHP   = savedHP !== undefined ? savedHP : hp;
 
+  // Image keyed by form when the summon has forms (Ankylosaur/Triceratops/
+  // Tyrannosaur etc. look nothing alike) - falls back to the spellKey-only
+  // image if no form-specific one was uploaded. Real uploaded file (same
+  // convention as item art), global across every character, not per-save.
+  const _imgKey = form ? `${spellKey}::${form}` : spellKey;
+  const _imgLabel = `${def.creatureName||def.name}${form?' ('+form+')':''}`;
+  const _notesKey = getSummonNotesKey(_imgKey);
+  const _notes = getEffectiveText(_notesKey, '');
+
   const abilNames = ['STR','DEX','CON','INT','WIS','CHA'];
   const scores = (typeof def.scores === 'function' ? def.scores(slotLv, form) : def.scores) || {str:10,dex:10,con:10,int:10,wis:10,cha:10};
   const scoreVals = [scores.str,scores.dex,scores.con,scores.int,scores.wis,scores.cha];
@@ -56708,10 +56877,14 @@ function renderSummonTab() {
   const languages = typeof def.languages === 'function' ? def.languages(slotLv, form) : def.languages;
 
   block.innerHTML = `
-    <div class="panel">
+    <div class="panel" style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch">
+    <div style="flex:1 1 420px;min-width:0;max-width:460px">
       <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <div>
-          <div style="font-family:var(--font-heading);font-size:16px;color:var(--accent)">${def.creatureName||def.name}${form?' - '+form:''}</div>
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--accent);display:flex;align-items:center;gap:6px">
+            ${def.creatureName||def.name}${form?' - '+form:''}
+            ${isDM ? `<span style="cursor:pointer;color:var(--text3);font-size:11px" title="${_notes ? 'Edit' : 'Add'} DM notes" onclick="openTextOverrideModal(${JSON.stringify(_notesKey).replace(/"/g,'&quot;')},${JSON.stringify(_imgLabel + ' - DM Notes').replace(/"/g,'&quot;')},${JSON.stringify(_notes).replace(/"/g,'&quot;')})">📝</span>` : ''}
+          </div>
           <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${def.size||''} ${def.type||''} · Slot Level ${slotLv} · Multiattack: ${multiAtk}×</div>
         </div>
         <div style="display:flex;gap:12px">
@@ -56732,6 +56905,8 @@ function renderSummonTab() {
           </div>
         </div>
       </div>
+
+      ${_notes ? `<div style="background:var(--bg3);border-left:2px solid var(--accent);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5;white-space:pre-wrap">${_notes.replace(/</g,'&lt;')}</div>` : ''}
 
       <!-- Ability Scores -->
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:var(--bg3);border-radius:var(--radius);padding:8px;margin-bottom:10px;text-align:center">
@@ -56787,7 +56962,14 @@ function renderSummonTab() {
       <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:10px">
         Spell Save DC: <strong>${spellDC}</strong> · Spell Atk: <strong>${modSign(spellAtk)}</strong> · Concentrates as caster.
       </div>
-    </div>`;
+    </div>
+
+    <!-- Large portrait, fills whatever space this panel has left -->
+    <div style="position:relative;flex:1 1 200px;min-width:180px;min-height:220px;border-radius:var(--radius);overflow:hidden;background:var(--bg2);border:1px dashed var(--border);${isDM ? 'cursor:pointer' : ''}" ${isDM ? `onclick="openDMSummonImageEditor('${_imgKey.replace(/'/g,"\\'")}',${JSON.stringify(_imgLabel).replace(/"/g,'&quot;')})" title="Click to set an image"` : ''}>
+      <img src="${summonImageUrl(_imgKey)}" alt="" style="width:100%;height:100%;object-fit:contain;display:none" onload="this.style.display='block';if(this.nextElementSibling)this.nextElementSibling.style.display='none'" onerror="this.style.display='none'"/>
+      ${isDM ? `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3);pointer-events:none"><span style="font-size:32px">🖼</span><span style="font-family:var(--font-ui);font-size:10px">Click to set image</span></div>` : ''}
+    </div>
+  </div>`;
 }
 window.renderSummonTab = renderSummonTab;
 
@@ -56813,6 +56995,58 @@ function summonHPSet(spellKey, val, max) {
   debouncedSave();
 }
 window.summonHPSet = summonHPSet;
+
+let _dmSimImgKey = null;
+
+function openDMSummonImageEditor(imgKey, label) {
+  if (!isDM) return;
+  _dmSimImgKey = imgKey;
+  document.getElementById('sim-label').textContent = label;
+  document.getElementById('sim-status').textContent = 'Click the thumbnail to upload an image';
+  const imgEl = document.getElementById('sim-art-img');
+  imgEl.style.display = 'none';
+  imgEl.src = summonImageUrl(imgKey) + '?t=' + Date.now();
+  openModal('summon-image-modal', true);
+}
+window.openDMSummonImageEditor = openDMSummonImageEditor;
+
+async function dmUploadSummonImage(file) {
+  const fileInput = document.getElementById('sim-file');
+  if (!file || !_dmSimImgKey) return;
+  if (!file.type.startsWith('image/')) { toast('Not an image file.', 'error'); if (fileInput) fileInput.value = ''; return; }
+  const statusEl = document.getElementById('sim-status');
+  if (statusEl) statusEl.textContent = 'Uploading…';
+  try {
+    const base64 = await resizeImageToWebpBase64(file);
+    const path = `summon-images/${_dmSummonSlugify(_dmSimImgKey)}.webp`;
+    const existingSha = await GH.getFileShaAtPath(path, SUMMON_ART_BRANCH);
+    await GH.putBinaryFile(path, base64, existingSha, SUMMON_ART_BRANCH);
+    const imgEl = document.getElementById('sim-art-img');
+    if (imgEl) { imgEl.style.display = 'none'; imgEl.src = summonImageUrl(_dmSimImgKey) + '?t=' + Date.now(); }
+    if (statusEl) statusEl.textContent = 'Image uploaded.';
+    toast('Summon image uploaded.', 'ok');
+    if (typeof renderSummonTab === 'function') renderSummonTab();
+    if (typeof renderDMSummonBestiary === 'function') renderDMSummonBestiary();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'Upload failed - try again.';
+    toast('Upload failed: ' + e.message, 'error');
+  } finally {
+    if (fileInput) fileInput.value = '';
+  }
+}
+window.dmUploadSummonImage = dmUploadSummonImage;
+
+// DM-editable notes/description per creature, reusing the exact same
+// global text-override system already used everywhere else in the app
+// (feats, spells, class features) rather than building a parallel one -
+// each summon's traits/attacks are computed from several typed fields
+// (ac/hp/attacks as functions of level+form), not one flat description
+// string, so this is a free-text addendum shown alongside the computed
+// stat block rather than a field-by-field editor.
+function getSummonNotesKey(imgKey) {
+  return `summon:${imgKey}`;
+}
+window.getSummonNotesKey = getSummonNotesKey;
 
 function populateSummonSpellSelect() {
   const sel = document.getElementById('summon-spell-select');
@@ -60098,7 +60332,19 @@ function getActiveCompanionDef() {
   if (warlockEntry) {
     const parsed = typeof parseInvocations === 'function' ? parseInvocations() : [];
     if (parsed.some(e => e.name === 'Pact of the Chain')) {
-      return { subKey: 'warlock/pact_of_the_chain', def: PACT_CHAIN_COMPANIONS, classEntry: warlockEntry };
+      // Pact of the Chain ADDS its 8 special forms on top of the normal
+      // Find Familiar list - it doesn't replace/restrict it. Remap the
+      // borrowed normal-form entries' choiceGroup to match the pact's own
+      // so they render as one combined picker rather than two separate
+      // ones.
+      const normalForms = (COMPANION_DEFS['generic/find_familiar']?.companions || [])
+        .map(c => ({ ...c, choiceGroup: 'pact_chain_familiar', _pillGroup: 'Standard Forms' }));
+      const specialForms = PACT_CHAIN_COMPANIONS.companions.map(c => ({ ...c, _pillGroup: 'Pact of the Chain Forms' }));
+      const merged = {
+        ...PACT_CHAIN_COMPANIONS,
+        companions: [...normalForms, ...specialForms],
+      };
+      return { subKey: 'warlock/pact_of_the_chain', def: merged, classEntry: warlockEntry };
     }
   }
 
@@ -60622,12 +60868,21 @@ function renderCompanionTab() {
       ? `<div style="font-size:10px;color:var(--text3);margin-top:3px"><span style="color:var(--text2)">Saves:</span> ${Object.entries(savesForRender).map(([sv,bonus]) => `${sv.charAt(0).toUpperCase()+sv.slice(1)} ${bonus>=0?'+':''}${bonus}`).join(', ')}</div>`
       : '';
 
-    return `<div class="panel" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px">
+    const _compImgKey = `familiar::${_dmSummonSlugify(comp.name)}`;
+    const _compNotesKey = getSummonNotesKey(_compImgKey);
+    const _compNotes = getEffectiveText(_compNotesKey, '');
+
+    return `<div class="panel" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-wrap:wrap;gap:16px;align-items:stretch">
+    <div style="flex:1 1 380px;min-width:0;max-width:420px">
       <!-- Header -->
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-        <span style="font-family:var(--font-heading);font-size:16px;color:var(--text);letter-spacing:.5px">${comp.name}${bfActive ? ` <span style="font-family:var(--font-ui);font-size:9px;color:var(--gold);letter-spacing:.5px;border:1px solid var(--gold);border-radius:3px;padding:1px 5px;vertical-align:middle">⚔ BATTLE FAMILIAR</span>` : ''}</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span style="font-family:var(--font-heading);font-size:16px;color:var(--text);letter-spacing:.5px">${comp.name}${bfActive ? ` <span style="font-family:var(--font-ui);font-size:9px;color:var(--gold);letter-spacing:.5px;border:1px solid var(--gold);border-radius:3px;padding:1px 5px;vertical-align:middle">⚔ BATTLE FAMILIAR</span>` : ''}</span>
+          ${isDM ? `<span style="cursor:pointer;color:var(--text3);font-size:11px" title="${_compNotes ? 'Edit' : 'Add'} DM notes" onclick="openTextOverrideModal(${JSON.stringify(_compNotesKey).replace(/"/g,'&quot;')},${JSON.stringify(comp.name + ' - DM Notes').replace(/"/g,'&quot;')},${JSON.stringify(_compNotes).replace(/"/g,'&quot;')})">📝</span>` : ''}
+        </span>
         <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${sizeForRender} ${comp.type} · ${comp.alignment}</span>
       </div>
+      ${_compNotes ? `<div style="background:var(--bg3);border-left:2px solid var(--accent);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5;white-space:pre-wrap">${_compNotes.replace(/</g,'&lt;')}</div>` : ''}
       <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:10px">Speed: ${speedForRender} · ${sensesForRender}</div>
 
       <!-- AC / HP -->
@@ -60701,7 +60956,14 @@ function renderCompanionTab() {
       <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:8px">
         <strong style="font-family:var(--font-ui);color:var(--text2)">Languages:</strong> ${languagesForRender || '-'}
       </div>
-    </div>`;
+    </div>
+
+    <!-- Large portrait, fills whatever space this grid cell has left -->
+    <div style="position:relative;flex:1 1 200px;min-width:180px;min-height:220px;border-radius:var(--radius);overflow:hidden;background:var(--bg3);border:1px dashed var(--border);${isDM ? 'cursor:pointer' : ''}" ${isDM ? `onclick="openDMSummonImageEditor('${_compImgKey.replace(/'/g,"\\'")}',${JSON.stringify(comp.name).replace(/"/g,'&quot;')})" title="Click to set an image"` : ''}>
+      <img src="${summonImageUrl(_compImgKey)}" alt="" style="width:100%;height:100%;object-fit:contain;display:none" onload="this.style.display='block';if(this.nextElementSibling)this.nextElementSibling.style.display='none'" onerror="this.style.display='none'"/>
+      ${isDM ? `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3);pointer-events:none"><span style="font-size:32px">🖼</span><span style="font-family:var(--font-ui);font-size:10px">Click to set image</span></div>` : ''}
+    </div>
+  </div>`;
   }
 
   // Header
@@ -60738,7 +61000,15 @@ function renderCompanionTab() {
       const group = [...choiceGroups][0];
       const choices = def.companions.filter(c => c.choiceGroup === group && (!c.minLevel || clsLevel >= c.minLevel));
       const saved = currentChar._companionChoice?.[group] || choices[0].id;
+      let curPillGroup = null;
       choices.forEach(c => {
+        if (c._pillGroup && c._pillGroup !== curPillGroup) {
+          curPillGroup = c._pillGroup;
+          const header = document.createElement('div');
+          header.style.cssText = 'width:100%;font-family:var(--font-ui);font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-top:6px';
+          header.textContent = curPillGroup;
+          choiceBtns.appendChild(header);
+        }
         const btn = document.createElement('button');
         btn.className = 'btn-sm';
         btn.style.cssText = `font-family:var(--font-ui);font-size:10px;padding:5px 12px;border-radius:var(--radius);cursor:pointer;border:1px solid var(--border);transition:all .15s;${saved===c.id ? 'background:var(--accent);color:#000;border-color:var(--accent);font-weight:600' : 'background:var(--bg3);color:var(--text2)'}`;
