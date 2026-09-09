@@ -2816,6 +2816,19 @@ body.preview-readonly #mi-detail-edit-row * {
     <div id="char-summary"><strong>-</strong></div>
     <div class="topbar-right">
       <span id="sync-status" class="syncing"></span>
+      <!-- Ordered by actual-play priority, most important/frequent first,
+           since on mobile only the leftmost few buttons are visible before
+           #page-tabs' own horizontal scroll takes over: Save (used
+           constantly) -> DM Panel / View As Player (critical whenever a DM
+           is actively running - both display:none unless relevant, so they
+           cost nothing when hidden) -> Parties (checked often mid-session)
+           -> cosmetic appearance controls -> rare settings, with the
+           destructive Logout action last so it's furthest from an
+           accidental tap. -->
+      <button class="tbtn" id="save-btn" onclick="saveChar()"><span class="btn-label-full">Save</span><span class="btn-label-short" style="display:none">💾</span></button>
+      <button class="tbtn" id="dm-topbar-btn" onclick="openDMPanelDirect()" title="DM Panel" style="display:none;border-color:var(--gold);color:var(--gold)">⚔ DM</button>
+      <button class="tbtn" id="view-as-player-btn" onclick="toggleViewAsPlayer()" title="Temporarily hide DM-only controls (edit pencils, Grants buttons, DM badges) to see exactly what a player sees" style="display:none;border-color:var(--gold);color:var(--gold)">👁 View As Player</button>
+      <button class="tbtn" onclick="openPartyOverview()" title="Party Overview">👁 Parties</button>
       <div style="position:relative">
         <button class="tbtn" onclick="toggleThemePicker()" title="Choose color theme">🎨</button>
         <div id="theme-picker-panel" class="hidden" style="position:absolute;top:calc(100% + 6px);right:0;z-index:600;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:10px;width:240px">
@@ -2830,12 +2843,8 @@ body.preview-readonly #mi-detail-edit-row * {
         </div>
       </div>
       <button class="tbtn" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">☀</button>
-      <button class="tbtn" id="save-btn" onclick="saveChar()"><span class="btn-label-full">Save</span><span class="btn-label-short" style="display:none">💾</span></button>
       <button class="tbtn" onclick="openPINChange()" title="Change PIN"><span class="btn-label-full">&#128274; PIN</span><span class="btn-label-short" style="display:none">&#128274;</span></button>
       <button class="tbtn danger" onclick="doLogout()" title="Logout"><span class="btn-label-full">Logout</span><span class="btn-label-short" style="display:none">⏏</span></button>
-      <button class="tbtn" id="dm-topbar-btn" onclick="openDMPanelDirect()" title="DM Panel" style="display:none;border-color:var(--gold);color:var(--gold)">⚔ DM</button>
-      <button class="tbtn" id="view-as-player-btn" onclick="toggleViewAsPlayer()" title="Temporarily hide DM-only controls (edit pencils, Grants buttons, DM badges) to see exactly what a player sees" style="display:none;border-color:var(--gold);color:var(--gold)">👁 View As Player</button>
-      <button class="tbtn" onclick="openPartyOverview()" title="Party Overview">👁 Parties</button>
     </div>
   </div>
 
@@ -7072,6 +7081,18 @@ function switchPage(page) {
   if (pg)  pg.classList.add('active');
   if (pg) setTimeout(() => autoGrowAllTextareas(pg), 0);
   if (contentEl) contentEl.scrollTop = _pageScrollPos['page-' + page] || 0;
+  // #content sets overflow-y:auto but never overflow-x - per the CSS spec,
+  // that makes overflow-x compute to 'auto' too (not 'visible'), so it's
+  // implicitly its own horizontally-scrollable box. Nothing ever reset that
+  // axis on tab switch (only scrollTop, above), so if any tab's content was
+  // ever even slightly wider than the viewport - easy to hit on mobile -
+  // whatever scrollLeft that left behind carried over into every tab
+  // switched to afterward, cutting off the left edge of content that had
+  // nothing to do with the tab that caused the overflow in the first place.
+  // Unlike scrollTop (deliberately preserved per-tab for scroll position),
+  // scrollLeft should never persist - it's never an intentional browsing
+  // position, only ever an overflow artifact.
+  if (contentEl) contentEl.scrollLeft = 0;
   if (page === 'companion') renderCompanionTab();
   if (page === 'summon') renderSummonPage();
   if (page === 'wildshape') renderWildShapeList();
@@ -47254,7 +47275,16 @@ function renderChoiceDef(def, _choiceCls) {
 
   } else if (def.type === 'invocation-select') {
     const parsed    = parseInvocations ? parseInvocations() : (Array.isArray(saved) ? saved.map(e => ({name:e,cantrip:null})) : []);
-    const maxCount  = def.countByLevel ? (def.countByLevel[getLevel()]||0) : (def.count||2);
+    // Must use the Warlock-specific level here, not getLevel() (total
+    // character level) - for a multiclassed Warlock these differ, and the
+    // Eldritch Invocations table is keyed by Warlock level only. The actual
+    // picker modal (renderInvocationsModal) already gets this right via
+    // getClassLevelCount('warlock'); this summary card used to disagree
+    // with it whenever the character had levels in another class too - a
+    // multiclass Warlock 6 with 1 level elsewhere (character level 7) would
+    // see "5/5" in the modal but "5/6" here, since countByLevel[6]=5 while
+    // countByLevel[7]=6.
+    const maxCount  = def.countByLevel ? (def.countByLevel[getClassLevelCount(_choiceCls) || getLevel()]||0) : (def.count||2);
     const over      = parsed.length > maxCount;
     isUnfilled = parsed.length < maxCount;
     inner += `<div style="display:flex;flex-direction:column;gap:8px">
