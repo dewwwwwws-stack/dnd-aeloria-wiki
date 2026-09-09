@@ -12744,6 +12744,60 @@ function enterApp() {
     });
   });
 
+  // Auto-grant fully-fixed feat spells (Familiar Friend's Find Familiar,
+  // Warlike Familiar's Battle Familiar, Telekinetic's Mage Hand, etc.) for
+  // characters who hold the feat but never went through the interactive
+  // spell-picker that normally writes this - background-granted origin
+  // feats and dual-origin picks assign the feat directly without ever
+  // routing through onFeatSlotFeatChange/openFeatSpellPicker, so a feat
+  // gained that way would otherwise never actually grant its spell despite
+  // having the feat. Deliberately restricted to feats with ONLY a fixed[]
+  // array and zero choosable spells/cantrips - anything with an actual
+  // choice needs the real picker so the player gets to make it, not have
+  // it silently filled in.
+  _safe('backfillFixedFeatSpells', () => {
+    if (!currentChar || typeof SPELL_FEATS === 'undefined') return;
+    if (!currentChar.spells) currentChar.spells = {};
+    if (!currentChar.spells.featSpells) currentChar.spells.featSpells = {};
+
+    const featNames = new Set();
+    (currentChar.feats || []).forEach(f => { if (f?.name) featNames.add(f.name); });
+    Object.values(currentChar.featSlots || {}).forEach(dec => {
+      if (dec?.choice === 'feat' && dec.feat) featNames.add(dec.feat);
+    });
+    const bgKey = (currentChar.background || '').toLowerCase().trim().replace(/\s+/g,'_');
+    const bgFeatRaw = PHB_BACKGROUNDS[bgKey]?.originFeat || PHB_BACKGROUNDS[bgKey]?.feat;
+    // Dual-option ("X or Y") backgrounds store the actually-chosen feat in
+    // featSlots['origin_bg'], already covered by the loop above - only add
+    // the raw value here when it's a single, non-choice origin feat.
+    if (bgFeatRaw && !bgFeatRaw.includes(' or ')) featNames.add(bgFeatRaw);
+
+    const stripBrk = s => s.replace(/\s*\[.*?\]\s*$/,'').trim().toLowerCase();
+    featNames.forEach(featName => {
+      const clean = stripBrk(featName);
+      const spellFeat = SPELL_FEATS[clean];
+      if (!spellFeat?.fixed?.length) return;
+      if ((spellFeat.spells || 0) > 0 || (spellFeat.cantrips || 0) > 0) return;
+      const autoKey = 'auto_fixed_' + clean.replace(/[^a-z0-9]+/g,'_');
+      // Skip if this exact spell is already granted under ANY other key -
+      // the dedicated fixed_spell UI (see renderFeatDetailBody/
+      // applyFeatDetail) writes to featSpells[slotId] using the real ASI/
+      // feat slot id, a different key than this self-heal uses, so a
+      // player who's actually opened Configure and saved already has the
+      // grant recorded there. Without this check, backfilling here too
+      // would show the same spell granted twice.
+      const alreadyGrantedElsewhere = Object.entries(currentChar.spells.featSpells).some(([k, v]) =>
+        k !== autoKey && !k.endsWith('_cantrips') && (v||[]).includes(spellFeat.fixed[0])
+      );
+      if (alreadyGrantedElsewhere) { delete currentChar.spells.featSpells[autoKey]; return; }
+      if (!(currentChar.spells.featSpells[autoKey]||[]).length) {
+        currentChar.spells.featSpells[autoKey] = [...spellFeat.fixed];
+        if (!currentChar.spells.featSpellNames) currentChar.spells.featSpellNames = {};
+        currentChar.spells.featSpellNames[autoKey] = featName;
+      }
+    });
+  });
+
   // Self-heal corrupted race value (display name stored instead of key)
   _safe('healRace', () => {
     const r = currentChar?.race;
@@ -24964,6 +25018,12 @@ const SPELL_FEATS = {
   'shadow touched':           { cantrips: 0, spells: 1, spellLevel: [1,2], classSource: null,  ability: null, fixed: ['invisibility'] },
   'war caster':               null,
   'telekinetic':              { cantrips: 1, spells: 0, fixed: ['mage_hand'] },
+  // Arcana Unleashed (third-party) - both grant one fixed spell, always
+  // prepared, no player choice of which spell (only the spellcasting
+  // ability differs, chosen once for Familiar Friend and reused by
+  // Warlike Familiar per that feat's own text).
+  'familiar friend':          { cantrips: 0, spells: 0, fixed: ['find_familiar'] },
+  'warlike familiar':         { cantrips: 0, spells: 0, fixed: ['battle_familiar'] },
   'telepathic':               { cantrips: 0, spells: 1, spellLevel: 2, classSource: null, fixed: ['detect_thoughts'] },
   'mark of warding':          { cantrips: 0, spells: 0, fixed: ['alarm', 'arcane_lock'], onceLR: true },
   'mark of detection':        { cantrips: 0, spells: 0, fixed: ['detect_magic', 'detect_thoughts'], onceLR: true },
@@ -30331,6 +30391,20 @@ function populateMainSheet() {
     let val = key.includes('.') ? key.split('.').reduce((o,k) => o?.[k], c) : c[key];
     if (val === undefined || val === null) return;
     if (key === 'notes_bg' || key === 'backstory') val = deobfuscateText(val);
+    // currentChar.background stores the lowercase/underscored PHB_BACKGROUNDS
+    // key (e.g. "aberrant_heir"), not a display string. Every other caller
+    // of this generic loop (toggleViewAsPlayer, realtime HP/condition sync
+    // re-renders, etc.) doesn't know to follow up with
+    // buildBackgroundDropdown()'s name resolution the way the initial load
+    // does, so without this the field silently reverts to the raw key
+    // ("aberrant_heir") any time one of those paths re-runs. Resolve the
+    // display name here too so it's correct regardless of which caller ran.
+    if (key === 'background' && el.id === 'bg-background') {
+      const bgKeyNorm = String(val).toLowerCase().trim();
+      el.value = PHB_BACKGROUNDS[bgKeyNorm]?.name || val;
+      el.setAttribute('data-bgval', bgKeyNorm);
+      return;
+    }
     if (el.type === 'checkbox') el.checked = !!val;
     else el.value = val;
   });
@@ -34015,10 +34089,25 @@ function hasFeat(featName) {
   // Check feat slots
   const slots = getFeatSlots();
   const decisions = getFeatSlotDecisions();
-  return slots.some(s => {
+  if (slots.some(s => {
     const dec = decisions[s.id];
     return dec?.choice === 'feat' && clean(dec.feat) === name;
-  }) || (currentChar.feats||[]).some(f => clean(f.name) === name);
+  }) || (currentChar.feats||[]).some(f => clean(f.name) === name)) return true;
+  // A non-dual background's origin feat (e.g. House Lyrandar Heir -> Mark
+  // of Storm) is assigned directly from PHB_BACKGROUNDS and never written
+  // into currentChar.featSlots at all - only dual-option ("X or Y")
+  // backgrounds record their choice there. Without this fallback, every
+  // caller of this shared/canonical "does the character have this feat"
+  // check silently misses any single-option background origin feat - the
+  // same gap class already found and fixed for Luck Points, Fortified
+  // Familiar, and getTakenFeatDetail(); fixing it here once covers every
+  // current and future hasFeat() caller instead of re-discovering it a
+  // fourth time (this session's own case: syncFeatResistances() never
+  // granting Mark of Storm's Lightning resistance for that background).
+  const bgKey = (currentChar.background || '').toLowerCase().trim().replace(/\s+/g, '_');
+  const bgFeatRaw = PHB_BACKGROUNDS[bgKey]?.originFeat || PHB_BACKGROUNDS[bgKey]?.feat;
+  if (bgFeatRaw && !bgFeatRaw.includes(' or ') && clean(bgFeatRaw) === name) return true;
+  return false;
 }
 
 function getFightingStyle() {
@@ -38197,10 +38286,17 @@ function renderAttacksPanel() {
     const hasPotC = _parsed.some(e => e.name === 'Pact of the Chain');
     if (hasPotC) {
       const hasIotCM = _parsed.some(e => e.name === 'Investment of the Chain Master');
-      // Get selected familiar from companion choice
+      // Get selected familiar from companion choice - search the full
+      // merged list (getActiveCompanionDef merges in all 28 normal Find
+      // Familiar forms alongside the 8 Pact-specific ones), not just
+      // PACT_CHAIN_COMPANIONS' own 8-item list on its own, since the
+      // player's chosen familiar id can belong to either half of that
+      // merged set.
       const choiceGroup = 'pact_chain_familiar';
       const savedId = currentChar._companionChoice?.[choiceGroup];
-      const familiar = PACT_CHAIN_COMPANIONS?.companions.find(c =>
+      const _activeCompDef = typeof getActiveCompanionDef === 'function' ? getActiveCompanionDef() : null;
+      const _pactCompanionList = _activeCompDef?.def?.companions || PACT_CHAIN_COMPANIONS?.companions || [];
+      const familiar = _pactCompanionList.find(c =>
         savedId ? c.id === savedId : c.choosable
       );
 
@@ -41248,7 +41344,7 @@ function getItemDisplayName(item) {
     // auto-generated "of {spell} ({level})" suffix onto.
     if (item.customName) return item.customName;
     // item.name is already fully resolved to "Spell Scroll of X (Level)"
-    // by refreshVariableItemText() as soon as a spell is chosen — it
+    // by refreshVariableItemText() as soon as a spell is chosen - it
     // builds from item._baseName (the true generic catalog name), never
     // from item.name itself, specifically to avoid double-appending the
     // suffix. Trust it directly rather than re-deriving and re-appending
@@ -45863,6 +45959,20 @@ function renderCombinedFeatureTableHtml(groups) {
 // not in table form). Keyed by the exact tag text that precedes " [+]"
 // in a feature's desc. See renderInlineFeatureTables for the consumer.
 const SUBCLASS_INLINE_TABLES = {
+  // Soulknife's "Psychic Blade [+]" tag had no matching entry here at all,
+  // so it silently degraded to bare text with no table (see
+  // renderInlineFeatureTables's `if (!table) return tagName;` fallback).
+  // Content verified against the official 2024 Rogue (Soulknife) text,
+  // which matches this file's own surrounding prose verbatim.
+  'Psychic Blade': {
+    headers: ['Trait', 'Detail'],
+    rows: [
+      ['Weapon Category', 'Simple Melee'],
+      ['Damage on a Hit', '1d6 Psychic plus the ability modifier used for the attack roll'],
+      ['Properties', 'Finesse, Thrown (range 60/120 feet)'],
+      ['Mastery', "Vex (doesn't count against your number of Weapon Mastery properties)"],
+    ],
+  },
   'Recovering Spell Slots': {
     headers: ['Spell Slot Level', 'Focus Point Cost', 'Min. Monk Level'],
     rows: [
@@ -51450,9 +51560,9 @@ function buildBackgroundDropdown() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// BACKGROUND SEARCH MODAL — replaces the old inline autocomplete list.
+// BACKGROUND SEARCH MODAL - replaces the old inline autocomplete list.
 // That list only ever filtered by name, and showed nothing but a
-// shortened ability-score line per row — with 70+ backgrounds pulled
+// shortened ability-score line per row - with 70+ backgrounds pulled
 // from a dozen+ sourcebooks, finding one meant already knowing its exact
 // name. This adds real filtering (source, ability scores) and shows the
 // origin feat and required tools per row, so the search itself can
@@ -52266,6 +52376,14 @@ function characterHasFeatNamed(name) {
   const names = new Set();
   Object.values(currentChar.featSlots || {}).forEach(s => { if (s?.feat) names.add(s.feat); });
   (currentChar.feats || []).forEach(f => { if (f?.name) names.add(f.name); });
+  // Same background-origin-feat gap as hasFeat() (see its comment) -
+  // non-dual background origin feats never land in featSlots or feats[],
+  // so prereq checks against them (e.g. Greater Aberrant Mark requiring
+  // Aberrant Dragonmark) would otherwise always fail for a character who
+  // got the feat via their background rather than manually.
+  const bgKey = (currentChar.background || '').toLowerCase().trim().replace(/\s+/g, '_');
+  const bgFeatRaw = PHB_BACKGROUNDS[bgKey]?.originFeat || PHB_BACKGROUNDS[bgKey]?.feat;
+  if (bgFeatRaw && !bgFeatRaw.includes(' or ')) names.add(bgFeatRaw);
   for (const n of names) { if (clean(n) === target) return true; }
   // A prereq can name a feat family generically ("Magic Initiate Feat")
   // when the actual taken feat is a parenthetical variant of it ("Magic
@@ -52287,6 +52405,12 @@ function characterPathFeatCount(groupKey, excludeKey) {
   const takenNames = new Set();
   Object.values(currentChar.featSlots || {}).forEach(s => { if (s?.feat) takenNames.add(s.feat); });
   (currentChar.feats || []).forEach(f => { if (f?.name) takenNames.add(f.name); });
+  // Same background-origin-feat fallback as hasFeat()/characterHasFeatNamed().
+  {
+    const bgKey = (currentChar.background || '').toLowerCase().trim().replace(/\s+/g, '_');
+    const bgFeatRaw = PHB_BACKGROUNDS[bgKey]?.originFeat || PHB_BACKGROUNDS[bgKey]?.feat;
+    if (bgFeatRaw && !bgFeatRaw.includes(' or ')) takenNames.add(bgFeatRaw);
+  }
   let count = 0;
   group.forEach(key => {
     if (key === excludeKey) return;
@@ -52303,6 +52427,16 @@ function characterDragonmarkFeatCount(excludeKey) {
   const takenNames = new Set();
   Object.values(currentChar.featSlots || {}).forEach(s => { if (s?.feat) takenNames.add(s.feat); });
   (currentChar.feats || []).forEach(f => { if (f?.name) takenNames.add(f.name); });
+  // Same background-origin-feat fallback as hasFeat()/characterHasFeatNamed()
+  // - without this, a character with (e.g.) Aberrant Dragonmark granted by
+  // the Aberrant Heir background would show 0 dragonmark feats here, so the
+  // "No other Dragonmark" exclusivity prereq would wrongly let them take a
+  // second one.
+  {
+    const bgKey = (currentChar.background || '').toLowerCase().trim().replace(/\s+/g, '_');
+    const bgFeatRaw = PHB_BACKGROUNDS[bgKey]?.originFeat || PHB_BACKGROUNDS[bgKey]?.feat;
+    if (bgFeatRaw && !bgFeatRaw.includes(' or ')) takenNames.add(bgFeatRaw);
+  }
   let count = 0;
   Object.entries(PHB_FEATS).forEach(([key, entry]) => {
     if (key === excludeKey) return;
@@ -54138,6 +54272,7 @@ const FEAT_ASI_CHOICES = {
   'observant':                     ['int','wis'],
   // ── Intelligence / Wisdom / Charisma ──
   'elemental adept':               ['int','wis','cha'],
+  'familiar friend':               ['int','wis','cha'],
   'fey touched':                   ['int','wis','cha'],
   'ritual caster':                 ['int','wis','cha'],
   'shadow touched':                ['int','wis','cha'],
@@ -54837,7 +54972,7 @@ function renderFeatDetailBody() {
               <div class="choice-pill ${curChoice===opt?'selected':''}" onclick="_featDetailState['${extra.field}']='${opt}';renderFeatDetailBody()">${opt}</div>
             `).join('')}
           </div>
-          <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-top:6px">Recorded for reference - this sheet doesn't track your familiar's own stat block.</div>
+          <div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-top:6px">Applied automatically to your familiar's Resistance and bonus traits on the Companion tab.</div>
         </div>
       `;
     } else if (extra.type === 'display_only') {
@@ -57893,11 +58028,39 @@ function populateFeaturesTab() {
   const bgKey = currentChar.background;
   const bg    = bgKey ? PHB_BACKGROUNDS[bgKey] : null;
   if (bg?.originFeat || bg?.feat) {
-    const phb = findFeatCatalogEntry(bg.originFeat || bg.feat);
+    const originFeatName = bg.originFeat || bg.feat;
+    const phb = findFeatCatalogEntry(originFeatName);
+    // Background-granted origin feats that themselves grant spells (Aberrant
+    // Dragonmark's Aberrant Magic, any "Magic Initiate (X)" variant used as
+    // an origin feat, etc.) never had a Choose Spells picker wired here -
+    // the currentChar.feats loop below (manually-added Additional Feats)
+    // has one, but a background's origin feat renders through this
+    // completely separate branch and was missed. Per the Data Conventions
+    // noted in HANDOFF15, a non-dual background origin feat is never
+    // written into currentChar.featSlots either, so this bg?.originFeat
+    // branch is the *only* place such a feat's entry ever renders - the gap
+    // meant zero UI existed to ever choose the spell(s) at all.
+    const _bgFeatFk = originFeatName.toLowerCase().replace(/\s*\[.*?\]/g,'').trim();
+    const _bgFeatSf = SPELL_FEATS[_bgFeatFk];
+    let _bgFeatDesc = phb?.desc || '';
+    if (_bgFeatSf) {
+      const _bgFeatSlotId = 'feat_bg';
+      // openFeatSpellPicker only adds a 'feat_' prefix if the slotId doesn't
+      // already start with one - 'feat_bg' already does, so it stores under
+      // 'feat_bg' itself. Check the same key here, not 'feat_'+'feat_bg'.
+      const _bgFeatSpellKey = _bgFeatSlotId.startsWith('feat_') ? _bgFeatSlotId : 'feat_' + _bgFeatSlotId;
+      const _bgFeatExisting = currentChar.spells?.featSpells?.[_bgFeatSpellKey] || [];
+      if (_bgFeatExisting.length) {
+        const _names = _bgFeatExisting.map(k => { const s = PHB_SPELL_LIST.find(x=>x.key===k); return s?s.name:k; });
+        _bgFeatDesc += (_bgFeatDesc ? ' | ' : '') + 'Chosen: ' + _names.join(', ');
+      } else {
+        _bgFeatDesc += (_bgFeatDesc ? ' | ' : '') + '<button class="btn-sm" style="font-size:9px;padding:2px 8px;cursor:pointer;background:var(--accent);border:none;border-radius:var(--radius);color:#000;font-weight:600" onclick="openFeatSpellPicker(\'' + _bgFeatSlotId + '\',\'' + originFeatName.replace(/'/g,"\'") + '\',SPELL_FEATS[\'' + _bgFeatFk + '\'])">✦ Choose Spells</button>';
+      }
+    }
     entries.push({
-      level: 1, id: 'feat_bg', name: (bg.originFeat || bg.feat),
+      level: 1, id: 'feat_bg', name: originFeatName,
       source: bg.name, sourceType: 'Background Feat',
-      desc: phb?.desc || '', usages: null, recovery: null,
+      desc: _bgFeatDesc, usages: null, recovery: null,
     });
   }
   const slots = getFeatSlots();
@@ -57923,7 +58086,16 @@ function populateFeaturesTab() {
     let _featDesc = phb?.desc || f.desc || '';
     if (_featSf) {
       const _featSlotId = 'feat_slot_' + i;
-      const _featSpellKey = 'feat_' + _featSlotId;
+      // '_featSlotId' already starts with 'feat_', so openFeatSpellPicker's
+      // own prefixing rule (only add 'feat_' if not already present) stores
+      // these under '_featSlotId' itself, not 'feat_'+'_featSlotId'. The old
+      // unconditional 'feat_'+_featSlotId here checked a key that was never
+      // actually written, so a player who'd already chosen their spells
+      // would see the "Choose Spells" button forever instead of "Chosen: X"
+      // (the spells themselves were still granted correctly - this only
+      // broke this display's own re-check, same double-prefix landmine
+      // called out in HANDOFF15's Data Conventions).
+      const _featSpellKey = _featSlotId.startsWith('feat_') ? _featSlotId : 'feat_' + _featSlotId;
       const _featExisting = currentChar.spells?.featSpells?.[_featSpellKey] || [];
       if (_featExisting.length) {
         const _names = _featExisting.map(k => { const s = PHB_SPELL_LIST.find(x=>x.key===k); return s?s.name:k; });
@@ -60493,6 +60665,17 @@ function getTakenFeatDetail(featName) {
     const chosen = (dec.feat || '').toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
     if (chosen === target) return dec.featDetail || {};
   }
+  // A non-dual background's origin feat (e.g. Familiar Trainer -> Familiar
+  // Friend) is assigned directly from PHB_BACKGROUNDS and never written
+  // into featSlots at all - only dual-option ("X or Y") backgrounds record
+  // their choice there, and that case is already covered by the loop
+  // above. Same gap class as the Luck Points resource bug fixed earlier.
+  const bgKey = (currentChar.background || '').toLowerCase().trim().replace(/\s+/g, '_');
+  const bgFeatRaw = PHB_BACKGROUNDS[bgKey]?.originFeat || PHB_BACKGROUNDS[bgKey]?.feat;
+  if (bgFeatRaw && !bgFeatRaw.includes(' or ')) {
+    const bgChosen = bgFeatRaw.toLowerCase().replace(/\s*\[.*?\]/g, '').trim();
+    if (bgChosen === target) return {};
+  }
   return null;
 }
 
@@ -60820,8 +61003,9 @@ function renderCompanionTab() {
       const elemDetail  = getTakenFeatDetail('elemental familiar');
       const otherDetail = getTakenFeatDetail('otherworldly familiar');
       const soothDetail = getTakenFeatDetail('soothing familiar');
+      const warlikeDetail = getTakenFeatDetail('warlike familiar');
 
-      if (elemDetail || otherDetail || soothDetail) {
+      if (elemDetail || otherDetail || soothDetail || warlikeDetail) {
         const ffAbility = ffDetail?.spellAbility || 'int';
         const imbueDC = 8 + prof + abilityMod(abs[ffAbility] || 10);
         const extraResistances = [];
@@ -60837,6 +61021,9 @@ function renderCompanionTab() {
         }
         if (soothDetail) {
           extraTraits.push(`Healing Beacon (Soothing Familiar): While the familiar is within 120 feet of you, allies in a 5-foot Emanation from it can treat a roll of 1 or 2 on a healing die as a 3.`);
+        }
+        if (warlikeDetail) {
+          extraTraits.push(`Intercept Attack (Reaction, Warlike Familiar): When a creature within 5 feet of the familiar is hit by an attack roll, the familiar can add ${prof >= 0 ? '+' : ''}${prof} to that creature's AC against the attack, potentially causing it to miss.`);
         }
         if (extraResistances.length) {
           resistForRender = [resistForRender, extraResistances.join(', ')].filter(Boolean).join(', ');
@@ -60871,6 +61058,18 @@ function renderCompanionTab() {
     const _compImgKey = `familiar::${_dmSummonSlugify(comp.name)}`;
     const _compNotesKey = getSummonNotesKey(_compImgKey);
     const _compNotes = getEffectiveText(_compNotesKey, '');
+    // While Battle Familiar is active, the DM bestiary already offers a
+    // separate image slot per form (battle_familiar::Brute/Flyer/Stalker -
+    // see SUMMON_SPELL_DEFS.battle_familiar's own `forms` list, which only
+    // makes sense as settable portraits), but nothing here ever looked it
+    // up - the portrait stayed the familiar's own regardless of form. Try
+    // the form-specific image first, fall back to the familiar's own if the
+    // DM hasn't set one for this form, then to the placeholder as before.
+    const _bfFormImgKey = bfActive ? `battle_familiar::${bf.form}` : null;
+    const _portraitImgKey = _bfFormImgKey || _compImgKey;
+    const _portraitFallbackKey = _bfFormImgKey ? _compImgKey : null;
+    const _portraitEditKey = _bfFormImgKey || _compImgKey;
+    const _portraitEditLabel = _bfFormImgKey ? `Battle Familiar (${bf.form})` : comp.name;
 
     return `<div class="panel" style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-wrap:wrap;gap:16px;align-items:stretch">
     <div style="flex:1 1 380px;min-width:0;max-width:420px">
@@ -60959,8 +61158,8 @@ function renderCompanionTab() {
     </div>
 
     <!-- Large portrait, fills whatever space this grid cell has left -->
-    <div style="position:relative;flex:1 1 200px;min-width:180px;min-height:220px;border-radius:var(--radius);overflow:hidden;background:var(--bg3);border:1px dashed var(--border);${isDM ? 'cursor:pointer' : ''}" ${isDM ? `onclick="openDMSummonImageEditor('${_compImgKey.replace(/'/g,"\\'")}',${JSON.stringify(comp.name).replace(/"/g,'&quot;')})" title="Click to set an image"` : ''}>
-      <img src="${summonImageUrl(_compImgKey)}" alt="" style="width:100%;height:100%;object-fit:contain;display:none" onload="this.style.display='block';if(this.nextElementSibling)this.nextElementSibling.style.display='none'" onerror="this.style.display='none'"/>
+    <div style="position:relative;flex:1 1 200px;min-width:180px;min-height:220px;border-radius:var(--radius);overflow:hidden;background:var(--bg3);border:1px dashed var(--border);${isDM ? 'cursor:pointer' : ''}" ${isDM ? `onclick="openDMSummonImageEditor('${_portraitEditKey.replace(/'/g,"\\'")}',${JSON.stringify(_portraitEditLabel).replace(/"/g,'&quot;')})" title="Click to set an image"` : ''}>
+      <img src="${summonImageUrl(_portraitImgKey)}" alt="" style="width:100%;height:100%;object-fit:contain;display:none" onload="this.style.display='block';if(this.nextElementSibling)this.nextElementSibling.style.display='none'" onerror="${_portraitFallbackKey ? `if(!this.dataset.fallbackTried){this.dataset.fallbackTried='1';this.src='${summonImageUrl(_portraitFallbackKey)}';}else{this.style.display='none';}` : `this.style.display='none';`}"/>
       ${isDM ? `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3);pointer-events:none"><span style="font-size:32px">🖼</span><span style="font-family:var(--font-ui);font-size:10px">Click to set image</span></div>` : ''}
     </div>
   </div>`;
