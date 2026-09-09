@@ -18375,7 +18375,7 @@ const RACIAL_RESOURCES                = {
         1,
         1
       ],
-      "desc": "Transform with Necrotic Shroud, Radiant Consumption, or Radiant Soul for 1 min."
+      "desc": "Transform with Heavenly Wings, Inner Radiance, or Necrotic Shroud for 1 min. Once/turn on a hit: extra dmg = PB (Radiant, or Necrotic for Shroud)."
     }
   ],
   "dragonborn": [
@@ -19407,7 +19407,7 @@ const PHB_RACES = {
       "Radiant"
     ],
     "languages": "Common + 2 of your choice",
-    "trait": "Aasimar\\n\u2022 Healing Hands: Once per Long Rest as a Magic action I can touch a creature & restore my Prof Bonus d4s HP.\\n\u2022 Light Bearer: I know the Light cantrip. Charisma is my spellcasting ability for it.\\n\u2022 Celestial Revelation: Once per Long Rest as a Bonus Action I can transform for 1 min or until I end it. (no action) (choose an option each time) (See Notes Page)",
+    "trait": "Aasimar\\n\u2022 Healing Hands: Once per Long Rest as a Magic action I can touch a creature & restore my Prof Bonus d4s HP.\\n\u2022 Light Bearer: I know the Light cantrip. Charisma is my spellcasting ability for it.\\n\u2022 Celestial Revelation: Once per Long Rest as a Bonus Action I can transform for 1 min or until I end it. (no action) Choose one each time: Heavenly Wings (Fly Speed = Speed), Inner Radiance (10-ft Bright/10-ft Dim Light; Radiant dmg = PB to each creature within 10 ft at end of my turns), or Necrotic Shroud (creatures within 10 ft, CHA save DC 8+CHA+PB or Frightened til end of my next turn). Once/turn on a hit: extra dmg = PB (Radiant, or Necrotic for Shroud).",
     "features": [
       {
         "name": "Healing Hands",
@@ -19419,7 +19419,7 @@ const PHB_RACES = {
       {
         "name": "Celestial Revelation",
         "level": 3,
-        "desc": "When I reach character level 3, I can transform as a Bonus Action using one of the options below (See Notes Page) (choose the option each time I transform). That transformation lasts for 1 minute or until I end it (no action required). Once I transform, I can't do so again until I finish a Long Rest",
+        "desc": "When I reach character level 3, I can transform as a Bonus Action. The transformation lasts for 1 minute or until I end it (no action required). Once I transform, I can't do so again until I finish a Long Rest. Once on each of my turns while transformed, when I deal damage to a target with an attack or a spell, I can deal extra damage to it equal to my Proficiency Bonus - Radiant for Heavenly Wings or Inner Radiance, Necrotic for Necrotic Shroud. I choose one of the following options each time I transform: | Heavenly Wings. Spectral wings sprout from my back, giving me a Fly Speed equal to my Speed for the duration. | Inner Radiance. I shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet. At the end of each of my turns, each creature within 10 feet of me takes Radiant damage equal to my Proficiency Bonus. | Necrotic Shroud. My eyes become pools of darkness and ghostly, flightless wings sprout from my back. Each creature other than my allies within 10 feet of me must succeed on a Charisma saving throw (DC 8 plus my Charisma modifier and Proficiency Bonus) or have the Frightened condition until the end of my next turn.",
         "usages": 1,
         "recovery": "long rest"
       }
@@ -49767,6 +49767,77 @@ function getResourceMax(def, level, prof) {
   return 0;
 }
 
+// The Resources tracker used to give every resource its own hand-typed
+// `desc` field, entirely separate from the actual class/subclass/race/feat
+// feature that granted it - two independently-maintained copies of "what
+// this does" that could (and did - Celestial Revelation, Healing Hands)
+// drift apart or just be wrong, since nothing ever kept them in sync.
+// This looks up the resource's real source feature by name and returns
+// ITS raw text instead, so the Resources modal always shows the exact
+// same words as the matching Features-tab card - never a separate
+// paraphrase. Also runs through getEffectiveText() with the same
+// overrideKey convention the Features tab itself uses, so a DM's RAW-text
+// edit to the feature shows up here too, automatically, instead of only
+// on one of the two screens. Returns null (caller falls back to def.desc)
+// when no matching feature can be found - some resources are genuinely
+// their own thing with no single feature to borrow text from (e.g. the
+// invocations-known counter), and those should keep whatever text they
+// already have rather than showing "no description available".
+function resolveResourceFeatureDesc(def) {
+  const rawName = (def.featureName || def.name || def.label || '').trim();
+  if (!rawName) return null;
+  // A resource's display name sometimes carries a parenthetical the
+  // feature itself never has (e.g. "Lay on Hands (HP Pool)") - strip it
+  // before matching.
+  const name = rawName.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const clean = s => (s || '').replace(/\s*\[.*?\]/g, '').trim().toLowerCase();
+  const target = clean(name);
+  if (!target) return null;
+
+  const tryMatch = (features, keyPrefix) => {
+    if (!features) return null;
+    const f = features.find(x => clean(x.name) === target);
+    if (!f) return null;
+    return getEffectiveText(keyPrefix + f.name, f.desc || '') || null;
+  };
+
+  // Class / subclass feature - only relevant for resources tagged to a
+  // specific class, the same _resClass every class/subclass-sourced
+  // resource is stamped with in buildAllResourceDefs().
+  if (def._resClass) {
+    let found = tryMatch(PHB_CLASSES[def._resClass]?.features, `class:${def._resClass}:`);
+    if (found) return found;
+
+    const entry = getAllClasses().find(e => (e.class || '').toLowerCase().trim() === def._resClass);
+    const subKey = entry ? getSubclassKey(def._resClass, entry.subclass) : null;
+    if (subKey) {
+      found = tryMatch(PHB_SUBCLASSES[subKey]?.features, `subclass:${subKey}:`);
+      if (found) return found;
+    }
+  }
+
+  // Racial feature
+  if (currentChar?.race) {
+    let race = (currentChar.race || '').toLowerCase().trim();
+    if (race && !PHB_RACES[race]) {
+      const matchKey = Object.keys(PHB_RACES).find(k => race.startsWith(k) || k === race.replace(/\s*\(.*\)/, '').trim());
+      if (matchKey) race = matchKey;
+    }
+    const found = tryMatch(PHB_RACES[race]?.features, `race:${race}:`);
+    if (found) return found;
+  }
+
+  // Feat (covers feat-granted resources, including background origin feats)
+  const featKey = Object.keys(PHB_FEATS).find(k => clean(PHB_FEATS[k].name) === target)
+                || Object.keys(PHB_FEATS_FULL).find(k => clean(PHB_FEATS_FULL[k].name) === target);
+  if (featKey) {
+    const featData = PHB_FEATS[featKey] || PHB_FEATS_FULL[featKey];
+    return getEffectiveText(`feat:${featData.name}`, featData.desc || '') || null;
+  }
+
+  return null;
+}
+
 function renderResourceEntry(def, level, prof) {
   const effLevel = def._resClass ? getClassLevelCount(def._resClass) : level;
   const max  = getResourceMax(def, effLevel, prof);
@@ -49787,7 +49858,7 @@ function renderResourceEntry(def, level, prof) {
   const entry = document.createElement('div');
   entry.className = 'resource-entry';
 
-  const _ttDesc = (def.desc||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const _ttDesc = (resolveResourceFeatureDesc(def) ?? def.desc ?? '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const _ttName = (def.name||def.label||'').replace(/"/g,'&quot;');
   const _ttMeta = def.recoveryNote ? `Manual only - ${def.recoveryNote}` : recovery ? `Recovers on ${recovery === 'short' ? 'Short Rest' : recovery === 'long' ? 'Long Rest' : recovery}` : '';
   // A resource's own display name doesn't always match the class/subclass
@@ -50721,7 +50792,13 @@ function buildAllResourceDefs() {
         // (e.g. a homebrew subclass's custom limited-use feature) has the
         // exact same "which class's level counts" problem as the dedicated
         // subclass resources just above, for the same reason.
-        const resDef = { id, name: label, recovery: _nativeOv ? _nativeOv.recovery : f.recovery, _resClass: eCls };
+        // featureName: f.name - resourceLabel (label, above) is only ever a
+        // display shorthand for the resource row itself, and can differ
+        // from the actual feature's name (that's the whole reason
+        // resourceLabel exists). resolveResourceFeatureDesc() needs the
+        // real feature name to find this feature's RAW text again, not
+        // whatever shorthand the resource row happens to display.
+        const resDef = { id, name: label, featureName: f.name, recovery: _nativeOv ? _nativeOv.recovery : f.recovery, _resClass: eCls };
         if (_nativeOv) {
           if (_nativeOv.usages === 'prof_bonus') resDef._max = prof;
           else if (typeof _nativeOv.usages === 'number') resDef._max = _nativeOv.usages;
