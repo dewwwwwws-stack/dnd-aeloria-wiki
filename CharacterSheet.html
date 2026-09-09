@@ -14825,6 +14825,7 @@ const PHB_CLASS_RESOURCES     = {
     {
       "id": "focus_points",
       "name": "Focus Points",
+      "featureName": "Monk's Focus",
       "recovery": "short",
       "maxByLevel": [
         0,
@@ -14960,6 +14961,7 @@ const PHB_CLASS_RESOURCES     = {
     {
       "id": "sorcery_points",
       "name": "Sorcery Points",
+      "featureName": "Font of Magic",
       "recovery": "long",
       "maxByLevel": [
         0,
@@ -18539,7 +18541,7 @@ const RACIAL_RESOURCES                = {
     {"id": "gnome_lineage", "name": "Gnome (PHB24)", "recovery": "long", "maxByLevel": [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "Cast spells granted by your gnome subtype once per Long Rest."}
   ],
   "goliath": [
-    {"id": "giant_trait", "name": "Goliath (PHB24)", "recovery": "short", "maxByLevel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "profBonus": true, "desc": "Use your giant ancestry trait. Uses = Prof Bonus per Short Rest."},
+    {"id": "giant_trait", "name": "Giant Ancestry Trait", "recovery": "short", "maxByLevel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "profBonus": true, "desc": "Use your giant ancestry trait. Uses = Prof Bonus per Short Rest."},
     {
       "id": "large_form",
       "name": "Large Form",
@@ -47213,10 +47215,11 @@ function renderChoiceDef(def, _choiceCls) {
       ${selected.length ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);line-height:1.6">${selected.map(n => {
         const phb = PHB_WEAPONS.find(w => w.name === n);
         const mastery = phb?.mastery || '';
+        const safeN = n.replace(/'/g,"\\'");
         return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 7px;margin:2px 2px 2px 0;font-size:10px">
-          ${n}${mastery?`<span style="color:var(--gold);font-size:9px;margin-left:3px">${mastery}</span>`:''}
+          <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="openWeaponMasteryInfoModal('${safeN}')">${n}${mastery?`<span style="color:var(--gold);font-size:9px;margin-left:3px">${mastery}</span>`:''}</span>
           <span style="cursor:pointer;color:var(--text3);font-size:11px;line-height:1;padding:0 2px" title="Remove"
-            onclick="toggleWeaponMasteryPick('${def.id}', '${n.replace(/'/g,"\\'")}', ${actualMax})">×</span>
+            onclick="toggleWeaponMasteryPick('${def.id}', '${safeN}', ${actualMax})">×</span>
         </span>`;
       }).join('')}</div>` : `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">No weapons selected - click Choose Masteries</div>`}
     </div>`;
@@ -47315,8 +47318,9 @@ function renderChoiceDef(def, _choiceCls) {
         const dispName = e.cantrip ? (() => { const sp = PHB_SPELL_LIST.find(s=>s.key===e.cantrip); return `${e.name} [${sp?.name||e.cantrip}]`; })() : e.name;
         const safeKey = e.cantrip ? `${e.name}|${e.cantrip}` : `__plain__|${e.name}`;
         const safeSK = safeKey.replace(/'/g,"\\'");
+        const safeInvocName = e.name.replace(/'/g,"\\'");
         return `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 7px;margin:2px 2px 2px 0;font-size:10px">
-          ${dispName}
+          <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="openInvocationInfoModal('${safeInvocName}')">${dispName}</span>
           <span style="cursor:pointer;color:var(--text3);font-size:11px;line-height:1;padding:0 2px" title="Remove"
             onclick="removeInvocationByKey('${safeSK}')">×</span>
         </span>`;
@@ -50769,13 +50773,40 @@ function buildAllResourceDefs() {
       // Same level-3 floor as everywhere else - a manually-defined
       // subclass resource with minLevel:1 in the data shouldn't be
       // reachable before the subclass itself could even be chosen.
+      // PHB_SUBCLASS_RESOURCES and SUPPLEMENTAL_SUBCLASS_RESOURCES both
+      // ended up with a full duplicate entry (same name, different id) for
+      // 18 different subclass features - two independently-authored
+      // representations of the identical mechanic (a minLevel+_max style
+      // here, a maxByLevel-array style there, both gating at the exact
+      // same level), never reconciled against each other. Deduping by
+      // name here - keeping whichever is spread first (PHB_SUBCLASS_
+      // RESOURCES, the file's established primary curated table) - fixes
+      // every one of them without needing to special-case each pair; the
+      // dropped duplicate's own `desc` isn't a loss either, since
+      // resolveResourceFeatureDesc() now sources the real text from the
+      // matching feature regardless of which entry's desc field survives.
+      const _seenSubResNames = new Set();
       [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])]
+        .filter(r => { if (_seenSubResNames.has(r.name)) return false; _seenSubResNames.add(r.name); return true; })
         .filter(r => eLv >= Math.max(3, r.minLevel||1))
         .forEach(r => add({ ...r, _resClass: eCls }));
       // Auto-generated subclass feature resources
       const subData = PHB_SUBCLASSES[eSubKey];
       (subData?.features||[]).forEach(f => {
         if (!f.usages || !f.recovery || f.isTable || eLv < Math.max(3, f.level||1)) return;
+        // Skip if a curated resource (PHB_SUBCLASS_RESOURCES / SUPPLEMENTAL_
+        // SUBCLASS_RESOURCES, added just above) already represents this
+        // exact feature. Without this check, any feature that's BOTH
+        // curated (for its precise numeric formula or a DM native-override
+        // hook) AND has usages+recovery set on its own catalog entry
+        // generated a second, duplicate resource card under a different id
+        // - add()'s dedup only catches matching ids, and the auto-generated
+        // id scheme (scfeat_...) never collides with a curated one's own id.
+        // Hexblade's Curse, Psychic Veil, and Know Your Enemy were all
+        // showing up twice in the tracker for exactly this reason - same
+        // feature, two cards, both with correct text once resolved (per
+        // resolveResourceFeatureDesc), but still a visual duplicate.
+        if (defs.some(d => (d.featureName || d.name) === f.name)) return;
         // Optional gating: only generate this resource if a specific class_choice matches (e.g. Armorer's chosen armor model)
         if (f.requiresChoice) {
           const chosenVal = (currentChar.class_choices?.[f.requiresChoice.id] || '').toLowerCase();
@@ -54689,6 +54720,67 @@ function openFeatInfoModal(featName) {
   openModal('feat-info-modal', true);
 }
 window.openFeatInfoModal = openFeatInfoModal;
+
+// Invocation pill click -> same shared #feat-info-modal shell as
+// openFeatInfoModal/openClassFeatureInfoModal above, just sourced from
+// PHB_INVOCATIONS instead. Matches against both the raw catalog `name`
+// (which carries a "(2+)"-style level/pact suffix) and `clean` (without
+// it), since it's not visible from the pill alone which form got stored.
+function openInvocationInfoModal(invocName) {
+  if (!invocName) return;
+  const norm = s => (s || '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+  const target = norm(invocName);
+  const inv = PHB_INVOCATIONS.find(i => norm(i.clean || i.name) === target || norm(i.name) === target);
+  const titleEl = document.getElementById('feat-info-title');
+  const bodyEl  = document.getElementById('feat-info-body');
+  if (titleEl) titleEl.textContent = inv?.clean || invocName;
+  if (bodyEl) {
+    const prereqBits = [];
+    if (inv?.minLevel) prereqBits.push(`Warlock ${inv.minLevel}+`);
+    if (inv?.pact) prereqBits.push(`Pact of the ${inv.pact.charAt(0).toUpperCase()}${inv.pact.slice(1)}`);
+    if (inv?.invocReq) prereqBits.push(`Requires ${norm(inv.invocReq).replace(/\b\w/g, c => c.toUpperCase())}`);
+    if (inv?.cantripReq) {
+      const sp = PHB_SPELL_LIST.find(s => s.key === inv.cantripReq);
+      prereqBits.push(`Know ${sp?.name || inv.cantripReq}`);
+    }
+    bodyEl.innerHTML = `
+      ${prereqBits.length ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-bottom:8px">Prereq: ${prereqBits.join(', ')}</div>` : ''}
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${formatFeatDescHtml(inv?.desc || 'No description available.')}</div>
+    `;
+    if (typeof linkifyGlossaryTerms === 'function') bodyEl.innerHTML = linkifyGlossaryTerms(bodyEl.innerHTML, inv?.clean || invocName);
+  }
+  openModal('feat-info-modal', true);
+}
+window.openInvocationInfoModal = openInvocationInfoModal;
+
+// Weapon Mastery pill click - same shared modal shell again, sourced from
+// PHB_WEAPONS + getWeaponMasteryDesc (the same lookup openWeaponDetail
+// already uses for an owned weapon instance, just keyed by name here
+// instead of an inventory index, since a mastery pick is a weapon TYPE,
+// not necessarily anything the character currently owns).
+function openWeaponMasteryInfoModal(weaponName) {
+  if (!weaponName) return;
+  const phb = PHB_WEAPONS.find(w => w.name === weaponName);
+  const titleEl = document.getElementById('feat-info-title');
+  const bodyEl  = document.getElementById('feat-info-body');
+  if (titleEl) titleEl.textContent = weaponName;
+  if (bodyEl) {
+    const properties = (phb?.properties || [])
+      .map(p => p.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
+      .join(', ');
+    const dmgStr = phb?.damage ? `${phb.damage.count}d${phb.damage.die} ${phb.damage.type}` : '';
+    const metaBits = [phb?.type, dmgStr, properties].filter(Boolean);
+    const masteryDesc = phb?.mastery ? getWeaponMasteryDesc(phb.mastery, phb.mastery_desc) : '';
+    bodyEl.innerHTML = `
+      ${metaBits.length ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-bottom:8px">${metaBits.join(' \u00b7 ')}</div>` : ''}
+      ${phb?.mastery ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--gold);font-weight:600;margin-bottom:4px">Mastery: ${phb.mastery}</div>` : ''}
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${formatFeatDescHtml(masteryDesc || phb?.desc || 'No description available.')}</div>
+    `;
+    if (typeof linkifyGlossaryTerms === 'function') bodyEl.innerHTML = linkifyGlossaryTerms(bodyEl.innerHTML, weaponName);
+  }
+  openModal('feat-info-modal', true);
+}
+window.openWeaponMasteryInfoModal = openWeaponMasteryInfoModal;
 
 // Popup for a class-feature name clicked inside a progression table (see
 // renderScalingTable/renderOneScalingTable) - reuses the exact same
