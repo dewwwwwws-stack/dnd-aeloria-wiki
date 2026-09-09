@@ -37987,7 +37987,26 @@ function renderScalingTableParts(cls, sub, clsLevel) {
   // get, then what can you cast", rather than being pushed all the way
   // to the far right past nine numeric slot columns.
   if (featuresByLevel) {
-    baseTable.columns = [...baseTable.columns, { key: '__features__', label: 'Features' }];
+    const featCol = { key: '__features__', label: 'Features' };
+    // Every other curated class's numeric columns (Rages, Sneak Attack
+    // Dice, Martial Arts die, etc.) are genuinely non-spell, so appending
+    // Features after them here - before the spell-slot columns get merged
+    // in further below - already lands it in the shared "base cols, then
+    // Features, then spell cols" position every class is meant to share.
+    // Warlock is the one exception: its curated table (SPELL_SLOT_TABLES
+    // ['warlock']) is a single pre-built object whose columns already
+    // include its own spell-related ones (Cantrips, Prepared, Slots, Slot
+    // Level, Mystic Arcanum) right alongside its one base column
+    // (Invocations), all before this point ever runs - so appending here
+    // like every other class does put Features after all six of them
+    // instead, at the far right, instead of matching the shared layout
+    // (Invocations, Features, Cantrips, Prepared, Slots, Slot Level,
+    // Mystic Arcanum).
+    if (key === 'warlock') {
+      baseTable.columns = [baseTable.columns[0], featCol, ...baseTable.columns.slice(1)];
+    } else {
+      baseTable.columns = [...baseTable.columns, featCol];
+    }
   }
 
   // Spell slot columns (Cantrips, Known/Prepared, 1st–9th) merge directly
