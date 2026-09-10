@@ -7637,7 +7637,19 @@ function switchDMTab(tab) {
   });
   if (tab === 'admin')     { dmLoadAdminCharList(); if (typeof dmLoadGlyphDefaults === 'function') dmLoadGlyphDefaults(); if (typeof loadDMCustomLanguages === 'function') loadDMCustomLanguages(); }
   if (tab === 'campaigns') dmLoadCampaigns();
-  if (tab === 'items')     dmRenderItemsList();
+  if (tab === 'items') {
+    // Render whatever's already cached immediately (no blank flash), then
+    // trigger a real refetch too - unlike every other tab here, Items was
+    // the one branch that only ever re-rendered from memory and never
+    // re-loaded, so a catalog item saved this session wouldn't show up
+    // here again until *something else* happened to trigger a reload
+    // (the periodic 60s poll, a realtime broadcast, or just visiting a
+    // character sheet - none of which "opening the Items tab" itself
+    // ever did). Opening the tab should always show current data on its
+    // own, not depend on incidental timing from an unrelated action.
+    dmRenderItemsList();
+    loadDMItemOverrides();
+  }
   if (tab === 'feats')     dmRenderFeatsList();
   // Key Stats reuses whatever the Party tab already fetched this session
   // (same grouped-by-campaign character list) rather than re-fetching -
@@ -41816,7 +41828,17 @@ function renderMagicItemsPanel() {
 
       const canToggleAttune = item.attunement;
       const isAttuned = item.attuned;
-      const over = attuned >= maxSlots && !isAttuned;
+      // Same exception as canAttune()/toggleAttunement() - a no-slot item
+      // must never be treated as blocked by the slot count, or the button
+      // ends up disabled (with the disabled HTML attribute below) before
+      // the click can ever reach toggleAttunement()'s own already-correct
+      // bypass for it. This was the actual bug: the underlying toggle
+      // function handled attunementNoSlot correctly, but this separate
+      // "is the button disabled" check - used only for the button's
+      // enabled/disabled state and tooltip, never for the toggle itself -
+      // didn't, so the button never became clickable in the first place
+      // once the character's real slots were full.
+      const over = !item.attunementNoSlot && attuned >= maxSlots && !isAttuned;
 
       const effectBadges = [];
       const fx = item.effects;
@@ -43969,6 +43991,15 @@ async function saveDMCatalogItem() {
           mi.name       = name;
           mi.rarity     = rarity;
           mi.attunement = attunement;
+          // Missing from the original attunementNoSlot implementation -
+          // every other definitional field here already propagates to an
+          // already-owned instance on a catalog edit, but this one was
+          // left out entirely, so setting "requires attunement (no slot)"
+          // on an item that already existed in someone's inventory never
+          // reached that owned copy - only brand-new grants of the item
+          // picked it up, via addMagicItemToCharacter's own (correct)
+          // copy of this field.
+          mi.attunementNoSlot = attunementNoSlot;
           mi.type       = type;
           mi.weight     = weight || null;
           mi.isWeapon   = isWeapon;
