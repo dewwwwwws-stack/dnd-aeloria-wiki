@@ -5668,10 +5668,14 @@ body.preview-readonly #mi-detail-edit-row * {
         </div>
         <div style="flex:1">
           <label class="field-label">Attunement</label>
-          <select id="ci-attunement" class="choice-select">
+          <select id="ci-attunement" class="choice-select" onchange="toggleAttunementNoSlotRow(this.value)">
             <option value="0">No Attunement</option>
             <option value="1">Requires Attunement</option>
           </select>
+          <label id="ci-attunement-no-slot-row" style="display:none;align-items:center;gap:6px;margin-top:6px;font-family:var(--font-ui);font-size:10px;color:var(--text3);cursor:pointer">
+            <input type="checkbox" id="ci-attunement-no-slot" style="width:auto;margin:0">
+            Doesn't count against the attunement limit
+          </label>
         </div>
       </div>
 
@@ -41664,11 +41668,21 @@ function syncMagicAmmoToInventory() {
 
 function getAttunedItems() {
   ensureMagicItems();
-  return currentChar.magicItems.filter(i => i.attunement && i.attuned);
+  // attunementNoSlot items still require the normal Attunement process (see
+  // toggleAttunement) and still show as attuned - they just never count
+  // against the character's numeric attunement-slot limit. Excluding them
+  // here is sufficient on its own: every caller of this function only uses
+  // .length for slot-limit purposes (the pip tracker's count and both
+  // canAttune()/toggleAttunement()'s gate checks), never the item list
+  // itself for anything else - effect-application code (e.g.
+  // getMagicItemACBonus) checks item.attuned directly per item instead of
+  // going through this list, so it's unaffected by the exclusion.
+  return currentChar.magicItems.filter(i => i.attunement && i.attuned && !i.attunementNoSlot);
 }
 
 function canAttune(item) {
-  return getAttunedItems().length < getMaxAttunementSlots()
+  return item?.attunementNoSlot // never gated by the slot count at all
+    || getAttunedItems().length < getMaxAttunementSlots()
     || item.attuned; // already attuned is always valid
 }
 
@@ -42009,7 +42023,10 @@ function toggleAttunement(idx) {
   ensureMagicItems();
   const item = currentChar.magicItems[idx];
   if (!item) return;
-  if (!item.attuned && getAttunedItems().length >= getMaxAttunementSlots()) {
+  // A no-slot item never contributes to (or is gated by) the counted
+  // total - it can always be freely attuned/unattuned regardless of how
+  // full the real slots are, same as canAttune() treats it above.
+  if (!item.attunementNoSlot && !item.attuned && getAttunedItems().length >= getMaxAttunementSlots()) {
     toast(`Attunement limit reached (${getMaxAttunementSlots()})`, 'warn'); return;
   }
   item.attuned = !item.attuned;
@@ -42718,6 +42735,7 @@ function addMagicItemToCharacter(char, key) {
     key: def.key, name: def.name, rarity: def.rarity,
     type: def.type, desc: def.desc,
     attunement: def.attunement, attuned: false,
+    attunementNoSlot: def.attunementNoSlot || false,
     isWeapon: def.isWeapon, isArmour: def.isArmour, isAmmo: def.isAmmo,
     effects: def.effects || null,
     rarityByBonus: def.rarityByBonus || null,
@@ -43222,6 +43240,17 @@ function toggleCustomItemChargeFields(checked) {
   if (typeof renderCustomItemGrantedSpells === 'function') renderCustomItemGrantedSpells();
 }
 
+// Shared by both item-editor modal paths (openCustomItemModal for a
+// character's own instance, openDMCatalogItemModal for a catalog entry) -
+// the "doesn't count against the attunement limit" checkbox only makes
+// sense once attunement itself is required, so it stays hidden/irrelevant
+// otherwise rather than sitting there always visible and confusing.
+function toggleAttunementNoSlotRow(attunementVal) {
+  const row = document.getElementById('ci-attunement-no-slot-row');
+  if (row) row.style.display = attunementVal === '1' ? 'flex' : 'none';
+}
+window.toggleAttunementNoSlotRow = toggleAttunementNoSlotRow;
+
 function openCustomItemModal(idx, dmItem = null) {
   ensureMagicItems();
   _ciMode = 'character';
@@ -43240,6 +43269,8 @@ function openCustomItemModal(idx, dmItem = null) {
   document.getElementById('ci-item-name').value        = item?.name || '';
   document.getElementById('ci-rarity').value      = item?.rarity || 'uncommon';
   document.getElementById('ci-attunement').value  = item?.attunement ? '1' : '0';
+  document.getElementById('ci-attunement-no-slot').checked = !!item?.attunementNoSlot;
+  toggleAttunementNoSlotRow(document.getElementById('ci-attunement').value);
   document.getElementById('ci-type').value        = item?.type || '';
   document.getElementById('ci-weight').value      = item?.weight || '';
   document.getElementById('ci-is-weapon').checked  = !!item?.isWeapon;
@@ -43448,6 +43479,7 @@ async function saveCustomItemModal() {
 
   const rarity      = document.getElementById('ci-rarity').value;
   const attunement  = document.getElementById('ci-attunement').value === '1';
+  const attunementNoSlot = attunement && document.getElementById('ci-attunement-no-slot').checked;
   const type        = document.getElementById('ci-type').value.trim() || 'wondrous item';
   const weight      = document.getElementById('ci-weight').value.trim();
   const isWeapon    = document.getElementById('ci-is-weapon').checked;
@@ -43513,6 +43545,7 @@ async function saveCustomItemModal() {
   item.name       = name;
   item.rarity     = rarity;
   item.attunement = attunement;
+  item.attunementNoSlot = attunementNoSlot;
   item.type       = type;
   item.weight     = weight || null;
   item.isWeapon   = isWeapon;
@@ -43768,6 +43801,8 @@ function openDMCatalogItemModal(key) {
   document.getElementById('ci-item-name').value        = item?.name || '';
   document.getElementById('ci-rarity').value      = item?.rarity || 'uncommon';
   document.getElementById('ci-attunement').value  = item?.attunement ? '1' : '0';
+  document.getElementById('ci-attunement-no-slot').checked = !!item?.attunementNoSlot;
+  toggleAttunementNoSlotRow(document.getElementById('ci-attunement').value);
   document.getElementById('ci-type').value        = item?.type || '';
   document.getElementById('ci-weight').value      = item?.weight || '';
   document.getElementById('ci-is-weapon').checked  = !!item?.isWeapon;
@@ -43847,6 +43882,7 @@ async function saveDMCatalogItem() {
 
   const rarity      = document.getElementById('ci-rarity').value;
   const attunement  = document.getElementById('ci-attunement').value === '1';
+  const attunementNoSlot = attunement && document.getElementById('ci-attunement-no-slot').checked;
   const type        = document.getElementById('ci-type').value.trim() || 'wondrous item';
   const weight      = document.getElementById('ci-weight').value.trim();
   const isWeapon    = document.getElementById('ci-is-weapon').checked;
@@ -43906,6 +43942,7 @@ async function saveDMCatalogItem() {
     source: 'Dorenia DM',
   };
   if (hasCharges) itemObj.charges = { max: chargeMax, recovery: chargeRecovery, recoveryNote: chargeNote };
+  if (attunementNoSlot) itemObj.attunementNoSlot = true;
   if (grantedSpells.length) itemObj.grantedSpells = grantedSpells;
   if (grantedResources.length) itemObj.grantedResources = grantedResources;
 
