@@ -5756,6 +5756,64 @@ body.preview-readonly #mi-detail-edit-row * {
       </div>
 
       <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Grants</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label class="field-label">Skill Proficiencies</label>
+            <select class="info-input" id="ci-fx-skillProfs-select" onchange="_ciAddMultiPickValue('skillProfs', this.value); this.value='';"></select>
+            <div id="ci-fx-skillProfs-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div>
+            <label class="field-label">Expertise</label>
+            <select class="info-input" id="ci-fx-expertiseSkills-select" onchange="_ciAddMultiPickValue('expertiseSkills', this.value); this.value='';"></select>
+            <div id="ci-fx-expertiseSkills-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div>
+            <label class="field-label">Tool Proficiencies</label>
+            <select class="info-input" id="ci-fx-toolProfs-select" onchange="_ciAddMultiPickValue('toolProfs', this.value); this.value='';"></select>
+            <div id="ci-fx-toolProfs-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div>
+            <label class="field-label">Languages</label>
+            <select class="info-input" id="ci-fx-languages-select" onchange="_ciAddMultiPickValue('languages', this.value); this.value='';"></select>
+            <div id="ci-fx-languages-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div>
+            <label class="field-label">Advantage on Saves</label>
+            <select class="info-input" id="ci-fx-advSaves-select" onchange="_ciAddMultiPickValue('advSaves', this.value); this.value='';"></select>
+            <div id="ci-fx-advSaves-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div>
+            <label class="field-label">Disadvantage on Saves</label>
+            <select class="info-input" id="ci-fx-disSaves-select" onchange="_ciAddMultiPickValue('disSaves', this.value); this.value='';"></select>
+            <div id="ci-fx-disSaves-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div>
+            <label class="field-label">Advantage on Ability Checks</label>
+            <select class="info-input" id="ci-fx-advChecks-select" onchange="_ciAddMultiPickValue('advChecks', this.value); this.value='';"></select>
+            <div id="ci-fx-advChecks-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div>
+            <label class="field-label">Disadvantage on Ability Checks</label>
+            <select class="info-input" id="ci-fx-disChecks-select" onchange="_ciAddMultiPickValue('disChecks', this.value); this.value='';"></select>
+            <div id="ci-fx-disChecks-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+          <div style="grid-column:1 / -1">
+            <label class="field-label">Per-Ability Save Bonus <span style="font-weight:400;text-transform:none;color:var(--text3)">(separate from the flat Save Bonus above)</span></label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <select class="info-input" id="ci-fx-savebonus-ability" style="flex:1"></select>
+              <input class="info-input" id="ci-fx-savebonus-value" type="number" placeholder="+/-" style="width:80px">
+              <button type="button" class="tbtn" style="font-size:9px;padding:6px 10px;white-space:nowrap" onclick="_ciAddSaveBonusByAbility()">+ Add</button>
+            </div>
+            <div id="ci-fx-saveBonusByAbility-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+        </div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:6px;line-height:1.4">
+          All of these only apply while the item is attuned (if it requires attunement) - same as every other bonus above.
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:10px">
         <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Granted Spells</div>
         <div id="ci-granted-spells-list" style="display:flex;flex-direction:column;gap:8px"></div>
         <datalist id="ci-spell-names"></datalist>
@@ -25923,9 +25981,12 @@ function renderSavesBlock() {
     const mod          = abilityMod(abs[s.key]);
     const isProficient = !!currentChar.save_profs[s.key];
     const drunkPen      = getDrunkennessSavePenalty(s.key);
-    const total        = mod + (isProficient ? prof : 0) - exPen - drunkPen + getMagicItemSaveBonus();
+    const itemSaveBonus = getMagicItemSaveBonusByAbility(s.key);
+    const total        = mod + (isProficient ? prof : 0) - exPen - drunkPen + getMagicItemSaveBonus() + itemSaveBonus;
     const totalStr     = (total >= 0 ? '+' : '') + total;
     const condEffect   = getConditionSaveEffect(s.key);
+    const itemAdvSources = getSaveAdvantageSources(s.key);
+    const itemDisSources = getSaveDisadvantageSources(s.key);
 
     // Build formula string
     const parts = [];
@@ -25933,22 +25994,35 @@ function renderSavesBlock() {
     if (isProficient) parts.push(`Prof +${prof}`);
     if (exPen > 0)    parts.push(`Exh \u2212${exPen}`);
     if (drunkPen > 0) parts.push(`Drunk \u2212${drunkPen}`);
+    if (itemSaveBonus) parts.push(`Item ${itemSaveBonus >= 0 ? '+' : ''}${itemSaveBonus}`);
     let formula = parts.join(' + ').replace('+ \u2212', '\u2212') + ` = ${totalStr}`;
     if (condEffect.autoFail) formula += ` · Auto-fails - ${condEffect.sources.join(', ')}`;
     else if (condEffect.disadvantage) formula += ` · Disadvantage - ${condEffect.sources.join(', ')}`;
+    if (itemAdvSources.length) formula += ` · Advantage - ${itemAdvSources.join(', ')}`;
+    if (itemDisSources.length) formula += ` · Disadvantage - ${itemDisSources.join(', ')}`;
 
     const condBadge = condEffect.autoFail
       ? `<span title="${condEffect.sources.join(', ')}" style="font-family:var(--font-ui);font-size:8px;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:0 4px;margin-left:4px">AUTO-FAIL</span>`
       : condEffect.disadvantage
       ? `<span title="${condEffect.sources.join(', ')}" style="font-family:var(--font-ui);font-size:8px;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:0 4px;margin-left:4px">DISADV</span>`
       : '';
+    // Item-sourced advantage/disadvantage badges are independent of (and
+    // shown alongside) the condition-sourced one above - a save can
+    // legitimately have both an item granting advantage and a condition
+    // forcing disadvantage at the same time, which cancel out at the
+    // table but are each worth surfacing separately here rather than
+    // collapsing into one badge.
+    const itemAdvBadge = itemAdvSources.length
+      ? `<span title="${itemAdvSources.join(', ')}" style="font-family:var(--font-ui);font-size:8px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:0 4px;margin-left:4px">ADV</span>` : '';
+    const itemDisBadge = itemDisSources.length
+      ? `<span title="${itemDisSources.join(', ')}" style="font-family:var(--font-ui);font-size:8px;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:0 4px;margin-left:4px">DISADV</span>` : '';
 
     const row = document.createElement('div');
     row.className = 'save-row';
     row.innerHTML = `
       <div class="prof-dot ${isProficient ? 'prof' : ''}" id="save-dot-${s.key}"
         onclick="toggleSaveProf('${s.key}')" title="Click to toggle proficiency"></div>
-      <span class="save-name">${s.name}${condBadge}</span>
+      <span class="save-name">${s.name}${condBadge}${itemAdvBadge}${itemDisBadge}</span>
       <span class="save-val" id="save-val-${s.key}" style="color:${drunkPen > 0 ? 'var(--gold)' : exPen > 0 ? 'var(--exh-colour)' : 'var(--text)'};cursor:help" title="${formula}">${totalStr}</span>
     `;
     block.appendChild(row);
@@ -26041,6 +26115,54 @@ function getSkillAdvantageSources(skillKey) {
 }
 window.getSkillAdvantageSources = getSkillAdvantageSources;
 
+// Same pattern as getSkillAdvantageSources above, generalized to saving
+// throws and ability checks, and to disadvantage as well as advantage -
+// covers item.effects.advSaves / disSaves / advChecks / disChecks, each an
+// array of ability keys or the literal string 'all' (matching every
+// ability). Read live from the item's current attunement state every call
+// rather than baked into currentChar, since - unlike a skill/tool/language
+// proficiency - advantage/disadvantage isn't something that makes sense to
+// "still have a little of" after the source goes away; it should track the
+// item's current state exactly, with zero risk of stale leftover state.
+function _getMagicItemD20Sources(ability, effectKey) {
+  if (!currentChar) return [];
+  const sources = [];
+  (currentChar.magicItems || []).forEach(item => {
+    const list = item.effects?.[effectKey];
+    if (!list || !list.length) return;
+    if (!list.includes('all') && !list.includes(ability)) return;
+    if (item.attunement && !item.attuned) return;
+    sources.push(getItemDisplayName(item));
+  });
+  return sources;
+}
+function getSaveAdvantageSources(ability)  { return _getMagicItemD20Sources(ability, 'advSaves'); }
+function getSaveDisadvantageSources(ability) { return _getMagicItemD20Sources(ability, 'disSaves'); }
+function getCheckAdvantageSources(ability)  { return _getMagicItemD20Sources(ability, 'advChecks'); }
+function getCheckDisadvantageSources(ability) { return _getMagicItemD20Sources(ability, 'disChecks'); }
+window.getSaveAdvantageSources = getSaveAdvantageSources;
+window.getSaveDisadvantageSources = getSaveDisadvantageSources;
+window.getCheckAdvantageSources = getCheckAdvantageSources;
+window.getCheckDisadvantageSources = getCheckDisadvantageSources;
+
+// Per-ability save bonus (item.effects.saveBonusByAbility: {wis:2}) -
+// separate and additive with the existing flat getMagicItemSaveBonus()
+// (all-saves bonus), for items that only boost one or two specific saves
+// rather than every save equally.
+function getMagicItemSaveBonusByAbility(ability) {
+  if (isAntimagicActive() || !currentChar) return 0;
+  let total = 0;
+  (currentChar.magicItems || []).forEach(item => {
+    const bonus = item.effects?.saveBonusByAbility?.[ability];
+    if (!bonus) return;
+    if (item.attunement && !item.attuned) return;
+    total += bonus;
+  });
+  return total;
+}
+window.getMagicItemSaveBonusByAbility = getMagicItemSaveBonusByAbility;
+
+
 // Where a skill's proficiency/expertise actually came from - reads the
 // same tracking fields the Skill Setup wizard already persists (_bgSkills,
 // _classSkills, _raceSkill, _skilledSkills) rather than inventing new
@@ -26127,6 +26249,70 @@ function syncArcaneArcherLoreSkills() {
   currentChar._arcaneArcherLoreSkills = granted;
 }
 window.syncArcaneArcherLoreSkills = syncArcaneArcherLoreSkills;
+
+// Grants Skill/Tool Proficiencies, Expertise, and Languages from any
+// attuned (or non-attunement-requiring) magic item's effects fields
+// (skillProfs/expertiseSkills/toolProfs/languages - see the DM item
+// editor's "Grants" section). Same idempotent clear-then-reapply shape as
+// syncArcaneArcherLoreSkills just above, called from recalcAll() for the
+// same reason - a freshly loaded character, or one who just (un)attuned
+// an item, needs this applied immediately.
+//
+// Only ever retracts a flag THIS function itself set to true last sync
+// (tracked in the four _magicItemGranted* arrays below) - never a bare
+// "was this key true, delete it" check, since that could wrongly strip a
+// proficiency the character also has from their background/class/race/a
+// feat the moment an item happens to get unattuned. We only take credit
+// for (and later take back) a flag that was actually false before we set
+// it ourselves.
+function syncMagicItemGrantedProficiencies() {
+  if (!currentChar) return;
+
+  (currentChar._magicItemGrantedSkills || []).forEach(key => {
+    if (currentChar.skill_profs) delete currentChar.skill_profs[key];
+  });
+  (currentChar._magicItemGrantedExpertise || []).forEach(key => {
+    if (currentChar.skill_expert) delete currentChar.skill_expert[key];
+  });
+  (currentChar._magicItemGrantedTools || []).forEach(key => {
+    if (currentChar.toolProfs) delete currentChar.toolProfs[key];
+  });
+  (currentChar._magicItemGrantedLanguages || []).forEach(key => {
+    if (currentChar.languageProfs) delete currentChar.languageProfs[key];
+  });
+
+  if (!currentChar.skill_profs)   currentChar.skill_profs   = {};
+  if (!currentChar.skill_expert)  currentChar.skill_expert  = {};
+  if (!currentChar.toolProfs)     currentChar.toolProfs     = {};
+  if (!currentChar.languageProfs) currentChar.languageProfs = {};
+
+  const grantedSkills = new Set(), grantedExpertise = new Set(), grantedTools = new Set(), grantedLanguages = new Set();
+
+  (currentChar.magicItems || []).forEach(item => {
+    if (item.attunement && !item.attuned) return;
+    const fx = item.effects || {};
+    (fx.skillProfs || []).forEach(k => {
+      if (!currentChar.skill_profs[k]) { currentChar.skill_profs[k] = true; grantedSkills.add(k); }
+    });
+    (fx.expertiseSkills || []).forEach(k => {
+      if (!currentChar.skill_expert[k]) { currentChar.skill_expert[k] = true; grantedExpertise.add(k); }
+    });
+    (fx.toolProfs || []).forEach(name => {
+      const key = toolProfKey(name);
+      if (!currentChar.toolProfs[key]) { currentChar.toolProfs[key] = true; grantedTools.add(key); }
+    });
+    (fx.languages || []).forEach(name => {
+      const key = toolProfKey(name); // same slugify convention languageProfs already uses
+      if (!currentChar.languageProfs[key]) { currentChar.languageProfs[key] = true; grantedLanguages.add(key); }
+    });
+  });
+
+  currentChar._magicItemGrantedSkills    = [...grantedSkills];
+  currentChar._magicItemGrantedExpertise = [...grantedExpertise];
+  currentChar._magicItemGrantedTools     = [...grantedTools];
+  currentChar._magicItemGrantedLanguages = [...grantedLanguages];
+}
+window.syncMagicItemGrantedProficiencies = syncMagicItemGrantedProficiencies;
 
 function renderSkillsBlock() {
   const block = document.getElementById('skills-block');
@@ -30251,6 +30437,7 @@ function recalcAll() {
   syncMagicArmorToInventory();   // keep ac_armor_key in sync with equipped magic armor
   syncMagicAmmoToInventory();    // keep ammoBonus in sync with assigned magic ammunition
   if (typeof syncArcaneArcherLoreSkills === 'function') syncArcaneArcherLoreSkills(); // Arcana/Nature auto-grant + replacement picks
+  if (typeof syncMagicItemGrantedProficiencies === 'function') syncMagicItemGrantedProficiencies(); // item-granted skill/tool profs, expertise, languages
   if (typeof syncFeatCatalogGrantedProficiencies === 'function') syncFeatCatalogGrantedProficiencies(); // DM-configured feat/feature skill/tool/language grants
   if (typeof syncDragonmarkFeatSpells === 'function') syncDragonmarkFeatSpells(); // re-evaluate level-3-gated dragonmark spell grants
   applyFeatSlotEffects();   // ensure feat bonuses (speed, HP, etc.) are up to date
@@ -33445,6 +33632,46 @@ function renderKnownSpells() {
     const pipClick  = canToggle ? `onclick="toggleSpellPrepared('${sp.key}')" style="${pipStyle}"` : `style="${pipStyle}"`;
 
     const tags = [];
+    // Action type / Components / Range - same info already shown in the
+    // full spell-detail modal (screenshot 2), surfaced here too so it's
+    // visible without opening that modal. Neutral gray styling (distinct
+    // border/text colour from the functional C/R/M+/U tags) so these read
+    // as plain reference info rather than another mechanic to track.
+    // Cast time: "1 Action"->"Action", "1 Bonus Action"->"Bonus Action",
+    // "1 Reaction, which you take..."->"Reaction" (stop at the first
+    // comma - reaction spells' full cast-time text is often a whole
+    // trigger clause, too long for a compact badge).
+    if (phb?.time) {
+      // phb.time is stored pre-abbreviated in the catalog itself (e.g.
+      // "1 a", "1 bns", "1 rea", "1 h", "10 min"), not spelled out - my
+      // first pass here wrongly assumed "1 Action"-style text and just
+      // stripped a leading "1 ", which left one-letter fragments like "a"
+      // instead of "Action". Parsed properly against the catalog's own
+      // unit codes instead - also covers the "bns" vs "bonus" wording the
+      // catalog uses inconsistently, and preserves a "*" or "(D)" suffix
+      // where the catalog attaches one (both carry real meaning - "*"
+      // marks a reaction with an unusual trigger, "(D)" a duration note).
+      const _ctMatch = phb.time.match(/^(\d+)\s*([a-z]+)(\*)?(\s*\(D\))?$/i);
+      let _ct = phb.time;
+      if (_ctMatch) {
+        const [, num, unit, star, dNote] = _ctMatch;
+        const unitLabel = { a:'Action', bns:'Bonus', bonus:'Bonus', rea:'Reaction', min:'min', h:'hr' }[unit.toLowerCase()] || unit;
+        _ct = (['Action','Bonus','Reaction'].includes(unitLabel) && num === '1')
+          ? `${unitLabel}${star||''}`
+          : `${num} ${unitLabel}${star||''}${dNote||''}`;
+      }
+      tags.push(`<span class="sp-tag" style="color:var(--text);border-color:var(--border2)" title="Casting time: ${phb.time.replace(/"/g,'&quot;')}">${_ct}</span>`);
+    }
+    if (phb?.components) {
+      // The dagger (costly consumed material) is already called out via
+      // its own amber M+ tag below, and the material's own descriptive
+      // parenthetical (e.g. "(a sprig of holly)") is too long for a
+      // compact badge - both stripped here, letters only.
+      const _comp = phb.components.replace(/\u2020/g, '').replace(/\([^)]*\)/g, '')
+        .split(',').map(s => s.trim()).filter(Boolean).join('');
+      if (_comp) tags.push(`<span class="sp-tag" style="color:var(--text);border-color:var(--border2)" title="Components: ${phb.components.replace(/"/g,'&quot;')}">${_comp}</span>`);
+    }
+    if (phb?.range) tags.push(`<span class="sp-tag" style="color:var(--text);border-color:var(--border2)" title="Range: ${phb.range.replace(/"/g,'&quot;')}">${phb.range}</span>`);
     if (conc)                 tags.push('<span class="sp-tag conc">C</span>');
     if (ritual)               tags.push('<span class="sp-tag ritual">R</span>');
     if (phb?.components?.includes('\u2020')) tags.push('<span class="sp-tag" style="color:var(--amber);border-color:var(--amber)" title="Has a costly material component that the spell consumes">M+</span>');
@@ -43273,6 +43500,147 @@ function toggleAttunementNoSlotRow(attunementVal) {
 }
 window.toggleAttunementNoSlotRow = toggleAttunementNoSlotRow;
 
+// Dropdown+chip pickers for the item-effect grant fields (skill/tool
+// proficiencies, expertise, languages, save/check advantage or
+// disadvantage, per-ability save bonus) - same "pick from a dropdown, get
+// a removable chip" interaction as Granted Spells/Resources just below in
+// this same modal, so a DM can't typo a skill/ability name that then
+// silently fails to match anything at grant time.
+const _ABILITY_KEY_TO_LABEL = { str:'Str', dex:'Dex', con:'Con', int:'Int', wis:'Wis', cha:'Cha' };
+const _ABILITY_OPTIONS = ['str','dex','con','int','wis','cha'].map(k => ({ value: k, label: _ABILITY_KEY_TO_LABEL[k] }));
+const _ABILITY_OPTIONS_WITH_ALL = [{ value: 'all', label: 'All' }, ..._ABILITY_OPTIONS];
+
+// Config per multi-pick field: how to list available options (grouped or
+// flat) and how to render a chosen value's label.
+const _CI_MULTI_PICK_FIELDS = {
+  skillProfs:      { flatOptions: () => SKILLS.map(s => ({ value: s.key, label: s.name })), label: v => SKILLS.find(s => s.key === v)?.name || v },
+  expertiseSkills: { flatOptions: () => SKILLS.map(s => ({ value: s.key, label: s.name })), label: v => SKILLS.find(s => s.key === v)?.name || v },
+  toolProfs:       { groupedOptions: () => getToolProfCategories(), label: v => v },
+  languages:       { groupedOptions: () => PHB_LANGUAGE_CATEGORIES, label: v => v },
+  advSaves:        { flatOptions: () => _ABILITY_OPTIONS_WITH_ALL, label: v => v === 'all' ? 'All' : (_ABILITY_KEY_TO_LABEL[v] || v) },
+  disSaves:        { flatOptions: () => _ABILITY_OPTIONS_WITH_ALL, label: v => v === 'all' ? 'All' : (_ABILITY_KEY_TO_LABEL[v] || v) },
+  advChecks:       { flatOptions: () => _ABILITY_OPTIONS_WITH_ALL, label: v => v === 'all' ? 'All' : (_ABILITY_KEY_TO_LABEL[v] || v) },
+  disChecks:       { flatOptions: () => _ABILITY_OPTIONS_WITH_ALL, label: v => v === 'all' ? 'All' : (_ABILITY_KEY_TO_LABEL[v] || v) },
+};
+
+// One shared draft-state object for the whole "Grants" section, reset
+// every time the modal opens (see _populateItemGrantFields below).
+// saveBonusByAbility is a plain {ability: number} object, not an array,
+// since each ability can only have one bonus value.
+let _ciGrantFieldsDraft = { skillProfs: [], expertiseSkills: [], toolProfs: [], languages: [], advSaves: [], disSaves: [], advChecks: [], disChecks: [], saveBonusByAbility: {} };
+
+function _ciPopulateMultiPickSelect(fieldKey) {
+  const sel = document.getElementById(`ci-fx-${fieldKey}-select`);
+  if (!sel) return;
+  const cfg = _CI_MULTI_PICK_FIELDS[fieldKey];
+  const chosen = new Set(_ciGrantFieldsDraft[fieldKey] || []);
+  let html = '<option value="">+ Add...</option>';
+  if (cfg.flatOptions) {
+    html += cfg.flatOptions().filter(o => !chosen.has(o.value))
+      .map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  } else if (cfg.groupedOptions) {
+    const groups = cfg.groupedOptions();
+    html += Object.entries(groups).map(([groupLabel, names]) => {
+      const opts = names.filter(n => !chosen.has(n)).map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
+      return opts ? `<optgroup label="${groupLabel}">${opts}</optgroup>` : '';
+    }).join('');
+  }
+  sel.innerHTML = html;
+}
+
+function _ciRenderMultiPickChips(fieldKey) {
+  const container = document.getElementById(`ci-fx-${fieldKey}-chips`);
+  if (!container) return;
+  const cfg = _CI_MULTI_PICK_FIELDS[fieldKey];
+  const values = _ciGrantFieldsDraft[fieldKey] || [];
+  container.innerHTML = values.map((v, i) => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 8px;font-size:10px">
+      ${cfg.label(v)}
+      <span style="cursor:pointer;color:var(--text3);padding:0 3px" onclick="_ciRemoveMultiPickValue('${fieldKey}',${i})" title="Remove">×</span>
+    </span>
+  `).join('') || `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">None</span>`;
+}
+
+function _ciAddMultiPickValue(fieldKey, value) {
+  if (!value) return;
+  if (!_ciGrantFieldsDraft[fieldKey].includes(value)) _ciGrantFieldsDraft[fieldKey].push(value);
+  _ciRenderMultiPickChips(fieldKey);
+  _ciPopulateMultiPickSelect(fieldKey);
+}
+window._ciAddMultiPickValue = _ciAddMultiPickValue;
+
+function _ciRemoveMultiPickValue(fieldKey, idx) {
+  _ciGrantFieldsDraft[fieldKey].splice(idx, 1);
+  _ciRenderMultiPickChips(fieldKey);
+  _ciPopulateMultiPickSelect(fieldKey);
+}
+window._ciRemoveMultiPickValue = _ciRemoveMultiPickValue;
+
+function _ciRenderSaveBonusChips() {
+  const container = document.getElementById('ci-fx-saveBonusByAbility-chips');
+  if (!container) return;
+  const entries = Object.entries(_ciGrantFieldsDraft.saveBonusByAbility || {});
+  container.innerHTML = entries.map(([ab, val]) => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 8px;font-size:10px">
+      ${_ABILITY_KEY_TO_LABEL[ab] || ab}: ${val >= 0 ? '+' : ''}${val}
+      <span style="cursor:pointer;color:var(--text3);padding:0 3px" onclick="_ciRemoveSaveBonusByAbility('${ab}')" title="Remove">×</span>
+    </span>
+  `).join('') || `<span style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">None</span>`;
+}
+function _ciAddSaveBonusByAbility() {
+  const ab = document.getElementById('ci-fx-savebonus-ability').value;
+  const val = parseInt(document.getElementById('ci-fx-savebonus-value').value);
+  if (!ab || isNaN(val) || val === 0) { toast('Pick an ability and a non-zero bonus.', 'info'); return; }
+  _ciGrantFieldsDraft.saveBonusByAbility[ab] = val;
+  document.getElementById('ci-fx-savebonus-value').value = '';
+  _ciRenderSaveBonusChips();
+}
+window._ciAddSaveBonusByAbility = _ciAddSaveBonusByAbility;
+function _ciRemoveSaveBonusByAbility(ab) {
+  delete _ciGrantFieldsDraft.saveBonusByAbility[ab];
+  _ciRenderSaveBonusChips();
+}
+window._ciRemoveSaveBonusByAbility = _ciRemoveSaveBonusByAbility;
+
+// Populates the whole "Grants" section (used identically by both
+// openCustomItemModal and openDMCatalogItemModal) - resets the shared
+// draft state from the item's saved effects, then renders every picker.
+function _populateItemGrantFields(item) {
+  _ciGrantFieldsDraft = {
+    skillProfs:      [...(item?.effects?.skillProfs || [])],
+    expertiseSkills: [...(item?.effects?.expertiseSkills || [])],
+    toolProfs:       [...(item?.effects?.toolProfs || [])],
+    languages:       [...(item?.effects?.languages || [])],
+    advSaves:        [...(item?.effects?.advSaves || [])],
+    disSaves:        [...(item?.effects?.disSaves || [])],
+    advChecks:       [...(item?.effects?.advChecks || [])],
+    disChecks:       [...(item?.effects?.disChecks || [])],
+    saveBonusByAbility: { ...(item?.effects?.saveBonusByAbility || {}) },
+  };
+  Object.keys(_CI_MULTI_PICK_FIELDS).forEach(fieldKey => {
+    _ciPopulateMultiPickSelect(fieldKey);
+    _ciRenderMultiPickChips(fieldKey);
+  });
+  const abSel = document.getElementById('ci-fx-savebonus-ability');
+  if (abSel) abSel.innerHTML = _ABILITY_OPTIONS.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  _ciRenderSaveBonusChips();
+}
+
+// Reads the current draft state back out into a partial effects object -
+// callers merge this onto whatever else they're building into
+// item.effects. Empty results are simply omitted, so callers can spread
+// this in without needing to prune later.
+function _readItemGrantFields() {
+  const out = {};
+  ['skillProfs','expertiseSkills','toolProfs','languages','advSaves','disSaves','advChecks','disChecks'].forEach(k => {
+    if (_ciGrantFieldsDraft[k]?.length) out[k] = [..._ciGrantFieldsDraft[k]];
+  });
+  if (Object.keys(_ciGrantFieldsDraft.saveBonusByAbility || {}).length) {
+    out.saveBonusByAbility = { ..._ciGrantFieldsDraft.saveBonusByAbility };
+  }
+  return out;
+}
+
 function openCustomItemModal(idx, dmItem = null) {
   ensureMagicItems();
   _ciMode = 'character';
@@ -43305,6 +43673,7 @@ function openCustomItemModal(idx, dmItem = null) {
   document.getElementById('ci-fx-spellatk').value  = item?.effects?.spellAtkBonus || 0;
   document.getElementById('ci-fx-spelldc').value   = item?.effects?.spellDCBonus || 0;
   document.getElementById('ci-fx-weapon').value    = (typeof item?.effects?.weaponBonus === 'number') ? item.effects.weaponBonus : 0;
+  _populateItemGrantFields(item);
 
   const hasCharges = !!item?._resourceId;
   document.getElementById('ci-has-charges').checked = hasCharges;
@@ -43516,7 +43885,7 @@ async function saveCustomItemModal() {
   const spellDCBonus  = parseInt(document.getElementById('ci-fx-spelldc').value) || 0;
   const weaponBonus   = parseInt(document.getElementById('ci-fx-weapon').value) || 0;
 
-  const effects = {};
+  const effects = { ..._readItemGrantFields() };
   if (acBonus)       effects.acBonus = acBonus;
   if (saveBonus)      effects.saveBonus = saveBonus;
   if (spellAtkBonus)  effects.spellAtkBonus = spellAtkBonus;
@@ -43837,6 +44206,7 @@ function openDMCatalogItemModal(key) {
   document.getElementById('ci-fx-spellatk').value  = item?.effects?.spellAtkBonus || 0;
   document.getElementById('ci-fx-spelldc').value   = item?.effects?.spellDCBonus || 0;
   document.getElementById('ci-fx-weapon').value    = (typeof item?.effects?.weaponBonus === 'number') ? item.effects.weaponBonus : 0;
+  _populateItemGrantFields(item);
 
   const hasCharges = !!item?.charges?.max;
   document.getElementById('ci-has-charges').checked = hasCharges;
@@ -43918,7 +44288,7 @@ async function saveDMCatalogItem() {
   const spellDCBonus  = parseInt(document.getElementById('ci-fx-spelldc').value) || 0;
   const weaponBonus   = parseInt(document.getElementById('ci-fx-weapon').value) || 0;
 
-  const effects = {};
+  const effects = { ..._readItemGrantFields() };
   if (acBonus)        effects.acBonus = acBonus;
   if (saveBonus)       effects.saveBonus = saveBonus;
   if (spellAtkBonus)   effects.spellAtkBonus = spellAtkBonus;
