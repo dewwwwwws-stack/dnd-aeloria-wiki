@@ -28624,12 +28624,14 @@ function toggleDeathSave(type, idx) {
   const cur = currentChar.death_saves[key];
   currentChar.death_saves[key] = cur > idx ? idx : idx + 1;
   renderDeathSaves();
+  autoSave();
 }
 
 function resetDeathSaves() {
   if (!currentChar) return;
   currentChar.death_saves = { successes:0, failures:0 };
   renderDeathSaves();
+  autoSave();
 }
 
 // ═══════════════════════════════════════════════════════════
