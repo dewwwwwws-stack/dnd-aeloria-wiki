@@ -13395,11 +13395,12 @@ const CONTAMINATION_MUTATIONS = [{"name": "Wave of Mutation", "effect": "You gai
 const CLASS_HIT_DIE = {
   barbarian:12, fighter:10, paladin:10, ranger:10,
   monk:8, rogue:8, bard:8, cleric:8, druid:8, warlock:8,
-  artificer:8, wizard:6, sorcerer:6
+  artificer:8, wizard:6, sorcerer:6, psion:6
 };
 
 // Multiclass ability score requirements (PHB 2024)
 const MC_REQUIREMENTS = {
+  artificer: { int: 13 },
   barbarian: { str: 13 },
   bard:      { cha: 13 },
   cleric:    { wis: 13 },
@@ -13407,6 +13408,7 @@ const MC_REQUIREMENTS = {
   fighter:   { str_or_dex: 13 },   // STR 13 OR DEX 13
   monk:      { dex: 13, wis: 13 },
   paladin:   { str: 13, cha: 13 },
+  psion:     { int: 13 },
   ranger:    { dex: 13, wis: 13 },
   rogue:     { dex: 13 },
   sorcerer:  { cha: 13 },
@@ -17391,6 +17393,15 @@ const FEAT_EXTRA_CHOICES= {
 };
 
 const CLASS_SKILL_POOLS = {
+  "artificer": [
+    "Arcana",
+    "History",
+    "Investigation",
+    "Medicine",
+    "Nature",
+    "Perception",
+    "Sleight of Hand"
+  ],
   "barbarian": [
     "Animal Handling",
     "Athletics",
@@ -17522,6 +17533,7 @@ const CLASS_SKILL_POOLS = {
   ]
 };
 const CLASS_SKILL_COUNTS= {
+  "artificer": 2,
   "barbarian": 2,
   "bard": 3,
   "cleric": 2,
@@ -17536,6 +17548,74 @@ const CLASS_SKILL_COUNTS= {
   "wizard": 2,
   "psion": 2
 };
+
+// 2024 PHB Multiclassing Proficiencies - what a class grants when taken as
+// a SECOND (or later) class, distinct from and smaller than the full
+// starting proficiencies in CLASS_SKILL_POOLS/CLASS_WEAPON_PROFS above
+// (which only apply to the character's first class). Ability score
+// prerequisites (13 in the relevant ability for every class as of 2024)
+// aren't enforced here - this only covers what's gained once multiclassed
+// in. Empty entries (Monk, Psion, Sorcerer, Wizard) grant nothing.
+const MULTICLASS_PROFICIENCIES = {
+  artificer: { skillCount: 1, skillPool: ["Arcana","History","Investigation","Medicine","Nature","Perception","Sleight of Hand"],
+    weapon: { simple: true }, tools: ["Tinker's Tools"], armor: { light: true, medium: true, shield: true } },
+  barbarian: { weapon: { martial: true }, armor: { shield: true } },
+  bard: { skillCount: 1, skillPool: "any", toolChoice: { count: 1, categories: ['Musical Instruments'] }, armor: { light: true } },
+  cleric: { armor: { light: true, medium: true, shield: true } },
+  druid: { armor: { light: true, shield: true } },
+  fighter: { weapon: { martial: true }, armor: { light: true, medium: true, shield: true } },
+  monk: {},
+  paladin: { weapon: { martial: true }, armor: { light: true, medium: true, shield: true } },
+  psion: {},
+  ranger: { skillCount: 1, skillPool: ["Animal Handling","Athletics","Insight","Investigation","Nature","Perception","Stealth","Survival"],
+    weapon: { martial: true }, armor: { light: true, medium: true, shield: true } },
+  rogue: { skillCount: 1, skillPool: ["Acrobatics","Athletics","Deception","Insight","Intimidation","Investigation","Perception","Persuasion","Sleight of Hand","Stealth"],
+    tools: ["Thieves' Tools"], armor: { light: true } },
+  sorcerer: {},
+  warlock: { armor: { light: true } },
+  wizard: {},
+};
+
+// Starting tool proficiencies (2024 PHB) - what a class grants at level 1,
+// as a fixed list, a choice from a tool category, or both. Most classes
+// grant none at all.
+const CLASS_STARTING_TOOLS = {
+  artificer: { fixed: ["Thieves' Tools", "Tinker's Tools"], choice: { count: 1, categories: ["Artisan's Tools"] } },
+  bard:      { choice: { count: 3, categories: ['Musical Instruments'] } },
+  druid:     { fixed: ["Herbalism Kit"] },
+  monk:      { choice: { count: 1, categories: ["Artisan's Tools", 'Musical Instruments'] } },
+  rogue:     { fixed: ["Thieves' Tools"] },
+};
+
+// Starting Armor Training (2024 PHB) - what a class's own primary
+// proficiencies grant, separate from and larger than the multiclass armor
+// grants in MULTICLASS_PROFICIENCIES above. Classes not listed (Psion,
+// Sorcerer, Wizard) get no armor training at all.
+const CLASS_ARMOR_TRAINING = {
+  artificer: { light: true, medium: true, shield: true },
+  barbarian: { light: true, medium: true, shield: true },
+  bard:      { light: true },
+  cleric:    { light: true, medium: true, shield: true },
+  druid:     { light: true, shield: true },
+  fighter:   { light: true, medium: true, heavy: true, shield: true },
+  paladin:   { light: true, medium: true, heavy: true, shield: true },
+  ranger:    { light: true, medium: true, shield: true },
+  rogue:     { light: true },
+  warlock:   { light: true },
+};
+
+// Is the character proficient with a given armor category? Only the
+// FIRST class contributes its full CLASS_ARMOR_TRAINING; every class
+// after that only contributes the smaller MULTICLASS_PROFICIENCIES armor
+// grant, same first-class-vs-multiclass split as isWeaponProficient().
+function isArmorProficient(armorType) {
+  const classes = typeof getAllClasses === 'function' ? getAllClasses() : [];
+  return classes.some((entry, i) => {
+    const cls = (entry.class || '').toLowerCase();
+    const source = i === 0 ? CLASS_ARMOR_TRAINING[cls] : MULTICLASS_PROFICIENCIES[cls]?.armor;
+    return !!source?.[armorType];
+  });
+}
 const RACE_SKILL_POOLS  = {
   "dwarf": {"pool": ["Insight", "Perception", "Survival"], "count": 1, "name": "Dwarf (PHB24)"},
   "elf": {"pool": ["Insight", "Perception", "Survival"], "count": 1, "name": "Elf (PHB24)"},
@@ -21583,10 +21663,10 @@ const PHB_WEAPONS = [
 {"key": "quarterstaff", "weight": "4 lb", "name": "Quarterstaff", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "bludgeoning"}, "versatile_die": 8, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "topple", "mastery_desc": "Hit: target makes CON save or falls Prone", "ammo": null, "monk": true, "value": "2 SP"},
 {"key": "sickle", "weight": "2 lb", "name": "Sickle", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 4, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["light"], "mastery": "nick", "mastery_desc": "Light extra attack is part of the Attack action instead of a Bonus Action (once per turn)", "ammo": null, "monk": true, "value": "1 GP"},
 {"key": "spear", "weight": "3 lb", "name": "Spear", "type": "Simple", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": 8, "range": "Melee, 20/60 ft", "thrown_range": null, "properties": ["thrown", "versatile"], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": true, "value": "1 GP"},
-{"key": "dart", "weight": "¼ lb", "name": "Dart", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 4, "type": "piercing"}, "versatile_die": null, "range": "20/60 ft", "thrown_range": null, "properties": ["finesse", "thrown"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "darts", "monk": false, "value": "5 CP"},
-{"key": "light_crossbow", "weight": "5 lb", "name": "Light Crossbow", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "80/320 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bolts", "monk": false, "value": "25 GP"},
-{"key": "shortbow", "weight": "2 lb", "name": "Shortbow", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "80/320 ft", "thrown_range": null, "properties": ["two_handed"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "arrows", "monk": false, "value": "25 GP"},
-{"key": "sling", "name": "Sling", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 4, "type": "bludgeoning"}, "versatile_die": null, "range": "30/120 ft", "thrown_range": null, "properties": [], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bullets", "monk": false, "value": "1 SP"},
+{"key": "dart", "weight": "¼ lb", "name": "Dart", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 4, "type": "piercing"}, "versatile_die": null, "range": "20/60 ft", "thrown_range": null, "properties": ["finesse", "thrown"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "darts", "monk": true, "value": "5 CP"},
+{"key": "light_crossbow", "weight": "5 lb", "name": "Light Crossbow", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "80/320 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bolts", "monk": true, "value": "25 GP"},
+{"key": "shortbow", "weight": "2 lb", "name": "Shortbow", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "80/320 ft", "thrown_range": null, "properties": ["two_handed"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "arrows", "monk": true, "value": "25 GP"},
+{"key": "sling", "name": "Sling", "type": "Simple", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 4, "type": "bludgeoning"}, "versatile_die": null, "range": "30/120 ft", "thrown_range": null, "properties": [], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bullets", "monk": true, "value": "1 SP"},
 {"key": "battleaxe", "weight": "4 lb", "name": "Battleaxe", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "slashing"}, "versatile_die": 10, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "topple", "mastery_desc": "Hit: target makes CON save or falls Prone", "ammo": null, "monk": false, "value": "10 GP"},
 {"key": "flail", "weight": "2 lb", "name": "Flail", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "bludgeoning"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": [], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": false, "value": "10 GP"},
 {"key": "glaive", "weight": "6 lb", "name": "Glaive", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 10, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["two_handed", "heavy", "reach"], "mastery": "graze", "mastery_desc": "Miss: still deal ability modifier damage", "ammo": null, "monk": false, "value": "20 GP"},
@@ -21605,7 +21685,7 @@ const PHB_WEAPONS = [
 {"key": "warhammer", "weight": "5 lb", "name": "Warhammer", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "bludgeoning"}, "versatile_die": 10, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "push", "mastery_desc": "Hit: push target 10 ft away", "ammo": null, "monk": false, "value": "15 GP"},
 {"key": "war_pick", "weight": "2 lb", "name": "War Pick", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": 10, "range": "Melee", "thrown_range": null, "properties": ["versatile"], "mastery": "sap", "mastery_desc": "Hit: target has Disadvantage on next attack before your next turn", "ammo": null, "monk": false, "value": "5 GP"},
 {"key": "whip", "weight": "3 lb", "name": "Whip", "type": "Martial", "list": "melee", "ability": "str", "damage": {"count": 1, "die": 4, "type": "slashing"}, "versatile_die": null, "range": "Melee", "thrown_range": null, "properties": ["finesse", "reach"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": null, "monk": false, "value": "2 GP"},
-{"key": "hand_crossbow", "weight": "3 lb", "name": "Hand Crossbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "30/120 ft", "thrown_range": null, "properties": ["light", "loading"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "bolts", "monk": false, "value": "75 GP"},
+{"key": "hand_crossbow", "weight": "3 lb", "name": "Hand Crossbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 6, "type": "piercing"}, "versatile_die": null, "range": "30/120 ft", "thrown_range": null, "properties": ["light", "loading"], "mastery": "vex", "mastery_desc": "Hit: gain Advantage on your next attack against the target", "ammo": "bolts", "monk": true, "value": "75 GP"},
 {"key": "heavy_crossbow", "weight": "18 lb", "name": "Heavy Crossbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 10, "type": "piercing"}, "versatile_die": null, "range": "100/400 ft", "thrown_range": null, "properties": ["two_handed", "heavy", "loading"], "mastery": "push", "mastery_desc": "Hit: push target 10 ft away", "ammo": "bolts", "monk": false, "value": "50 GP"},
 {"key": "longbow", "weight": "2 lb", "name": "Longbow", "type": "Martial", "list": "ranged", "ability": "dex", "damage": {"count": 1, "die": 8, "type": "piercing"}, "versatile_die": null, "range": "150/600 ft", "thrown_range": null, "properties": ["two_handed", "heavy"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "arrows", "monk": false, "value": "50 GP"},
 {"key": "musket", "weight": "10 lb", "name": "Musket", "type": "Martial", "list": "firearm", "ability": "dex", "damage": {"count": 1, "die": 12, "type": "piercing"}, "versatile_die": null, "range": "40/120 ft", "thrown_range": null, "properties": ["two_handed", "loading"], "mastery": "slow", "mastery_desc": "Hit: target Speed −10 ft until start of your next turn", "ammo": "bullets", "monk": false, "value": "500 GP"},
@@ -27732,16 +27812,28 @@ function renderArmourNotes() {
   const notesEl = document.getElementById('ac-armor-notes');
   if (!notesEl) return;
   const armour = getEquippedArmour();
-  if (!armour) { notesEl.textContent = ''; return; }
 
   const notes = [];
-  const strScore = getAbilities()?.str || 10;
-  if (armour.strReq && strScore < armour.strReq) {
-    notes.push(`⚠ Requires STR ${armour.strReq} (you have ${strScore}) - Speed −10 ft`);
+  if (armour) {
+    const strScore = getAbilities()?.str || 10;
+    if (armour.strReq && strScore < armour.strReq) {
+      notes.push(`⚠ Requires STR ${armour.strReq} (you have ${strScore}) - Speed −10 ft`);
+    }
+    if (armour.stealthDisadv) notes.push('⚠ Disadvantage on Stealth checks');
+    if (armour.type && typeof isArmorProficient === 'function' && !isArmorProficient(armour.type)) {
+      notes.push(`⚠ Not proficient with ${armour.type} armor - Disadvantage on Strength/Dexterity checks, saves, and attacks; can't cast spells`);
+    }
   }
-  if (armour.stealthDisadv) notes.push('⚠ Disadvantage on Stealth checks');
+  // Shield proficiency is checked independently of body armor, since a
+  // character can hold a shield without wearing any armor at all - the
+  // old early-return here for "no armour equipped" would have skipped
+  // this check entirely for a shield-only character.
+  if (currentChar.shield && typeof isArmorProficient === 'function' && !isArmorProficient('shield')) {
+    notes.push(`⚠ Not proficient with shields - same penalty applies while holding one`);
+  }
+  if (!armour && !notes.length) { notesEl.textContent = ''; return; }
   notesEl.style.color = notes.length ? 'var(--red)' : 'var(--text3)';
-  notesEl.textContent = notes.join(' · ') || `AC ${armour.ac} base`;
+  notesEl.textContent = notes.join(' · ') || (armour ? `AC ${armour.ac} base` : '');
 }
 
 function selectACMethod(key) {
@@ -34427,9 +34519,16 @@ function isWeaponProficient(weaponKey, weaponType) {
     return false;
   };
 
-  for (const entry of classes) {
+  for (const [_clsIdx, entry] of classes.entries()) {
     const cls = entry.class?.toLowerCase();
-    if (checkProf(CLASS_WEAPON_PROFS[cls])) return true;
+    // Only the character's FIRST class gives its full starting weapon
+    // proficiencies; every class after that only grants the much smaller
+    // 2024 PHB Multiclassing set (e.g. Fighter's multiclass grant is just
+    // Martial weapons, not the full Simple-and-Martial a starting Fighter
+    // has) - most classes (Cleric, Monk, Sorcerer, etc.) grant no weapon
+    // proficiency at all on multiclassing.
+    const weaponProfSource = _clsIdx === 0 ? CLASS_WEAPON_PROFS[cls] : MULTICLASS_PROFICIENCIES[cls]?.weapon;
+    if (checkProf(weaponProfSource)) return true;
 
     const subKey = entry.subclass ? getSubclassKey(entry.class, entry.subclass) : null;
     if (subKey && checkProf(CLASS_WEAPON_PROFS_SUBCLASS[subKey])) return true;
@@ -56225,6 +56324,8 @@ function openSkillSetup() {
     classSkills:   [...(currentChar._classSkills || [])],
     raceSkill:     currentChar._raceSkill || '',
     skilledSkills: [...(currentChar._skilledSkills || [])],
+    multiclassSkills: { ...(currentChar._multiclassSkills || {}) },
+    toolChoices: JSON.parse(JSON.stringify(currentChar._toolChoices || {})),
     _skilledCount: getSkilledFeatCount(),
     _fromFeat:     false,
   };
@@ -56299,6 +56400,7 @@ function renderSkillSetupBody() {
 
   const cls   = (currentChar.levelPlan?.[1] || getPrimaryClass()).toLowerCase().trim();
   const race  = (currentChar.race   || '').toLowerCase().trim();
+  const racePools = RACE_SKILL_POOLS[race];
   const bgKey = currentChar.background || '';
   const bg    = bgKey ? PHB_BACKGROUNDS[bgKey] : null;
   const bg_skills = bg?.skills || [];
@@ -56326,13 +56428,14 @@ function renderSkillSetupBody() {
   if (clsPool.length) {
     const chosen  = Array.isArray(_skillSetupState.classSkills) ? _skillSetupState.classSkills : [];
     const bgLocked= bg_skills;
+    const raceLocked = racePools?.fixed || [];
     html += `
       <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
         <div class="choice-label">${cls.charAt(0).toUpperCase()+cls.slice(1)} Skills - choose ${clsCount}</div>
         <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:8px">${chosen.length}/${clsCount} selected</div>
         <div class="choice-pills-grid">
           ${clsPool.map(sk => {
-            const isBg  = bgLocked.includes(sk);
+            const isBg  = bgLocked.includes(sk) || raceLocked.includes(sk);
             const isSel = chosen.includes(sk);
             const isDis = isBg || (!isSel && chosen.length >= clsCount);
             return `<div class="choice-pill ${isSel||isBg?'selected':''} ${isDis&&!isSel?'disabled':''}"
@@ -56346,8 +56449,67 @@ function renderSkillSetupBody() {
     html += `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:14px">No class skill pool defined for ${cls}.</div>`;
   }
 
+  // ── Starting tool proficiencies (2024 PHB) ────────────────────────────
+  const startingTools = CLASS_STARTING_TOOLS[cls];
+  if (startingTools) {
+    if (startingTools.fixed?.length) {
+      html += `
+        <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div class="choice-label">${cls.charAt(0).toUpperCase()+cls.slice(1)} Tool Proficiencies (auto-granted)</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${startingTools.fixed.map(t => `<div class="choice-pill selected" style="cursor:default;opacity:.7">${t} 🔒</div>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+    if (startingTools.choice) {
+      html += renderToolChoiceSection('starting', `${cls.charAt(0).toUpperCase()+cls.slice(1)} Tool Proficiencies`, startingTools.choice.categories, startingTools.choice.count);
+    }
+  }
+
+  // ── Multiclass skills (2024 PHB Multiclassing Proficiencies) ──────────
+  // Only the character's FIRST class draws from the full CLASS_SKILL_POOLS
+  // above; every class after that grants at most 1 skill from its own,
+  // smaller multiclass list, and several classes (Monk, Psion, Sorcerer,
+  // Wizard) grant no skill at all on multiclassing.
+  const allClassesForSkills = (typeof getAllClasses === 'function' ? getAllClasses() : []).slice(1);
+  allClassesForSkills.forEach(entry => {
+    const mcCls = (entry.class || '').toLowerCase().trim();
+    const mcData = MULTICLASS_PROFICIENCIES[mcCls];
+    if (!mcData) return;
+    const mcLabel = mcCls.charAt(0).toUpperCase() + mcCls.slice(1);
+    if (mcData.skillCount) {
+      const mcPool = mcData.skillPool === 'any' ? SKILLS.map(s => s.name) : (mcData.skillPool || []);
+      const mcChosen = _skillSetupState.multiclassSkills?.[mcCls] || '';
+      html += `
+        <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div class="choice-label">${mcLabel} (Multiclass) - choose ${mcData.skillCount}</div>
+          <div class="choice-pills-grid">
+            ${mcPool.map(sk => {
+              const isSel = mcChosen === sk;
+              return `<div class="choice-pill ${isSel?'selected':''}"
+                onclick="toggleMulticlassSkill('${mcCls}','${sk.replace(/'/g,"\\'")}')">${sk}</div>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+    if (mcData.tools?.length) {
+      html += `
+        <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div class="choice-label">${mcLabel} (Multiclass) Tool Proficiencies (auto-granted)</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${mcData.tools.map(t => `<div class="choice-pill selected" style="cursor:default;opacity:.7">${t} 🔒</div>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+    if (mcData.toolChoice) {
+      html += renderToolChoiceSection(`mc_${mcCls}`, `${mcLabel} (Multiclass) Tool Proficiency`, mcData.toolChoice.categories || ['Musical Instruments'], mcData.toolChoice.count);
+    }
+  });
+
   // ── Race skills ───────────────────────────────────────
-  const racePools = RACE_SKILL_POOLS[race];
   if (racePools) {
     if (racePools.fixed?.length) {
       html += `
@@ -56509,6 +56671,7 @@ function renderSkillSetupBody() {
     ...(_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : []),
     ...(racePools?.fixed||[]),
     ...(_skillSetupState.skilledSkills||[]),
+    ...Object.values(_skillSetupState.multiclassSkills || {}).filter(Boolean),
   ];
   const unique = [...new Set(allProf)];
   if (unique.length) {
@@ -56533,6 +56696,55 @@ function toggleClassSkill(sk, max) {
   } else {
     if (_skillSetupState.classSkills.length >= max) return;
     _skillSetupState.classSkills.push(sk);
+  }
+  renderSkillSetupBody();
+}
+
+// Multiclass skill grant (2024 PHB Multiclassing Proficiencies) - always
+// exactly 1 skill per class that grants one at all, so this is a plain
+// toggle/replace rather than the push/splice list toggleClassSkill uses.
+function toggleMulticlassSkill(cls, sk) {
+  if (!_skillSetupState.multiclassSkills) _skillSetupState.multiclassSkills = {};
+  _skillSetupState.multiclassSkills[cls] = (_skillSetupState.multiclassSkills[cls] === sk) ? '' : sk;
+  renderSkillSetupBody();
+}
+
+// Generic tool-choice picker, shared by starting-class tool choices
+// (Artificer's Artisan's Tools, Bard's 3 Instruments, Monk's Artisan/
+// Instrument) and multiclass tool choices (Bard's 1 Instrument) - each
+// gets its own sourceKey so multiple pickers can coexist without
+// clobbering each other's selections.
+function renderToolChoiceSection(sourceKey, label, categories, count) {
+  const cats = typeof getToolProfCategories === 'function' ? getToolProfCategories() : {};
+  const pool = [];
+  categories.forEach(catLabel => { (cats[catLabel] || []).forEach(t => { if (!pool.includes(t)) pool.push(t); }); });
+  const chosen = _skillSetupState.toolChoices?.[sourceKey] || [];
+  return `
+    <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+      <div class="choice-label">${label} - choose ${count}</div>
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:8px">${chosen.length}/${count} selected</div>
+      <div class="choice-pills-grid">
+        ${pool.map(t => {
+          const isSel = chosen.includes(t);
+          const isDis = !isSel && chosen.length >= count;
+          return `<div class="choice-pill ${isSel?'selected':''} ${isDis&&!isSel?'disabled':''}"
+            onclick="toggleToolChoice('${sourceKey}','${t.replace(/'/g,"\\'")}', ${count})">${t}</div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleToolChoice(sourceKey, tool, max) {
+  if (!_skillSetupState.toolChoices) _skillSetupState.toolChoices = {};
+  if (!_skillSetupState.toolChoices[sourceKey]) _skillSetupState.toolChoices[sourceKey] = [];
+  const arr = _skillSetupState.toolChoices[sourceKey];
+  const idx = arr.indexOf(tool);
+  if (idx >= 0) {
+    arr.splice(idx, 1);
+  } else {
+    if (arr.length >= max) return;
+    arr.push(tool);
   }
   renderSkillSetupBody();
 }
@@ -56574,13 +56786,48 @@ function toggleSkilledToolsExpanded() {
 function applySkillSetup() {
   const errEl = document.getElementById('skill-setup-error');
   errEl.textContent = '';
-  const cls      = (currentChar.class || '').toLowerCase().trim();
+  // Match the same class resolution renderSkillSetupBody() uses - this
+  // used to read currentChar.class directly, which can disagree with
+  // levelPlan[1]/getPrimaryClass() for a multiclassed character (that
+  // legacy field only gets synced by some code paths), silently
+  // bypassing the class-skill validation below for anyone it happened to.
+  const cls      = (currentChar.levelPlan?.[1] || getPrimaryClass()).toLowerCase().trim();
   const clsCount = CLASS_SKILL_COUNTS[cls] || 2;
   const chosen   = _skillSetupState.classSkills || [];
 
   if (cls && CLASS_SKILL_POOLS[cls]?.length && chosen.length < clsCount) {
     errEl.textContent = `Please choose ${clsCount} class skills.`;
     return;
+  }
+
+  // Multiclass skill grants (2024 PHB Multiclassing Proficiencies) - every
+  // class after the first that grants a skill at all must have it picked.
+  const allClassesForApply = (typeof getAllClasses === 'function' ? getAllClasses() : []).slice(1);
+  for (const entry of allClassesForApply) {
+    const mcCls = (entry.class || '').toLowerCase().trim();
+    const mcData = MULTICLASS_PROFICIENCIES[mcCls];
+    if (mcData?.skillCount && !_skillSetupState.multiclassSkills?.[mcCls]) {
+      errEl.textContent = `Please choose a multiclass skill for ${mcCls.charAt(0).toUpperCase()+mcCls.slice(1)}.`;
+      return;
+    }
+    if (mcData?.toolChoice) {
+      const picked = (_skillSetupState.toolChoices?.[`mc_${mcCls}`] || []).length;
+      if (picked < mcData.toolChoice.count) {
+        errEl.textContent = `Please choose ${mcData.toolChoice.count} multiclass tool proficiency for ${mcCls.charAt(0).toUpperCase()+mcCls.slice(1)}.`;
+        return;
+      }
+    }
+  }
+
+  // Starting tool proficiency choices (2024 PHB) - same "must finish
+  // picking before Apply" rule as everything else in this modal.
+  const startingTools = CLASS_STARTING_TOOLS[cls];
+  if (startingTools?.choice) {
+    const picked = (_skillSetupState.toolChoices?.starting || []).length;
+    if (picked < startingTools.choice.count) {
+      errEl.textContent = `Please choose ${startingTools.choice.count} ${cls.charAt(0).toUpperCase()+cls.slice(1)} tool proficienc${startingTools.choice.count===1?'y':'ies'}.`;
+      return;
+    }
   }
 
   const race      = (currentChar.race||'').toLowerCase().trim();
@@ -56635,6 +56882,66 @@ function applySkillSetup() {
     const key = SKILLS.find(s=>s.name===sk)?.key;
     if (key) currentChar.skill_profs[key] = true;
   });
+
+  // Remove previously-granted multiclass skills before reapplying - a
+  // class can be removed, reordered, or its choice changed between opens
+  // of this modal, so the stale skill needs clearing the same way class
+  // skills are above, not just left stacked on top of the new pick.
+  if (currentChar._multiclassSkills) {
+    Object.values(currentChar._multiclassSkills).forEach(sk => {
+      const key = SKILLS.find(s=>s.name===sk)?.key;
+      if (key && !currentChar._bgSkills?.includes(key) && !currentChar._manualProfs?.[key]) {
+        delete currentChar.skill_profs[key];
+      }
+    });
+  }
+  const newMulticlassSkills = {};
+  if (!currentChar.toolProfs) currentChar.toolProfs = {};
+  allClassesForApply.forEach(entry => {
+    const mcCls = (entry.class || '').toLowerCase().trim();
+    const mcData = MULTICLASS_PROFICIENCIES[mcCls];
+    if (!mcData) return;
+    const picked = _skillSetupState.multiclassSkills?.[mcCls];
+    if (mcData.skillCount && picked) {
+      newMulticlassSkills[mcCls] = picked;
+      const key = SKILLS.find(s=>s.name===picked)?.key;
+      if (key) currentChar.skill_profs[key] = true;
+    }
+    // Fixed tool grants (Tinker's Tools, Thieves' Tools) aren't a choice,
+    // so these just get (re)applied every time regardless of selection -
+    // removing them first would be wrong since nothing else grants or
+    // revokes them.
+    (mcData.tools || []).forEach(t => { currentChar.toolProfs[toolProfKey(t)] = true; });
+  });
+  currentChar._multiclassSkills = newMulticlassSkills;
+
+  // Tool proficiency choices (starting class + multiclass) - remove
+  // whatever was previously chosen under each sourceKey before reapplying,
+  // same self-healing pattern as the skill choices above, since a
+  // reopened modal can change which tools were picked.
+  if (currentChar._toolChoices) {
+    Object.values(currentChar._toolChoices).flat().forEach(t => {
+      delete currentChar.toolProfs[toolProfKey(t)];
+    });
+  }
+  const newToolChoices = {};
+  if (startingTools?.fixed?.length) {
+    startingTools.fixed.forEach(t => { currentChar.toolProfs[toolProfKey(t)] = true; });
+  }
+  if (startingTools?.choice) {
+    const picked = _skillSetupState.toolChoices?.starting || [];
+    newToolChoices.starting = [...picked];
+    picked.forEach(t => { currentChar.toolProfs[toolProfKey(t)] = true; });
+  }
+  allClassesForApply.forEach(entry => {
+    const mcCls = (entry.class || '').toLowerCase().trim();
+    const mcData = MULTICLASS_PROFICIENCIES[mcCls];
+    if (!mcData?.toolChoice) return;
+    const picked = _skillSetupState.toolChoices?.[`mc_${mcCls}`] || [];
+    newToolChoices[`mc_${mcCls}`] = [...picked];
+    picked.forEach(t => { currentChar.toolProfs[toolProfKey(t)] = true; });
+  });
+  currentChar._toolChoices = newToolChoices;
 
   if (_skillSetupState.raceSkill) {
     const key = SKILLS.find(s=>s.name===_skillSetupState.raceSkill)?.key;
