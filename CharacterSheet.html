@@ -8080,6 +8080,14 @@ function computePartyGlanceStats(c) {
     else if (skillProfs[sk.key]) skillsProf.push({ name: sk.name, mod: abilMod + prof });
   });
 
+  // Proficient saving throws only - same "quick glance" scope as skills
+  // above (no item/feat save bonuses folded in here; that's what the full
+  // sheet's Saves block and its ADV/DISADV badges are for).
+  const saveProfs = c.save_profs || {};
+  const savesProf = SAVING_THROWS
+    .filter(sv => saveProfs[sv.key])
+    .map(sv => ({ name: sv.name, mod: (mods[sv.key] ?? 0) + prof }));
+
   const perceptionBonus = mods.wis + (skillExpert['perception'] ? prof * 2 : skillProfs['perception'] ? prof : 0);
   const passivePerception = 10 + perceptionBonus;
 
@@ -8093,7 +8101,7 @@ function computePartyGlanceStats(c) {
     .map(k => k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '))
     .sort();
 
-  return { mods, level, prof, passivePerception, initiativeBonus, skillsProf, skillsExpertise, languages,
+  return { mods, level, prof, passivePerception, initiativeBonus, skillsProf, skillsExpertise, savesProf, languages,
     hp: { current: parseInt(c.hp_current) || 0, max: parseInt(c.hp_max) || 0 } };
 }
 window.computePartyGlanceStats = computePartyGlanceStats;
@@ -8174,6 +8182,12 @@ function renderDMKeyStats(groups) {
             </div>
           `).join('')}
         </div>
+        ${s.savesProf.length ? `
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);line-height:1.6">
+            <span style="letter-spacing:.5px">SAVES</span>
+            ${s.savesProf.map(sv => `<span style="color:var(--text2)">${sv.name} ${fmtMod(sv.mod)}</span>`).join(', ')}
+          </div>
+        ` : ''}
         ${(s.skillsProf.length || s.skillsExpertise.length) ? `
           <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);line-height:1.6">
             <span style="letter-spacing:.5px">SKILLS</span>
@@ -9567,13 +9581,35 @@ function highlightCantripScaling(fullDescHtml, spell, charLevel) {
   const beamMatch = raw.match(/creates? (two|three|four) beams? at level 5,? (two|three|four) beams? at level 11,? and (two|three|four) beams? at level 17/i);
   if (beamMatch) {
     const tier = charLevel >= 17 ? 3 : charLevel >= 11 ? 2 : charLevel >= 5 ? 1 : 0;
-    if (tier > 0) {
-      const words = ['one', beamMatch[1], beamMatch[2], beamMatch[3]];
-      const current = words[tier];
-      const pattern = new RegExp(`\\b(${current} beams?)\\b`, 'i');
-      return fullDescHtml.replace(pattern, (m, phrase) => `<span style="color:var(--accent);font-weight:600">${phrase}</span>`);
+    const words = ['one', beamMatch[1], beamMatch[2], beamMatch[3]];
+    const current = words[tier];
+
+    // Split before/after "Cantrip Upgrade" so the opening-sentence
+    // rewrite (main body) and the beam-count highlight (upgrade
+    // paragraph) each only touch their own half - otherwise the second
+    // pass finds "two beams" inside the freshly-rewritten opening
+    // sentence first and double-wraps it instead of the upgrade text.
+    const upgradeIdx = fullDescHtml.search(/Cantrip Upgrade/i);
+    let before = upgradeIdx === -1 ? fullDescHtml : fullDescHtml.slice(0, upgradeIdx);
+    let after  = upgradeIdx === -1 ? '' : fullDescHtml.slice(upgradeIdx);
+
+    // Opening sentence: "You hurl a beam of crackling energy" becomes
+    // "Hurl one/two/three/four beam(s) of crackling energy" - purely a
+    // display-time rewrite (the stored RAW text is untouched, so the
+    // "Edit RAW text" pencil still shows/edits the real book wording).
+    const openingPattern = /You hurl a beam of crackling energy/i;
+    if (openingPattern.test(before)) {
+      const plural = tier > 0 ? 's' : '';
+      const wordHtml = tier > 0 ? `<span style="color:var(--accent);font-weight:600">${current}</span>` : current;
+      const replacement = `Hurl ${wordHtml} beam${plural} of crackling energy`;
+      before = before.replace(openingPattern, replacement);
     }
-    return fullDescHtml;
+
+    if (tier > 0) {
+      const pattern = new RegExp(`\\b(${current} beams?)\\b`, 'i');
+      after = after.replace(pattern, (m, phrase) => `<span style="color:var(--accent);font-weight:600">${phrase}</span>`);
+    }
+    return before + after;
   }
 
   // Die-SIZE scaling (not count) - "the die increases to 1d8 at level 5,
@@ -13531,7 +13567,7 @@ const PHB_SUBCLASSES = {
   "fighter/banneret": {"name":"Banneret","source":"FRHoF","bonusSpells":["comprehend_languages"],"features":[{"name":"Knightly Envoy","level":3,"desc":"You know how to conduct yourself with grace as a noble ambassador. You gain the following benefits. | Comprehension. You can cast the Comprehend Languages spell but only as a Ritual. Charisma is your spellcasting ability for it. | Polyglot. You learn one language from the language tables in the Player's Handbook or chapter 2 of this book. When you finish a Long Rest, you can replace a language learned from this benefit with another language you have heard, seen signed, or read in the past 24 hours. | Well Spoken. You gain proficiency in one of the following skills of your choice: Insight, Intimidation, Persuasion, or Performance.","usages":null,"recovery":null},{"name":"Group Recovery","level":3,"desc":"When you use your Second Wind to regain Hit Points, you can choose a number of allies within a 30-foot Emanation originating from yourself, up to a number of allies equal to your Charisma modifier (minimum of one). Each of those allies regains Hit Points equal to 1d4 plus your Fighter level. Once you use this ability, you can't use it again until you finish a Short or Long Rest.","usages":1,"recovery":"short rest"},{"name":"Team Tactics","level":7,"desc":"When you use Group Recovery, each chosen ally has Advantage on D20 Tests until the start of your next turn.","usages":null,"recovery":null},{"name":"Rallying Surge","level":10,"desc":"When you use your Action Surge, you can choose allies within a 30-foot Emanation originating from yourself, up to a number of allies equal to your Charisma modifier (minimum of one). Each of those allies can immediately take a Reaction to use one of the following options. | Attack. The ally makes one attack with a weapon or an Unarmed Strike. | Move. The ally moves up to half its Speed without provoking an Opportunity Attack.","usages":null,"recovery":null},{"name":"Shared Resilience","level":15,"desc":"When an ally you can see within 60 feet of yourself fails a saving throw, you can take a Reaction to expend a use of your Indomitable feature. The ally can immediately reroll the saving throw with a bonus equal to your Fighter level; the ally must use the new roll.","usages":null,"recovery":null},{"name":"Inspiring Commander","level":18,"desc":"You gain the following benefits. | Bolstered Rally. The area of effect for both Group Recovery and Rallying Surge is now a 60-foot Emanation. | Unshakable Bravery. You have Immunity to the Charmed and Frightened conditions.","usages":null,"recovery":null}]},
   "paladin/oath of the noble genies": {"name":"Oath of the Noble Genies","source":"FRHoF","bonusSpells":["chromatic_orb","elementalism","thunderous_smite","mirror_image","phantasmal_force","fly","gaseous_form","conjure_minor_elementals","summon_elemental","banishing_smite","contact_other_plane"],"features":[{"name":"Elemental Smite","level":3,"desc":"Immediately after you cast Divine Smite, you can expend one use of your Channel Divinity and invoke one of the following effects. | Dao's Crush. Earth rises up around the target of your Divine Smite. The target has the Grappled condition (escape DC equal to your spell save DC). While Grappled, the target has the Restrained condition. | Djinni's Escape. You teleport to an unoccupied space you can see within 30 feet of yourself and take on a semi-incorporeal form, which lasts until the end of your next turn. While in this form, you have Resistance to Bludgeoning, Piercing, and Slashing damage, and you have Immunity to the Grappled, Prone, and Restrained conditions. | Efreeti's Fury. The target of your Divine Smite takes an extra 2d4 Fire damage, and fire jumps from the target to another creature you can see within 30 feet of yourself. The second creature also takes 2d4 Fire damage. | Marid's Surge. The target of your Divine Smite and each creature of your choice in a 10-foot Emanation originating from you make a Strength saving throw against your spell save DC. On a failed save, a creature is pushed 15 feet straight away from you and has the Prone condition.","usages":null,"recovery":null},{"name":"Genie Spells","level":3,"desc":"When you reach a Paladin level specified in the Genie Spells table, you thereafter always have the listed spells prepared. | 3 Level. Chromatic Orb, Elementalism, Thunderous Smite | 5 Level. Mirror Image, Phantasmal Force | 9 Level. Fly, Gaseous Form | 13 Level. Conjure Minor Elementals, Summon Elemental | 17 Level. Banishing Smite, Contact Other Plane","usages":null,"recovery":null},{"name":"Genie's Splendor","level":3,"desc":"When you aren't wearing any armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers. You can use a Shield and still gain this benefit. You also gain proficiency in one of the following skills of your choice: Acrobatics, Intimidation, Performance, or Persuasion.","usages":null,"recovery":null},{"name":"Aura of Elemental Shielding","level":7,"desc":"Choose one of the following damage types: Acid, Cold, Fire, Lightning, or Thunder. You and your allies have Resistance to that damage type while in your Aura of Protection. At the start of each of your turns, you can change the damage type affected by this feature to one of the other listed options (no action required).","usages":null,"recovery":null},{"name":"Elemental Rebuke","level":15,"desc":"When you are hit by an attack roll, you can take a Reaction to halve the attack's damage against yourself (round down) and force the attacker to make a Dexterity saving throw against your spell save DC. On a failed save, the attacker takes damage equal to 2d10 plus your Charisma modifier of one of the following types (your choice): Acid, Cold, Fire, Lightning, or Thunder. On a successful save, the attacker takes half as much damage. You can use this feature a number of times equal to your Charisma modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.","usages":"cha_mod","recovery":"long rest"},{"name":"Noble Scion","level":20,"desc":"As a Bonus Action, you gain the benefits below for 10 minutes or until you end them (no action required). Once you use this feature, you can't use it again until you finish a Long Rest. You can also restore your use of it by expending a level 5 spell slot (no action required). | Flight. You have a Fly Speed of 60 feet and can hover. | Minor Wish. When you or an ally in your Aura of Protection fails a D20 Test, you can take a Reaction to make the D20 Test succeed instead.","usages":1,"recovery":"long rest"}]},
   "ranger/winter walker": {"name":"Winter Walker","source":"FRHoF","bonusSpells":["ice_knife","hold_person","remove_curse","ice_storm","cone_of_cold"],"features":[{"name":"Frigid Explorer","level":3,"desc":"You gain the following benefits. | Biting Cold. Damage from your weapon attacks, Ranger spells, and Ranger features ignores Resistance to Cold damage. | Frost Resistance. You have Resistance to Cold damage. | Polar Strikes. When you hit a creature with an attack roll using a weapon, you can deal an extra 1d4 Cold damage to the target, which can take this extra damage only once per turn. When you reach Ranger level 11, this extra damage increases to 1d6.","usages":null,"recovery":null},{"name":"Hunter's Rime","level":3,"desc":"Ice rimes you and your prey, protecting you and slowing them. When you cast Hunter's Mark, you gain Temporary Hit Points equal to 1d10 plus your Ranger level. Additionally, while a creature is marked by your Hunter's Mark, it can't take the Disengage action.","usages":null,"recovery":null},{"name":"Winter Walker Spells","level":3,"desc":"When you reach a Ranger level specified in the Winter Walker Spells table, you thereafter always have the listed spells prepared. | 3 Level. Ice Knife | 5 Level. Hold Person | 9 Level. Remove Curse | 13 Level. Ice Storm | 17 Level. Cone of Cold","usages":null,"recovery":null},{"name":"Fortifying Soul","level":7,"desc":"Your experience surviving harrowing environments allows you to bolster your allies in addition to yourself. As a Magic action, choose a number of creatures you can see equal to your Wisdom modifier (minimum of one). Each chosen creature regains Hit Points equal to 1d10 plus your Ranger level and has Advantage on saving throws to avoid or end the Frightened condition for 1 hour. Once you use this feature, you can't use it again until you finish a Long Rest.","usages":1,"recovery":"long rest"},{"name":"Chilling Retribution","level":11,"desc":"When a creature hits you with an attack roll, you can take a Reaction to force the creature to make a Wisdom saving throw against your spell save DC. On a failed save, the target has the Stunned condition until the end of your next turn. While the target is Stunned, its Speed is reduced to 0 feet. You can use this feature a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.","usages":"wis_mod","recovery":"long rest"},{"name":"Frozen Haunt","level":15,"desc":"When you cast Hunter's Mark, you can adopt a ghostly, snowy form. This form lasts until the spell ends, and while you are in this form, you gain the following benefits. Once you use this feature, you can't use it again until you finish a Long Rest unless you expend a level 4+ spell slot (no action required). | Frozen Soul. You have Immunity to Cold damage. When you first adopt this form and at the start of each of your subsequent turns, each creature of your choice in a 15-foot Emanation originating from you takes 2d4 Cold damage. | Partially Incorporeal. You have Immunity to the Grappled, Prone, and Restrained conditions. You can move through creatures and objects as if they were Difficult Terrain, but you take 1d10 Force damage if you end your turn inside a creature or an object. If the form ends while you are inside a creature or an object, you are shunted to the nearest unoccupied space.","usages":1,"recovery":"long rest"}]},
-  "rogue/scion of the three": {"name":"Scion of the Three","source":"FRHoF","features":[{"name":"Bloodthirst","level":3,"desc":"When an enemy you can see within 30 feet of yourself takes damage and is Bloodied after taking that damage but not killed outright, you can take a Reaction and teleport to an unoccupied space you can see within 5 feet of that enemy. You can then make one melee attack. You can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.","usages":"int_mod","recovery":"long rest"},{"name":"Dread Allegiance","level":3,"desc":"Choose one of the Dead Three: Bane, Bhaal, or Myrkul. You gain Resistance to one type of damage and the ability to cast a cantrip, as detailed in the table below; Intelligence is your spellcasting ability for this cantrip. When you finish a Long Rest, you can change your choice. | Bane. Psychic | Bhaal. Poison | Myrkul. Necrotic","usages":null,"recovery":null},{"name":"Strike Fear","level":9,"desc":"You gain the following Cunning Strike option. | Terrify (Cost: 1d6). The target must succeed on a Wisdom saving throw, or it has the Frightened condition for 1 minute. While the target is Frightened in this way, you have Advantage on attack rolls against the target. The Frightened target repeats the save at the end of each of its turns, ending the effect on itself on a success.","usages":null,"recovery":null},{"name":"Aura of Malevolence","level":13,"desc":"You radiate malignant power associated with one of the Dead Three. When you use Bloodthirst and teleport, each creature of your choice within 10 feet of either the space you left or your destination space (your choice) takes damage equal to your Intelligence modifier; the damage type is the same as the damage Resistance granted by your choice in the Dread Allegiance feature. Damage dealt by this feature ignores Resistance.","usages":null,"recovery":null},{"name":"Dread Incarnate","level":17,"desc":"You gain the following benefits. | Cutthroat. You regain one expended use of Bloodthirst when you finish a Short Rest. | Murderous Intent. When you roll for your Sneak Attack damage, you can treat a roll of a 1 or 2 on the die as a 3.","usages":null,"recovery":null}],"bonusSpells":["minor_illusion","blade_ward","chill_touch"]},
+  "rogue/scion of the three": {"name":"Scion of the Three","source":"FRHoF","features":[{"name":"Bloodthirst","level":3,"desc":"When an enemy you can see within 30 feet of yourself takes damage and is Bloodied after taking that damage but not killed outright, you can take a Reaction and teleport to an unoccupied space you can see within 5 feet of that enemy. You can then make one melee attack. You can use this feature a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.","usages":"int_mod","recovery":"long rest"},{"name":"Dread Allegiance","level":3,"desc":"Choose one of the Dead Three: Bane, Bhaal, or Myrkul. You gain Resistance to one type of damage and the ability to cast a cantrip, as detailed in the table below; Intelligence is your spellcasting ability for this cantrip. When you finish a Long Rest, you can change your choice. | Bane. Psychic | Bhaal. Poison | Myrkul. Necrotic","usages":null,"recovery":null},{"name":"Strike Fear","level":9,"desc":"You gain the following Cunning Strike option. | Terrify (Cost: 1d6). The target must succeed on a Wisdom saving throw, or it has the Frightened condition for 1 minute. While the target is Frightened in this way, you have Advantage on attack rolls against the target. The Frightened target repeats the save at the end of each of its turns, ending the effect on itself on a success.","usages":null,"recovery":null},{"name":"Aura of Malevolence","level":13,"desc":"You radiate malignant power associated with one of the Dead Three. When you use Bloodthirst and teleport, each creature of your choice within 10 feet of either the space you left or your destination space (your choice) takes damage equal to your Intelligence modifier; the damage type is the same as the damage Resistance granted by your choice in the Dread Allegiance feature. Damage dealt by this feature ignores Resistance.","usages":null,"recovery":null},{"name":"Dread Incarnate","level":17,"desc":"You gain the following benefits. | Cutthroat. You regain one expended use of Bloodthirst when you finish a Short Rest. | Murderous Intent. When you roll for your Sneak Attack damage, you can treat a roll of a 1 or 2 on the die as a 3.","usages":null,"recovery":null}],"bonusSpellsByChoice":{"bane":["minor_illusion"],"bhaal":["blade_ward"],"myrkul":["chill_touch"]},"bonusSpellChoiceId":"dread_allegiance"},
   "sorcerer/spellfire sorcery": {"name":"Spellfire Sorcery","source":"FRHoF","bonusSpells":["cure_wounds","guiding_bolt","lesser_restoration","scorching_ray","aura_of_vitality","dispel_magic","fire_shield","wall_of_fire","greater_restoration","flame_strike"],"features":[{"name":"Spellfire Burst","level":3,"desc":"When you spend at least 1 Sorcery Point as part of the Magic action or a Bonus Action on your turn, you can unleash one of the following magical effects of your choice. You can do so only once per turn. | Bolstering Flames. You or one creature you can see within 30 feet of yourself gains Temporary Hit Points equal to 1d4 plus your Charisma modifier. | Radiant Fire. One creature you can see within 30 feet of yourself takes 1d4 Fire or Radiant damage (your choice).","usages":null,"recovery":null},{"name":"Spellfire Spells","level":3,"desc":"When you reach a Sorcerer level specified in the Spellfire Spells table, you thereafter always have the listed spells prepared. | 3 Level. Cure Wounds, Guiding Bolt, Lesser Restoration, Scorching Ray | 5 Level. Aura of Vitality, Dispel Magic | 7 Level. Fire Shield, Wall of Fire | 9 Level. Greater Restoration, Flame Strike","usages":null,"recovery":null},{"name":"Absorb Spells","level":6,"desc":"You always have Counterspell prepared. Additionally, whenever a target fails the saving throw against a Counterspell you cast, you regain 1d4 Sorcery Points.","usages":null,"recovery":null},{"name":"Honed Spellfire","level":14,"desc":"Your Spellfire Burst improves. You add your Sorcerer level to the Temporary Hit Points gained from Bolstering Flames, and the damage of Radiant Fire increases to 1d8.","usages":null,"recovery":null},{"name":"Crown of Spellfire","level":18,"desc":"When you use Innate Sorcery, you can alter it and infuse yourself with the essence of spellfire, gaining the following benefits while this use of Innate Sorcery is active. Once you use this feature to alter Innate Sorcery, you can't use it again until you finish a Long Rest unless you spend 5 Sorcery Points (no action required) to restore your use of it. | Burning Life Force. Once per turn when you are hit by an attack roll, you can expend a number of Hit Point Dice, up to a maximum equal to your Charisma modifier (minimum of one). Roll the expended dice, and reduce the amount of damage from that attack equal to the total rolled. | Flight. You gain a Fly Speed of 60 feet and can hover. | Spell Avoidance. When you're subjected to a spell or magical effect that allows you to make a saving throw to take only half damage, you instead take no damage if you succeed on the saving throw and only half damage if you fail. You can't use this benefit if you have the Incapacitated condition.","usages":1,"recovery":"long rest"}]},
   "wizard/bladesinger": {"name":"Bladesinger","source":"PHB","features":[{"name":"Training in War and Song","level":3,"desc":"You gain proficiency with all Melee Martial weapons that don't have the Two-Handed or Heavy property. You can use a Melee weapon with which you have proficiency as a Spellcasting Focus for your Wizard spells. You also gain proficiency in one of the following skills of your choice: Acrobatics, Athletics, Performance, or Persuasion.","usages":null,"recovery":null},{"name":"Bladesong","level":3,"desc":"As a Bonus Action, you invoke an elven magic called the Bladesong, provided you aren't wearing armor or using a Shield. The Bladesong lasts for 1 minute and ends early if you have the Incapacitated condition, if you don armor or a Shield, or if you use two hands to make an attack with a weapon. You can dismiss the Bladesong at any time (no action required). While the Bladesong is active, you gain the following benefits. You can invoke the Bladesong a number of times equal to your Intelligence modifier (minimum of once), and you regain all expended uses when you finish a Long Rest. You regain one expended use when you use Arcane Recovery. | Agility. You gain a bonus to your AC equal to your Intelligence modifier (minimum of +1), and your Speed increases by 10 feet. In addition, you have Advantage on Dexterity (Acrobatics) checks. | Bladework. Whenever you attack with a weapon with which you have proficiency, you can use your Intelligence modifier for the attack and damage rolls instead of using Strength or Dexterity. | Focus. When you make a Constitution saving throw to maintain Concentration, you can add your Intelligence modifier to the total.","usages":"int_mod","recovery":"long rest"},{"name":"Extra Attack","level":6,"desc":"You can attack twice, instead of once, whenever you take the Attack action on your turn. Moreover, you can cast one of your Wizard cantrips that has a casting time of an action in place of one of those attacks.","usages":null,"recovery":null},{"name":"Song of Defense","level":10,"desc":"When you take damage while your Bladesong is active, you can take a Reaction to expend one spell slot and reduce the damage taken by an amount equal to five times the spell slot's level.","usages":null,"recovery":null},{"name":"Song of Victory","level":14,"desc":"After you cast a spell that has a casting time of an action, you can make one attack with a weapon as a Bonus Action.","usages":null,"recovery":null}]}
 ,
@@ -14392,6 +14428,16 @@ const PHB_CLASS_CHOICES = {
         "display"
       ],
       "count": 2
+    },
+    {
+      "id": "dread_allegiance",
+      "label": "Dread Allegiance",
+      "minLevel": 3,
+      "type": "dropdown",
+      "options": ["Bane", "Bhaal", "Myrkul"],
+      "showIfSubclass": "scion of the three",
+      "desc": "Choose one of the Dead Three. This determines your damage Resistance and your bonus cantrip: Bane (Psychic, Minor Illusion), Bhaal (Poison, Blade Ward), or Myrkul (Necrotic, Chill Touch). Changeable whenever you finish a Long Rest.",
+      "wires": ["display"]
     }
   ],
   "sorcerer": [
@@ -23798,7 +23844,7 @@ const AU_MAGIC_ITEMS = [
 {"key": "au_sweeping_broom", "name": "Sweeping Broom", "rarity": "common", "type": "Wondrous Item", "desc": "As a Magic action, you can use this unassuming broom's command word, choosing a point you can see on the ground within 60 feet of yourself. The broom animates and sweeps dust and detritus from the ground in a 20-foot square centered on the chosen point. It sweeps that area until you take another Magic action to deactivate it.", "attunement": false, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null},
 {"key": "au_tarnished_idol_of_good_fortunes", "name": "Tarnished Idol of Good Fortunes", "rarity": "rare", "type": "Wondrous Item", "desc": "Blemished. The idol is made of tarnished bronze, with minor dings and dents scattered over its surface.\n\nYou can cast the Augury spell from the idol. The idol speaks the omen aloud in response. Once the idol has been used to cast this spell, it can't be used to cast this spell again until the next dawn.\n\nTarnished. The idol is made of gold, with a patina of dust settled into its crevices.\n\nWhile attuned to the idol, you gain a +1 bonus to your Armor Class. Additionally, while holding the idol, you can take a Magic action to touch a nonmagical trade bar or gemstone. The item is then transformed into coinage equivalent to its value. For example, if you take a Magic action to touch a 5-pound silver bar while holding the idol, the bar is transformed into 25 GP worth of coins.\n\nEvolving Item. This item is an Evolving Item, see Evolving Magic Items for more information.", "attunement": true, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "dmOnly": true},
 {"key": "au_ten_keyholes_dagger", "name": "Ten Keyholes Dagger", "rarity": "rare", "type": "Weapon (Dagger), Simple Weapon, Melee Weapon", "desc": "Three. Three ornamental keyholes adorn the weapon's hilt.\n\nYou have a +1 bonus to attack rolls and damage rolls made with this magic weapon. When you take the Attack action, you can transform this weapon into a Handaxe or Mace. It remains transformed in this way until the start of your next turn, at which point it reverts back to its Dagger form. Regardless of the weapon's form, you can use your choice of your Strength or Dexterity modifier for the attack and damage rolls; you must use the same modifier for both rolls.\n\nTen. Ten ornamental keyholes adorn the weapon's hilt. Your bonus to attack rolls and damage rolls made with this magic weapon increases to +2. Additionally, when you transform the weapon, you can now transform it into any Simple Melee weapon.\n\nFinesse. When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls.\n\nLight. When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative.\n\nThrown. If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon.\n\nEvolving Item. This item is an Evolving Item, see Evolving Magic Items for more information.\n\nMastery: Nick. When you make the extra attack of the Light property, you can make it as part of the Attack action instead of as a Bonus Action. You can make this extra attack only once per turn.", "attunement": true, "isWeapon": true, "isArmour": false, "isAmmo": false, "effects": null, "weight": "1 lb.", "dmOnly": true},
-{"key": "au_thayan_sword", "name": "Thayan Sword", "rarity": "rare", "type": "Generic Variant", "desc": "Thayan Swords are often awarded to premier Thayan knights when they complete their training.\n\nYou gain a +1 bonus to attack rolls and damage rolls made with this magic weapon.\n\nKnight of the Arcane. The sword has 4 charges and regains 1d4 charges daily at dawn. While holding the sword, you can expend 1 charge to cast one of the following spells (save DC 15):\n\nSearing SmiteThunderous SmiteWrathful Smite Resurgent Warrior. If you're reduced to 0 Hit Points but not killed outright while holding this sword, you can drop to 1 Hit Point instead. Once used, this property can't be used again until the next dawn.\n\nBase items. This item variant can be applied to the following base items:\n\nGreatsword (Thayan Greatsword)Longsword (Thayan Longsword)Scimitar (Thayan Scimitar)", "attunement": true, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": {"weaponBonus": 1}, "grantedResources": [{"name": "Knight of the Arcane Charges", "desc": "Cast Searing Smite, Thunderous Smite, or Wrathful Smite (DC 15) - 1 charge each.", "usesMax": 4, "recovery": "dawn"}]},
+{"key": "au_thayan_sword", "name": "Thayan Sword", "rarity": "rare", "type": "weapon (greatsword or longsword or scimitar)", "desc": "Thayan Swords are often awarded to premier Thayan knights when they complete their training.\n\nYou gain a +1 bonus to attack rolls and damage rolls made with this magic weapon.\n\nKnight of the Arcane. The sword has 4 charges and regains 1d4 charges daily at dawn. While holding the sword, you can expend 1 charge to cast one of the following spells (save DC 15):\n\nSearing SmiteThunderous SmiteWrathful Smite Resurgent Warrior. If you're reduced to 0 Hit Points but not killed outright while holding this sword, you can drop to 1 Hit Point instead. Once used, this property can't be used again until the next dawn.\n\nBase items. This item variant can be applied to the following base items:\n\nGreatsword (Thayan Greatsword)Longsword (Thayan Longsword)Scimitar (Thayan Scimitar)", "attunement": true, "isWeapon": true, "isArmour": false, "isAmmo": false, "effects": {"weaponBonus": 1}, "grantedResources": [{"name": "Knight of the Arcane Charges", "desc": "Cast Searing Smite, Thunderous Smite, or Wrathful Smite (DC 15) - 1 charge each.", "usesMax": 4, "recovery": "dawn"}]},
 {"key": "au_thespian_s_playbill", "name": "Thespian's Playbill", "rarity": "uncommon", "type": "Wondrous Item", "desc": "While holding this magical theater program, whenever you take the Study action and make an Intelligence check, you gain a bonus to the check equal to your Charisma modifier (minimum of +1).", "attunement": true, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null},
 {"key": "au_thief_s_thimble", "name": "Thief's Thimble", "rarity": "uncommon", "type": "Wondrous Item", "desc": "This magic thimble aids thieves in foiling traps. While wearing this thimble, if you trigger a trap and take damage, the thimble takes the damage instead.\n\nThe thimble has 30 Hit Points. If the thimble is reduced to 0 Hit Points, it breaks, and you take any remaining damage.", "attunement": true, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null},
 {"key": "au_three_keyholes_dagger", "name": "Three Keyholes Dagger", "rarity": "uncommon", "type": "Weapon (Dagger), Simple Weapon, Melee Weapon", "desc": "Three. Three ornamental keyholes adorn the weapon's hilt.\n\nYou have a +1 bonus to attack rolls and damage rolls made with this magic weapon. When you take the Attack action, you can transform this weapon into a Handaxe or Mace. It remains transformed in this way until the start of your next turn, at which point it reverts back to its Dagger form. Regardless of the weapon's form, you can use your choice of your Strength or Dexterity modifier for the attack and damage rolls; you must use the same modifier for both rolls.\n\nFinesse. When making an attack with a Finesse weapon, use your choice of your Strength or Dexterity modifier for the attack and damage rolls. You must use the same modifier for both rolls.\n\nLight. When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don't add your ability modifier to the extra attack's damage unless that modifier is negative. For example, you can attack with a Shortsword in one hand and a Dagger in the other using the Attack action and a Bonus Action, but you don't add your Strength or Dexterity modifier to the damage roll of the Bonus Action unless that modifier is negative.\n\nThrown. If a weapon has the Thrown property, you can throw the weapon to make a ranged attack, and you can draw that weapon as part of the attack. If the weapon is a Melee weapon, use the same ability modifier for the attack and damage rolls that you use for a melee attack with that weapon.\n\nEvolving Item. This item is an Evolving Item, see Evolving Magic Items for more information.\n\nMastery: Nick. When you make the extra attack of the Light property, you can make it as part of the Attack action instead of as a Bonus Action. You can make this extra attack only once per turn.", "attunement": true, "isWeapon": true, "isArmour": false, "isAmmo": false, "effects": null, "weight": "1 lb.", "dmOnly": true},
@@ -25140,18 +25186,18 @@ const SPELL_FEATS = {
   'familiar friend':          { cantrips: 0, spells: 0, fixed: ['find_familiar'] },
   'warlike familiar':         { cantrips: 0, spells: 0, fixed: ['battle_familiar'] },
   'telepathic':               { cantrips: 0, spells: 1, spellLevel: 2, classSource: null, fixed: ['detect_thoughts'] },
-  'mark of warding':          { cantrips: 0, spells: 0, fixed: ['alarm', 'arcane_lock'], onceLR: true },
-  'mark of detection':        { cantrips: 0, spells: 0, fixed: ['detect_magic', 'detect_thoughts'], onceLR: true },
+  'mark of warding':          { cantrips: 0, spells: 0, fixed: ['alarm', 'mage_armor', 'arcane_lock'], onceLR: true },
+  'mark of detection':        { cantrips: 0, spells: 0, fixed: ['detect_magic', 'detect_poison_and_disease', 'see_invisibility'], onceLR: true },
   'mark of finding':          { cantrips: 0, spells: 0, fixed: ['hunters_mark', 'locate_object'], onceLR: true },
   'mark of handling':         { cantrips: 0, spells: 0, fixed: ['animal_friendship', 'speak_with_animals'], onceLR: true },
   'mark of healing':          { cantrips: 0, spells: 0, fixed: ['cure_wounds', 'lesser_restoration'], onceLR: true },
-  'mark of hospitality':      { cantrips: 0, spells: 0, fixed: ['purify_food_and_drink', 'unseen_servant'], onceLR: true },
-  'mark of making':           { cantrips: 0, spells: 0, fixed: ['magic_weapon', 'fabricate'], onceLR: true },
-  'mark of passage':          { cantrips: 0, spells: 0, fixed: ['misty_step', 'teleportation_circle'], onceLR: true },
-  'mark of scribing':         { cantrips: 0, spells: 0, fixed: ['illusory_script', 'sending'], onceLR: true },
-  'mark of sentinel':         { cantrips: 0, spells: 0, fixed: ['compelled_duel', 'warding_bond'], onceLR: true },
-  'mark of shadow':           { cantrips: 0, spells: 0, fixed: ['disguise_self', 'mislead'], onceLR: true },
-  'mark of storm':            { cantrips: 0, spells: 0, fixed: ['fog_cloud', 'gust_of_wind'], onceLR: true },
+  'mark of hospitality':      { cantrips: 0, spells: 0, fixed: ['purify_food_and_drink', 'unseen_servant', 'calm_emotions'], onceLR: true },
+  'mark of making':           { cantrips: 0, spells: 0, fixed: ['mending', 'magic_weapon'], onceLR: true },
+  'mark of passage':          { cantrips: 0, spells: 0, fixed: ['misty_step'], onceLR: true },
+  'mark of scribing':         { cantrips: 0, spells: 0, fixed: ['message', 'comprehend_languages', 'magic_mouth'], onceLR: true },
+  'mark of sentinel':         { cantrips: 0, spells: 0, fixed: ['shield'], onceLR: true },
+  'mark of shadow':           { cantrips: 0, spells: 0, fixed: ['minor_illusion', 'invisibility'], onceLR: true },
+  'mark of storm':            { cantrips: 0, spells: 0, fixed: ['thunderclap', 'gust_of_wind'], onceLR: true },
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -28218,7 +28264,7 @@ function renderHPMethods() {
         style="margin-top:2px;accent-color:var(--gold)" onchange="selectHPMethod('${m.key}')"/>
       <div style="flex:1">
         <div style="font-family:var(--font-ui);font-size:11px;color:${isSelected ? 'var(--gold)' : 'var(--text)'};letter-spacing:.5px">${m.label}</div>
-        <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:2px">${m.desc}</div>
+        <div style="font-family:var(--font-body);font-size:12px;color:var(--text3);margin-top:2px">${m.desc}${m.key === 'maximum' ? ` <span style="color:var(--red);font-weight:700">⚠ CHECK WITH YOUR DM</span>` : ''}</div>
         <div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-top:3px">${hpMethodFormula(m.key)}</div>
         ${m.key === 'roll' && isSelected ? renderHPRollInputs() : ''}
       </div>
@@ -28282,6 +28328,7 @@ function selectHPMethod(key) {
   if (!currentChar) return;
   currentChar.hp_method = key;
   renderHPMethods();
+  if (key === 'maximum') toast('Check with your DM!', 'error');
 }
 
 function updateHPPreview() {
@@ -29360,6 +29407,10 @@ const SUBCLASS_RESISTANCE_TABLE = {
 // Damage type per Genie Kind choice, straight from Elemental Gift's own text.
 const GENIE_KIND_RESISTANCE = { dao: 'bludgeoning', djinni: 'thunder', efreeti: 'fire', marid: 'cold' };
 
+// Damage type per Dread Allegiance choice, straight from Scion of the Three's
+// own text (Bane: Psychic, Bhaal: Poison, Myrkul: Necrotic).
+const SCION_ALLEGIANCE_RESISTANCE = { bane: 'psychic', bhaal: 'poison', myrkul: 'necrotic' };
+
 // Explicit allowlist of PERMANENT, PASSIVE subclass sense grants - deliberately
 // not a blind regex scan of every feature's text for "Darkvision/Blindsight N
 // ft", because several features mention senses without actually being a
@@ -29578,6 +29629,21 @@ function syncSubclassResistances() {
         if (t !== dmgType && currentChar.damageStates[t] === 'resistant') delete currentChar.damageStates[t];
       });
       if (dmgType) { grantList.push(dmgType); labelList.push({ type: dmgType, label: 'The Genie (Elemental Gift)' }); }
+    }
+
+    // Scion of the Three Rogue's Dread Allegiance (level 3): Resistance
+    // depends on which of the Dead Three you've pledged to, and can be
+    // changed whenever you finish a Long Rest (not locked in like Genie
+    // Kind), so this re-reads the live choice every time rather than only
+    // reconciling once. Same self-healing pattern as Genie Kind above -
+    // only one of the three types should ever be resistant at a time.
+    if (subKey === 'rogue/scion of the three' && level >= 3) {
+      const allegiance = (currentChar.class_choices?.dread_allegiance || '').toLowerCase().trim();
+      const dmgType = SCION_ALLEGIANCE_RESISTANCE[allegiance] || null;
+      Object.values(SCION_ALLEGIANCE_RESISTANCE).forEach(t => {
+        if (t !== dmgType && currentChar.damageStates[t] === 'resistant') delete currentChar.damageStates[t];
+      });
+      if (dmgType) { grantList.push(dmgType); labelList.push({ type: dmgType, label: 'Scion of the Three (Dread Allegiance)' }); }
     }
 
     // Wild Heart Barbarian's Rage of the Wilds - Bear aspect grants a
@@ -39278,13 +39344,13 @@ function openWeaponDetail(idx) {
   }
   const descSrc = phb?.desc || entry.desc || '';
   if (descSrc) {
-    bodyHtml += `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${descSrc.replace(/\n/g, '<br>')}</div>`;
+    bodyHtml += `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${renderItemMarkdown(descSrc)}</div>`;
   }
   if (linkedItem?.desc) {
     const liveDesc = getEffectiveItemDesc(linkedItem);
     bodyHtml += `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
       <div style="font-family:var(--font-ui);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px">Magic Item - ${(linkedItem.customName || linkedItem.name || '').replace(/</g,'&lt;')}</div>
-      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${liveDesc.replace(/\n/g, '<br>')}</div>
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${renderItemMarkdown(liveDesc)}</div>
     </div>`;
   }
   const finalBodyHtml = bodyHtml || '<em style="color:var(--text3)">No description available.</em>';
@@ -41793,6 +41859,16 @@ function syncMagicWeaponsToInventory() {
   ensureMagicItems();
 
   const activeUids = new Set();
+  // Pact of the Blade: "or create a bond with a magic weapon you touch."
+  // The Pact Weapon dropdown lists the character's own magic weapons
+  // alongside plain weapon types - picking one stores "item:<uid>" as
+  // the choice value instead of a type name, which this resolves back to
+  // the actual item so its own stats (Charisma-based attack/damage, plus
+  // its own magic bonus) represent the pact weapon instead of a generic one.
+  const invocListForBond = typeof parseInvocations === 'function' ? parseInvocations() : [];
+  const hasPactOfBladeForBond = invocListForBond.some(e => e.name.includes('Pact of the Blade'));
+  const pactChoiceRawForBond = currentChar.class_choices?.pact_weapon_type || '';
+  const pactBondedUid = pactChoiceRawForBond.startsWith('item:') ? pactChoiceRawForBond.slice(5) : null;
 
   currentChar.magicItems.forEach(item => {
     if (!item.isWeapon || item.isAmmo) return; // ammo bonuses are handled separately
@@ -41802,6 +41878,7 @@ function syncMagicWeaponsToInventory() {
     activeUids.add(item._uid);
 
     const bonus = getMagicItemBonusValue(item);
+    const isBonded = hasPactOfBladeForBond && !!pactBondedUid && item._uid === pactBondedUid;
     let entry = currentChar.weapons.find(w => w._fromMagicItem === item._uid);
     if (!entry) {
       entry = {
@@ -41809,7 +41886,7 @@ function syncMagicWeaponsToInventory() {
         name: item.customName || item.name,
         attackBonus: bonus, damageBonus: bonus,
         customDamage: null, equipped: true, proficient: true,
-        versatileMode: false, _fromMagicItem: item._uid,
+        versatileMode: false, pactWeapon: isBonded, _fromMagicItem: item._uid,
       };
       currentChar.weapons.push(entry);
     } else {
@@ -41818,6 +41895,7 @@ function syncMagicWeaponsToInventory() {
       entry.attackBonus  = bonus;
       entry.damageBonus  = bonus;
       entry.equipped     = true;
+      entry.pactWeapon   = isBonded;
     }
   });
 
@@ -47227,9 +47305,18 @@ function renderClassChoices() {
 
       const savedVal = currentChar.class_choices[def.id];
       if (savedVal != null && (!Array.isArray(savedVal) || savedVal.length)) {
-        const displayVal = Array.isArray(savedVal)
-          ? savedVal.map(v => typeof v === 'string' ? v : (v.name || v.cantrip || '')).filter(Boolean).join(', ')
-          : String(savedVal);
+        // Pact Weapon: a bonded magic weapon is stored as "item:<uid>",
+        // not a plain type name - resolve it back to the item's own
+        // name here too, same as the dropdown itself does.
+        let displayVal;
+        if (def.id === 'pact_weapon_type' && typeof savedVal === 'string' && savedVal.startsWith('item:')) {
+          const linkedItem = (currentChar.magicItems || []).find(i => i._uid === savedVal.slice(5));
+          displayVal = linkedItem ? `✦ ${linkedItem.customName || linkedItem.name}` : '';
+        } else {
+          displayVal = Array.isArray(savedVal)
+            ? savedVal.map(v => typeof v === 'string' ? v : (v.name || v.cantrip || '')).filter(Boolean).join(', ')
+            : String(savedVal);
+        }
         if (displayVal) _summaryParts.push({ label: def.label, value: displayVal });
       }
     }
@@ -47648,9 +47735,28 @@ function renderChoiceDef(def, _choiceCls) {
   } else if (def.type === 'dropdown') {
     const val = saved || '';
     isUnfilled = !val;
+    // Pact Weapon: owned magic weapons (equipped or not) go at the top of
+    // the same dropdown, distinctly marked, ahead of the plain weapon
+    // types - picking one bonds it as the Pact Weapon per RAW's "or
+    // create a bond with a magic weapon you touch" option, instead of
+    // conjuring a generic weapon of that type.
+    let magicWeaponOptions = '';
+    if (def.id === 'pact_weapon_type') {
+      const ownedMagicWeapons = (currentChar.magicItems || []).filter(i => i.isWeapon && !i.isAmmo && i.weaponKey);
+      if (ownedMagicWeapons.length) {
+        magicWeaponOptions = `<optgroup label="Your Magic Weapons">` +
+          ownedMagicWeapons.map(i => {
+            const ov = `item:${i._uid}`;
+            return `<option value="${ov}" ${val===ov?'selected':''} style="color:var(--gold)">✦ ${i.customName || i.name}</option>`;
+          }).join('') +
+          `</optgroup><optgroup label="Conjure a Weapon">`;
+      }
+    }
     inner += `<select class="choice-select" onchange="onChoiceChange('${def.id}', this.value)">
       <option value="">- Choose -</option>
+      ${magicWeaponOptions}
       ${def.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
+      ${magicWeaponOptions ? '</optgroup>' : ''}
     </select>`;
 
     // Fighting Style choices also reflect any style(s) known via a taken
@@ -49210,7 +49316,24 @@ function onChoiceChange(id, value) {
   if (!currentChar) return;
   if (!currentChar.class_choices) currentChar.class_choices = {};
   currentChar.class_choices[id] = value;
+  // Pact Weapon: selecting an owned magic weapon (value "item:<uid>")
+  // bonds it - equip it automatically, since a bonded weapon you aren't
+  // holding doesn't make sense.
+  if (id === 'pact_weapon_type' && value.startsWith('item:')) {
+    const uid = value.slice(5);
+    const item = (currentChar.magicItems || []).find(i => i._uid === uid);
+    if (item) item.equipped = true;
+  }
   applyChoiceEffects();
+  // Pact Weapon changes need the magic-item weapon sync to run too, since
+  // that's what actually creates/updates the bonded item's Attacks panel
+  // entry - applyChoiceEffects() only decides whether a generic conjured
+  // weapon is needed alongside it.
+  if (id === 'pact_weapon_type' && typeof syncMagicWeaponsToInventory === 'function') {
+    syncMagicWeaponsToInventory();
+    if (typeof renderFeatItemsWeapons === 'function') renderFeatItemsWeapons();
+    setTimeout(() => renderAttacksPanel(), 0);
+  }
   renderClassChoices();
   renderKnownSpells();
   if (typeof syncSubclassResistances === 'function') syncSubclassResistances();
@@ -49417,13 +49540,35 @@ function applyChoiceEffects() {
   const pactBoon = hasPactOfBlade ? 'blade' : _activePactsForWeapon.has('chain') ? 'chain' : _activePactsForWeapon.has('tome') ? 'tome' : null;
   if (!choices.pact_boon || choices.pact_boon !== pactBoon) choices.pact_boon = pactBoon;
   ensureWeaponData();
-  const existingPact = currentChar.weapons.findIndex(w => w.pactWeapon);
-  if (hasPactOfBlade) {
-    // Determine chosen weapon type from class choice
-    const chosenWeapon = choices.pact_weapon_type || 'Longsword';
+  // If the Pact Weapon choice is a specific owned magic weapon
+  // ("item:<uid>", picked from the dropdown), that item IS the pact
+  // weapon - Charisma-based attack/damage plus its own magic bonus, no
+  // generic duplicate entry. Falls back to conjuring a generic weapon of
+  // the bonded item's own type if it becomes unequipped/unattuned, so the
+  // slot doesn't just go blank.
+  const pactChoiceRaw = choices.pact_weapon_type || '';
+  const pactBondedUidForApply = pactChoiceRaw.startsWith('item:') ? pactChoiceRaw.slice(5) : null;
+  const pactBondedRefItem = pactBondedUidForApply
+    ? (currentChar.magicItems || []).find(i => i._uid === pactBondedUidForApply)
+    : null;
+  const bondedMagicItem = (hasPactOfBlade && pactBondedRefItem
+      && pactBondedRefItem.isWeapon && !pactBondedRefItem.isAmmo && pactBondedRefItem.equipped && pactBondedRefItem.weaponKey
+      && (!pactBondedRefItem.attunement || pactBondedRefItem.attuned))
+    ? pactBondedRefItem : null;
+  const existingGenericPact = currentChar.weapons.findIndex(w => w.pactWeapon && !w._fromMagicItem);
+  if (hasPactOfBlade && !bondedMagicItem) {
+    // Determine chosen weapon type: a plain type name from the dropdown,
+    // or - if the choice points at a magic weapon that's since gone
+    // unequipped/unattuned rather than never having been set - that
+    // item's own base type, so the fallback still matches what's bonded.
+    let chosenWeapon = pactChoiceRaw || 'Longsword';
+    if (chosenWeapon.startsWith('item:')) {
+      const refPhb = pactBondedRefItem?.weaponKey ? PHB_WEAPONS.find(w => w.key === pactBondedRefItem.weaponKey) : null;
+      chosenWeapon = refPhb?.name || 'Longsword';
+    }
     const wKey = chosenWeapon.toLowerCase().replace(/ /g,'_');
     const phbW = PHB_WEAPONS.find(w => w.key === wKey || w.name?.toLowerCase() === chosenWeapon.toLowerCase());
-    if (existingPact === -1) {
+    if (existingGenericPact === -1) {
       currentChar.weapons.push({
         weaponKey:    phbW?.key || wKey,
         name:         `Pact Weapon (${chosenWeapon})`,
@@ -49435,7 +49580,7 @@ function applyChoiceEffects() {
       setTimeout(() => renderAttacksPanel(), 0);
     } else {
       // Update existing pact weapon if type changed
-      const pw = currentChar.weapons[existingPact];
+      const pw = currentChar.weapons[existingGenericPact];
       const newKey = phbW?.key || wKey;
       if (pw.weaponKey !== newKey) {
         pw.weaponKey = newKey;
@@ -49444,9 +49589,10 @@ function applyChoiceEffects() {
       }
       setTimeout(() => renderAttacksPanel(), 0);
     }
-  } else if (existingPact !== -1 && currentChar.weapons[existingPact].pactWeapon) {
-    // Remove pact weapon if pact boon changed away from blade
-    currentChar.weapons.splice(existingPact, 1);
+  } else if (existingGenericPact !== -1) {
+    // Remove the generic conjured weapon if the pact boon changed away
+    // from Blade, or a bonded magic weapon now covers it.
+    currentChar.weapons.splice(existingGenericPact, 1);
     renderFeatItemsWeapons();
     setTimeout(() => renderAttacksPanel(), 0);
   }
@@ -50358,7 +50504,15 @@ function renderResourceEntry(def, level, prof) {
 
   const _ttDesc = (resolveResourceFeatureDesc(def) ?? def.desc ?? '').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const _ttName = (def.name||def.label||'').replace(/"/g,'&quot;');
-  const _ttMeta = def.recoveryNote ? `Manual only - ${def.recoveryNote}` : recovery ? `Recovers on ${recovery === 'short' ? 'Short Rest' : recovery === 'long' ? 'Long Rest' : recovery}` : '';
+  const _recLabel = recovery === 'short' ? 'Short Rest' : recovery === 'long' ? 'Long Rest' : recovery;
+  // A recoveryNote doesn't always mean "no automatic recovery" - magic
+  // items regularly have both a real recovery cadence (recovery: 'dawn')
+  // AND a note about it (e.g. "regains 1d6+2 charges daily at dawn"), so
+  // this used to always claim "Manual only" even for resources that do
+  // recover on their own, just with an extra detail worth surfacing.
+  const _ttMeta = def.recoveryNote
+    ? (recovery ? `Recovers on ${_recLabel} - ${def.recoveryNote}` : `Manual only - ${def.recoveryNote}`)
+    : (recovery ? `Recovers on ${_recLabel}` : '');
   // A resource's own display name doesn't always match the class/subclass
   // feature that actually grants it (e.g. Psion's "Psionic Energy Dice"
   // resource comes from a feature named "Psionic Power") - featureName,
@@ -51419,7 +51573,24 @@ function buildAllResourceDefs() {
   if (typeof getFeatGrantedSpells === 'function') {
     getFeatGrantedSpells().filter(s => s.level > 0).forEach(s => {
       const id = `feat_spell_${s.key}`.replace(/[^a-z0-9_]/g,'_');
-      add({ id, name: s.name, recovery: 'long', _max: 1 });
+      const grantingFeat = currentChar.spells?.featSpellNames?.[s.featKey] || '';
+      // Greater Mark of Shadow's "Improved Shadow" benefit upcasts the free
+      // Invisibility cast to 3rd level, and its "Improved Intuition" benefit
+      // upgrades the unrelated Cunning Intuition check bonus from 1d4 to
+      // 1d6. Neither is automated (no die-roller or spell-level override
+      // exists for feat-granted spells), so this is purely a reminder note
+      // on the one resource card Mark of Shadow actually produces - it has
+      // nowhere else to live since Cunning Intuition itself has no charge
+      // to track.
+      let recoveryNote = null;
+      if (grantingFeat.toLowerCase() === 'mark of shadow' && s.key === 'invisibility'
+          && typeof characterHasFeatNamed === 'function' && characterHasFeatNamed('Greater Mark of Shadow')) {
+        recoveryNote = 'Greater Mark of Shadow: cast as a 3rd-level spell. Cunning Intuition also rolls 1d6 instead of 1d4.';
+      } else if (grantingFeat.toLowerCase() === 'mark of making' && s.key === 'magic_weapon'
+          && typeof characterHasFeatNamed === 'function' && characterHasFeatNamed('Greater Mark of Making')) {
+        recoveryNote = 'Greater Mark of Making: cast as a 3rd-level spell. Artisan\'s Intuition also rolls 1d6 instead of 1d4.';
+      }
+      add({ id, name: s.name, recovery: 'long', _max: 1, ...(recoveryNote ? { recoveryNote } : {}) });
     });
   }
 
