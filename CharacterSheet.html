@@ -5115,6 +5115,7 @@ body.preview-readonly #mi-detail-edit-row * {
       </div>
       <div style="flex:1 1 320px;min-width:0">
         <div id="spell-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div id="spell-detail-smite-note" style="display:none;margin:-6px 0 12px;padding:6px 10px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border);font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5"></div>
         <div id="spell-detail-upcast-row" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)">
           <label id="spell-detail-source-label" style="display:none;font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap">Cast Via</label>
           <select id="spell-detail-source-select" class="info-input" style="display:none;width:auto;min-width:120px" onchange="onSpellDetailSourceChange(this.value)"></select>
@@ -9805,6 +9806,15 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
     const pluralize = w => /[^aeiou]y$/i.test(w) ? w.slice(0, -1) + 'ies' : /(s|sh|ch|x|z)$/i.test(w) ? w + 'es' : w + 's';
     const numAlt = _NUMBER_WORDS.slice(1).join('|');
     const CONN = '(?:\\s+[a-z]+,?){0,2}';
+    // A number word this function generates is always lowercase
+    // (_NUMBER_WORDS is all-lowercase) - but the word it's replacing might
+    // be the very first word of the sentence ("One Humanoid...", Charm
+    // Person), where it was capitalized for that reason alone, not
+    // because it's a proper noun. Matching that capitalization keeps
+    // "One" -> "Three" instead of silently lowercasing the sentence to
+    // "three Humanoids...".
+    const matchCase = (original, replacement) =>
+      /^[A-Z]/.test(original) ? replacement.charAt(0).toUpperCase() + replacement.slice(1) : replacement;
 
     if (noun) {
       const step1 = new RegExp(`\\b(${numAlt})\\b(?!-)(${CONN})\\s+${noun}s?\\b`, 'i');
@@ -9812,7 +9822,7 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
       if (sm) {
         const curNum = _NUMBER_WORDS.indexOf(sm[1].toLowerCase());
         const newTotal = curNum + extraLevels;
-        const newLead = _NUMBER_WORDS[newTotal] || String(newTotal);
+        const newLead = matchCase(sm[1], _NUMBER_WORDS[newTotal] || String(newTotal));
         const newNoun = newTotal === 1 ? noun : pluralize(noun);
         const replacement = `${newLead}${sm[2]} ${newNoun}`;
         const idx = before.search(step1);
@@ -9823,7 +9833,7 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
         const am = before.match(step2);
         if (am) {
           const newTotal = 1 + extraLevels;
-          const newLead = _NUMBER_WORDS[newTotal] || String(newTotal);
+          const newLead = matchCase(am[1], _NUMBER_WORDS[newTotal] || String(newTotal));
           const replacement = `${newLead}${am[2]} ${pluralize(noun)}`;
           const idx = before.search(step2);
           return before.slice(0, idx) + `<span style="color:var(--accent);font-weight:600">${replacement}</span>` + before.slice(idx + am[0].length) + after;
@@ -9839,7 +9849,7 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
       const curNum = (leadWord === 'a' || leadWord === 'an') ? 1 : _NUMBER_WORDS.indexOf(leadWord);
       const newTotal = curNum + extraLevels;
       if (newTotal !== curNum) {
-        const newLead = _NUMBER_WORDS[newTotal] || String(newTotal);
+        const newLead = matchCase(gm[1], _NUMBER_WORDS[newTotal] || String(newTotal));
         const newFollow = newTotal === 1 ? gm[2] : pluralize(gm[2]);
         const replacement = `${newLead} ${newFollow}`;
         const idx = before.search(step3);
@@ -9951,6 +9961,13 @@ function highlightSpellcastingMod(html) {
   return html.replace(/(?:plus )?your spellcasting ability modifier/gi, modStr);
 }
 
+function toggleSmiteCastNote() {
+  const note = document.getElementById('spell-detail-smite-note');
+  if (!note) return;
+  note.style.display = note.style.display === 'none' ? 'block' : 'none';
+}
+window.toggleSmiteCastNote = toggleSmiteCastNote;
+
 function renderSpellDetailBody(sp, castLevel) {
   const bodyEl = document.getElementById('spell-detail-body');
   if (!bodyEl) return;
@@ -10017,20 +10034,28 @@ function renderSpellDetailBody(sp, castLevel) {
 // offers levels that source can actually produce.
 let _spellDetailCtx = null;
 
-// Default cast level when using a spell slot: the lowest slot level the
-// character actually has that can hold this spell. Pact Magic slots only
-// win when they're the only slots at or above the spell's level - a pure
-// Warlock (all pact slots) still defaults to the pact slot level, but a
-// Paladin 1 / Warlock 6 with regular 1st-level slots defaults to 1st.
+// Default cast level when using a spell slot. A spell you know or have
+// prepared always defaults to its own printed level - EXCEPT a Warlock's
+// own spells cast through Pact Magic, which are a special case: a Warlock
+// only ever has slots of one level at a time (all their pact slots are
+// the same level), so there is no "casting it at a lower level" option in
+// practice - it's always cast at that slot's level. This does NOT apply
+// to a spell granted some other way that doesn't touch a slot at all -
+// an Eldritch Invocation like Otherworldly Leap ("cast Jump without
+// expending a spell slot") or a magic item's charges - those are handled
+// entirely separately in buildSpellDetailCastContext and never reach here
+// with a 'slot' source, so they keep defaulting to their own base level.
 function getDefaultSlotCastLevel(sp) {
-  if (!sp || sp.level <= 0) return sp?.level || 0;
-  const slots = (typeof computeSpellSlotsForChar === 'function' && currentChar)
-    ? computeSpellSlotsForChar(currentChar) : null;
-  if (!slots) return sp.level;
-  const candidates = (slots.levels || [])
-    .filter(l => l.max > 0 && l.level >= sp.level).map(l => l.level);
-  if (slots.warlock?.max > 0 && slots.warlock.slotLevel >= sp.level) candidates.push(slots.warlock.slotLevel);
-  return candidates.length ? Math.min(...candidates) : sp.level;
+  if (!sp) return 0;
+  const isWarlockSpell = (sp.classes || []).some(c => (c || '').toLowerCase() === 'warlock');
+  const charIsWarlock = currentChar && (currentChar.classes?.length
+    ? currentChar.classes.some(c => (c.class || '').toLowerCase() === 'warlock')
+    : (currentChar.class || '').toLowerCase() === 'warlock');
+  if (isWarlockSpell && charIsWarlock) {
+    const slots = typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(currentChar) : null;
+    if (slots?.warlock?.max > 0 && slots.warlock.slotLevel >= sp.level) return slots.warlock.slotLevel;
+  }
+  return sp.level || 0;
 }
 window.getDefaultSlotCastLevel = getDefaultSlotCastLevel;
 
@@ -10070,15 +10095,37 @@ function buildSpellDetailCastContext(sp, row) {
   const range = (a, b) => { const out = []; for (let i = a; i <= b; i++) out.push(i); return out; };
   const sources = [];
   const itemGrants = row?.itemGrants || [];
-  // A row that exists only because an item grants it can't be cast with a
-  // slot. Any other row (or no row at all - e.g. the spell browser) can.
-  if (!row || row.pipType !== 'item-spell') {
+  // A row that exists ONLY because an Eldritch Invocation grants it (e.g.
+  // Otherworldly Leap: "cast Jump without expending a spell slot," with
+  // no separate class-based preparation behind it) isn't cast with a
+  // slot at all - it gets a locked, single-level 'invocation' source
+  // instead (below), the same treatment a pure item-only spell gets. But
+  // if the SAME spell is also genuinely known/prepared through a class
+  // (buildKnownSpellRows merges that onto invocationGrants rather than
+  // letting the invocation grant hide it - see there), the normal 'slot'
+  // source still applies too, in addition to the fixed invocation one:
+  // the player really can upcast it once they've actually learned it,
+  // the invocation is just a free extra way to cast the base version.
+  // Checking row.source (set only on a genuine invocation-only row, not
+  // on a merged one) rather than the broader pipType:'subclass' keeps
+  // this from also swallowing Oath/Adept-feat "always prepared" spells,
+  // which - unlike an invocation grant - still cost a normal spell slot.
+  const invocationGrants = row?.invocationGrants || [];
+  const isInvocationOnly = row?.source === 'invocation';
+  if ((!row || row.pipType !== 'item-spell') && !isInvocationOnly) {
     sources.push({
       id: 'slot', label: 'Spell Slot',
       levels: isUpcastable ? range(sp.level, 9) : [sp.level],
       defaultLevel: isUpcastable ? getDefaultSlotCastLevel(sp) : sp.level,
     });
   }
+  invocationGrants.forEach((g, i) => {
+    sources.push({
+      id: 'invocation' + i, label: g.invoc || 'Invocation', invocation: true,
+      grantType: g.grantType || 'atWill',
+      levels: [sp.level], defaultLevel: sp.level,
+    });
+  });
   itemGrants.forEach((g, i) => {
     const { base, levels } = getItemGrantLevelRange(g, sp);
     sources.push({
@@ -10091,6 +10138,12 @@ function buildSpellDetailCastContext(sp, row) {
 window.buildSpellDetailCastContext = buildSpellDetailCastContext;
 
 function _spellDetailSourceNote(src, sp, lv) {
+  if (src.invocation) {
+    const parts = [`Via ${src.label}`];
+    if (src.grantType === 'atWill') parts.push('at will');
+    parts.push('no spell slot');
+    return parts.join(' · ');
+  }
   const g = src.grant;
   if (!g) return '';
   const parts = [`Via ${g.itemName || 'magic item'}`];
@@ -10124,7 +10177,7 @@ function renderSpellDetailCastControls(levelOverride) {
   const sp = c.sp, src = c.active;
   const multiSource = c.sources.length > 1;
   const multiLevel = src.levels.length > 1;
-  const showRow = multiSource || multiLevel || !!src.grant;
+  const showRow = multiSource || multiLevel || !!src.grant || !!src.invocation;
   row.style.display = showRow ? 'flex' : 'none';
   if (srcSel) {
     srcSel.innerHTML = c.sources.map(s => `<option value="${s.id}">${s.label.replace(/</g,'&lt;')}</option>`).join('');
@@ -12098,9 +12151,24 @@ function openSpellDetailModal(key, name, ctx) {
     : (scaledRange || '-');
 
   const compInfo = formatSpellComponents(sp);
+  // Every Paladin smite spell shares this same "1 bns*" casting time - a
+  // Bonus Action taken immediately after hitting with a melee weapon or
+  // an Unarmed Strike, the trigger text the PHB prints once and every
+  // smite spell cross-references rather than repeating. The asterisk
+  // alone doesn't say that, so the pill is clickable and expands it
+  // inline - linked through the in-app rules glossary (linkifyGlossaryTerms/
+  // openGlossaryTermModal), the same mechanism every other rules term in
+  // the app uses, rather than an external site. Scoped to "smite" in the
+  // key specifically - Ensnaring Strike/Hail of Thorns/Lightning Arrow
+  // share the same casting time but trigger off a different attack
+  // (ranged, or "hits or misses"), so they keep the plain pill.
+  const isSmiteBonus = sp.time === '1 bns*' && (sp.key || '').includes('smite');
+  const castPill = isSmiteBonus
+    ? `<span class="meta-pill" style="cursor:pointer;color:var(--accent);border:1px solid var(--accent);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" title="Click for the trigger condition" onclick="toggleSmiteCastNote()">Cast: 1 Bonus (Smite)</span>`
+    : `<span class="meta-pill">Cast: ${sp.time || '1 action'}</span>`;
   const tags = [
     `<span class="meta-pill">${levelStr} · ${sp.school}</span>`,
-    `<span class="meta-pill">Cast: ${sp.time || '1 action'}</span>`,
+    castPill,
     `<span class="meta-pill"${(mutableFormTouchBoost || cantripRangeScaled) ? ' style="color:var(--accent)"' : ''}>Range: ${rangeDisplay}</span>`,
     `<span class="meta-pill">Duration: ${sp.duration || '-'}</span>`,
     compInfo ? `<span class="meta-pill"${compInfo.consumed ? ' style="color:var(--red);border-color:rgba(200,60,60,.4)"' : ''}>Components: ${compInfo.text}</span>` : '',
@@ -12110,6 +12178,20 @@ function openSpellDetailModal(key, name, ctx) {
     sp.source ? `<span class="meta-pill" style="color:var(--text3)">${sp.source}</span>` : '',
   ].filter(Boolean);
   metaEl.innerHTML = tags.join('');
+
+  const smiteNoteEl = document.getElementById('spell-detail-smite-note');
+  if (smiteNoteEl) {
+    if (isSmiteBonus) {
+      let noteHtml = 'Bonus action, which you take immediately after hitting a target with a Melee weapon or an Unarmed Strike.';
+      if (typeof linkifyGlossaryTerms === 'function') noteHtml = linkifyGlossaryTerms(noteHtml);
+      smiteNoteEl.innerHTML = noteHtml;
+    }
+    // Collapsed by default on every open, including switching straight
+    // from one smite to another - the pill itself (now reading
+    // "Cast: 1 Bonus (Smite)") is the cue that it's expandable, so it
+    // shouldn't stay pinned open from a previous spell.
+    smiteNoteEl.style.display = 'none';
+  }
 
   {
     const prefs = resolveSpellGlyphPrefs();
@@ -33664,12 +33746,6 @@ function buildKnownSpellRows() {
     rows.push({ ...sp, pipType:'ritual-only', locked:true, ritual:true, label:'Book of Shadows' });
   });
 
-  getInvocationGrantedSpells().forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'subclass', locked:true, label:sp.invoc });
-  });
-
   getMysticArcanumSpells().forEach(sp => {
     if (_shownKeys.has(sp.key)) return;
     _shownKeys.add(sp.key);
@@ -33725,6 +33801,26 @@ function buildKnownSpellRows() {
     _shownKeys.add(sp.key);
   });
 
+  // Eldritch Invocation grants attach to an existing row rather than
+  // claiming the spell key, the same fix magic item grants got above and
+  // for the same reason: a spell can be both normally prepared/known AND
+  // granted at-will by an invocation (e.g. a Warlock who also separately
+  // learned Jump as a real known spell, on top of Otherworldly Leap).
+  // Attaching keeps the class-based row (and its normal, upcastable
+  // spell-slot casting) intact instead of the invocation grant silently
+  // replacing it with an always-base-level, no-slot-only row. A spell
+  // ONLY reachable through the invocation still gets its own locked,
+  // always-shown row exactly as before.
+  getInvocationGrantedSpells().forEach(sp => {
+    const existing = rows.find(r => r.key === sp.key);
+    if (existing) {
+      (existing.invocationGrants = existing.invocationGrants || []).push(sp);
+      return;
+    }
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'subclass', locked:true, label:sp.invoc, invocationGrants:[sp] });
+  });
+
   // Magic item grants go last, and attach to an existing row rather than
   // claiming the spell key. Previously they were added mid-list and
   // claimed the key first, so a spell both prepared through a class and
@@ -33755,8 +33851,13 @@ function countPreparedSpells() {
   // rather than showing only one depending on whether Wizard happened to
   // be present anywhere on the character. Ritual-only spellbook entries
   // that aren't actually prepared don't count against the cap - you can
-  // still ritual-cast those without preparing them.
-  return buildKnownSpellRows().filter(r => r.level > 0 && !r.locked && r.pipType !== 'ritual-only').length;
+  // still ritual-cast those without preparing them. Same for an empty
+  // pipType: that's a spell a prepared caster (e.g. Paladin) knows/has
+  // picked up but hasn't currently prepared - the row is shown dimmed
+  // with "Not prepared - click to prepare" for exactly this reason, so
+  // counting it here would silently eat a slot in the X/Y cap for a spell
+  // the character isn't actually casting today.
+  return buildKnownSpellRows().filter(r => r.level > 0 && !r.locked && r.pipType !== 'ritual-only' && r.pipType !== '').length;
 }
 
 // ── Add / Remove spells ───────────────────────────────────
@@ -34211,6 +34312,16 @@ function renderKnownSpells() {
       const nm = (g.itemName || 'Item').replace(/</g,'&lt;');
       tags.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)" title="Also castable from ${nm.replace(/"/g,'&quot;')} without a spell slot${g.fixedDC ? ` (save DC ${g.fixedDC})` : ''}">✦ ${nm}${use}</span>`);
     });
+    // Same idea for an Eldritch Invocation grant attached to a row that's
+    // ALSO normally known/prepared (e.g. a Warlock who separately learned
+    // Jump on top of Otherworldly Leap) - only shown here for the merged
+    // case, since a pure invocation-only row already shows this via its
+    // own "at will" tag above.
+    if (sp.pipType !== 'subclass') {
+      (sp.invocationGrants || []).forEach(g => {
+        tags.push(`<span class="sp-tag" style="color:var(--purple);border-color:var(--purple)" title="Also castable at will via ${(g.invoc||'').replace(/"/g,'&quot;')}, without a spell slot">✦ ${(g.invoc||'Invocation').replace(/</g,'&lt;')} · at will</span>`);
+      });
+    }
 
     const nameTitle = sp.label
       ? `${phb?.desc||''} [${sp.label}]`
@@ -34282,6 +34393,7 @@ function renderKnownSpells() {
 // ── Spellbook ─────────────────────────────────────────────
 
 let _spellbookOpen = true; // Start expanded for prepared casters
+
 function toggleSpellbook() {
   _spellbookOpen = !_spellbookOpen;
   const body = document.getElementById('sp-spellbook-body');
@@ -34656,7 +34768,7 @@ function renderFullClassSpellList() {
 
   if (countEl) {
     const { max } = getPreparedMax();
-    const current = buildKnownSpellRows().filter(r => r.level > 0 && !r.locked).length;
+    const current = countPreparedSpells();
     countEl.textContent = `${current}/${max} prepared`;
     countEl.style.color = current > max ? 'var(--red)' : 'var(--text3)';
   }
@@ -34707,7 +34819,7 @@ function renderFullClassSpellList() {
     }
 
     const isGranted = grantedByKey.has(sp.key);
-    const isPrepared = currentChar.spells.known.some(s => s.key === sp.key);
+    const isPrepared = currentChar.spells.prepared.includes(sp.key);
     const row = document.createElement('div');
     row.className = 'sp-spellbook-row';
     row.innerHTML = `
@@ -34735,10 +34847,38 @@ window.renderFullClassSpellList = renderFullClassSpellList;
 // uses, so both stay in sync and nothing about "what counts as prepared"
 // diverges between the two views.
 function toggleFullClassListPrep(spellKey) {
-  const isPrepared = currentChar.spells.known.some(s => s.key === spellKey);
-  if (isPrepared) removeSpellFromKnown(spellKey);
-  else addSpellToKnown(spellKey, 'manual');
+  const isPrepared = currentChar.spells.prepared.includes(spellKey);
+  if (isPrepared) {
+    removeSpellFromKnown(spellKey); // already strips both known[] and prepared[]
+  } else {
+    // Only call addSpellToKnown() if it isn't already there - it early-
+    // exits with an "already in spell list" toast otherwise (correct for
+    // its normal callers, but here it would silently skip the prepared[]
+    // push below for a spell that's stuck exactly in that state: known
+    // but never actually prepared, e.g. from before this fix existed).
+    const alreadyKnown = currentChar.spells.known.some(s => s.key === spellKey);
+    if (!alreadyKnown) addSpellToKnown(spellKey, 'manual');
+    // This modal's whole purpose is "prepare directly from the full class
+    // list" (its own subtitle says exactly that, and the button reads
+    // "PREP," not "add"). addSpellToKnown() only auto-prepares for
+    // swap-on-LU casters (Bard/Sorcerer/Warlock/Psion), since for those
+    // classes "known" and "prepared" are the same thing by rule. A
+    // swap-on-LR caster (Paladin/Cleric/Druid/Ranger/Wizard) instead
+    // chooses which of their known spells are prepared each day - without
+    // this, clicking "+PREP" here for one of those classes would silently
+    // add the spell to spells.known without ever adding it to
+    // spells.prepared, so it would show up dimmed ("Not prepared") back
+    // in the main Prepared Spells list and never count toward the
+    // prepared cap, directly contradicting what the button says it does.
+    if (!currentChar.spells.prepared.includes(spellKey)) {
+      currentChar.spells.prepared.push(spellKey);
+    }
+  }
   renderFullClassSpellList();
+  renderKnownSpells();
+  renderSpellStats();
+  renderAttacksPanel();
+  renderActiveEffects();
 }
 window.toggleFullClassListPrep = toggleFullClassListPrep;
 
@@ -39360,6 +39500,63 @@ function renderAttacksPanel() {
         <div style="text-align:center"><div class="attack-stat" style="font-size:11px">${hmDie} Force</div><div class="attack-stat-label">Bonus Dmg</div></div>
       `;
       body.appendChild(hmRow);
+    }
+  }
+
+  // ── Paladin: Smite spells (quick reference, same treatment as Hunter's
+  // Mark above) - every smite spell the character actually has access to
+  // right now (prepared normally, always-prepared via subclass/invocation,
+  // or granted by an item like the Thayan Sword), so this list is never
+  // padded with smites the character can't currently cast. Base (1st-
+  // level) numbers only - the exact scaling per spell slot level is shown
+  // in each spell's own detail modal (opened by clicking the row), which
+  // also has the Cast at Level control to actually pick a level.
+  {
+    const SMITE_QUICKREF = {
+      searing_smite:    { dmg: '1d6 Fire',     effect: 'Ignites; extra Fire damage each turn until it ends or saves.' },
+      thunderous_smite: { dmg: '2d6 Thunder',  effect: 'Save or pushed 10 ft and knocked Prone.' },
+      wrathful_smite:   { dmg: '1d6 Necrotic', effect: 'Save or Frightened until it ends.' },
+      divine_smite:     { dmg: '2d8 Radiant',  effect: '+1d8 more against Fiends and Undead.' },
+      shining_smite:    { dmg: '2d6 Radiant',  effect: 'Sheds light; attacks against it have Advantage; no Invisible.' },
+      blinding_smite:   { dmg: '3d8 Radiant',  effect: 'Save or Blinded until it ends.' },
+      staggering_smite: { dmg: '4d6 Psychic',  effect: 'Save or Stunned until the end of your next turn.' },
+      banishing_smite:  { dmg: '5d10 Force',   effect: 'At 50 HP or fewer, save or banished until the spell ends.' },
+    };
+    const rows = buildKnownSpellRows();
+    const activeSmites = Object.keys(SMITE_QUICKREF)
+      .map(key => rows.find(r => r.key === key && r.pipType && r.pipType !== 'ritual-only'))
+      .filter(Boolean);
+    if (activeSmites.length) {
+      if (hasAnyAttack) {
+        const sep = document.createElement('div');
+        sep.style.cssText = 'font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:10px 0 4px;border-bottom:1px solid var(--border);padding-bottom:2px';
+        sep.textContent = 'Paladin - Smite (Bonus Action)';
+        body.appendChild(sep);
+      }
+      hasAnyAttack = true;
+      activeSmites.forEach(sp => {
+        const ref = SMITE_QUICKREF[sp.key];
+        const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
+        const schoolColor = getSpellSchoolColor(phb?.school || '');
+        const schoolAbbr = SPELL_SCHOOL_ABBR[phb?.school || ''] || '';
+        const row = document.createElement('div');
+        row.className = 'attack-row';
+        row.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);display:grid;grid-template-columns:minmax(100px,160px) minmax(120px,1fr) auto auto;gap:0 8px;align-items:start;padding:5px 8px;margin-bottom:4px;cursor:pointer';
+        row.title = `View full ${sp.name} spell`;
+        row.onclick = () => openSpellDetailModal(sp.key, sp.name, { row: sp });
+        row.innerHTML = `
+          <div>
+            <div class="attack-name">${sp.name}</div>
+            <div class="attack-sub" style="display:flex;align-items:center;gap:5px">Bonus Action · Lv ${sp.level}
+              ${schoolAbbr ? `<span style="display:flex;align-items:center;gap:3px;font-size:8px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:${schoolColor}" title="${phb?.school||''}"><span style="width:6px;height:6px;border-radius:50%;background:${schoolColor};display:inline-block;flex-shrink:0"></span>${schoolAbbr}</span>` : ''}
+            </div>
+          </div>
+          <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);padding:0 8px"><strong>${sp.name}.</strong> ${ref.effect}</div>
+          <div style="text-align:center"><div class="attack-stat">Self</div><div class="attack-stat-label">Range</div></div>
+          <div style="text-align:center"><div class="attack-stat" style="font-size:11px">${ref.dmg}</div><div class="attack-stat-label">at Lv ${sp.level}</div></div>
+        `;
+        body.appendChild(row);
+      });
     }
   }
 
