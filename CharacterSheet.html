@@ -3870,20 +3870,14 @@ body.preview-readonly #mi-detail-edit-row * {
   <!-- ── SUMMON PAGE ────────────────────────────────── -->
   <div class="page" id="page-summon">
     <div style="padding:16px;max-width:900px;margin:0 auto">
-      <div style="font-family:var(--font-heading);font-size:18px;color:var(--text);margin-bottom:16px;letter-spacing:1px">Summoned Creature</div>
+      <div style="font-family:var(--font-heading);font-size:18px;color:var(--text);margin-bottom:16px;letter-spacing:1px">Summoned Creatures</div>
       <div class="panel" style="margin-bottom:12px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <select id="summon-spell-select" class="field-select" style="flex:1;min-width:180px" onchange="onSummonSpellChange()">
-            <option value="">- Select summon spell -</option>
+        <div id="summon-add-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="summon-add-select" class="field-select" style="flex:1;min-width:180px">
+            <option value="">- Add a summon -</option>
           </select>
-          <select id="summon-slot-select" class="field-select" style="width:120px" onchange="renderSummonTab()">
-            <option value="">Slot level…</option>
-          </select>
-          <select id="summon-form-select" class="field-select" style="width:150px;display:none" onchange="if(currentChar)currentChar._activeSummonForm=this.value;renderSummonTab();syncSummonSharedResistance();debouncedSave()">
-          </select>
+          <button class="tbtn" onclick="onAddActiveSummonClick()">+ Add</button>
         </div>
-        <div id="summon-note" style="font-family:var(--font-body);font-size:11px;color:var(--text3)"></div>
-        <div id="summon-spell-desc" style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.6;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:none"></div>
       </div>
       <div id="summon-stat-block"></div>
     </div>
@@ -5121,9 +5115,12 @@ body.preview-readonly #mi-detail-edit-row * {
       </div>
       <div style="flex:1 1 320px;min-width:0">
         <div id="spell-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
-        <div id="spell-detail-upcast-row" style="display:none;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)">
-          <label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap">Cast at Level</label>
+        <div id="spell-detail-upcast-row" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)">
+          <label id="spell-detail-source-label" style="display:none;font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap">Cast Via</label>
+          <select id="spell-detail-source-select" class="info-input" style="display:none;width:auto;min-width:120px" onchange="onSpellDetailSourceChange(this.value)"></select>
+          <label id="spell-detail-level-label" style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap">Cast at Level</label>
           <select id="spell-detail-upcast-select" class="info-input" style="width:auto;min-width:70px" onchange="onSpellDetailLevelChange(this.value)"></select>
+          <div id="spell-detail-source-note" style="display:none;flex-basis:100%;font-family:var(--font-ui);font-size:10px;color:var(--gold);letter-spacing:.3px"></div>
         </div>
         <div id="spell-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:60vh;overflow-y:auto;padding-right:4px"></div>
       </div>
@@ -10012,10 +10009,177 @@ function renderSpellDetailBody(sp, castLevel) {
   bodyEl.innerHTML = editPencil + (html || '<em style="color:var(--text3)">No description available.</em>');
 }
 
+// ── Spell detail: cast source + cast level ───────────────
+// A spell can reach the character more than one way - prepared through a
+// class (cast with a spell slot) and/or granted by one or more magic items
+// (cast from the item's charges/uses, no slot). Each way is a "source"
+// with its own allowed cast levels, so the Cast at Level dropdown only ever
+// offers levels that source can actually produce.
+let _spellDetailCtx = null;
+
+// Default cast level when using a spell slot: the lowest slot level the
+// character actually has that can hold this spell. Pact Magic slots only
+// win when they're the only slots at or above the spell's level - a pure
+// Warlock (all pact slots) still defaults to the pact slot level, but a
+// Paladin 1 / Warlock 6 with regular 1st-level slots defaults to 1st.
+function getDefaultSlotCastLevel(sp) {
+  if (!sp || sp.level <= 0) return sp?.level || 0;
+  const slots = (typeof computeSpellSlotsForChar === 'function' && currentChar)
+    ? computeSpellSlotsForChar(currentChar) : null;
+  if (!slots) return sp.level;
+  const candidates = (slots.levels || [])
+    .filter(l => l.max > 0 && l.level >= sp.level).map(l => l.level);
+  if (slots.warlock?.max > 0 && slots.warlock.slotLevel >= sp.level) candidates.push(slots.warlock.slotLevel);
+  return candidates.length ? Math.min(...candidates) : sp.level;
+}
+window.getDefaultSlotCastLevel = getDefaultSlotCastLevel;
+
+// Lowest level an item casts a granted spell at, and the highest it can
+// reach by spending extra charges. Missing fields mean the rules default:
+// the spell's own base level, no upcasting.
+// With a chargeByLevel map, only the levels it lists are castable (an item
+// like "2 charges = 3rd level, 3 charges = 5th" can't produce 2nd or 4th).
+function getItemGrantLevelRange(g, sp) {
+  const mapLevels = (g.chargeByLevel && typeof g.chargeByLevel === 'object')
+    ? Object.keys(g.chargeByLevel).map(Number).filter(l => l >= sp.level && l <= 9).sort((a, b) => a - b) : [];
+  if (mapLevels.length) return { base: mapLevels[0], max: mapLevels[mapLevels.length - 1], levels: mapLevels };
+  const base = Math.max(sp.level, parseInt(g.castLevel) || 0);
+  const max = Math.min(9, Math.max(base, parseInt(g.maxCastLevel) || 0));
+  const levels = []; for (let l = base; l <= max; l++) levels.push(l);
+  return { base, max, levels };
+}
+// Charges spent to cast an item-granted spell at a given level. An explicit
+// chargeByLevel map wins (for items with irregular costs, e.g. 1 charge =
+// 1st, 2 = 3rd, 3 = 5th); otherwise each level above the item's base costs
+// one extra charge, the pattern nearly every upcasting item uses.
+function getItemGrantChargeCost(g, sp, lv) {
+  if (g.grantType !== 'itemCharges') return null;
+  const { base } = getItemGrantLevelRange(g, sp);
+  const map = g.chargeByLevel;
+  if (map && map[lv] != null) return parseInt(map[lv]);
+  return (g.chargeCost ?? 1) + Math.max(0, lv - base);
+}
+window.getItemGrantLevelRange = getItemGrantLevelRange;
+window.getItemGrantChargeCost = getItemGrantChargeCost;
+
+function buildSpellDetailCastContext(sp, row) {
+  const isMysticArcanum = typeof getMysticArcanumSpells === 'function'
+    && getMysticArcanumSpells().some(a => a.key === sp.key);
+  const isUpcastable = !isMysticArcanum && sp.level > 0
+    && /Using a Higher-Level Spell Slot|At Higher Levels/i.test(sp.descFull || '');
+  const range = (a, b) => { const out = []; for (let i = a; i <= b; i++) out.push(i); return out; };
+  const sources = [];
+  const itemGrants = row?.itemGrants || [];
+  // A row that exists only because an item grants it can't be cast with a
+  // slot. Any other row (or no row at all - e.g. the spell browser) can.
+  if (!row || row.pipType !== 'item-spell') {
+    sources.push({
+      id: 'slot', label: 'Spell Slot',
+      levels: isUpcastable ? range(sp.level, 9) : [sp.level],
+      defaultLevel: isUpcastable ? getDefaultSlotCastLevel(sp) : sp.level,
+    });
+  }
+  itemGrants.forEach((g, i) => {
+    const { base, levels } = getItemGrantLevelRange(g, sp);
+    sources.push({
+      id: 'item' + i, label: g.itemName || 'Magic Item', grant: g,
+      levels, defaultLevel: base,
+    });
+  });
+  return { sp, sources, active: sources[0], isUpcastable };
+}
+window.buildSpellDetailCastContext = buildSpellDetailCastContext;
+
+function _spellDetailSourceNote(src, sp, lv) {
+  const g = src.grant;
+  if (!g) return '';
+  const parts = [`Via ${g.itemName || 'magic item'}`];
+  if (g.grantType === 'itemCharges') {
+    const cost = getItemGrantChargeCost(g, sp, lv);
+    const res = (currentChar?.customResources || []).find(r => r.id === g._resourceId);
+    const used = parseInt(currentChar?.resources?.[g._resourceId]) || 0;
+    const left = res ? ` (${Math.max(0, (res.max || 0) - used)}/${res.max} left)` : '';
+    parts.push(`${cost} charge${cost !== 1 ? 's' : ''}${left}`);
+  } else if (g.grantType === 'itemLimited') {
+    const rec = { short:'Short Rest', long:'Long Rest', dawn:'dawn', dusk:'dusk' }[g.recovery] || '';
+    parts.push(`${g.usesMax || 1}/${rec || 'day'}`);
+  } else if (g.grantType === 'atWill') {
+    parts.push('at will');
+  }
+  if (g.fixedDC) parts.push(`save DC ${g.fixedDC}`);
+  if (g.fixedAtk) parts.push(`+${g.fixedAtk} to hit`);
+  if (g.grantType !== 'alwaysPrepared') parts.push('no spell slot');
+  return parts.join(' · ');
+}
+
+function renderSpellDetailCastControls(levelOverride) {
+  const c = _spellDetailCtx;
+  const row = document.getElementById('spell-detail-upcast-row');
+  const srcSel = document.getElementById('spell-detail-source-select');
+  const srcLbl = document.getElementById('spell-detail-source-label');
+  const lvSel = document.getElementById('spell-detail-upcast-select');
+  const lvLbl = document.getElementById('spell-detail-level-label');
+  const note = document.getElementById('spell-detail-source-note');
+  if (!c || !row || !lvSel) return;
+  const sp = c.sp, src = c.active;
+  const multiSource = c.sources.length > 1;
+  const multiLevel = src.levels.length > 1;
+  const showRow = multiSource || multiLevel || !!src.grant;
+  row.style.display = showRow ? 'flex' : 'none';
+  if (srcSel) {
+    srcSel.innerHTML = c.sources.map(s => `<option value="${s.id}">${s.label.replace(/</g,'&lt;')}</option>`).join('');
+    srcSel.value = src.id;
+    srcSel.style.display = multiSource ? '' : 'none';
+  }
+  if (srcLbl) srcLbl.style.display = multiSource ? '' : 'none';
+  const lv = levelOverride != null && src.levels.includes(levelOverride) ? levelOverride : src.defaultLevel;
+  lvSel.innerHTML = src.levels.map(l => {
+    let lbl = String(l);
+    if (src.grant?.grantType === 'itemCharges' && multiLevel) {
+      const cost = getItemGrantChargeCost(src.grant, sp, l);
+      lbl += ` (${cost} charge${cost !== 1 ? 's' : ''})`;
+    } else if (!src.grant && l === sp.level) lbl += ' (base)';
+    return `<option value="${l}">${lbl}</option>`;
+  }).join('');
+  lvSel.value = String(lv);
+  lvSel.style.display = multiLevel ? '' : 'none';
+  if (lvLbl) {
+    lvLbl.style.display = multiLevel || (src.grant && sp.level > 0) ? '' : 'none';
+    // Fixed-level item casts still say which level, just without a dropdown.
+    lvLbl.textContent = (!multiLevel && src.grant && sp.level > 0) ? `Cast at Level ${lv}` : 'Cast at Level';
+  }
+  if (note) {
+    const txt = _spellDetailSourceNote(src, sp, lv);
+    note.textContent = txt;
+    note.style.display = txt ? '' : 'none';
+  }
+  return lv;
+}
+
+// Current level shown in the modal - used by anything that re-renders the
+// open spell's body so it doesn't snap back to a different level.
+function getSpellDetailCurrentLevel(sp) {
+  const v = parseInt(document.getElementById('spell-detail-upcast-select')?.value);
+  if (_spellDetailCtx?.active?.levels?.includes(v)) return v;
+  return _spellDetailCtx?.active?.defaultLevel ?? sp?.level ?? 0;
+}
+window.getSpellDetailCurrentLevel = getSpellDetailCurrentLevel;
+
+function onSpellDetailSourceChange(id) {
+  const c = _spellDetailCtx;
+  if (!c) return;
+  c.active = c.sources.find(s => s.id === id) || c.sources[0];
+  const lv = renderSpellDetailCastControls();
+  renderSpellDetailBody(c.sp, lv);
+}
+window.onSpellDetailSourceChange = onSpellDetailSourceChange;
+
 function onSpellDetailLevelChange(levelStr) {
   const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
   if (!sp) return;
-  renderSpellDetailBody(sp, parseInt(levelStr) || sp.level);
+  const lv = parseInt(levelStr) || sp.level;
+  if (_spellDetailCtx?.sp?.key === sp.key) renderSpellDetailCastControls(lv); // refresh charge cost in the note
+  renderSpellDetailBody(sp, lv);
 }
 window.onSpellDetailLevelChange = onSpellDetailLevelChange;
 
@@ -11898,7 +12062,7 @@ const SCHOOL_ABBREV = {"Evocation": "Ev", "Conjuration": "Co", "Divination": "Di
   return { render, FORMATS, FORMAT_LABELS, STYLES, STYLE_LABELS };
 })();
 
-function openSpellDetailModal(key, name) {
+function openSpellDetailModal(key, name, ctx) {
 
   const sp = PHB_SPELL_LIST.find(s => s.key === key);
   if (!sp) return;
@@ -11961,32 +12125,24 @@ function openSpellDetailModal(key, name) {
     });
   }
 
-  const upcastRow = document.getElementById('spell-detail-upcast-row');
-  const upcastSelect = document.getElementById('spell-detail-upcast-select');
-  const isMysticArcanum = typeof getMysticArcanumSpells === 'function'
-    && getMysticArcanumSpells().some(a => a.key === sp.key);
-  const isUpcastable = !isMysticArcanum && sp.level > 0
-    && /Using a Higher-Level Spell Slot|At Higher Levels/i.test(sp.descFull || '');
-  // Warlocks only ever have Pact Magic slots, which are all the same
-  // (usually higher) level - they can't choose to cast at the spell's
-  // base level the way a regular caster can, so default to the pact
-  // slot level rather than the spell's own level. Falls back to the
-  // spell's base level if pact magic isn't present or its slot level
-  // is somehow lower than the spell's own level.
-  const pactSlotLevel = typeof computeSpellSlotsForChar === 'function'
-    ? computeSpellSlotsForChar(currentChar)?.warlock?.slotLevel : null;
-  const defaultCastLevel = (isUpcastable && pactSlotLevel && pactSlotLevel >= sp.level) ? pactSlotLevel : sp.level;
-  if (upcastRow && upcastSelect) {
-    if (isUpcastable) {
-      const opts = [];
-      for (let lv = sp.level; lv <= 9; lv++) opts.push(`<option value="${lv}">${lv}${lv===sp.level?' (base)':''}</option>`);
-      upcastSelect.innerHTML = opts.join('');
-      upcastSelect.value = String(defaultCastLevel);
-      upcastRow.style.display = 'flex';
-    } else {
-      upcastRow.style.display = 'none';
-    }
+  // Where the spell is being cast from decides its level. A spell cast
+  // from a magic item is cast at the lowest possible level and expends no
+  // spell slot unless the item says otherwise (DMG 2024, Spells Cast from
+  // Items), so an item-only spell must never default to the character's
+  // own (e.g. Pact Magic) slot level. ctx.row is the Spells-page row that
+  // was clicked; every other caller gets it looked up here so they all
+  // behave the same way.
+  if (!ctx || !ctx.row) {
+    let _row = null;
+    try {
+      if (typeof buildKnownSpellRows === 'function' && currentChar)
+        _row = buildKnownSpellRows().find(r => r.key === key) || null;
+    } catch (e) { console.warn('Spell detail: could not resolve spell source', e); }
+    ctx = { ...(ctx || {}), row: _row || null };
   }
+  _spellDetailCtx = buildSpellDetailCastContext(sp, ctx.row);
+  const defaultCastLevel = _spellDetailCtx.active.defaultLevel;
+  renderSpellDetailCastControls();
 
   renderSpellDetailBody(sp, defaultCastLevel);
   openModal('spell-detail-modal', true);
@@ -22892,7 +23048,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"war_mage_s_staff","name":"War Mage's Staff","rarity":"very rare","type":"weapon (quarterstaff)","desc":"This staff can be wielded as a magic quarterstaff that grants a +2 bonus to attack and damage rolls made with it. At one end of the staff is a crystal orb, while a crystal blade is affixed to the other; your attacks with this weapon deal either bludgeoning, piercing, or slashing damage (your choice each time).\n\nThe staff has 10 charges for the following properties. The staff regains 1d8 + 2 expended charges daily at dawn. If you expend the last charge, roll a d20. On a 1, the staff loses its Arcane Shield and Spells properties. On a 20, the staff regains 1d8 + 2 charges.\n\n*Arcane Shield.* When you're hit with an attack (but before taking any damage) and are holding the staff, you can expend 1 of the staff's charges to roll a d4 and add the result to your AC against the triggering attack (no action required), potentially causing the attack to miss. You can continue to expend charges in this way to add additional d4s to the AC bonus, even after seeing the result of the previous d4 but before the damage is calculated. If you're concentrating on a spell, the first d4 you roll per attack costs 0 charges.\n\n*Spells.* While holding the staff, you can use an action to expend 2 of its charges to cast one of the following spells from it, using your spell attack bonus and spell save DC: *chromatic orb* (4th-level version), *fire shield*, *freedom of movement*, *mirror image*, *misty step*, *ray of enfeeblement*, *thunderwave* (4th-level version), or *wind wall*.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":2},"charges":{"max":10,"recovery":"dawn"},"grantedSpells":[{"spellName":"Chromatic Orb","grantType":"itemCharges","chargeCost":2},{"spellName":"Fire Shield","grantType":"itemCharges","chargeCost":2},{"spellName":"Freedom of Movement","grantType":"itemCharges","chargeCost":2},{"spellName":"Mirror Image","grantType":"itemCharges","chargeCost":2},{"spellName":"Misty Step","grantType":"itemCharges","chargeCost":2},{"spellName":"Ray of Enfeeblement","grantType":"itemCharges","chargeCost":2},{"spellName":"Thunderwave","grantType":"itemCharges","chargeCost":2},{"spellName":"Wind Wall","grantType":"itemCharges","chargeCost":2}],"source":"Homebrew"},
 {"key":"time_dilation_medallion","name":"Time Dilation Medallion","rarity":"legendary","type":"wondrous item","desc":"The inner workings of this clockwork device are formed from gears forged from magical constructs gathered around a focusing lens, held together carefully by the needles of magical creatures. The animus used harnesses the energy of The Algorithm, a being of order and consequence, whose control over time and space ripples from the strange clockworks of the medallion.\n\nThis medallion has 3 charges. It crumbles to dust when you expend the final charge.\n\nYou can expend 1 charge from the medallion to take an extra action on your turn. Each time you do, you can roll 1d6. On a 1, at the end of your turn, you become unstuck in time and space as the medallion casts the *Maze* spell on you. On a 6, the medallion regains 1d4-1 (minimum of 1) charges to a maximum of 3.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"charges":{"max":3,"recoveryNote":"Roll 1d6 when expending a charge for an extra action - on a 6, regains 1d4-1 (min 1) charges. Not rest-based."},"source":"Homebrew","grantedSpells":[{"spellName":"Maze","grantType":"itemCharges","chargeCost":1}]},
 {"key":"unstable_feywild_crystal","name":"Unstable Feywild Crystal","rarity":"uncommon","type":"wondrous item","desc":"This warm crystal glints with the sunset colors of the Feywild sky and evokes whispers of emotional memory. As an action, you can attach the shard to a Tiny object (such as a weapon or a piece of jewelry) or detach it. It falls off if your attunement to it ends. You can use the shard as a spellcasting focus while you hold or wear it.\n\nYou can channel the forces of chance and chaos from the Feywild to gain Advantage on one d20 Test. Once you do so, you must finish a Long Rest before you can use this feature again.\n\nImmediately after you cast a spell with a spell slot before you regain the use of this feature, you automatically roll on the Wild Magic Surge table and regain the use of this feature. This can be done 1 + (Proficiency Bonus) times per long rest.\n\n*It looks like it could be forged into something greater...*","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew"},
-{"key":"urnblade", "weight": "3 lb","name":"Urnblade","rarity":"rare","type":"weapon (scimitar)","desc":"This item appears to be a small cremation urn. While grasping the urn, you can use a bonus action to speak its first command word and cause its lid to unseal. When you do, a curved blade of dark smoke pours from the mouth of the urn. Speaking the command word again reseals the urn and causes the blade to disappear. If you are proficient with shortswords or longswords, you are proficient with the urnblade.\n\nYou gain a +1 bonus to attack and damage rolls made with this magic weapon, which deals necrotic damage instead of slashing damage.\n\n*Shadow Ally.* While holding the urn, you can use an action to speak its second command word to animate your body's shadow, transforming it into an undead creature. When you do, your body's shadow detaches from you and becomes a shadow in an unoccupied space that you can see within 10 feet of you.\n\nOn your turn, you can mentally command the shadow if you aren't incapacitated. You decide what action the shadow takes and where it moves during its next turn, or you can issue it a general command, such as to attack your enemies or guard a location. The GM has the shadow's statistics. This shadow doesn't cause a new one to appear when a non-evil humanoid dies from its attacks.\n\nThe urnblade's bonus to attack and damage rolls becomes +2 while the summoned shadow exists. In addition, if you are the target of an attack and are within 5 feet of the shadow, you can use your reaction to command your shadow to become the target of the attack instead.\n\nThe shadow disappears when it drops to 0 hit points, when it's farther than 120 feet from you, or when you use an action to dismiss it. When it disappears, your cast shadow returns. If the shadow drops to 0 hit points, there is a cumulative 5 percent chance that the urn turns to dust and is destroyed.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":1},"source":"Homebrew"},
+{"key":"urnblade", "weight": "3 lb","name":"Urnblade","rarity":"rare","type":"weapon (scimitar)","desc":"This item appears to be a small cremation urn. While grasping the urn, you can use a bonus action to speak its first command word and cause its lid to unseal. When you do, a curved blade of dark smoke pours from the mouth of the urn. Speaking the command word again reseals the urn and causes the blade to disappear. If you are proficient with shortswords or longswords, you are proficient with the urnblade.\n\nYou gain a +1 bonus to attack and damage rolls made with this magic weapon, which deals necrotic damage instead of slashing damage.\n\n*Shadow Ally.* While holding the urn, you can use an action to speak its second command word to animate your body's shadow, transforming it into an undead creature. When you do, your body's shadow detaches from you and becomes a shadow in an unoccupied space that you can see within 10 feet of you.\n\nOn your turn, you can mentally command the shadow if you aren't incapacitated. You decide what action the shadow takes and where it moves during its next turn, or you can issue it a general command, such as to attack your enemies or guard a location. The GM has the shadow's statistics. This shadow doesn't cause a new one to appear when a non-evil humanoid dies from its attacks.\n\nThe urnblade's bonus to attack and damage rolls becomes +2 while the summoned shadow exists. In addition, if you are the target of an attack and are within 5 feet of the shadow, you can use your reaction to command your shadow to become the target of the attack instead.\n\nThe shadow disappears when it drops to 0 hit points, when it's farther than 120 feet from you, or when you use an action to dismiss it. When it disappears, your cast shadow returns. If the shadow drops to 0 hit points, there is a cumulative 5 percent chance that the urn turns to dust and is destroyed.","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":1,"weaponBonusByEffect":{"shadow_ally":2},"dmgTypeOverride":"necrotic"},"source":"Homebrew"},
 {"key":"blade_of_the_chosen","name":"Blade of the Chosen","rarity":"primeval vestige","type":"weapon (any)","desc":"A Magical Weapon said to have been forged by Druenol himself, that has been bestowed upon only the greatest warriors for generations, destined by fate. After attuning to the weapon, the weapon shifts into a Melee Simple or Martial weapon of the user's choice, and cannot change after attuning to the user.\n\nYou have a +1 bonus to attack and damage rolls made with this magic weapon.\n\nThe weapon has 7 runes inscribed into it.\nIn Darkness, the unsheathed weapon sheds moonlight, creating Bright Light in a 15-foot radius and Dim Light for an additional 15 feet.\n\nRune 1: Dormant\nRune 2: Dormant\nRune 3: Dormant\nRune 4: Dormant\nRune 5: Dormant\nRune 6: Dormant\nRune 7: Dormant","attunement":true,"isWeapon":true,"isArmour":false,"isAmmo":false,"effects":{"weaponBonus":1},"source":"Dorenia"},
 
 // ═══════════════════════════════════════════════════════════
@@ -24616,7 +24772,7 @@ async function saveTextOverride() {
     if (typeof renderResourceTracker === 'function') renderResourceTracker();
     if (typeof renderSpellDetailBody === 'function' && _spellDetailKey) {
       const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
-      if (sp) renderSpellDetailBody(sp, sp.level);
+      if (sp) renderSpellDetailBody(sp, getSpellDetailCurrentLevel(sp));
     }
     toast('Text updated.', 'ok');
   } catch (e) {
@@ -24641,7 +24797,7 @@ async function resetTextOverride() {
     if (typeof renderResourceTracker === 'function') renderResourceTracker();
     if (typeof renderSpellDetailBody === 'function' && _spellDetailKey) {
       const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey);
-      if (sp) renderSpellDetailBody(sp, sp.level);
+      if (sp) renderSpellDetailBody(sp, getSpellDetailCurrentLevel(sp));
     }
     toast('Reverted to default text.', 'ok');
   } catch (e) {
@@ -24856,6 +25012,12 @@ const ACTIVE_EFFECT_DEFS = {
     color:      'var(--accent2)',
     desc:       "Fly Speed 40 ft while gripping the cloak's edges with both hands, in Dim Light or Darkness. Lost if you stop gripping it, or leave Dim Light/Darkness.",
   },
+  shadow_ally: {
+    label:      'Shadow Ally (Urnblade)',
+    icon:       '🌑',
+    color:      'var(--purple)',
+    desc:       "Detach your shadow into an undead Shadow you command (Urnblade's Shadow Ally). The urn's bonus to attack and damage rolls becomes +2 while it's out. Its stat block appears in the Summon tab.",
+  },
   summon_dragon_active: {
     label:      'Summon Dragon',
     icon:       '🐲',
@@ -24928,6 +25090,13 @@ function toggleActiveEffect(id) {
     return;
   }
   currentChar._activeEffects[id] = !currentChar._activeEffects[id];
+  // Shadow Ally's weapon bonus (+1 -> +2) is read off this same flag by
+  // getMagicItemBonusValue, but the weapon entry itself is only rebuilt by
+  // syncMagicWeaponsToInventory - without this call the Attacks panel
+  // would keep showing the old bonus until some unrelated action happened
+  // to trigger a full recalc.
+  if (typeof syncMagicWeaponsToInventory === 'function') syncMagicWeaponsToInventory();
+  if (id === 'shadow_ally' && typeof onShadowAllyToggle === 'function') onShadowAllyToggle(currentChar._activeEffects[id]);
   renderActiveEffects();
   renderSpellsActiveEffects();
   renderSpellStats();
@@ -24938,6 +25107,24 @@ function toggleActiveEffect(id) {
   recalcQuickStats();
   if (typeof syncSummonSharedResistance === 'function') syncSummonSharedResistance();
 }
+
+// Shadow Ally adds/removes itself from the Summon tab's active-summons
+// list (see addActiveSummon/removeActiveSummon) - alongside whatever else
+// is already there (a familiar, a cast Summon spell, etc.), not in place
+// of it.
+function onShadowAllyToggle(active) {
+  if (!currentChar) return;
+  migrateSummonStateIfNeeded();
+  if (active) {
+    if (!currentChar._activeSummons.includes('urnblade_shadow')) currentChar._activeSummons.push('urnblade_shadow');
+  } else {
+    currentChar._activeSummons = currentChar._activeSummons.filter(k => k !== 'urnblade_shadow');
+  }
+  if (typeof renderSummonTab === 'function') renderSummonTab();
+  if (typeof renderSummonAddControl === 'function') renderSummonAddControl();
+  if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility();
+}
+window.onShadowAllyToggle = onShadowAllyToggle;
 
 function hasMageArmorAccess() {
   if (!currentChar) return false;
@@ -24967,20 +25154,116 @@ function hasCloakOfBatFlightAccess() {
   return (currentChar.magicItems || []).some(item => item.key === 'cloak_of_the_bat' && item.attuned);
 }
 
+// Shadow Ally requires actually holding the urn (its own RAW text: "While
+// grasping the urn..."), so unlike Cloak of the Bat this also checks
+// equipped, not just attuned - equipped is what the rest of the sheet
+// already uses to mean "the weapon is in hand" for Urnblade's own attack
+// entry (see syncMagicWeaponsToInventory).
+function hasShadowAllyAccess() {
+  if (!currentChar) return false;
+  return (currentChar.magicItems || []).some(item => item.key === 'urnblade' && item.attuned && item.equipped);
+}
+
 // Summon Dragon's Shared Resistance: only available while Summon Dragon
 // is the currently selected spell in the Summon tab - matches Cloak of
 // the Bat's item-gated pattern (eligible to toggle only while the
 // relevant thing is actually in play), not just always-available.
 function hasSummonDragonActiveAccess() {
   if (!currentChar) return false;
-  return currentChar._activeSummonSpell === 'summon_dragon';
+  return (currentChar._activeSummons || []).includes('summon_dragon');
 }
+
+// ── Multiple simultaneous summons ─────────────────────────
+// The Summon tab used to track exactly one creature at a time
+// (currentChar._activeSummonSpell/_activeSummonForm, read live off a
+// single dropdown/slot/form row). A character can genuinely have more
+// than one out at once, though - a Pact of the Chain/Battle Familiar
+// familiar, a cast Summon Beast, and an item-driven creature like
+// Urnblade's Shadow Ally are all independent of each other - so this is
+// now a list, each entry keyed by its own summon key with its own
+// remembered slot level, form, and HP (HP already lived in a per-key
+// map, _summonHP, so that one didn't need to change).
+function migrateSummonStateIfNeeded() {
+  if (!currentChar || currentChar._activeSummons) return;
+  currentChar._activeSummons = [];
+  currentChar._summonForm = {};
+  currentChar._summonSlotLv = {};
+  const oldKey = currentChar._activeSummonSpell;
+  if (oldKey && SUMMON_SPELL_DEFS[oldKey]) {
+    currentChar._activeSummons.push(oldKey);
+    if (currentChar._activeSummonForm) currentChar._summonForm[oldKey] = currentChar._activeSummonForm;
+    // The old single slot-level select was never persisted to the
+    // character at all (only read live from the DOM) - default to the
+    // spell's minimum, the same starting point a freshly-added entry gets.
+    currentChar._summonSlotLv[oldKey] = SUMMON_SPELL_DEFS[oldKey].minSlot || 1;
+  }
+}
+window.migrateSummonStateIfNeeded = migrateSummonStateIfNeeded;
+
+function getSummonFormFor(key) {
+  if (!currentChar) return '';
+  migrateSummonStateIfNeeded();
+  return currentChar._summonForm[key] || '';
+}
+function setSummonFormFor(key, form) {
+  if (!currentChar) return;
+  migrateSummonStateIfNeeded();
+  currentChar._summonForm[key] = form;
+}
+function getSummonSlotFor(key) {
+  if (!currentChar) return 0;
+  migrateSummonStateIfNeeded();
+  const def = SUMMON_SPELL_DEFS[key];
+  return currentChar._summonSlotLv[key] || def?.minSlot || 1;
+}
+function setSummonSlotFor(key, lv) {
+  if (!currentChar) return;
+  migrateSummonStateIfNeeded();
+  currentChar._summonSlotLv[key] = lv;
+}
+
+// Adds a summon to the active list (used by the Summon tab's "Add"
+// control for real spells, and by onShadowAllyToggle for item-driven
+// creatures). No-op if it's already active or isn't a real def.
+function addActiveSummon(key) {
+  if (!currentChar || !SUMMON_SPELL_DEFS[key]) return;
+  migrateSummonStateIfNeeded();
+  if (currentChar._activeSummons.includes(key)) return;
+  currentChar._activeSummons.push(key);
+  const def = SUMMON_SPELL_DEFS[key];
+  if (def.forms?.length && !currentChar._summonForm[key]) currentChar._summonForm[key] = def.forms[0];
+  if (!def.fixedStatBlock && !currentChar._summonSlotLv[key]) currentChar._summonSlotLv[key] = def.minSlot || 1;
+  debouncedSave();
+}
+window.addActiveSummon = addActiveSummon;
+
+// Removes a summon from the active list. Urnblade's Shadow Ally is
+// governed by its own Active Effects toggle (shadow_ally) rather than
+// being freely addable/removable here, since the toggle also controls
+// the weapon's attack/damage bonus - removing it here routes through
+// that toggle instead so the two can't drift out of sync.
+function removeActiveSummon(key) {
+  if (!currentChar) return;
+  migrateSummonStateIfNeeded();
+  if (key === 'urnblade_shadow' && typeof isEffectActive === 'function' && isEffectActive('shadow_ally')) {
+    toggleActiveEffect('shadow_ally');
+    return;
+  }
+  currentChar._activeSummons = currentChar._activeSummons.filter(k => k !== key);
+  if (typeof deactivateIneligibleActiveEffects === 'function') deactivateIneligibleActiveEffects();
+  if (typeof renderActiveEffects === 'function') renderActiveEffects();
+  syncSummonSharedResistance();
+  renderSummonTab();
+  debouncedSave();
+}
+window.removeActiveSummon = removeActiveSummon;
 
 function isEffectEligible(id) {
   if (!currentChar) return false;
   if (id === 'mage_armor') return hasMageArmorAccess();
   if (id === 'cloak_of_bat_flight') return hasCloakOfBatFlightAccess();
   if (id === 'summon_dragon_active') return hasSummonDragonActiveAccess();
+  if (id === 'shadow_ally') return hasShadowAllyAccess();
   const def = ACTIVE_EFFECT_DEFS[id];
   if (!def) return false;
   const allEntries = getAllClasses();
@@ -25011,6 +25294,9 @@ function deactivateIneligibleActiveEffects() {
     if (currentChar._activeEffects[id] && !isEffectEligible(id)) {
       currentChar._activeEffects[id] = false;
       changedAny = true;
+      // e.g. the Urnblade was unattuned/unequipped mid-session - clear its
+      // Summon-tab entry the same way turning the toggle off manually would.
+      if (id === 'shadow_ally' && typeof onShadowAllyToggle === 'function') onShadowAllyToggle(false);
     }
   }
   if (changedAny && typeof renderActiveEffects === 'function') renderActiveEffects();
@@ -30058,11 +30344,13 @@ function syncSummonSharedResistance() {
   const prevAuto = currentChar._autoGrantedSummonResistance || null;
 
   let grant = null;
-  const spellKey = currentChar._activeSummonSpell;
-  const def = spellKey ? SUMMON_SPELL_DEFS?.[spellKey] : null;
-  if (def?.sharedResistance && typeof isEffectActive === 'function' && isEffectActive('summon_dragon_active')) {
-    const form = currentChar._activeSummonForm;
-    if (form) grant = form.toLowerCase();
+  let spellKey = null;
+  if (typeof isEffectActive === 'function' && isEffectActive('summon_dragon_active')
+      && (currentChar._activeSummons || []).includes('summon_dragon')) {
+    spellKey = 'summon_dragon';
+    const def = SUMMON_SPELL_DEFS?.[spellKey];
+    const form = getSummonFormFor(spellKey);
+    if (def?.sharedResistance && form) grant = form.toLowerCase();
   }
 
   if (prevAuto && prevAuto !== grant && currentChar.damageStates[prevAuto] === 'resistant') {
@@ -33187,6 +33475,10 @@ function getMagicItemGrantedSpells() {
         _resourceId: grantType === 'itemCharges' ? item._resourceId : gs._resourceId,
         chargeCost: gs.chargeCost || 1,
         fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
+        // Cast-level rules (see getItemGrantLevelRange): absent = the
+        // spell's base level, the rules default for spells cast from items.
+        castLevel: gs.castLevel || null, maxCastLevel: gs.maxCastLevel || null,
+        chargeByLevel: gs.chargeByLevel || null,
         ritual: gs.ritual || phb?.ritual || false,
         available: true,
       });
@@ -33352,12 +33644,6 @@ function buildKnownSpellRows() {
     rows.push({ ...sp, pipType:'feat-spell', locked:true, label: featName });
   });
 
-  getMagicItemGrantedSpells().forEach(sp => {
-    if (_shownKeys.has(sp.key)) return;
-    _shownKeys.add(sp.key);
-    rows.push({ ...sp, pipType:'item-spell', locked:true, label:sp.itemName });
-  });
-
   // DM-configured spell grants on feats/class features/subclass features -
   // same merged, deduped treatment as every other automatic source above.
   getFeatCatalogGrantedSpells().forEach(sp => {
@@ -33437,6 +33723,24 @@ function buildKnownSpellRows() {
     const phb = PHB_SPELL_LIST.find(s => s.key === sp.key);
     rows.push({ ...sp, pipType: isPrepared ? 'prepared' : '', locked: false, ritual: phb?.ritual });
     _shownKeys.add(sp.key);
+  });
+
+  // Magic item grants go last, and attach to an existing row rather than
+  // claiming the spell key. Previously they were added mid-list and
+  // claimed the key first, so a spell both prepared through a class and
+  // granted by an item (e.g. a Paladin's Searing Smite + a Thayan Sword)
+  // showed only as the item row - the prepared spell vanished from the
+  // list and from the prepared count, and could no longer be cast with a
+  // slot. Now the class row stays and carries the item grant alongside it
+  // (itemGrants); an item-only spell still gets its own item-spell row.
+  getMagicItemGrantedSpells().forEach(sp => {
+    const existing = rows.find(r => r.key === sp.key);
+    if (existing) {
+      (existing.itemGrants = existing.itemGrants || []).push(sp);
+      return;
+    }
+    _shownKeys.add(sp.key);
+    rows.push({ ...sp, pipType:'item-spell', locked:true, label:sp.itemName, itemGrants:[sp] });
   });
 
   return rows;
@@ -33892,6 +34196,21 @@ function renderKnownSpells() {
     }
     if (sp.fixedDC)  tags.push(`<span class="sp-tag" style="color:var(--accent);border-color:var(--accent)">DC ${sp.fixedDC}</span>`);
     if (sp.fixedAtk) tags.push(`<span class="sp-tag" style="color:var(--accent);border-color:var(--accent)">+${sp.fixedAtk} to hit</span>`);
+    // Item grants attached to a row from another source (e.g. a Paladin-
+    // prepared Searing Smite that a Thayan Sword can also cast), plus any
+    // second/third item granting the same item-only spell. The row's own
+    // first item grant is already described by the tags above.
+    (sp.pipType === 'item-spell' ? (sp.itemGrants || []).slice(1) : (sp.itemGrants || [])).forEach(g => {
+      let use = '';
+      if (g.grantType === 'itemCharges') {
+        const res = (currentChar.customResources || []).find(r => r.id === g._resourceId);
+        const used = parseInt(currentChar.resources?.[g._resourceId]) || 0;
+        use = ` · ${g.chargeCost}c${res ? ` (${Math.max(0, (res.max||0) - used)}/${res.max})` : ''}`;
+      } else if (g.grantType === 'itemLimited') use = ` · ${g.usesMax || 1}/${g.recovery === 'short' ? 'SR' : g.recovery === 'long' ? 'LR' : (g.recovery || 'day').toUpperCase()}`;
+      else if (g.grantType === 'atWill') use = ' · at will';
+      const nm = (g.itemName || 'Item').replace(/</g,'&lt;');
+      tags.push(`<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)" title="Also castable from ${nm.replace(/"/g,'&quot;')} without a spell slot${g.fixedDC ? ` (save DC ${g.fixedDC})` : ''}">✦ ${nm}${use}</span>`);
+    });
 
     const nameTitle = sp.label
       ? `${phb?.desc||''} [${sp.label}]`
@@ -33941,7 +34260,7 @@ function renderKnownSpells() {
     row.style.cursor = 'pointer';
     row.addEventListener('click', (e) => {
       if (e.target.closest('.sp-del-btn') || e.target.closest('.sp-pip')) return;
-      openSpellDetailModal(sp.key, sp.name);
+      openSpellDetailModal(sp.key, sp.name, { row: sp });
     });
 
     // Wire del button - wizard removes from spellbook, others from known
@@ -34655,13 +34974,27 @@ function getMonkDieForChar(c) {
 // exhaustion/drunkenness/fighting-style pieces here is cheap (they're just
 // function calls, not a second pass over the weapon), so this doesn't
 // duplicate the actual calculation logic itself.
+// If a weapon's magic bonus is currently elevated by an active effect (see
+// getMagicItemBonusValue's weaponBonusByEffect), names that effect so the
+// tooltip explains *why* the number is higher right now, not just that it is.
+function getActiveWeaponBonusEffectNote(entry) {
+  if (!entry?._fromMagicItem || !currentChar) return '';
+  const item = (currentChar.magicItems || []).find(i => i._uid === entry._fromMagicItem);
+  const map = item?.effects?.weaponBonusByEffect;
+  if (!map) return '';
+  const activeId = Object.keys(map).find(id => typeof isEffectActive === 'function' && isEffectActive(id));
+  if (!activeId) return '';
+  const label = ACTIVE_EFFECT_DEFS[activeId]?.label || activeId;
+  return ` while ${label} is active`;
+}
+
 function buildWeaponAttackBreakdown(entry, calc) {
   if (!calc.isProficient) {
     return `${calc.abilityKey.toUpperCase()} mod (${calc.abilMod>=0?'+':''}${calc.abilMod}) - not proficient, no Proficiency Bonus added = ${calc.atkBonus>=0?'+':''}${calc.atkBonus} to hit`;
   }
   const parts = [`${calc.abilityKey.toUpperCase()} mod (${calc.abilMod>=0?'+':''}${calc.abilMod})`, `Proficiency (+${calc.profBonus})`];
   if (calc.isRanged && typeof hasFightingStyle === 'function' && hasFightingStyle('archery')) parts.push('Archery style (+2)');
-  if (entry.attackBonus) parts.push(`Magic weapon (${entry.attackBonus>=0?'+':''}${entry.attackBonus})`);
+  if (entry.attackBonus) parts.push(`Magic weapon (${entry.attackBonus>=0?'+':''}${entry.attackBonus})${getActiveWeaponBonusEffectNote(entry)}`);
   if (calc.ammoBonus) parts.push(`Magic ammo (+${calc.ammoBonus})`);
   const exPen = exhaustionD20Penalty();
   if (exPen) parts.push(`Exhaustion (\u2212${exPen})`);
@@ -34675,9 +35008,11 @@ function buildWeaponAttackBreakdown(entry, calc) {
 // bonus added to those dice, which is the part that's easy to get wrong.
 function buildWeaponDamageBreakdown(entry, calc) {
   const parts = [`${calc.abilityKey.toUpperCase()} mod (${calc.abilMod>=0?'+':''}${calc.abilMod})`];
-  if (entry.attackBonus) parts.push(`Magic weapon (${entry.attackBonus>=0?'+':''}${entry.attackBonus})`);
+  if (entry.attackBonus) parts.push(`Magic weapon (${entry.attackBonus>=0?'+':''}${entry.attackBonus})${getActiveWeaponBonusEffectNote(entry)}`);
   if (entry.damageBonus) parts.push(`Item bonus (${entry.damageBonus>=0?'+':''}${entry.damageBonus})`);
-  return `Dice from the weapon itself, plus ${parts.join(' + ')} added to the total`;
+  let out = `Dice from the weapon itself, plus ${parts.join(' + ')} added to the total`;
+  if (entry.dmgTypeOverride) out += ` (deals ${entry.dmgTypeOverride} instead of its normal type)`;
+  return out;
 }
 
 function calcWeaponAttack(entry) {
@@ -34789,6 +35124,10 @@ function calcWeaponAttack(entry) {
     }
   }
   dmgType = dmgType || phbWeapon?.damage?.type || '';
+  // Item-driven damage type conversion (e.g. Urnblade: slashing -> necrotic).
+  // Applied before the Piercer/Slasher/Crusher feat checks below so those
+  // correctly key off the weapon's actual current damage type.
+  if (entry.dmgTypeOverride) dmgType = entry.dmgTypeOverride;
 
   let dmgBonus = entry.offhand ? (abilMod < 0 ? abilMod : 0) : abilMod; // off-hand: no positive mod unless TWF style, but negative mod still applies
   if (entry.offhand && hasFightingStyle('two-weapon')) dmgBonus = abilMod;
@@ -41868,7 +42207,18 @@ function getMagicItemBonusValue(item) {
   if (isAntimagicActive()) return 0;
   if (!item?.effects) return 0;
   if (item.attunement && !item.attuned) return 0;
-  const wb = item.effects.weaponBonus;
+  const eff = item.effects;
+  // Some items' bonus is higher while a specific character state is active
+  // (e.g. Urnblade: +1 normally, +2 while its Shadow Ally is out) - checked
+  // first so it overrides the flat/variable cases below whenever it applies.
+  // If more than one listed effect happens to be active at once, the
+  // highest of their bonuses wins.
+  if (eff.weaponBonusByEffect && typeof isEffectActive === 'function') {
+    const activeVals = Object.entries(eff.weaponBonusByEffect)
+      .filter(([id]) => isEffectActive(id)).map(([, v]) => parseInt(v) || 0);
+    if (activeVals.length) return Math.max(...activeVals);
+  }
+  const wb = eff.weaponBonus;
   if (wb === 'variable') return parseInt(item.magicBonus) || 0;
   return parseInt(wb) || 0;
 }
@@ -41986,6 +42336,7 @@ function syncMagicWeaponsToInventory() {
         attackBonus: bonus, damageBonus: bonus,
         customDamage: null, equipped: true, proficient: true,
         versatileMode: false, pactWeapon: isBonded, _fromMagicItem: item._uid,
+        dmgTypeOverride: item.effects?.dmgTypeOverride || null,
       };
       currentChar.weapons.push(entry);
     } else {
@@ -41995,6 +42346,7 @@ function syncMagicWeaponsToInventory() {
       entry.damageBonus  = bonus;
       entry.equipped     = true;
       entry.pactWeapon   = isBonded;
+      entry.dmgTypeOverride = item.effects?.dmgTypeOverride || null;
     }
   });
 
@@ -43941,6 +44293,22 @@ function updateCustomItemGrantedSpellField(idx, field, value) {
   if (field === 'grantType') renderCustomItemGrantedSpells(); // toggle limited-use fields visibility
 }
 
+// Cast-level fields for an item-granted spell (see getItemGrantLevelRange).
+// Only written when set, so catalog items without them keep the rules
+// default (the spell's base level). chargeByLevel has no editor input -
+// it's for the few catalog items with irregular per-level charge costs -
+// but is carried through untouched so editing such an item doesn't lose it.
+function _ciGrantLevelFields(gs) {
+  const out = {};
+  if (['spellbook', 'alwaysPrepared'].includes(gs.grantType)) return out;
+  const cl = parseInt(gs.castLevel) || 0;
+  const mx = parseInt(gs.maxCastLevel) || 0;
+  if (cl >= 1 && cl <= 9) out.castLevel = cl;
+  if (gs.grantType === 'itemCharges' && mx >= 1 && mx <= 9 && mx > (cl || 0)) out.maxCastLevel = mx;
+  if (gs.grantType === 'itemCharges' && gs.chargeByLevel && typeof gs.chargeByLevel === 'object') out.chargeByLevel = { ...gs.chargeByLevel };
+  return out;
+}
+
 function renderCustomItemGrantedSpells() {
   const list = document.getElementById('ci-granted-spells-list');
   if (!list) return;
@@ -44002,6 +44370,22 @@ function renderCustomItemGrantedSpells() {
           ${!itemHasCharges ? `<div style="font-family:var(--font-ui);font-size:9px;color:var(--red);margin-top:4px">⚠ This item needs "Has Limited Uses / Charges" checked below to have a pool for this to draw from.</div>` : `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px">Draws from this item's own charge pool (set below) - useful when several spells share one pool at different costs, like a Staff of Fire.</div>`}
         </div>
       ` : ''}
+      ${['spellbook','alwaysPrepared'].includes(gs.grantType) ? '' : `
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:1">
+            <label class="field-label">Cast at Level (optional)</label>
+            <input class="info-input" type="number" min="1" max="9" value="${gs.castLevel||''}" placeholder="Spell's base level"
+              oninput="updateCustomItemGrantedSpellField(${idx},'castLevel',parseInt(this.value)||null)">
+          </div>
+          ${gs.grantType === 'itemCharges' ? `
+          <div style="flex:1">
+            <label class="field-label">Max Level via Extra Charges (optional)</label>
+            <input class="info-input" type="number" min="1" max="9" value="${gs.maxCastLevel||''}" placeholder="-"
+              oninput="updateCustomItemGrantedSpellField(${idx},'maxCastLevel',parseInt(this.value)||null)">
+          </div>` : ''}
+        </div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin:-2px 0 6px">Spells cast from an item use their lowest level unless the item says otherwise. Set Cast at Level for a fixed higher version (e.g. "Cure Wounds (level 3 version)"); set Max Level when each extra charge raises the level by 1 (e.g. Wand of Fireballs: 3 to 5).</div>
+      `}
       <div style="display:flex;gap:8px">
         <div style="flex:1">
           <label class="field-label">Fixed Save DC (optional)</label>
@@ -44214,6 +44598,7 @@ async function saveCustomItemModal() {
         usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
         chargeCost: Math.max(1, parseInt(gs.chargeCost) || 1),
         fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null,
+        ..._ciGrantLevelFields(gs),
         ritual: !!gs.ritual, desc: (gs.desc || '').trim(), _resourceId: gs._resourceId || null,
       };
       if (out.grantType === 'limited') {
@@ -44523,6 +44908,7 @@ async function saveDMCatalogItem() {
       usesMax: gs.usesMax || 1, recovery: gs.recovery || 'long',
       chargeCost: Math.max(1, parseInt(gs.chargeCost) || 1),
       fixedDC: gs.fixedDC || null, fixedAtk: gs.fixedAtk || null, ritual: !!gs.ritual,
+      ..._ciGrantLevelFields(gs),
       desc: (gs.desc || '').trim(),
     }));
 
@@ -57560,6 +57946,41 @@ const SUMMON_SPELL_KEYS = new Set([
 
 // Scaling definitions: each spell with formulas for AC, HP per slot level, and form options
 const SUMMON_SPELL_DEFS = {
+  // Urnblade's Shadow Ally - not a spell (see the shadow_ally Active
+  // Effects toggle, which adds/removes this key via addActiveSummon/
+  // removeActiveSummon instead of a real spell being added manually).
+  // Every field below is the 2024 Monster Manual Shadow stat block
+  // (MM'25 p.272, per the user-supplied stat block), not scaled by
+  // level/slot/form the way every other entry here is - fixedStatBlock
+  // tells renderSummonCard to skip the slot-level control and the "Spell
+  // Save DC ... Concentrates as caster" framing that assumes a spell.
+  urnblade_shadow: {
+    name: 'Shadow Ally (Urnblade)', creatureName: 'Shadow', fixedStatBlock: true,
+    // Added/removed only via the shadow_ally Active Effects toggle (which
+    // also controls the weapon's bonus) - excluded from the Summon tab's
+    // manual "Add" dropdown so the two can't drift out of sync with each
+    // other. See addActiveSummon/removeActiveSummon.
+    toggleManaged: true,
+    size: 'Medium', type: 'Undead', cr: '1/2 (XP 100; PB +2)',
+    ac: () => 12, hp: () => 27, speed: () => '40 ft',
+    scores: { str:6, dex:14, con:13, int:6, wis:10, cha:8 },
+    skills: 'Stealth +6',
+    vulnerabilities: 'Radiant',
+    resistances: 'Acid, Cold, Fire, Lightning, Thunder',
+    immunities: 'Necrotic, Poison; Exhaustion, Frightened, Grappled, Paralyzed, Petrified, Poisoned, Prone, Restrained, Unconscious',
+    senses: 'Darkvision 60 ft, Passive Perception 10',
+    languages: 'None',
+    traits: () => [
+      'Amorphous: The shadow can move through a space as narrow as 1 inch without expending extra movement to do so.',
+      'Sunlight Weakness: While in sunlight, the shadow has Disadvantage on D20 Tests.',
+      'Shadow Stealth (Bonus Action): While in Dim Light or Darkness, the shadow can take the Hide action.',
+    ],
+    attacks: () => [
+      { name:'Draining Swipe', bonus:4, dmg:'5 (1d6+2)', type:'Necrotic', range:'5 ft',
+        note:"Target's Strength score decreases by 1d4 (dies if reduced to 0). If a Humanoid is slain this way, a new Shadow rises from the corpse 1d4 hours later." },
+    ],
+    note: "Urnblade's Shadow Ally - not a spell (no concentration, no spell slot, doesn't count against any known-spell limit). Command it on your turn while it's out. It disappears at 0 HP, more than 120 ft from you, or when you dismiss it with an action; your own shadow returns when it does. Each time it drops to 0 HP there's a cumulative 5% chance the urn itself is destroyed. While it's out, the urnblade's own attack/damage bonus is +2 instead of +1.",
+  },
   summon_aberration: {
     name:'Summon Aberration', creatureName:'Aberrant Spirit', minSlot:4,
     forms:['Beholderkin','Mind Flayer','Slaad'],
@@ -58051,11 +58472,20 @@ function getSummonSpells() {
       }).filter(Boolean),
   ];
   const seen = new Set();
-  return all.filter(s => {
+  const result = all.filter(s => {
     if (!s?.key || seen.has(s.key) || !SUMMON_SPELL_KEYS.has(s.key)) return false;
     seen.add(s.key);
     return true;
   });
+  // Urnblade's Shadow Ally isn't a spell, but it shows in the Summon tab
+  // via the same mechanism (see SUMMON_SPELL_DEFS.urnblade_shadow and the
+  // shadow_ally Active Effects toggle) - listed here whenever the item
+  // could grant it, the same way a real summon spell is listed whether or
+  // not it's the character's currently active one.
+  if (typeof hasShadowAllyAccess === 'function' && hasShadowAllyAccess()) {
+    result.push({ key: 'urnblade_shadow', name: 'Shadow Ally (Urnblade)' });
+  }
+  return result;
 }
 
 function updateSummonTabVisibility() {
@@ -58069,100 +58499,74 @@ function updateSummonTabVisibility() {
 }
 window.updateSummonTabVisibility = updateSummonTabVisibility;
 
-function onSummonSpellChange() {
-  const spellKey = document.getElementById('summon-spell-select')?.value;
-  const formSel  = document.getElementById('summon-form-select');
-  const slotSel  = document.getElementById('summon-slot-select');
-  const descEl   = document.getElementById('summon-spell-desc');
+// ── Add-a-summon control ──────────────────────────────────
+// Lists every summon source the character could add (real prepared/known
+// summon spells, from getSummonSpells()) that isn't already active and
+// isn't toggle-managed (see urnblade_shadow's def) - those are added and
+// removed exclusively through their own Active Effects toggle instead.
+function renderSummonAddControl() {
+  const sel = document.getElementById('summon-add-select');
+  if (!sel || !currentChar) return;
+  migrateSummonStateIfNeeded();
+  const active = currentChar._activeSummons || [];
+  const options = getSummonSpells().filter(s => !active.includes(s.key) && !SUMMON_SPELL_DEFS[s.key]?.toggleManaged);
+  sel.innerHTML = '<option value="">- Add a summon -</option>' +
+    options.map(s => `<option value="${s.key}">${s.name}</option>`).join('');
+  const row = document.getElementById('summon-add-row');
+  if (row) row.style.display = options.length ? '' : 'none';
+}
+window.renderSummonAddControl = renderSummonAddControl;
 
-  // Always clear form select first
-  if (formSel) { formSel.innerHTML = ''; formSel.style.display = 'none'; }
-
-  if (!spellKey) {
-    if (descEl) { descEl.style.display = 'none'; descEl.innerHTML = ''; }
-    if (currentChar) { currentChar._activeSummonSpell = null; debouncedSave(); }
-    if (typeof deactivateIneligibleActiveEffects === 'function') deactivateIneligibleActiveEffects();
-    if (typeof renderActiveEffects === 'function') renderActiveEffects();
-    syncSummonSharedResistance();
-    renderSummonTab(); return;
-  }
-
-  if (descEl) {
-    const spell = PHB_SPELL_LIST.find(s => s.key === spellKey);
-    const text = spell?.descFull || spell?.desc || '';
-    if (text) {
-      descEl.innerHTML = `<strong>${spell.name}</strong> - ${renderItemMarkdown(text)}`;
-      descEl.style.display = '';
-    } else {
-      descEl.style.display = 'none'; descEl.innerHTML = '';
-    }
-  }
-
-  const def = SUMMON_SPELL_DEFS[spellKey];
-  if (!def) {
-    if (slotSel) slotSel.innerHTML = '<option value="">-</option>';
-    renderSummonTab(); return;
-  }
-
-  // Populate slot level selector
-  if (slotSel) {
-    slotSel.innerHTML = '';
-    for (let lv = def.minSlot; lv <= 9; lv++) {
-      const o = document.createElement('option');
-      o.value = lv;
-      o.textContent = ['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'][lv] || lv+'th';
-      if (lv === def.minSlot) o.selected = true;
-      slotSel.appendChild(o);
-    }
-  }
-
-  // Populate form selector if applicable - restore the previously-saved
-  // choice if it's still valid for this spell, rather than always
-  // defaulting back to the first option.
-  if (formSel && def.forms?.length) {
-    const savedForm = currentChar?._activeSummonForm;
-    const useForm = def.forms.includes(savedForm) ? savedForm : def.forms[0];
-    formSel.innerHTML = def.forms.map(f => `<option value="${f}" ${f===useForm?'selected':''}>${f}</option>`).join('');
-    formSel.style.display = '';
-    if (currentChar) currentChar._activeSummonForm = useForm;
-  } else if (currentChar) {
-    currentChar._activeSummonForm = null;
-  }
-
-  // Persist active spell - switching to a different spell means any
-  // Active Effects toggle tied to the previous one (e.g. "Summon Dragon")
-  // is no longer eligible and gets cleaned up below; that status
-  // shouldn't silently carry over to whatever's now selected.
-  if (currentChar) {
-    currentChar._activeSummonSpell = spellKey;
-    debouncedSave();
-  }
-  if (typeof deactivateIneligibleActiveEffects === 'function') deactivateIneligibleActiveEffects();
-  if (typeof renderActiveEffects === 'function') renderActiveEffects();
-
-  syncSummonSharedResistance();
+function onAddActiveSummonClick() {
+  const sel = document.getElementById('summon-add-select');
+  const key = sel?.value;
+  if (!key) return;
+  addActiveSummon(key);
+  renderSummonAddControl();
   renderSummonTab();
 }
-window.onSummonSpellChange = onSummonSpellChange;
+window.onAddActiveSummonClick = onAddActiveSummonClick;
 
-function renderSummonTab() {
-  const block = document.getElementById('summon-stat-block');
-  const noteEl = document.getElementById('summon-note');
-  if (!block) return;
+// Per-card slot-level / form controls. Each active summon gets its own,
+// independent of every other card - changing one doesn't touch another.
+function onSummonCardSlotChange(key, val) {
+  setSummonSlotFor(key, parseInt(val) || 1);
+  renderSummonTab();
+  debouncedSave();
+}
+window.onSummonCardSlotChange = onSummonCardSlotChange;
 
-  const spellKey = document.getElementById('summon-spell-select')?.value;
-  const slotLv   = parseInt(document.getElementById('summon-slot-select')?.value || '0');
-  const form     = document.getElementById('summon-form-select')?.value || '';
+function onSummonCardFormChange(key, val) {
+  setSummonFormFor(key, val);
+  if (typeof deactivateIneligibleActiveEffects === 'function') deactivateIneligibleActiveEffects();
+  if (typeof renderActiveEffects === 'function') renderActiveEffects();
+  syncSummonSharedResistance();
+  renderSummonTab();
+  debouncedSave();
+}
+window.onSummonCardFormChange = onSummonCardFormChange;
 
-  if (!spellKey || !slotLv) { block.innerHTML = ''; if (noteEl) noteEl.textContent = ''; return; }
+// Renders one creature's card (stat block + its own slot/form controls +
+// its own HP tracker). This is the guts of what used to be the single
+// renderSummonTab() template, now parameterized per key so renderSummonTab
+// can stack as many of these as are active.
+function renderSummonCard(key) {
+  const def = SUMMON_SPELL_DEFS[key];
+  if (!def) return '';
 
-  const def = SUMMON_SPELL_DEFS[spellKey];
-  if (!def) { block.innerHTML = ''; return; }
-  if (noteEl) noteEl.textContent = def.note || '';
+  const slotLv = def.fixedStatBlock ? 1 : getSummonSlotFor(key);
+  const form = getSummonFormFor(key);
+
+  const removeBtn = `<span style="cursor:pointer;color:var(--text3);font-size:14px;line-height:1" title="Remove" onclick="removeActiveSummon('${key}')">✕</span>`;
 
   if (def.noStatBlock) {
-    block.innerHTML = `<div class="panel" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${def.note||''}</div>`;
-    return;
+    return `<div class="panel" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:8px">
+        <div style="font-family:var(--font-heading);font-size:15px;color:var(--accent)">${def.creatureName||def.name}</div>
+        ${removeBtn}
+      </div>
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6">${def.note||''}</div>
+    </div>`;
   }
 
   const ac = typeof def.ac === 'function' ? def.ac(slotLv, form) : def.ac;
@@ -58177,20 +58581,15 @@ function renderSummonTab() {
   const spellAtk  = prof + Math.max(abilityMod(abs.int), abilityMod(abs.wis), abilityMod(abs.cha));
   const spellDC   = 8 + spellAtk;
 
-  // Resolve null attack bonuses to actual spell attack modifier
   const resolvedAttacks = attacks.map(atk => ({
     ...atk,
     bonus: atk.bonus === null || atk.bonus === undefined ? spellAtk : atk.bonus,
   }));
 
-  const savedHP = currentChar._summonHP?.[spellKey];
+  const savedHP = currentChar._summonHP?.[key];
   const curHP   = savedHP !== undefined ? savedHP : hp;
 
-  // Image keyed by form when the summon has forms (Ankylosaur/Triceratops/
-  // Tyrannosaur etc. look nothing alike) - falls back to the spellKey-only
-  // image if no form-specific one was uploaded. Real uploaded file (same
-  // convention as item art), global across every character, not per-save.
-  const _imgKey = form ? `${spellKey}::${form}` : spellKey;
+  const _imgKey = form ? `${key}::${form}` : key;
   const _imgLabel = `${def.creatureName||def.name}${form?' ('+form+')':''}`;
   const _notesKey = getSummonNotesKey(_imgKey);
   const _notes = getEffectiveText(_notesKey, '');
@@ -58201,8 +58600,23 @@ function renderSummonTab() {
   const senses    = typeof def.senses    === 'function' ? def.senses(slotLv, form)    : def.senses;
   const languages = typeof def.languages === 'function' ? def.languages(slotLv, form) : def.languages;
 
-  block.innerHTML = `
-    <div class="panel" style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch">
+  // Slot-level / form controls, shown inline in the card header for
+  // real spells; omitted entirely for a fixedStatBlock entry (nothing to
+  // choose - see onSummonCardSlotChange/onSummonCardFormChange).
+  const slotControl = def.fixedStatBlock ? '' : `
+    <select class="field-select" style="width:110px;font-size:11px" onchange="onSummonCardSlotChange('${key}',this.value)">
+      ${(() => { let o=''; for (let lv=def.minSlot; lv<=9; lv++) o += `<option value="${lv}" ${lv===slotLv?'selected':''}>${['','1st','2nd','3rd','4th','5th','6th','7th','8th','9th'][lv]||lv+'th'}</option>`; return o; })()}
+    </select>`;
+  const formControl = def.forms?.length ? `
+    <select class="field-select" style="width:140px;font-size:11px" onchange="onSummonCardFormChange('${key}',this.value)">
+      ${def.forms.map(f => `<option value="${f}" ${f===form?'selected':''}>${f}</option>`).join('')}
+    </select>` : '';
+
+  const spell = PHB_SPELL_LIST.find(s => s.key === key);
+  const spellDescText = spell?.descFull || spell?.desc || '';
+
+  return `
+    <div class="panel" style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;margin-bottom:12px">
     <div style="flex:1 1 420px;min-width:0;max-width:460px">
       <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <div>
@@ -58210,28 +58624,34 @@ function renderSummonTab() {
             ${def.creatureName||def.name}${form?' - '+form:''}
             ${isDM ? `<span style="cursor:pointer;color:var(--text3);font-size:11px" title="${_notes ? 'Edit' : 'Add'} DM notes" onclick="openTextOverrideModal(${JSON.stringify(_notesKey).replace(/"/g,'&quot;')},${JSON.stringify(_imgLabel + ' - DM Notes').replace(/"/g,'&quot;')},${JSON.stringify(_notes).replace(/"/g,'&quot;')})">📝</span>` : ''}
           </div>
-          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${def.size||''} ${def.type||''} · Slot Level ${slotLv} · Multiattack: ${multiAtk}×</div>
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${def.size||''} ${def.type||''}${def.fixedStatBlock ? (def.cr ? ` · CR ${def.cr}` : '') : ` · Multiattack: ${multiAtk}×`}</div>
         </div>
-        <div style="display:flex;gap:12px">
-          <div style="text-align:center">
-            <div style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${ac}</div>
-            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">AC</div>
-          </div>
-          <div style="text-align:center">
-            <div style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${curHP} / ${hp}</div>
-            <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">HP</div>
-            <div style="display:flex;gap:4px;margin-top:4px;align-items:center">
-              <button class="tbtn" style="padding:2px 8px;font-size:11px" onclick="summonHPChange(${-1})">−</button>
-              <input type="number" value="${curHP}" min="0" max="${hp}" style="width:50px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;padding:2px 4px"
-                onchange="summonHPSet('${spellKey}',parseInt(this.value)||0,${hp})">
-              <button class="tbtn" style="padding:2px 8px;font-size:11px" onclick="summonHPChange(1)">+</button>
-              <button class="tbtn" style="padding:2px 6px;font-size:10px;color:var(--text3)" onclick="summonHPSet('${spellKey}',${hp},${hp})">Full</button>
-            </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${slotControl}${formControl}${removeBtn}
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:12px">
+        <div style="text-align:center">
+          <div style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${ac}</div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">AC</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${curHP} / ${hp}</div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">HP</div>
+          <div style="display:flex;gap:4px;margin-top:4px;align-items:center">
+            <button class="tbtn" style="padding:2px 8px;font-size:11px" onclick="summonHPChange('${key}',${-1})">−</button>
+            <input type="number" value="${curHP}" min="0" max="${hp}" style="width:50px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:11px;padding:2px 4px"
+              onchange="summonHPSet('${key}',parseInt(this.value)||0,${hp})">
+            <button class="tbtn" style="padding:2px 8px;font-size:11px" onclick="summonHPChange('${key}',1)">+</button>
+            <button class="tbtn" style="padding:2px 6px;font-size:10px;color:var(--text3)" onclick="summonHPSet('${key}',${hp},${hp})">Full</button>
           </div>
         </div>
       </div>
 
+      ${def.note ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:10px">${def.note}</div>` : ''}
       ${_notes ? `<div style="background:var(--bg3);border-left:2px solid var(--accent);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5;white-space:pre-wrap">${_notes.replace(/</g,'&lt;')}</div>` : ''}
+      ${spellDescText ? `<details style="margin-bottom:10px"><summary style="cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">Spell Description</summary><div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.6;margin-top:6px">${renderItemMarkdown(spellDescText)}</div></details>` : ''}
 
       <!-- Ability Scores -->
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:var(--bg3);border-radius:var(--radius);padding:8px;margin-bottom:10px;text-align:center">
@@ -58242,10 +58662,14 @@ function renderSummonTab() {
       <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.8">
         <strong>Speed:</strong> ${spd} &nbsp;·&nbsp; <strong>Senses:</strong> ${senses||'-'}<br>
         ${(() => {
+          const skills = typeof def.skills === 'function' ? def.skills(slotLv, form) : def.skills;
+          const vuln = typeof def.vulnerabilities === 'function' ? def.vulnerabilities(slotLv, form) : def.vulnerabilities;
           const res = typeof def.resistances === 'function' ? def.resistances(slotLv, form) : def.resistances;
           const imm = typeof def.immunities === 'function' ? def.immunities(slotLv, form) : def.immunities;
           const condImm = typeof def.conditionImmunities === 'function' ? def.conditionImmunities(slotLv, form) : def.conditionImmunities;
-          return `${res ? `<strong>Resistances:</strong> ${res}<br>` : ''}`
+          return `${skills ? `<strong>Skills:</strong> ${skills}<br>` : ''}`
+               + `${vuln ? `<strong>Vulnerabilities:</strong> ${vuln}<br>` : ''}`
+               + `${res ? `<strong>Resistances:</strong> ${res}<br>` : ''}`
                + `${imm ? `<strong>Immunities:</strong> ${imm}<br>` : ''}`
                + `${condImm ? `<strong>Condition Immunities:</strong> ${condImm}<br>` : ''}`;
         })()}
@@ -58285,7 +58709,9 @@ function renderSummonTab() {
       </div>` : ''}
 
       <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:10px">
-        Spell Save DC: <strong>${spellDC}</strong> · Spell Atk: <strong>${modSign(spellAtk)}</strong> · Concentrates as caster.
+        ${def.fixedStatBlock
+          ? 'Fixed stat block - not a spell, so it uses its own numbers rather than your spellcasting stats, and doesn\'t require concentration.'
+          : `Spell Save DC: <strong>${spellDC}</strong> · Spell Atk: <strong>${modSign(spellAtk)}</strong> · Concentrates as caster.`}
       </div>
     </div>
 
@@ -58296,26 +58722,39 @@ function renderSummonTab() {
     </div>
   </div>`;
 }
+
+// Stacks a card per active summon. An empty list shows a short prompt
+// instead of a blank page.
+function renderSummonTab() {
+  const block = document.getElementById('summon-stat-block');
+  if (!block || !currentChar) return;
+  migrateSummonStateIfNeeded();
+  const active = currentChar._activeSummons || [];
+  if (!active.length) {
+    block.innerHTML = `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);padding:20px;text-align:center">No summons active. Add one above, or activate an item like Urnblade's Shadow Ally from Active Effects.</div>`;
+    return;
+  }
+  block.innerHTML = active.map(key => renderSummonCard(key)).join('');
+}
 window.renderSummonTab = renderSummonTab;
 
-function summonHPChange(delta) {
-  const spellKey = document.getElementById('summon-spell-select')?.value;
-  if (!spellKey) return;
-  const def = SUMMON_SPELL_DEFS[spellKey];
-  const slotLv = parseInt(document.getElementById('summon-slot-select')?.value || '0');
-  const form   = document.getElementById('summon-form-select')?.value || '';
+function summonHPChange(key, delta) {
+  if (!key) return;
+  const def = SUMMON_SPELL_DEFS[key];
+  const slotLv = def?.fixedStatBlock ? 1 : getSummonSlotFor(key);
+  const form = getSummonFormFor(key);
   const maxHP  = typeof def?.hp === 'function' ? def.hp(slotLv, form) : 0;
   if (!currentChar._summonHP) currentChar._summonHP = {};
-  const cur = currentChar._summonHP[spellKey] ?? maxHP;
-  currentChar._summonHP[spellKey] = Math.max(0, Math.min(maxHP, cur + delta));
+  const cur = currentChar._summonHP[key] ?? maxHP;
+  currentChar._summonHP[key] = Math.max(0, Math.min(maxHP, cur + delta));
   renderSummonTab();
   debouncedSave();
 }
 window.summonHPChange = summonHPChange;
 
-function summonHPSet(spellKey, val, max) {
+function summonHPSet(key, val, max) {
   if (!currentChar._summonHP) currentChar._summonHP = {};
-  currentChar._summonHP[spellKey] = Math.max(0, Math.min(max, val));
+  currentChar._summonHP[key] = Math.max(0, Math.min(max, val));
   renderSummonTab();
   debouncedSave();
 }
@@ -58373,21 +58812,10 @@ function getSummonNotesKey(imgKey) {
 }
 window.getSummonNotesKey = getSummonNotesKey;
 
-function populateSummonSpellSelect() {
-  const sel = document.getElementById('summon-spell-select');
-  if (!sel) return;
-  const spells = getSummonSpells();
-  const saved = currentChar?._activeSummonSpell;
-  sel.innerHTML = '<option value="">- Select summon spell -</option>' +
-    spells.map(s => `<option value="${s.key}" ${s.key===saved?'selected':''}>${s.name}</option>`).join('');
-  if (saved) onSummonSpellChange();
-}
-
 function renderSummonPage() {
-  populateSummonSpellSelect();
+  renderSummonAddControl();
   renderSummonTab();
 }
-window.renderSummonPage = renderSummonPage;
 // ═══════════════════════════════════════════════════════════
 function _initTooltip() {
   const tip = document.getElementById('cs-tooltip');
