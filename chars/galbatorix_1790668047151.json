@@ -66,8 +66,26 @@
   "relationships": "",
   "secrets": "",
   "spells": {
-    "known": [],
-    "prepared": [],
+    "known": [
+      {
+        "key": "fire_bolt",
+        "name": "Fire Bolt",
+        "level": 0,
+        "source": "manual",
+        "cls": "wizard"
+      },
+      {
+        "key": "prestidigitation",
+        "name": "Prestidigitation",
+        "level": 0,
+        "source": "manual",
+        "cls": "wizard"
+      }
+    ],
+    "prepared": [
+      "fire_bolt",
+      "prestidigitation"
+    ],
     "spellbook": [],
     "featSpells": {}
   },
@@ -78,7 +96,33 @@
   "resources": {
     "heroic_inspiration": 1
   },
-  "featSlots": {},
+  "featSlots": {
+    "origin_human": {
+      "choice": "feat",
+      "feat": "Alert [Origin]"
+    },
+    "asi_wizard_4": {
+      "choice": "feat",
+      "feat": "Divination Adept",
+      "featDetail": {
+        "asiAb": "int"
+      }
+    },
+    "asi_wizard_8": {
+      "choice": "feat",
+      "feat": "Mage Slayer",
+      "featDetail": {
+        "asiAb": "dex"
+      }
+    },
+    "asi_wizard_12": {
+      "choice": "feat",
+      "feat": "War Caster",
+      "featDetail": {
+        "asiAb": "int"
+      }
+    }
+  },
   "_darkvision": 0,
   "_dmgres": [],
   "_customSpeed": false,
@@ -178,9 +222,9 @@
     },
     "featDetail": {
       "str": 0,
-      "dex": 0,
+      "dex": 1,
       "con": 0,
-      "int": 0,
+      "int": 2,
       "wis": 0,
       "cha": 0
     },
@@ -212,6 +256,15 @@
       "desc": "Reroll a d20 after seeing the result, before the DM says whether it succeeds - Human (Resourceful).",
       "recovery": "long",
       "recoveryNote": ""
+    },
+    {
+      "id": "featgrant_feat_divination_adept_prescient_intervention",
+      "name": "Prescient Intervention",
+      "desc": "When a creature you can see within 60 feet of yourself makes a D20 Test, you can take a Reaction to give that creature Advantage or Disadvantage (your choice) on that roll. | Once you use this benefit, you can't do so again until you finish a Long Rest. You can also regain use of this feature when you cast a spell from the Divination school using a spell slot.",
+      "max": 1,
+      "recovery": "long",
+      "recoveryNote": "",
+      "_fromFeatGrant": "feat:Divination Adept"
     }
   ],
   "skill_profs": {
@@ -250,7 +303,7 @@
   "_hasDurable": false,
   "_featSpeedBonus": 0,
   "_hasObservant": false,
-  "_alertBonus": 0,
+  "_alertBonus": 5,
   "_activeEffects": {},
   "ac_method": "base",
   "ac_bonus": 0,
@@ -376,5 +429,7 @@
     ],
     "divinersDice": [],
     "omen": null
-  }
+  },
+  "fire_bolt": "",
+  "prestidigitation": ""
 }
