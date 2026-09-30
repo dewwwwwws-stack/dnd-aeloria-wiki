@@ -3664,6 +3664,7 @@ body.preview-readonly #mi-detail-edit-row * {
       <span id="sp-school-legend" style="display:flex;flex-wrap:wrap;gap:12px"></span>
     </div>
   </div>
+  <div id="sp-class-manage-bar" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
   <div class="spells-layout">
 
     <!-- LEFT: Spellcasting info + Browse Spells -->
@@ -34044,7 +34045,85 @@ function renderSpellSchoolLegend() {
   ).join('');
 }
 
+// ── Per-class spell preparation summary bar ───────────────
+// One card per spellcasting class the character has (not just the
+// "primary" one buildKnownSpellRows/getPrimarySpellcasting favor), each
+// showing that class's OWN prepared/known count against its OWN cap
+// (getClassPreparedMax, already correctly scoped per class - see its
+// comment), with a warning highlight whenever there's an unfilled slot.
+// Clicking a card jumps straight into that class's tab in the Manage
+// Spells modal, which already supports every casting class and style
+// (isSwapOnLR vs isSwapOnLU) internally - Wizard is the one exception,
+// since it's excluded from that modal in favor of its own Spellbook
+// panel below (same reason sp-levelup-btn hides for solo Wizards).
+function renderClassManageBar() {
+  const bar = document.getElementById('sp-class-manage-bar');
+  if (!bar || !currentChar) return;
+  ensureSpellData();
+  const classes = typeof getAllSpellcastingClasses === 'function' ? getAllSpellcastingClasses() : [];
+  if (!classes.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+
+  const rows = buildKnownSpellRows();
+  const cards = classes.map(c => {
+    const cls = c.cls;
+    const isWiz = cls === 'wizard';
+    const max = getClassPreparedMax(cls, c.level);
+    if (max <= 0) return ''; // e.g. a 1st/2nd-level Eldritch Knight/Arcane Trickster with no spells yet
+    const current = rows.filter(r => r.level > 0 && !r.locked && r.pipType === 'prepared' && r.cls === cls).length;
+    const short = max - current;
+    // Cantrips known, separately from prepared/known leveled spells - a
+    // class with no cantrips at all (Paladin, Ranger) gets cantripsMax 0
+    // and skips this line entirely rather than showing a meaningless "0/0".
+    const cantripsMax = typeof getClassCantripsMax === 'function' ? getClassCantripsMax(cls, c.level, c.sub) : 0;
+    const cantripsCurrent = rows.filter(r => r.level === 0 && r.pipType === 'cantrip' && r.cls === cls).length;
+    const cantripShort = cantripsMax - cantripsCurrent;
+    const warn = short > 0 || cantripShort > 0;
+    const label = cls.charAt(0).toUpperCase() + cls.slice(1);
+    const verb = isSwapOnLU(cls) ? 'known' : 'prepared';
+    const action = isWiz ? 'scrollToAndOpenSpellbook()' : `openClassManageModal('${cls}','${cantripShort > 0 && short <= 0 ? 'cantrip' : 'spell'}')`;
+    const titleParts = [];
+    if (short > 0) titleParts.push(`${short} ${verb} spell${short !== 1 ? 's' : ''} left to choose`);
+    if (cantripShort > 0) titleParts.push(`${cantripShort} cantrip${cantripShort !== 1 ? 's' : ''} left to choose`);
+    const title = titleParts.length
+      ? `${titleParts.join(' · ')} for ${label} - click to fill ${isWiz ? 'from the Spellbook panel' : 'in Manage Spells'}`
+      : `All ${label} spells and cantrips ${verb}`;
+    return `
+      <button class="tbtn" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:6px 12px;min-width:120px;${warn ? 'border-color:var(--amber);background:rgba(240,180,60,.08)' : ''}" onclick="${action}" title="${title.replace(/"/g,'&quot;')}">
+        <span style="font-family:var(--font-ui);font-size:10px;font-weight:700;letter-spacing:.3px;display:flex;align-items:center;gap:5px;${warn ? 'color:var(--amber)' : ''}">${warn ? '⚠ ' : ''}${label}</span>
+        <span style="font-family:var(--font-ui);font-size:9px;color:${short > 0 ? 'var(--amber)' : 'var(--text3)'}">${current}/${max} ${verb}</span>
+        ${cantripsMax > 0 ? `<span style="font-family:var(--font-ui);font-size:9px;color:${cantripShort > 0 ? 'var(--amber)' : 'var(--text3)'}">${cantripsCurrent}/${cantripsMax} cantrips</span>` : ''}
+      </button>`;
+  }).filter(Boolean);
+
+  if (!cards.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = cards.join('');
+}
+window.renderClassManageBar = renderClassManageBar;
+
+function openClassManageModal(cls, mode) {
+  _luSelectedClass = cls;
+  openLevelUpSpellModal();
+  // openLevelUpSpellModal() always resets to 'spell' mode - if this card's
+  // shortfall is specifically in cantrips (not leveled spells), land on
+  // the cantrip tab instead so the player isn't dropped on the wrong list.
+  if (mode === 'cantrip' && typeof setLuMode === 'function') setLuMode('cantrip');
+}
+window.openClassManageModal = openClassManageModal;
+
+function scrollToAndOpenSpellbook() {
+  const panel = document.getElementById('sp-spellbook-panel');
+  if (!panel) return;
+  if (typeof _spellbookOpen !== 'undefined' && _spellbookOpen === false && typeof toggleSpellbook === 'function') toggleSpellbook();
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  panel.style.transition = 'box-shadow .3s';
+  panel.style.boxShadow = '0 0 0 2px var(--accent)';
+  setTimeout(() => { panel.style.boxShadow = ''; }, 1500);
+}
+window.scrollToAndOpenSpellbook = scrollToAndOpenSpellbook;
+
 function renderKnownSpells() {
+  if (typeof renderClassManageBar === 'function') renderClassManageBar();
   renderSpellSchoolLegend();
   const body = document.getElementById('sp-known-body');
   const title = document.getElementById('sp-known-title');
@@ -34767,8 +34846,18 @@ function renderFullClassSpellList() {
   const lvlF = lvlSel?.value || '';
 
   if (countEl) {
-    const { max } = getPreparedMax();
-    const current = countPreparedSpells();
+    // Scoped to just this one class (its own header already names it,
+    // e.g. "Paladin Spell List") - the combined multiclass total would be
+    // the wrong number here, same issue _getLuSpellCap() (the Manage
+    // Spells swap modal) already avoids: for a Paladin 1/Warlock 6
+    // character, showing the combined 9-spell cap under a panel titled
+    // "Paladin Spell List" implies Paladin alone grants 9 prepared
+    // spells, when this class's own share of that total is only 2.
+    const entry = getAllClasses().find(e => e.class?.toLowerCase() === cls);
+    const clsLevel = entry?.levels?.length || 0;
+    const max = getClassPreparedMax(cls, clsLevel);
+    const current = buildKnownSpellRows()
+      .filter(r => r.level > 0 && !r.locked && r.pipType === 'prepared' && r.cls === cls).length;
     countEl.textContent = `${current}/${max} prepared`;
     countEl.style.color = current > max ? 'var(--red)' : 'var(--text3)';
   }
@@ -34847,6 +34936,11 @@ window.renderFullClassSpellList = renderFullClassSpellList;
 // uses, so both stay in sync and nothing about "what counts as prepared"
 // diverges between the two views.
 function toggleFullClassListPrep(spellKey) {
+  // Always the same class the panel itself is scoped to and titled after
+  // (see renderFullClassSpellListVisibility) - recomputed rather than
+  // passed in from the onclick, but equivalent since this function is
+  // only ever reachable from that one panel.
+  const cls = getPrimarySpellcasting()?.cls;
   const isPrepared = currentChar.spells.prepared.includes(spellKey);
   if (isPrepared) {
     removeSpellFromKnown(spellKey); // already strips both known[] and prepared[]
@@ -34858,6 +34952,19 @@ function toggleFullClassListPrep(spellKey) {
     // but never actually prepared, e.g. from before this fix existed).
     const alreadyKnown = currentChar.spells.known.some(s => s.key === spellKey);
     if (!alreadyKnown) addSpellToKnown(spellKey, 'manual');
+    // addSpellToKnown() picks which class to attribute the spell to
+    // itself, and for a spell on more than one of the character's class
+    // lists (e.g. Bless, if both Cleric and Paladin are present), that
+    // guess can land on the wrong one - it isn't scoped to this panel and
+    // can fall back to a stale _luSelectedClass left over from the
+    // separate Manage Spells modal. This panel already knows exactly
+    // which class the player means (its own header names it), so it's
+    // corrected here rather than trusted from the shared resolver - this
+    // is also what makes the per-class prepared count above (r.cls===cls)
+    // reliable for every multiclass combination, not just ones where the
+    // spell happens to be class-list-unique.
+    const knownEntry = currentChar.spells.known.find(s => s.key === spellKey);
+    if (knownEntry) knownEntry.cls = cls;
     // This modal's whole purpose is "prepare directly from the full class
     // list" (its own subtitle says exactly that, and the button reads
     // "PREP," not "add"). addSpellToKnown() only auto-prepares for
