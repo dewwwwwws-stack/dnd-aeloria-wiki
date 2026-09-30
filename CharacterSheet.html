@@ -24871,7 +24871,25 @@ async function loadDMTextOverrides() {
     _dmTextLoadedOnce = true;
   } catch (e) {
     console.warn('[DM text overrides] failed to load, keeping previous state:', e.message);
-    if (!_dmTextLoadedOnce) { _dmTextOverrides = {}; _dmTextSHA = null; }
+    // This used to be console-only, which meant a failed load here was
+    // completely invisible in the actual UI: every spell/feat/feature
+    // would just silently show its plain catalog text - identical to
+    // what "no override exists" looks like - with nothing on screen
+    // suggesting the DM's saved customizations (RAW text edits, tables,
+    // etc.) simply failed to load rather than not existing. That's
+    // exactly the kind of silent failure that looks like "everything
+    // reverted" after a fresh page load. A toast at least makes the
+    // failure itself visible, even without knowing why it happened -
+    // sandboxed embeds (e.g. Obsidian's HTML reader) are one plausible
+    // cause, since not every restriction they impose on network calls is
+    // known/documented here.
+    if (!_dmTextLoadedOnce) {
+      _dmTextOverrides = {};
+      _dmTextSHA = null;
+      if (typeof toast === 'function') {
+        toast('Could not load DM text overrides from GitHub - spells/feats are showing plain catalog text, not your saved edits. Reload once you have a normal connection.', 'error');
+      }
+    }
   }
   // Refresh anything currently visible that might display overridden text
   if (typeof populateFeaturesTab === 'function' && document.getElementById('feat-unified-list')) populateFeaturesTab();
