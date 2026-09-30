@@ -4936,7 +4936,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="insert-table-modal" style="z-index:10001">
-  <div class="modal-box" style="max-width:320px">
+  <div class="modal-box" style="max-width:600px">
     <div class="modal-title">
       Insert Table
       <span class="modal-close" onclick="closeModal('insert-table-modal')">&#x2715;</span>
@@ -4945,15 +4945,15 @@ body.preview-readonly #mi-detail-edit-row * {
       <label class="field-label">Table Title <span style="font-weight:400;text-transform:none;color:var(--text3)">(optional)</span></label>
       <input class="info-input" id="it-title" style="width:100%" placeholder="Shown as a small label above the table"/>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:14px">
-      <div class="info-field" style="flex:1">
-        <label class="field-label">Columns</label>
-        <input type="number" class="info-input" id="it-cols" value="3" min="1" max="9" style="width:100%"/>
-      </div>
-      <div class="info-field" style="flex:1">
-        <label class="field-label">Data Rows</label>
-        <input type="number" class="info-input" id="it-rows" value="3" min="1" max="30" style="width:100%"/>
-      </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-family:var(--font-ui);font-size:10px;color:var(--text3)">
+      Type the table's real content directly into the cells below - the top row is the header. Nothing needs to be edited by hand afterward.
+    </div>
+    <div id="it-grid-wrap" style="max-height:50vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
+      <table id="it-grid" style="border-collapse:collapse;width:100%"></table>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button type="button" class="tbtn" style="flex:1;font-size:11px" onclick="itGridAddColumn()">+ Column</button>
+      <button type="button" class="tbtn" style="flex:1;font-size:11px" onclick="itGridAddRow()">+ Row</button>
     </div>
     <button class="tbtn" style="width:100%;padding:8px" onclick="confirmInsertTable()">Insert Table</button>
   </div>
@@ -9983,6 +9983,15 @@ function renderSpellDetailBody(sp, castLevel) {
       : highlightSpellUpcast(html, sp, castLevel);
     html = highlightSpellcastingMod(html);
     if (typeof linkifyGlossaryTerms === 'function') html = linkifyGlossaryTerms(html);
+    // The "Insert Table" button in the DM's RAW-text override editor
+    // (shared by spells, feats, class features, summon notes, etc.) always
+    // inserts the [TABLE:Title]H1;;H2~~R1C1;;R1C2[/TABLE] bracket-tag
+    // format (see confirmInsertTable/renderInlineFeatureTables) - but
+    // until now, nothing in this spell-rendering pipeline knew how to
+    // turn that back into an actual table, so it just sat there as
+    // literal bracket text in the spell modal. Reusing the same renderer
+    // features already use, rather than building a second one.
+    if (typeof renderInlineFeatureTables === 'function') html = renderInlineFeatureTables(html);
   }
   // Battle Familiar's upcast text ("use the slot's level for the spell's
   // level in the stat block") has no numeric literal for
@@ -45909,23 +45918,25 @@ window.dmToggleFeatureHiddenForCharacter = dmToggleFeatureHiddenForCharacter;
 // Two different text formats render as tables in this app, and neither
 // is something a DM should have to memorize by hand:
 //  - 'feature': [TABLE:Title]H1;;H2~~R1C1;;R1C2~~R2C1;;R2C2[/TABLE] -
-//    used by feat/class/subclass/race/background/class-choice text
-//    (formatFeatureDescHtml -> renderInlineFeatureTables). Pipe-free by
+//    used by feat/class/subclass/race/background/class-choice text, and
+//    now spells and summon notes too (formatFeatureDescHtml/
+//    renderSpellDetailBody -> renderInlineFeatureTables). Pipe-free by
 //    design; see renderInlineFeatureTables's comment for why a normal
 //    markdown pipe-table can't be used there.
 //  - 'item': a normal blank-line-separated markdown pipe table (header
 //    row, |---|---| separator, data rows) - used by item descriptions
 //    (renderItemMarkdown).
-// Used to collect the size via window.prompt() - silently did nothing in
-// this app's sandboxed Obsidian iframe embedding, where prompt()/alert()/
-// confirm() need an allow-modals permission most sandboxed embeds don't
-// grant (the same embedding already documented elsewhere in this file as
-// blocking WebSockets while allowing normal HTTPS calls through - a
-// prompt() call returning immediately with no visible effect is exactly
-// that same kind of partial restriction). Opens a small in-app modal
-// instead, which works regardless of what the embedder allows.
+//
+// This modal edits a live grid (_itGrid, row 0 = headers) and generates
+// whichever of those two text encodings from real typed content - the DM
+// never sees or writes the encoding itself. Earlier this just inserted an
+// empty skeleton of that raw syntax (e.g. "H1;;H2~~;;~~;;") for the DM to
+// hand-edit afterward, which meant understanding and correctly retyping
+// a custom markup language to fill it in - exactly the kind of mistake
+// that's easy to make (e.g. "~~" mistyped as "--") and hard to spot.
 let _itTextareaId = null;
 let _itFormat = null;
+let _itGrid = [];
 
 function insertTableIntoTextarea(textareaId, format) {
   const ta = document.getElementById(textareaId);
@@ -45936,13 +45947,90 @@ function insertTableIntoTextarea(textareaId, format) {
   if (titleRow) titleRow.style.display = format === 'feature' ? 'block' : 'none';
   const titleInput = document.getElementById('it-title');
   if (titleInput) titleInput.value = '';
-  document.getElementById('it-cols').value = '3';
-  document.getElementById('it-rows').value = '3';
+  // Start small (2x2) - + Column/+ Row grow it from here, so there's
+  // nothing to prune for a table that turns out smaller than expected.
+  _itGrid = [['', ''], ['', '']];
+  renderItGrid();
   // keepOthersOpen=true - this is triggered from inside another already-
   // open modal (item editor, feat detail, etc.), which shouldn't close.
   openModal('insert-table-modal', true);
+  setTimeout(() => document.querySelector('#it-grid input')?.focus(), 50);
 }
 window.insertTableIntoTextarea = insertTableIntoTextarea;
+
+// Rebuilds the visible <table> from _itGrid. Called after every
+// add/remove so the grid's shape and its rendering can't drift apart -
+// typed values themselves live in the input elements and are read back
+// into _itGrid on every keystroke (itGridCellInput), not just at insert
+// time, so a value already typed is never lost across a rebuild.
+function renderItGrid() {
+  const table = document.getElementById('it-grid');
+  if (!table) return;
+  const numCols = _itGrid[0]?.length || 0;
+  const rowsHtml = _itGrid.map((row, r) => {
+    const isHeader = r === 0;
+    const cellsHtml = row.map((val, c) => `
+      <td style="padding:2px;border:1px solid var(--border)">
+        <input class="info-input" value="${(val||'').replace(/"/g,'&quot;')}"
+          placeholder="${isHeader ? `Header ${c+1}` : ''}"
+          style="width:100%;min-width:90px;border:none;background:transparent;font-weight:${isHeader?600:400}"
+          oninput="itGridCellInput(${r},${c},this.value)"
+          onkeydown="itGridCellKeydown(event,${r},${c})"/>
+      </td>`).join('');
+    const rowHandle = isHeader
+      ? `<td style="width:20px;padding:0"></td>`
+      : `<td style="width:20px;padding:0;text-align:center"><span style="cursor:pointer;color:var(--text3);font-size:12px" title="Remove row" onclick="itGridRemoveRow(${r})">✕</span></td>`;
+    return `<tr>${cellsHtml}${rowHandle}</tr>`;
+  }).join('');
+  const colHandles = Array.from({length: numCols}, (_, c) => `
+    <td style="text-align:center;padding:2px">${numCols > 1 ? `<span style="cursor:pointer;color:var(--text3);font-size:11px" title="Remove column" onclick="itGridRemoveColumn(${c})">✕ col</span>` : ''}</td>`).join('');
+  table.innerHTML = rowsHtml + `<tr>${colHandles}<td></td></tr>`;
+}
+
+function itGridCellInput(r, c, val) {
+  if (_itGrid[r]) _itGrid[r][c] = val;
+}
+window.itGridCellInput = itGridCellInput;
+
+// Tab from the grid's last cell adds a new row and jumps into it, the
+// same muscle-memory as a spreadsheet - otherwise adding a 4th, 5th...
+// row means reaching for the mouse every single time.
+function itGridCellKeydown(e, r, c) {
+  const numCols = _itGrid[0]?.length || 0;
+  if (e.key === 'Tab' && !e.shiftKey && r === _itGrid.length - 1 && c === numCols - 1) {
+    e.preventDefault();
+    itGridAddRow();
+    setTimeout(() => document.querySelectorAll('#it-grid tr')[_itGrid.length - 1]?.querySelector('input')?.focus(), 0);
+  }
+}
+window.itGridCellKeydown = itGridCellKeydown;
+
+function itGridAddColumn() {
+  _itGrid.forEach(row => row.push(''));
+  renderItGrid();
+}
+window.itGridAddColumn = itGridAddColumn;
+
+function itGridAddRow() {
+  const numCols = _itGrid[0]?.length || 1;
+  _itGrid.push(Array.from({length: numCols}, () => ''));
+  renderItGrid();
+}
+window.itGridAddRow = itGridAddRow;
+
+function itGridRemoveColumn(c) {
+  if ((_itGrid[0]?.length || 0) <= 1) return;
+  _itGrid.forEach(row => row.splice(c, 1));
+  renderItGrid();
+}
+window.itGridRemoveColumn = itGridRemoveColumn;
+
+function itGridRemoveRow(r) {
+  if (r === 0 || _itGrid.length <= 2) return; // keep the header + at least one data row
+  _itGrid.splice(r, 1);
+  renderItGrid();
+}
+window.itGridRemoveRow = itGridRemoveRow;
 
 function confirmInsertTable() {
   const ta = document.getElementById(_itTextareaId);
@@ -45950,20 +46038,23 @@ function confirmInsertTable() {
   closeModal('insert-table-modal');
   if (!ta) return;
 
-  const cols = Math.max(1, Math.min(9, parseInt(document.getElementById('it-cols').value) || 3));
-  const rows = Math.max(1, Math.min(30, parseInt(document.getElementById('it-rows').value) || 3));
-
-  const headers = Array.from({length: cols}, (_, i) => `Header${i+1}`);
+  const [headers, ...dataRows] = _itGrid;
   let tableText;
 
   if (format === 'feature') {
     const title = document.getElementById('it-title').value || '';
-    const dataRows = Array.from({length: rows}, () => Array.from({length: cols}, () => '').join(';;'));
-    tableText = `[TABLE:${title}]${headers.join(';;')}~~${dataRows.join('~~')}[/TABLE]`;
+    // ";;" and "~~" are this encoding's own delimiters (see the comment
+    // above) - a DM typing either into a cell by coincidence would
+    // otherwise silently corrupt the table structure, so they're stripped
+    // from typed content rather than escaped (there's no escape syntax
+    // for this pipe-free format to preserve them with).
+    const clean = s => (s || '').replace(/;;|~~/g, '');
+    tableText = `[TABLE:${title}]${headers.map(clean).join(';;')}~~${dataRows.map(row => row.map(clean).join(';;')).join('~~')}[/TABLE]`;
   } else {
-    const headerLine = '| ' + headers.join(' | ') + ' |';
+    const clean = s => (s || ' ').replace(/\|/g, '/').replace(/\n/g, ' ');
+    const headerLine = '| ' + headers.map(clean).join(' | ') + ' |';
     const sepLine = '|' + headers.map(() => ':-:').join('|') + '|';
-    const dataLines = Array.from({length: rows}, () => '| ' + Array.from({length: cols}, () => ' ').join('| ') + '|').join('\n');
+    const dataLines = dataRows.map(row => '| ' + row.map(clean).join(' | ') + ' |').join('\n');
     tableText = `${headerLine}\n${sepLine}\n${dataLines}`;
   }
 
@@ -45971,11 +46062,16 @@ function confirmInsertTable() {
   const end = ta.selectionEnd ?? ta.value.length;
   const before = ta.value.slice(0, start);
   const after = ta.value.slice(end);
-  // Both renderers expect a table to sit in its own paragraph - pad with
-  // blank lines on either side unless already at the very start/end or
-  // already separated by one.
-  const leadGap = (!before.length || before.endsWith('\n\n')) ? '' : (before.endsWith('\n') ? '\n' : (format === 'feature' ? ' ' : '\n\n'));
-  const trailGap = (!after.length || after.startsWith('\n\n')) ? '' : (after.startsWith('\n') ? '\n' : (format === 'feature' ? ' ' : '\n\n'));
+  // Both renderers expect a table to sit in its own paragraph. The
+  // 'feature' format's raw text gets newline-flattened before rendering
+  // (see formatFeatDescHtml/renderInlineFeatureTables's own comments), so
+  // a blank-line gap here survives that intact as a clean paragraph
+  // break either way - it's not feature-only content anymore either now
+  // that spells and summon notes also render the same bracket-tag syntax
+  // and DO preserve real line breaks, where a single space would instead
+  // glue the table into the middle of a sentence.
+  const leadGap = (!before.length || before.endsWith('\n\n')) ? '' : (before.endsWith('\n') ? '\n' : '\n\n');
+  const trailGap = (!after.length || after.startsWith('\n\n')) ? '' : (after.startsWith('\n') ? '\n' : '\n\n');
 
   ta.value = before + leadGap + tableText + trailGap + after;
   const newPos = (before + leadGap + tableText).length;
@@ -47571,11 +47667,27 @@ window.openVestigeDomainPreview = openVestigeDomainPreview;
 // Mystic Arcanum combined cards) so both produce visually consistent
 // tables instead of two slightly-different hand-rolled markups.
 function renderMiniTableHtml(headers, rows) {
+  // If a column's header and every value in it are short (a modifier, a
+  // die, a short code - the common case for a "Save Modifier"/"DC"/"Cost"
+  // column), shrink that column to fit its own content instead of
+  // letting the browser auto-size it against only THIS table's content.
+  // Without this, two mini-tables meant to read as a matched pair - like
+  // Scrying's two save-modifier tables - each size their value column
+  // independently based on how long THEIR OWN label text happens to be,
+  // so the value column lands at a different width (and so a different
+  // X position) in each table even though the values themselves are
+  // similarly short and the header text is identical. A column with
+  // genuinely long content (e.g. a full sentence, as in the Soulknife
+  // Psychic Blade table below) is left exactly as before, so it still
+  // wraps normally instead of being force-shrunk into a scrollbar.
+  const stripHtml = s => (s || '').replace(/<[^>]+>/g, '');
+  const isShortCol = (i) => stripHtml(headers[i]).length <= 14 && rows.every(r => stripHtml(r[i]).length <= 10);
+  const colStyle = (i) => isShortCol(i) ? 'white-space:nowrap;width:1%' : '';
   const rowsHtml = rows.map(row =>
-    `<tr>${row.map(cell => `<td style="padding:3px 8px;border-bottom:1px solid var(--border)">${cell}</td>`).join('')}</tr>`
+    `<tr>${row.map((cell, i) => `<td style="padding:3px 8px;border-bottom:1px solid var(--border);${colStyle(i)}">${cell}</td>`).join('')}</tr>`
   ).join('');
-  const headHtml = `<tr>${headers.map(h =>
-    `<th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px">${h}</th>`
+  const headHtml = `<tr>${headers.map((h, i) =>
+    `<th style="padding:3px 8px;text-align:left;border-bottom:1px solid var(--border2);color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:.5px;${colStyle(i)}">${h}</th>`
   ).join('')}</tr>`;
   return `<table style="border-collapse:collapse;font-size:11px;width:100%">${headHtml}${rowsHtml}</table>`;
 }
@@ -58954,7 +59066,7 @@ function renderSummonCard(key) {
       </div>
 
       ${def.note ? `<div style="font-family:var(--font-body);font-size:11px;color:var(--text3);margin-bottom:10px">${def.note}</div>` : ''}
-      ${_notes ? `<div style="background:var(--bg3);border-left:2px solid var(--accent);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5;white-space:pre-wrap">${_notes.replace(/</g,'&lt;')}</div>` : ''}
+      ${_notes ? `<div style="background:var(--bg3);border-left:2px solid var(--accent);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5;white-space:pre-wrap">${typeof renderInlineFeatureTables === 'function' ? renderInlineFeatureTables(_notes.replace(/</g,'&lt;')) : _notes.replace(/</g,'&lt;')}</div>` : ''}
       ${spellDescText ? `<details style="margin-bottom:10px"><summary style="cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase">Spell Description</summary><div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.6;margin-top:6px">${renderItemMarkdown(spellDescText)}</div></details>` : ''}
 
       <!-- Ability Scores -->
