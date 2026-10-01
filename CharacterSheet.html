@@ -64442,7 +64442,7 @@ function pdfCollectCharacter() {
     return max > 0 && ((c.resources || {}).heroic_inspiration || 0) < max;
   }, false);
   const ss = T('slots', () => computeSpellSlotsForChar(c), { levels: [] });
-  if (ss?.warlock?.max) D.resources.push({ name: `Pact Magic slots (${ss.warlock.slotLevel}${['', 'st', 'nd', 'rd'][ss.warlock.slotLevel] || 'th'} level)`, max: ss.warlock.max, used: ss.warlock.used || 0, recovery: 'Short Rest' });
+  // Pact Magic slots are shown as pips on the spell sheet, not repeated here.
 
   // attacks: equipped weapons + damaging cantrips
   D.attacks = [];
@@ -65159,6 +65159,102 @@ function pdfFillWildShapes(F, D, use, longText) {
   }
 }
 
+// ═══════════════════ EMBEDDED CHARACTER DATA ═══════════════════
+// Every export carries the full character so it can be re-imported later.
+// It is stored twice, because PDF viewers differ in what they keep when a
+// player fills in the form and re-saves:
+//   1. a file attachment  "character.json"
+//   2. a hidden read-only form field  "CharacterData" (base64 JSON) - form
+//      fields are the one thing every PDF form filler preserves
+// Secrets are stripped first: the PIN hash (a 4-digit PIN's hash can be
+// brute-forced instantly), Private Notes, and a backstory marked private.
+const PDF_DATA_FORMAT = 'aeloria-character';
+const PDF_DATA_VERSION = 1;
+const PDF_DATA_FIELD = 'CharacterData';
+const PDF_DATA_FILE = 'character.json';
+
+function pdfCharacterPayload() {
+  const c = JSON.parse(JSON.stringify(currentChar));
+  delete c.pinHash;
+  delete c.notes_bg;
+  delete c.secrets;
+  if (c.backstoryPrivate) delete c.backstory;
+  return {
+    format: PDF_DATA_FORMAT,
+    version: PDF_DATA_VERSION,
+    exportedAt: new Date().toISOString(),
+    characterId: c.id || null,
+    stripped: ['pinHash', 'notes_bg', 'secrets'].concat(currentChar.backstoryPrivate ? ['backstory'] : []),
+    character: c,
+  };
+}
+function _pdfB64(str) { return btoa(unescape(encodeURIComponent(str))); }
+function _pdfUnB64(b64) { return decodeURIComponent(escape(atob(b64))); }
+
+async function pdfEmbedCharacter(L, doc, payload) {
+  const { PDFName, PDFString, PDFArray, PDFDict } = L;
+  const json = JSON.stringify(payload);
+  // 1) attachment
+  await doc.attach(new TextEncoder().encode(json), PDF_DATA_FILE, {
+    mimeType: 'application/json',
+    description: 'Full character data (for re-import into the character sheet tool)',
+    creationDate: new Date(), modificationDate: new Date(),
+  });
+  // 2) hidden form field on page 1
+  const ctx = doc.context, page = doc.getPage(0);
+  const field = ctx.obj({
+    Type: 'Annot', Subtype: 'Widget', FT: 'Tx', Ff: 1,              // read-only
+    F: 2,                                                           // hidden
+    Rect: [0, 0, 0, 0], P: page.ref, DA: '/Helv 0 Tf 0 g',
+  });
+  field.set(PDFName.of('T'), PDFString.of(PDF_DATA_FIELD));
+  field.set(PDFName.of('V'), PDFString.of(_pdfB64(json)));
+  const ref = ctx.register(field);
+  let annots = page.node.lookup(PDFName.of('Annots'));
+  if (!(annots instanceof PDFArray)) { annots = ctx.obj([]); page.node.set(PDFName.of('Annots'), annots); }
+  annots.push(ref);
+  const acro = doc.catalog.lookup(PDFName.of('AcroForm'), PDFDict);
+  acro.lookup(PDFName.of('Fields'), PDFArray).push(ref);
+}
+
+// Reads the embedded character back out of an exported PDF (form field
+// first - it survives re-saving in the most viewers - then the attachment).
+// Returns the payload object, or null if the PDF has none.
+async function pdfReadEmbeddedCharacter(bytes) {
+  const L = await pdfLoadLib();
+  const { PDFName, PDFDict, PDFArray, PDFRawStream, decodePDFRawStream } = L;
+  const doc = await L.PDFDocument.load(bytes, { ignoreEncryption: true });
+  const ok = p => p && p.format === PDF_DATA_FORMAT && p.character;
+  try {
+    const acro = doc.catalog.lookup(PDFName.of('AcroForm'), PDFDict);
+    const fields = acro && acro.lookup(PDFName.of('Fields'), PDFArray);
+    for (let i = 0; fields && i < fields.size(); i++) {
+      const f = fields.lookup(i, PDFDict);
+      const t = f.lookup(PDFName.of('T'));
+      if (t && t.decodeText() === PDF_DATA_FIELD) {
+        const v = f.lookup(PDFName.of('V'));
+        const p = JSON.parse(_pdfUnB64(v.decodeText()));
+        if (ok(p)) return p;
+      }
+    }
+  } catch (e) { console.warn('[pdf] embedded field unreadable', e); }
+  try {
+    const names = doc.catalog.lookup(PDFName.of('Names'), PDFDict);
+    const ef = names && names.lookup(PDFName.of('EmbeddedFiles'), PDFDict);
+    const arr = ef && ef.lookup(PDFName.of('Names'), PDFArray);
+    for (let i = 0; arr && i < arr.size(); i += 2) {
+      if (arr.lookup(i).decodeText() !== PDF_DATA_FILE) continue;
+      const spec = arr.lookup(i + 1, PDFDict);
+      const stream = spec.lookup(PDFName.of('EF'), PDFDict).lookup(PDFName.of('F'));
+      const data = stream instanceof PDFRawStream ? decodePDFRawStream(stream).decode() : stream.getContents();
+      const p = JSON.parse(new TextDecoder().decode(data));
+      if (ok(p)) return p;
+    }
+  } catch (e) { console.warn('[pdf] embedded attachment unreadable', e); }
+  return null;
+}
+window.pdfReadEmbeddedCharacter = pdfReadEmbeddedCharacter;
+
 // ═══════════════════ 3. ENTRY POINT ═══════════════════
 async function exportCharacterPdf() {
   if (!currentChar) { toast('Open a character first', 'warn'); return; }
@@ -65182,6 +65278,7 @@ async function exportCharacterPdf() {
       } catch (e) { D.warnings.push('portrait: ' + e.message); }
     }
     pdfFillMpmb(F, D);
+    await pdfEmbedCharacter(L, doc, pdfCharacterPayload());
     doc.setTitle(`${D.identity.name} - ${D.identity.classLine}`);
     doc.setProducer('Character Sheet export');
     const out = await doc.save({ useObjectStreams: true, updateFieldAppearances: false });
