@@ -64499,7 +64499,25 @@ function pdfCollectCharacter() {
   });
 
   // features (exactly what the Features tab shows, DM text overrides applied)
-  D.features = T('features', () => (window._pdfFeatureEntries || []).map(e => ({ ...e, text: pdfPlain(e.text) })), []);
+  D.features = T('features', () => (window._pdfFeatureEntries || []).map(e => {
+    const raw = String(e.text || '');
+    if (/<[a-z][\s\S]*>/i.test(raw)) {
+      // HTML cards that bundle several choices (e.g. "Invocations Known") mark each
+      // choice with a bold title - split them so none are lost to the summary cut
+      const dom = new DOMParser().parseFromString(raw, 'text/html');
+      const heads = [...dom.querySelectorAll('[style*="font-weight:700"],[style*="font-weight: 700"],b,strong')]
+        .filter(h => h.textContent.trim() && h.textContent.trim().length < 80 && h.nextElementSibling);
+      if (heads.length > 1) {
+        const items = heads.map(h => {
+          let body = '', n = h.nextElementSibling;
+          while (n && !heads.includes(n)) { body += '\n' + (n.textContent || ''); n = n.nextElementSibling; }
+          return { title: h.textContent.trim(), body: pdfPlain(body || (h.parentElement ? h.parentElement.textContent.replace(h.textContent, '') : '')) };
+        });
+        return { ...e, items, text: items.map(it => `${it.title}\n${it.body}`).join('\n\n') };
+      }
+    }
+    return { ...e, text: pdfPlain(raw) };
+  }), []);
   D.feats = D.features.filter(f => /feat/i.test(f.sourceType || '') || /\bfeat\b/i.test(f.kind || ''));
   (c.boonsCurses || []).forEach(b => D.feats.push({ name: b.name || 'Boon/Curse', meta: _pdfCap(b.type || ''), text: pdfPlain(b.desc || ''), sourceType: 'Boon' }));
   D.tables = T('tables', () => (window._pdfFeatureTables || []).map(t => ({ name: t.name, text: pdfPlain(t.text), meta: t.meta })), []);
@@ -64540,8 +64558,18 @@ function pdfCollectCharacter() {
   (c.armorOwned || []).forEach(a => gear.push({ name: (a.name || a.key) + (a.worn ? ' (worn)' : ''), qty: 1, wt: a.weight || '' }));
   (c.weapons || []).filter(w => !w._fromMagicItem && !w.naturalWeapon && w.weaponKey !== 'unarmed_strike').forEach(w => gear.push({ name: w.name, qty: w.qty || 1, wt: (w.weight || '').replace(/\s*lb\.?/, '') }));
   (c.equipment || []).forEach(e => gear.push({ name: e.name, qty: e.qty ?? 1, wt: String(e.weight || '').replace(/\s*lb\.?/, '') }));
+  // every permanent magic item is also listed with the rest of the equipment (its full
+  // write-up is in the Magic Item boxes); attuned ones are additionally named in the
+  // Attuned Magical Items rows
+  items.filter(mi => !isConsumable(mi)).forEach(mi => gear.push({ name: (mi.customName || mi.name || mi._baseName || 'Magic item') + (mi.attuned ? ' (attuned)' : ''), qty: mi.quantity || 1, wt: String(mi.weight || '').replace(/\s*lb\.?/, '') }));
   items.filter(isConsumable).forEach(mi => gear.push({ name: (mi.customName || mi.name) + (mi.resistanceChoice ? ` (${mi.resistanceChoice})` : '') + (mi.scrollSpellKey ? ` (${(PHB_SPELL_LIST.find(s => s.key === mi.scrollSpellKey) || {}).name || mi.scrollSpellKey})` : ''), qty: mi.quantity || 1, wt: String(mi.weight || '').replace(/\s*lb\.?/, '') }));
-  (c.valuables || []).forEach(v => gear.push({ name: _pdfCap(String(v.key || '').replace(/_/g, ' ')) + (v.customValue ? ` (${v.customValue})` : (typeof getValuableValue === 'function' ? T('val', () => { const x = getValuableValue(v); return x ? ` (${x})` : ''; }, '') : '')), qty: v.qty || 1, wt: '' }));
+  // gems, art objects, trade goods - name, value and weight from the valuables catalog
+  (c.valuables || []).forEach(v => {
+    const def = (typeof VALUABLES_CATALOG !== 'undefined') ? VALUABLES_CATALOG.find(x => x.key === v.key) : null;
+    const val = typeof getValuableValue === 'function' ? getValuableValue(v, def) : (v.customValue || def?.value || '');
+    gear.push({ name: (def?.name || _pdfCap(String(v.key || '').replace(/_/g, ' '))) + (val ? ` (${val}${(v.qty || 1) > 1 ? ' each' : ''})` : ''),
+      qty: v.qty || 1, wt: String(def?.weight || '').replace(/\s*lb\.?/, '') });
+  });
   D.ammo = Object.entries(c.ammo || {}).filter(([, n]) => n > 0).map(([k, n]) => ({ name: (c.ammoCustom || {})[k]?.label || _pdfCap(k.replace(/_/g, ' ')), qty: n }));
   D.ammo.forEach(a => gear.push({ name: a.name, qty: a.qty, wt: '' }));
   (c.mountsVehicles || []).forEach(m => { const def = (typeof MOUNTS_VEHICLES_CATALOG !== 'undefined') && MOUNTS_VEHICLES_CATALOG.find(x => x.key === m.key); gear.push({ name: (def?.name || _pdfCap(m.key)) + (def ? ` (${def.category})` : ''), qty: 1, wt: '' }); });
@@ -64872,7 +64900,7 @@ function pdfFillMpmb(F, D) {
   if (D.attacks.length > 5) longText.push(['More attacks', D.attacks.slice(5).map(a => `${a.name}: ${a.hit}, ${a.dmg} ${a.type} (${a.range}). ${a.notes}`).join('\n')]);
 
   // ── page 2 ──
-  const cf = D.classFeatures.map(f => `${f.name.toUpperCase()}${f.meta ? ' (' + f.meta + ')' : ''}: ${pdfFirstSentences(f.text, 200)}`).join('\n');
+  const cf = D.classFeatures.map(f => `${f.name.toUpperCase()}${f.meta ? ' (' + f.meta + ')' : ''}: ${f.items ? f.items.map(it => it.title).join('; ') + '.' : pdfFirstSentences(f.text, 200)}`).join('\n');
   const cfRest = S('Class Features', cf);
   const rt = D.racial.map(f => `${f.name}: ${pdfFirstSentences(f.text, 160)}`).join('\n');
   const rtRest = S('Racial Traits', `${id.species}${id.size ? ' - ' + id.size : ''}\n` + rt);
@@ -65076,7 +65104,10 @@ function pdfLayoutSpells(F, D, use) {
   const pre = PAGES[0].pre;
   const PIPS = { 1: ['mid'], 2: ['top1', 'bottom1'], 3: ['top1', 'bottom2.1', 'bottom2.2'], 4: ['top2.1', 'top2.2', 'bottom2.1', 'bottom2.2'] };
   const lvMax = {}, lvUsed = {}, pact = {};
-  (D.slots.levels || []).forEach((m, i) => { const max = typeof m === 'number' ? m : (m?.max || 0); if (max) { lvMax[i + 1] = max; lvUsed[i + 1] = D.slotsUsed[i + 1] || D.slotsUsed[String(i + 1)] || 0; } });
+  (D.slots.levels || []).forEach((m, i) => {
+    const lv = m?.level || i + 1, max = typeof m === 'number' ? m : (m?.max || 0);
+    if (max) { lvMax[lv] = max; lvUsed[lv] = m?.used || 0; }
+  });
   if (D.slots.warlock?.max) { const l = D.slots.warlock.slotLevel; pact[l] = D.slots.warlock; if (!lvMax[l]) { lvMax[l] = D.slots.warlock.max; lvUsed[l] = D.slots.warlock.used || 0; } }
   Object.keys(lvMax).forEach(l => {
     const max = lvMax[l], usedN = lvUsed[l] || 0, pips = PIPS[Math.min(4, max)];
@@ -65306,6 +65337,95 @@ function pdfDownload(bytes, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// UPDATE CHECK - keeps players on the latest deployed version.
+// GitHub Pages serves this file with Last-Modified = deploy time, and
+// document.lastModified is the Last-Modified of the copy actually running
+// (which may be an old copy from the browser cache, a restored tab, or a
+// tab that has simply been open since before the last commit).
+//   - On opening: if the server has a newer copy, refresh the browser cache
+//     and reload straight away (nothing has been typed yet).
+//   - Later (tab refocused, page restored, every 10 min): show a banner
+//     with a Reload button, which saves any pending changes first.
+// Only runs over http(s) - local/Obsidian copies are left alone.
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  if (!/^https?:$/.test(location.protocol)) return;
+  const PAGE_URL = location.href.split('#')[0];
+  const RUNNING = Date.parse(document.lastModified) || 0;
+  const GUARD_KEY = 'cs-update-reloaded-for';
+  let bannerShown = false, checking = false;
+
+  async function latestModified() {
+    const r = await fetch(PAGE_URL, { method: 'HEAD', cache: 'no-store' });
+    if (!r.ok) return 0;
+    return Date.parse(r.headers.get('Last-Modified') || '') || 0;
+  }
+
+  // Pull the new copy into the browser cache, then reload onto it.
+  async function reloadToLatest(stamp) {
+    try { sessionStorage.setItem(GUARD_KEY, String(stamp || Date.now())); } catch (e) {}
+    try { await fetch(PAGE_URL, { cache: 'reload' }); } catch (e) {}
+    location.reload();
+  }
+
+  async function saveThenReload(stamp) {
+    const btn = document.getElementById('update-banner-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+    try {
+      if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) {
+        clearTimeout(_debounceSaveTimer); _debounceSaveTimer = null;
+        if (typeof saveChar === 'function' && currentChar) await saveChar();
+      }
+    } catch (e) { console.warn('[update] save before reload failed', e); }
+    if (btn) btn.textContent = 'Reloading...';
+    reloadToLatest(stamp);
+  }
+
+  function showBanner(stamp) {
+    if (bannerShown) return;
+    bannerShown = true;
+    const bar = document.createElement('div');
+    bar.id = 'update-banner';
+    bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;display:flex;align-items:center;gap:12px;' +
+      'padding:10px 14px;background:var(--bg2,#1d1a26);color:var(--text,#ddd);border:1px solid var(--accent,#a875e8);border-radius:8px;' +
+      'box-shadow:0 6px 24px rgba(0,0,0,.45);font-family:var(--font-ui,sans-serif);font-size:12px;max-width:calc(100vw - 32px)';
+    bar.innerHTML = '<span>A newer version of the character sheet is available.</span>' +
+      '<button id="update-banner-btn" class="tbtn" style="border-color:var(--accent,#a875e8);color:var(--accent,#a875e8);white-space:nowrap">Reload now</button>' +
+      '<span title="Dismiss" style="cursor:pointer;color:var(--text3,#888);font-size:14px;padding:0 2px">\u2715</span>';
+    bar.querySelector('#update-banner-btn').onclick = () => saveThenReload(stamp);
+    bar.lastElementChild.onclick = () => { bar.remove(); };     // stays dismissed until the next check finds it again
+    document.body.appendChild(bar);
+  }
+
+  async function check(onOpen) {
+    if (checking || bannerShown) return;
+    checking = true;
+    try {
+      const latest = await latestModified();
+      if (!latest || !RUNNING || latest <= RUNNING + 1000) return;
+      let guard = 0; try { guard = +sessionStorage.getItem(GUARD_KEY) || 0; } catch (e) {}
+      // Reload automatically only once per new version: if the CDN is still
+      // handing out the old copy, a loop would never end - fall back to the banner.
+      if (onOpen && guard !== latest && !currentChar) { reloadToLatest(latest); return; }
+      showBanner(latest);
+    } catch (e) {
+      // offline / blocked - nothing to do
+    } finally { checking = false; }
+  }
+  window.checkForSheetUpdate = check;
+
+  // on open (before anyone has logged in or typed anything)
+  check(true);
+  // tab brought back to the front, or restored from the back/forward cache
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(false); });
+  window.addEventListener('pageshow', e => { if (e.persisted) check(false); });
+  // long-lived tabs
+  setInterval(() => { if (document.visibilityState === 'visible') check(false); }, 10 * 60 * 1000);
+})();
 </script>
 </body>
 </html>
