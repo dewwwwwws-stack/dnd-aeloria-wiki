@@ -32423,10 +32423,61 @@ function _getLuSpellCap() {
 // class the modal's tabs currently select) and renderQuickStartSpellsStep()
 // (which needs the same per-class scoping to show an accurate count for
 // each of the character's spellcasting classes, not just the primary one).
+
+// Which of the character's spellcasting classes each spell row counts
+// toward. Rows tagged with .cls (anything picked since per-class scoping
+// existed) use their tag. Untagged rows - every spell picked before that,
+// i.e. most existing characters - are auto-attributed so they count
+// instead of showing as "0/N, pick spells":
+//   1. on exactly one of the character's class lists -> that class
+//   2. otherwise (on several lists, or none - e.g. Magical Secrets) ->
+//      the first candidate class that still has room in that bucket
+//      (cantrips vs leveled), primary class first; if all are full, the
+//      primary class.
+// Rows granted by something else (feat, item, invocation, subclass,
+// racial, Book of Shadows...) never reach a class bucket, because every
+// caller only counts pipType 'prepared'/'cantrip' rows.
+function resolveSpellRowClasses(rows) {
+  const out = new Map();
+  const myClasses = getCharSpellClasses();
+  const primary = getPrimarySpellcasting()?.cls || myClasses[0] || null;
+  const order = primary ? [primary, ...myClasses.filter(c => c !== primary)] : myClasses;
+  const caps = {}, used = {};
+  (typeof getAllSpellcastingClasses === 'function' ? getAllSpellcastingClasses() : []).forEach(c => {
+    caps[c.cls] = { spell: getClassPreparedMax(c.cls, c.level) || 0,
+                    cantrip: (typeof getClassCantripsMax === 'function' ? getClassCantripsMax(c.cls, c.level, c.sub) : 0) || 0 };
+    used[c.cls] = { spell: 0, cantrip: 0 };
+  });
+  const counts = r => !r.locked && ((r.level > 0 && r.pipType === 'prepared') || (r.level === 0 && r.pipType === 'cantrip'));
+  const pending = [];
+  rows.forEach(r => {
+    if (r.locked) return;
+    const kind = r.level === 0 ? 'cantrip' : 'spell';
+    let cls = r.cls || null;
+    if (!cls) {
+      const phb = PHB_SPELL_LIST.find(s => s.key === r.key);
+      const onLists = myClasses.filter(c => phb?.classes?.includes(c));
+      if (onLists.length === 1) cls = onLists[0];
+      else { pending.push({ r, kind, cands: order.filter(c => !onLists.length || onLists.includes(c)) }); return; }
+    }
+    out.set(r.key, cls);
+    if (counts(r) && used[cls]) used[cls][kind]++;
+  });
+  pending.forEach(({ r, kind, cands }) => {
+    const withRoom = cands.find(c => used[c] && used[c][kind] < caps[c][kind]);
+    const cls = withRoom || (cands.includes(primary) ? primary : cands[0]) || primary;
+    out.set(r.key, cls);
+    if (counts(r) && used[cls]) used[cls][kind]++;
+  });
+  return out;
+}
+window.resolveSpellRowClasses = resolveSpellRowClasses;
+
 function _getKnownSpellsForClass(cls, isCantrip) {
   ensureSpellData();
-  const myClasses = getCharSpellClasses();
-  return buildKnownSpellRows().filter(r => {
+  const _rows = buildKnownSpellRows();
+  const _owner = resolveSpellRowClasses(_rows);
+  return _rows.filter(r => {
     if (r.locked) return false;
     if (isCantrip ? r.level !== 0 : r.level === 0) return false;
     // A spell tagged with .cls (added after multiclass scoping existed)
@@ -32437,11 +32488,7 @@ function _getKnownSpellsForClass(cls, isCantrip) {
     // exactly how it already behaved before per-class scoping existed -
     // so existing characters' counts don't suddenly change just from
     // opening this.
-    if (r.cls) return r.cls === cls;
-    const phb = PHB_SPELL_LIST.find(s => s.key === r.key);
-    const matches = myClasses.filter(c => phb?.classes?.includes(c));
-    if (matches.length === 1) return matches[0] === cls;
-    return cls === (getPrimarySpellcasting()?.cls || null);
+    return _owner.get(r.key) === cls;
   });
 }
 
@@ -34188,18 +34235,19 @@ function renderClassManageBar() {
   if (!classes.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
 
   const rows = buildKnownSpellRows();
+  const owner = resolveSpellRowClasses(rows);
   const cards = classes.map(c => {
     const cls = c.cls;
     const isWiz = cls === 'wizard';
     const max = getClassPreparedMax(cls, c.level);
     if (max <= 0) return ''; // e.g. a 1st/2nd-level Eldritch Knight/Arcane Trickster with no spells yet
-    const current = rows.filter(r => r.level > 0 && !r.locked && r.pipType === 'prepared' && r.cls === cls).length;
+    const current = rows.filter(r => r.level > 0 && !r.locked && r.pipType === 'prepared' && owner.get(r.key) === cls).length;
     const short = max - current;
     // Cantrips known, separately from prepared/known leveled spells - a
     // class with no cantrips at all (Paladin, Ranger) gets cantripsMax 0
     // and skips this line entirely rather than showing a meaningless "0/0".
     const cantripsMax = typeof getClassCantripsMax === 'function' ? getClassCantripsMax(cls, c.level, c.sub) : 0;
-    const cantripsCurrent = rows.filter(r => r.level === 0 && r.pipType === 'cantrip' && r.cls === cls).length;
+    const cantripsCurrent = rows.filter(r => r.level === 0 && r.pipType === 'cantrip' && owner.get(r.key) === cls).length;
     const cantripShort = cantripsMax - cantripsCurrent;
     const warn = short > 0 || cantripShort > 0;
     const label = cls.charAt(0).toUpperCase() + cls.slice(1);
@@ -34980,8 +35028,10 @@ function renderFullClassSpellList() {
     const entry = getAllClasses().find(e => e.class?.toLowerCase() === cls);
     const clsLevel = entry?.levels?.length || 0;
     const max = getClassPreparedMax(cls, clsLevel);
-    const current = buildKnownSpellRows()
-      .filter(r => r.level > 0 && !r.locked && r.pipType === 'prepared' && r.cls === cls).length;
+    const _rows = buildKnownSpellRows();
+    const _owner = resolveSpellRowClasses(_rows);
+    const current = _rows
+      .filter(r => r.level > 0 && !r.locked && r.pipType === 'prepared' && _owner.get(r.key) === cls).length;
     countEl.textContent = `${current}/${max} prepared`;
     countEl.style.color = current > max ? 'var(--red)' : 'var(--text3)';
   }
