@@ -3000,7 +3000,7 @@ body.preview-readonly #mi-detail-edit-row * {
                 <span id="ci-token-status" style="font-family:var(--font-ui);font-size:8px;color:var(--text3);text-align:center"></span>
               </div>
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
-                <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="name" placeholder="Character name" oninput="onCharNameChange(this.value)" style="width:100%;box-sizing:border-box"/></div>
+                <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="charName" placeholder="Character name" oninput="onCharNameChange(this.value)" style="width:100%;box-sizing:border-box"/></div>
                 <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off" style="width:100%;box-sizing:border-box"/></div>
                 <div id="ci-xp-row"><label class="field-label">XP</label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0" style="width:100%;box-sizing:border-box"/></div>
               </div>
@@ -31243,9 +31243,10 @@ window.handleTokenFileUpload = handleTokenFileUpload;
 function populateMainSheet() {
   if (!currentChar) return;
   const c = currentChar;
+  window._sheetPopulatedFor = c.id;
 
   // Text / number inputs with data-key
-  document.querySelectorAll('[data-key]').forEach(el => {
+  document.querySelectorAll('input[data-key],textarea[data-key],select[data-key]').forEach(el => {
     const key = el.dataset.key;
     // Private Notes is explicitly never shown to anyone previewing this
     // sheet (Party Overview, a shared link, etc.) - skipped here rather
@@ -31262,7 +31263,11 @@ function populateMainSheet() {
       el.value = ''; el.placeholder = 'Private - not shown in preview.'; return;
     }
     let val = key.includes('.') ? key.split('.').reduce((o,k) => o?.[k], c) : c[key];
-    if (val === undefined || val === null) return;
+    if (key === 'charName' && !val) val = c.name;   // legacy files that only have `name`
+    if (val === undefined || val === null) {
+      if (el.type === 'checkbox') el.checked = false; else el.value = '';
+      return;
+    }
     if (key === 'notes_bg' || key === 'backstory') val = deobfuscateText(val);
     // currentChar.background stores the lowercase/underscored PHB_BACKGROUNDS
     // key (e.g. "aberrant_heir"), not a display string. Every other caller
@@ -31355,6 +31360,7 @@ function populateMainSheet() {
 const _OBF_KEY = "a D&D character sheet privacy shim, not real security";
 function obfuscateText(text) {
   if (!text) return text;
+  if (typeof text === 'string' && text.startsWith('OBF:')) return text;   // already obfuscated - don't add a layer
   let out = '';
   for (let i = 0; i < text.length; i++) {
     out += String.fromCharCode(text.charCodeAt(i) ^ _OBF_KEY.charCodeAt(i % _OBF_KEY.length));
@@ -31366,10 +31372,17 @@ function obfuscateText(text) {
 function deobfuscateText(stored) {
   if (!stored || typeof stored !== 'string' || !stored.startsWith('OBF:')) return stored || '';
   try {
-    const decoded = decodeURIComponent(escape(atob(stored.slice(4))));
-    let result = '';
-    for (let i = 0; i < decoded.length; i++) {
-      result += String.fromCharCode(decoded.charCodeAt(i) ^ _OBF_KEY.charCodeAt(i % _OBF_KEY.length));
+    // Older saves could wrap the text more than once (the notes box was
+    // re-filled with the stored OBF string and then obfuscated again on
+    // save) - unwrap every layer so those files read back correctly.
+    let result = stored;
+    for (let layer = 0; layer < 10 && typeof result === 'string' && result.startsWith('OBF:'); layer++) {
+      const decoded = decodeURIComponent(escape(atob(result.slice(4))));
+      let out = '';
+      for (let i = 0; i < decoded.length; i++) {
+        out += String.fromCharCode(decoded.charCodeAt(i) ^ _OBF_KEY.charCodeAt(i % _OBF_KEY.length));
+      }
+      result = out;
     }
     return result;
   } catch(e) {
@@ -31379,9 +31392,16 @@ function deobfuscateText(stored) {
 
 function gatherSheetData() {
   if (!currentChar) return;
+  if (window._sheetPopulatedFor !== currentChar.id) {
+    // The inputs on screen belong to a different character than the one
+    // about to be saved - never copy them across. Saves still write the
+    // in-memory character, which is correct; only the DOM read is skipped.
+    console.warn('[save] sheet inputs belong to', window._sheetPopulatedFor, 'not', currentChar.id, '- skipping input gather');
+    return;
+  }
   // Keys managed by their own systems - don't overwrite with raw input display values
   const SKIP_KEYS = new Set(['race', 'subrace']);
-  document.querySelectorAll('[data-key]').forEach(el => {
+  document.querySelectorAll('input[data-key],textarea[data-key],select[data-key]').forEach(el => {
     const key = el.dataset.key;
     if (SKIP_KEYS.has(key)) return;
     const val = el.type === 'checkbox' ? el.checked
@@ -31760,6 +31780,7 @@ function removeFeat(i) {
 // ═══════════════════════════════════════════════════════════
 
 function populateAllTabs() {
+  if (currentChar) window._sheetPopulatedFor = currentChar.id;
   if (!currentChar) return;
   ensureWeaponData();
   ensureMagicItems();
@@ -31775,7 +31796,7 @@ function populateAllTabs() {
   populateSpeedOverrides();
 
   // All data-key fields (flat keys and currency sub-keys)
-  document.querySelectorAll('[data-key]').forEach(el => {
+  document.querySelectorAll('input[data-key],textarea[data-key],select[data-key]').forEach(el => {
     const key = el.dataset.key;
     let val;
     if (key.startsWith('currency.')) {
@@ -31783,8 +31804,13 @@ function populateAllTabs() {
       val = c.currency?.[sub] ?? 0;
     } else {
       val = c[key];
+      if (key === 'charName' && !val) val = c.name;   // legacy files that only have `name`
+      if (key === 'notes_bg' || key === 'backstory') val = deobfuscateText(val);
     }
-    if (val === undefined || val === null) return;
+    if (val === undefined || val === null) {
+      if (el.type === 'checkbox') el.checked = false; else el.value = '';
+      return;
+    }
     if (el.type === 'checkbox') el.checked = !!val;
     else el.value = val;
   });
@@ -45821,7 +45847,7 @@ function dmRenderFeatsList() {
   const charContextEl = document.getElementById('dm-feats-char-context');
   if (charContextEl) {
     charContextEl.textContent = currentChar
-      ? `Grant/Remove and Hide/Unhide buttons below apply to: ${currentChar.name || 'this character'}`
+      ? `Grant/Remove and Hide/Unhide buttons below apply to: ${(currentChar.charName||currentChar.name) || 'this character'}`
       : 'Load a character to grant/remove feats or hide broken features for them specifically.';
   }
 
@@ -45879,12 +45905,12 @@ function dmRenderFeatsList() {
     let charBtn = '';
     if (currentChar && isFeatRow) {
       charBtn = charHasFeat
-        ? `<button class="tbtn" style="font-size:9px;padding:3px 8px;color:var(--red);border-color:var(--red)" onclick="dmRemoveFeatFromCharacter(${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Remove this feat from ${(currentChar.name||'this character').replace(/"/g,'&quot;')}">− Remove</button>`
-        : `<button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmGrantFeatToCharacter(${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Grant this feat to ${(currentChar.name||'this character').replace(/"/g,'&quot;')}">+ Grant</button>`;
+        ? `<button class="tbtn" style="font-size:9px;padding:3px 8px;color:var(--red);border-color:var(--red)" onclick="dmRemoveFeatFromCharacter(${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Remove this feat from ${((currentChar.charName||currentChar.name)||'this character').replace(/"/g,'&quot;')}">− Remove</button>`
+        : `<button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmGrantFeatToCharacter(${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Grant this feat to ${((currentChar.charName||currentChar.name)||'this character').replace(/"/g,'&quot;')}">+ Grant</button>`;
     } else if (currentChar && !isSpellRow) {
       charBtn = isHiddenForChar
-        ? `<button class="tbtn" style="font-size:9px;padding:3px 8px;color:var(--amber);border-color:var(--amber)" onclick="dmToggleFeatureHiddenForCharacter(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Unhide - show this again for ${(currentChar.name||'this character').replace(/"/g,'&quot;')}">✓ Unhide</button>`
-        : `<button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmToggleFeatureHiddenForCharacter(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Hide - broken/moot for ${(currentChar.name||'this character').replace(/"/g,'&quot;')} specifically">🚫 Hide</button>`;
+        ? `<button class="tbtn" style="font-size:9px;padding:3px 8px;color:var(--amber);border-color:var(--amber)" onclick="dmToggleFeatureHiddenForCharacter(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Unhide - show this again for ${((currentChar.charName||currentChar.name)||'this character').replace(/"/g,'&quot;')}">✓ Unhide</button>`
+        : `<button class="tbtn" style="font-size:9px;padding:3px 8px" onclick="dmToggleFeatureHiddenForCharacter(${JSON.stringify(r.overrideKey).replace(/"/g,'&quot;')},${JSON.stringify(r.name).replace(/"/g,'&quot;')})" title="Hide - broken/moot for ${((currentChar.charName||currentChar.name)||'this character').replace(/"/g,'&quot;')} specifically">🚫 Hide</button>`;
     }
 
     return `
@@ -45896,8 +45922,8 @@ function dmRenderFeatsList() {
             ${isDM ? '<span class="sp-tag" style="color:var(--gold);border-color:var(--gold)">DM EDITED</span>' : ''}
             ${hasBrokenTableSyntax ? '<span class="sp-tag" style="color:var(--red);border-color:var(--red)" title="This override has a [TABLE...] tag with no valid row separator - likely saved before Insert Table was fixed. Open Edit to check it; Reset to Default only if you want to drop it.">⚠ CHECK TABLE SYNTAX</span>' : ''}
             ${hasGrants ? '<span class="sp-tag" style="color:var(--accent2);border-color:var(--accent2)">HAS GRANTS</span>' : ''}
-            ${charHasFeat ? `<span class="sp-tag" style="color:var(--green);border-color:var(--green)">HAS IT${currentChar.name ? ' - '+currentChar.name : ''}</span>` : ''}
-            ${isHiddenForChar ? `<span class="sp-tag" style="color:var(--amber);border-color:var(--amber)">HIDDEN${currentChar.name ? ' FOR '+currentChar.name : ''}</span>` : ''}
+            ${charHasFeat ? `<span class="sp-tag" style="color:var(--green);border-color:var(--green)">HAS IT${(currentChar.charName||currentChar.name) ? ' - '+(currentChar.charName||currentChar.name) : ''}</span>` : ''}
+            ${isHiddenForChar ? `<span class="sp-tag" style="color:var(--amber);border-color:var(--amber)">HIDDEN${(currentChar.charName||currentChar.name) ? ' FOR '+(currentChar.charName||currentChar.name) : ''}</span>` : ''}
           </div>
           <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:1px;line-height:1.4">${preview}</div>
         </div>
@@ -45983,7 +46009,7 @@ function dmGrantFeatToCharacter(featName) {
   if (!currentChar.feats) currentChar.feats = [];
   const clean = s => (s || '').replace(/\s*\[.*?\]/g, '').trim().toLowerCase();
   if (currentChar.feats.some(f => clean(f.name || f) === clean(featName)) || hasFeat(clean(featName))) {
-    toast(`${currentChar.name || 'This character'} already has "${featName}".`, 'warn');
+    toast(`${(currentChar.charName||currentChar.name) || 'This character'} already has "${featName}".`, 'warn');
     return;
   }
   currentChar.feats.push({ name: featName, _dmGranted: true });
@@ -45992,7 +46018,7 @@ function dmGrantFeatToCharacter(featName) {
   if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
   if (typeof renderFeatsList === 'function') renderFeatsList();
   dmRenderFeatsList();
-  toast(`Granted "${featName}" to ${currentChar.name || 'character'}.`, 'ok');
+  toast(`Granted "${featName}" to ${(currentChar.charName||currentChar.name) || 'character'}.`, 'ok');
 }
 window.dmGrantFeatToCharacter = dmGrantFeatToCharacter;
 
@@ -46010,7 +46036,7 @@ function dmRemoveFeatFromCharacter(featName) {
   if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
   if (typeof renderFeatsList === 'function') renderFeatsList();
   dmRenderFeatsList();
-  toast(`Removed "${featName}" from ${currentChar.name || 'character'}.`, 'ok');
+  toast(`Removed "${featName}" from ${(currentChar.charName||currentChar.name) || 'character'}.`, 'ok');
 }
 window.dmRemoveFeatFromCharacter = dmRemoveFeatFromCharacter;
 
@@ -46025,10 +46051,10 @@ function dmToggleFeatureHiddenForCharacter(overrideKey, label) {
   const idx = currentChar._dmHiddenFeatures.indexOf(overrideKey);
   if (idx >= 0) {
     currentChar._dmHiddenFeatures.splice(idx, 1);
-    toast(`"${label}" is visible again for ${currentChar.name || 'character'}.`, 'ok');
+    toast(`"${label}" is visible again for ${(currentChar.charName||currentChar.name) || 'character'}.`, 'ok');
   } else {
     currentChar._dmHiddenFeatures.push(overrideKey);
-    toast(`Hidden "${label}" for ${currentChar.name || 'character'}.`, 'ok');
+    toast(`Hidden "${label}" for ${(currentChar.charName||currentChar.name) || 'character'}.`, 'ok');
   }
   debouncedSave();
   if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
@@ -62154,6 +62180,11 @@ function _teardownPreviewState() {
     currentCharSHA = prior.currentCharSHA;
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) saveBtn.style.display = '';
+    // Every input on the sheet is still showing the PREVIEWED character.
+    // Re-render for the restored one here, for every caller (Exit Preview,
+    // Party Overview, DM Panel, ...) - otherwise the next save gathers the
+    // previewed character's text boxes, currency and notes into this one.
+    enterApp();
     return true;
   }
   currentChar = null;
@@ -62167,9 +62198,8 @@ function _teardownPreviewState() {
 }
 
 function exitPreviewMode() {
-  const hadSession = _teardownPreviewState();
+  const hadSession = _teardownPreviewState();   // re-renders the restored character itself
   if (hadSession) {
-    enterApp();
     switchPage('main');
   } else {
     const tabs = document.getElementById('page-tabs');
