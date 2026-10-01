@@ -60542,6 +60542,7 @@ function populateFeaturesTab() {
     });
   } catch (err) { console.warn('[pdf] feature list capture failed', err); }
 
+  try { window._pdfFeatureTables = tableEntries.map(e => ({ name: e.name, text: e.desc || '', meta: [e.source, e.level ? 'Lv ' + e.level : ''].filter(Boolean).join(', ') })); } catch (err) {}
   const tablesEl = document.getElementById('tables-tab-list');
   if (tablesEl) {
     if (tableEntries.length) {
@@ -64335,7 +64336,11 @@ function pdfCollectCharacter() {
     level: T('level', () => getLevel(), c.level || 1),
     classLine: classes.map(e => `${_pdfCap(e.class)} ${e.levels?.length || 0}${e.subclass ? ' (' + e.subclass + ')' : ''}`).join(' / '),
     background: T('bg', () => (typeof PHB_BACKGROUNDS !== 'undefined' && PHB_BACKGROUNDS[(c.background || '').toLowerCase()]?.name) || _pdfCap(c.background), ''),
-    species: T('race', () => getRaceData(c.race)?.name || _pdfCap(c.race), ''),
+    species: T('race', () => {
+      const r = getRaceData(c.race)?.name || _pdfCap(c.race);
+      const sr = c.subrace ? (getSubraceData(c.race, c.subrace)?.name || _pdfCap(c.subrace)) : '';
+      return sr ? `${r} (${sr})` : r;
+    }, ''),
     xp: c.xp || 0,
     alignment: c.alignment || '', faith: c.faith || '', age: c.age || '', height: c.height || '', weight: c.weight || '',
     eyes: c.eyes || '', hair: c.hair || '', skin: c.skin || '', gender: c.gender || '',
@@ -64357,11 +64362,37 @@ function pdfCollectCharacter() {
     expert: !!document.getElementById('skill-exp-dot-' + sk.key)?.classList.contains('expert'),
   }));
   const perc = parseInt(D.skills.find(s => s.key === 'perception')?.val || '0', 10) || 0;
-  D.passivePerception = 10 + perc;
+  D.passivePerception = T('pp', () => document.getElementById('qs-pp')?.innerText.trim(), '') || (10 + perc);
   D.prof = prof;
+  D.saveLines = T('saveAdv', () => {
+    const out = [];
+    AB.forEach(k => {
+      const a = getSaveAdvantageSources(k), d = getSaveDisadvantageSources(k);
+      if (a.length) out.push(`Adv. ${k.toUpperCase()} saves: ${a.join(', ')}`);
+      if (d.length) out.push(`Disadv. ${k.toUpperCase()} saves: ${d.join(', ')}`);
+    });
+    const cs = typeof calcConcentrationSave === 'function' ? calcConcentrationSave() : null;
+    if (cs && ((typeof getAllSpellcastingClasses === 'function' && getAllSpellcastingClasses().length) || (c.spells?.known || []).length)) out.push(`Concentration: ${cs.totalStr}${cs.advSources?.length ? ' (Adv. - ' + cs.advSources.join(', ') + ')' : ''}`);
+    (typeof SKILLS !== 'undefined' ? SKILLS : []).forEach(sk => { const a = getSkillAdvantageSources(sk.key); if (a.length) out.push(`Adv. ${sk.name}: ${a.join(', ')}`); });
+    return out;
+  }, []);
+  D.status = T('status', () => {
+    const conds = [...(c.conditions || []), ...(c.customConditions || []).map(x => x.name || x)].map(x => typeof x === 'string' ? x : (x.name || ''))
+      .filter(Boolean).map(_pdfCap);
+    const out = [];
+    if (conds.length) out.push('Conditions: ' + conds.join(', '));
+    if (c.exhaustion) out.push(`Exhaustion level ${c.exhaustion}`);
+    if (c.drunkenness) out.push(`Drunkenness ${c.drunkenness}`);
+    if (c.contamination) out.push(`Contamination ${c.contamination}`);
+    return out;
+  }, []);
   D.initiative = T('init', () => document.getElementById('disp-init')?.innerText.trim(), '');
   const acb = T('ac', () => calcACBreakdown(), { total: c.ac, formula: '' });
   D.ac = { total: acb.total, formula: acb.formula || '' };
+  D.acTerms = String(acb.formula || '').split('=')[0].split(/\s+\+\s+|\s+(?=[\-\u2212]\s*\d)/).map(t => {
+    const m = t.trim().match(/^(.*?)\s*([+\-\u2212]?\s*\d+)$/);
+    return m ? { label: m[1].trim(), val: parseInt(m[2].replace(/\s|\u2212/g, x => x === '\u2212' ? '-' : ''), 10) } : null;
+  }).filter(Boolean);
   D.armor = (c.armorOwned || []).find(a => a.worn) || null;
   D.shield = !!c.shield;
   D.hp = { max: c.hp_max || 0, cur: c.hp_current ?? '', temp: c.hp_temp || '' };
@@ -64470,6 +64501,9 @@ function pdfCollectCharacter() {
   // features (exactly what the Features tab shows, DM text overrides applied)
   D.features = T('features', () => (window._pdfFeatureEntries || []).map(e => ({ ...e, text: pdfPlain(e.text) })), []);
   D.feats = D.features.filter(f => /feat/i.test(f.sourceType || '') || /\bfeat\b/i.test(f.kind || ''));
+  (c.boonsCurses || []).forEach(b => D.feats.push({ name: b.name || 'Boon/Curse', meta: _pdfCap(b.type || ''), text: pdfPlain(b.desc || ''), sourceType: 'Boon' }));
+  D.tables = T('tables', () => (window._pdfFeatureTables || []).map(t => ({ name: t.name, text: pdfPlain(t.text), meta: t.meta })), []);
+  D.mutations = (c.mutations || []).map(m => `${m.name || 'Mutation'}${m.roll ? ' (rolled ' + m.roll + ')' : ''}: ${pdfPlain(m.effect || m.desc || '')}`);
   D.racial = D.features.filter(f => f.sourceType === 'Race');
   D.classFeatures = D.features.filter(f => !D.feats.includes(f) && !D.racial.includes(f));
 
@@ -64508,7 +64542,9 @@ function pdfCollectCharacter() {
   (c.equipment || []).forEach(e => gear.push({ name: e.name, qty: e.qty ?? 1, wt: String(e.weight || '').replace(/\s*lb\.?/, '') }));
   items.filter(isConsumable).forEach(mi => gear.push({ name: (mi.customName || mi.name) + (mi.resistanceChoice ? ` (${mi.resistanceChoice})` : '') + (mi.scrollSpellKey ? ` (${(PHB_SPELL_LIST.find(s => s.key === mi.scrollSpellKey) || {}).name || mi.scrollSpellKey})` : ''), qty: mi.quantity || 1, wt: String(mi.weight || '').replace(/\s*lb\.?/, '') }));
   (c.valuables || []).forEach(v => gear.push({ name: _pdfCap(String(v.key || '').replace(/_/g, ' ')) + (v.customValue ? ` (${v.customValue})` : (typeof getValuableValue === 'function' ? T('val', () => { const x = getValuableValue(v); return x ? ` (${x})` : ''; }, '') : '')), qty: v.qty || 1, wt: '' }));
-  Object.entries(c.ammo || {}).filter(([, n]) => n > 0).forEach(([k, n]) => gear.push({ name: _pdfCap(k.replace(/_/g, ' ')), qty: n, wt: '' }));
+  D.ammo = Object.entries(c.ammo || {}).filter(([, n]) => n > 0).map(([k, n]) => ({ name: (c.ammoCustom || {})[k]?.label || _pdfCap(k.replace(/_/g, ' ')), qty: n }));
+  D.ammo.forEach(a => gear.push({ name: a.name, qty: a.qty, wt: '' }));
+  (c.mountsVehicles || []).forEach(m => { const def = (typeof MOUNTS_VEHICLES_CATALOG !== 'undefined') && MOUNTS_VEHICLES_CATALOG.find(x => x.key === m.key); gear.push({ name: (def?.name || _pdfCap(m.key)) + (def ? ` (${def.category})` : ''), qty: 1, wt: '' }); });
   D.gear = gear;
   D.coins = { cp: c.currency?.cp || 0, sp: c.currency?.sp || 0, ep: c.currency?.ep || 0, gp: c.currency?.gp || 0, pp: c.currency?.pp || 0 };
   D.carry = T('carry', () => {
@@ -64527,6 +64563,29 @@ function pdfCollectCharacter() {
     return { ...cr, hpCur: (c._companionHP || {})[cr.id] ?? cr.hp, tabLabel: def.tabLabel || 'Companion', note: def.note || '' };
   }, null);
 
+  D.extraText = [['Features (notes)', c.features], ['Goals', c.goals], ['Relationships', c.relationships], ['History', c.history]]
+    .filter(([, v]) => v && String(v).trim()).map(([h, v]) => [h, pdfPlain(v)]);
+  D.summons = T('summons', () => {
+    if (typeof migrateSummonStateIfNeeded === 'function') migrateSummonStateIfNeeded();
+    const abs2 = getAbilities(), spellAtk = prof + Math.max(abilityMod(abs2.int), abilityMod(abs2.wis), abilityMod(abs2.cha));
+    return (c._activeSummons || []).map(key => {
+      const def = SUMMON_SPELL_DEFS[key]; if (!def) return null;
+      const lv = def.fixedStatBlock ? 1 : getSummonSlotFor(key), form = getSummonFormFor(key);
+      const ev = (v, d) => typeof v === 'function' ? v(lv, form) : (v ?? d);
+      if (def.noStatBlock) return { name: def.creatureName || def.name, note: def.note || '', noStatBlock: true };
+      const hp = ev(def.hp, 0);
+      return { name: `${def.creatureName || def.name}${form ? ' (' + form + ')' : ''}`, spell: def.name, slot: lv,
+        size: def.size, type: def.type, alignment: '', ac: ev(def.ac, ''), hp, hpCur: (c._summonHP || {})[key] ?? hp,
+        speed: ev(def.speed, ''), scores: ev(def.scores, null) || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+        senses: ev(def.senses, ''), languages: ev(def.languages, ''), resistances: def.resistances || '', condImm: def.conditionImmunities || '',
+        traits: ev(def.traits, []), reactions: ev(def.reactions, []), multiattack: ev(def.multiattack, 1),
+        attacks: ev(def.attacks, []).map(a => ({ name: a.name, atkBonus: a.bonus ?? spellAtk, dmg: a.dmg, dmgType: a.type, range: a.range || a.reach || '', notes: a.notes || a.desc || '' })),
+        note: def.note || '', imgKey: form ? `${key}::${form}` : key, tabLabel: 'Summon' };
+    }).filter(Boolean);
+  }, []);
+  D.wildShapes = T('wildshape', () => (c._wsKnownForms || []).map(k => WILD_SHAPE_BEASTS.find(b => b.key === k)).filter(Boolean), []);
+  D.wildShapeUses = T('wsuses', () => ({ max: getWildShapeUsesMax(), used: parseInt(c._wsUsesUsed) || 0, maxCR: getWildShapeMaxCR() }), null);
+  D.portraitUrl = c.tokenUrl || '';
   D.notes = { traits: c.traits || '', ideals: c.ideals || '', bonds: c.bonds || '', flaws: c.flaws || '',
     appearance: c.appearance || '', allies: c.allies || '', enemies: c.enemies || '',
     backstory: (c.backstoryPrivate ? '' : (typeof deobfuscateText === 'function' ? deobfuscateText(c.backstory || '') : c.backstory || '')),
@@ -64733,17 +64792,18 @@ function pdfMakeFiller(L, doc, font) {
     for (let i = pages.length - 1; i >= 0; i--) doc.removePage(i);
     order.forEach(i => doc.addPage(pageObjs[i]));
   }
-  return { setText, check, shift, hide, rect, namesWithPrefix, fitSize, keepPages, missing, overflow, has: n => idx.has(n) };
+  return { setText, check, shift, hide, rect, namesWithPrefix, fitSize, keepPages, missing, overflow, has: n => idx.has(n), page: i => pages[i] };
 }
 
 // page layout of the cleaned template (see the template build script)
 const PDF_PAGES = ['CSfront', 'CSback', 'ASfront', 'ASbackgr', 'TPL.SSfront.1', 'TPL.SSmore.1', 'TPL.SSmore.2', 'TPL.SSmore.3',
-  'TPL.AScomp.1', 'TPL.AScomp.2', 'TPL.AScomp.3', 'TPL.WSfront.1', 'TPL.ASoverflow.1', 'TPL.ASoverflow.2', 'TPL.ASnotes.1', 'TPL.ASnotes.2', 'TPL.ASnotes.3'];
+  'TPL.AScomp.1', 'TPL.AScomp.2', 'TPL.AScomp.3', 'TPL.WSfront.1', 'TPL.WSfront.2', 'TPL.ASoverflow.1', 'TPL.ASoverflow.2', 'TPL.ASnotes.1', 'TPL.ASnotes.2', 'TPL.ASnotes.3'];
 
 function pdfFillMpmb(F, D) {
   const P = PDF_PAGES, use = new Set(['CSfront', 'CSback', 'ASfront', 'ASbackgr']);
   const longText = [];                       // [title, text] for the notes pages
   const S = (n, v, o) => F.setText(n, v, o);
+  const SC = (n, v, title, o) => { const rest = F.setText(n, v, o); if (rest) longText.push([title + ' (cont.)', rest]); return rest; };
   const id = D.identity;
 
   // ── page 1 ──
@@ -64757,14 +64817,22 @@ function pdfFillMpmb(F, D) {
   const SKF = { acrobatics: 'Acr', animal_handling: 'Ani', arcana: 'Arc', athletics: 'Ath', deception: 'Dec', history: 'His', insight: 'Ins', intimidation: 'Inti',
     investigation: 'Inv', medicine: 'Med', nature: 'Nat', perception: 'Perc', performance: 'Perf', persuasion: 'Pers', religion: 'Rel', sleight_of_hand: 'Sle', stealth: 'Ste', survival: 'Sur' };
   D.skills.forEach(s => { const f = SKF[s.key]; if (!f) return; S(f, s.val.replace('\u2212', '-')); if (s.prof || s.expert) F.check(f + ' Prof'); if (s.expert) F.check(f + ' Exp'); });
-  S('Saving Throw advantages / disadvantages', D.notes.savesNotes);
+  const stRest = S('Saving Throw advantages / disadvantages', [D.notes.savesNotes, ...D.saveLines, ...D.status].filter(Boolean).join('\n'));
+  if (stRest) longText.push(['Saving throw notes (cont.)', stRest]);
   S('Proficiency Bonus', _pdfSign(D.prof)); S('Initiative bonus', D.initiative);
   S('AC', D.ac.total);
-  const acm = D.ac.formula.match(/^(.*?)\s+(\d+)\s*\+\s*DEX\s*([+\-−]\s*\d+)/i);
-  if (D.armor || acm) { S('AC Armor Bonus', acm ? acm[2] : ''); S('AC Armor Description', D.armor ? D.armor.name + (D.armor.magicBonus ? ` +${D.armor.magicBonus}` : '') : (acm ? acm[1] : '')); }
-  if (acm) S('AC Dexterity Modifier', acm[3].replace(/\s|−/g, m => m === '−' ? '-' : ''));
-  if (D.shield) S('AC Shield Bonus', '2');
-  if (!acm && D.ac.formula) S('AC Armor Description', D.ac.formula);
+  {
+    const terms = D.acTerms.slice(), take = re => { const i = terms.findIndex(t => re.test(t.label)); return i >= 0 ? terms.splice(i, 1)[0] : null; };
+    const dex = take(/^DEX\b|dexterity/i), shield = take(/shield/i);
+    const base = terms.shift();
+    if (base) { S('AC Armor Bonus', base.val); S('AC Armor Description', base.label); }
+    if (dex) S('AC Dexterity Modifier', _pdfSign(dex.val));
+    if (shield) { S('AC Shield Bonus', _pdfSign(shield.val)); S('AC Shield Bonus Description', shield.label); }
+    else if (D.shield) S('AC Shield Bonus', '+2');
+    const others = [['AC Magic', 'AC Magic Description'], ['AC Misc Mod 1', 'AC Misc Mod 1 Description'], ['AC Misc Mod 2', 'AC Misc Mod 2 Description']];
+    terms.slice(0, 3).forEach((t, i) => { S(others[i][0], _pdfSign(t.val)); S(others[i][1], t.label); });
+    if (!D.acTerms.length && D.ac.formula) S('AC Armor Description', D.ac.formula);
+  }
   S('HP Max', D.hp.max); S('HP Current', D.hp.cur); S('HP Temp', D.hp.temp || '');
   D.hitDice.slice(0, 3).forEach((h, i) => { S(`HD${i + 1} Level`, h.levels); S(`HD${i + 1} Die`, h.die); S(`HD${i + 1} Used`, h.used); });
   for (let i = 1; i <= Math.min(3, D.deathSaves.successes || 0); i++) F.check('Death Save Success' + i);
@@ -64774,6 +64842,8 @@ function pdfFillMpmb(F, D) {
   S('Passive Perception', D.passivePerception); S('Vision', D.senses);
   D.resistances.concat(D.conditionImmunities.map(x => _pdfCap(x) + ' (cond.)')).slice(0, 6).forEach((r, i) => S('Resistance Damage Type ' + (i + 1), r));
   if (D.spellClasses[0]) { S('Spell save DC 1', D.spellClasses[0].dc); S('Spell DC 1 Mod', _pdfCap(D.spellClasses[0].ability)); }
+  if (D.spellClasses[1]) { S('Spell save DC 2', D.spellClasses[1].dc); S('Spell DC 2 Mod', _pdfCap(D.spellClasses[1].ability)); }
+  D.ammo.slice(0, 2).forEach((a, i) => { const s = i ? 'AmmoRightDisplay.' : 'AmmoLeftDisplay.'; S(s + 'Name', a.name); S(s + 'Amount', a.qty); });
   const at = D.armorTraining, wt = D.weaponTraining;
   if (at.light) F.check('Proficiency Armor Light'); if (at.medium) F.check('Proficiency Armor Medium');
   if (at.heavy) F.check('Proficiency Armor Heavy'); if (at.shields) F.check('Proficiency Shields');
@@ -64785,12 +64855,13 @@ function pdfFillMpmb(F, D) {
 
   const res = D.resources;
   if (res.length > 8) use.add('TPL.ASoverflow.1');
+  if (res.length > 16) longText.push(['More limited-use features', res.slice(16).map(r => `${r.name}: ${r.max} per ${r.recovery || '-'} (used ${r.used})`).join('\n')]);
   res.slice(0, 16).forEach((r, i) => {
     const n = i + 1, pre = n > 8 ? 'TPL.ASoverflow.1.' : '';
     S(pre + 'Limited Feature ' + n, r.name); S(pre + 'Limited Feature Max Usages ' + n, r.max);
     S(pre + 'Limited Feature Recovery ' + n, r.recovery); S(pre + 'Limited Feature Used ' + n, r.used);
   });
-  const actRow = (label, list) => list.slice(0, 12).forEach((a, i) => S((i >= 6 ? 'TPL.ASoverflow.1.' : '') + `${label} ${i + 1}`, a));
+  const actRow = (label, list) => { list.slice(0, 12).forEach((a, i) => S((i >= 6 ? 'TPL.ASoverflow.1.' : '') + `${label} ${i + 1}`, a)); if (list.length > 12) longText.push([`More ${label.toLowerCase()}s`, list.slice(12).join(', ')]); };
   actRow('Action', D.actions.action); actRow('Bonus Action', D.actions.bonus); actRow('Reaction', D.actions.reaction);
   if ([D.actions.action, D.actions.bonus, D.actions.reaction].some(l => l.length > 6)) use.add('TPL.ASoverflow.1');
   D.attacks.slice(0, 5).forEach((a, i) => {
@@ -64806,8 +64877,8 @@ function pdfFillMpmb(F, D) {
   const rt = D.racial.map(f => `${f.name}: ${pdfFirstSentences(f.text, 160)}`).join('\n');
   const rtRest = S('Racial Traits', `${id.species}${id.size ? ' - ' + id.size : ''}\n` + rt);
   S('Background Feature', id.background);
-  S('Background Feature Description', pdfPlain(D.backgroundBlurb.replace(/^.*BACKGROUND GRANTS\s*/i, '').replace(/STARTING EQUIPMENT[^\n]*\n?/i, '')));
-  S('Personality Trait', D.notes.traits); S('Ideal', D.notes.ideals); S('Bond', D.notes.bonds); S('Flaw', D.notes.flaws);
+  SC('Background Feature Description', pdfPlain(D.backgroundBlurb.replace(/^.*BACKGROUND GRANTS\s*/i, '').replace(/STARTING EQUIPMENT[^\n]*\n?/i, '')), 'Background');
+  SC('Personality Trait', D.notes.traits, 'Personality traits'); SC('Ideal', D.notes.ideals, 'Ideals'); SC('Bond', D.notes.bonds, 'Bonds'); SC('Flaw', D.notes.flaws, 'Flaws');
   // full text of everything summarised above goes on the notes pages
   longText.push(['Class & subclass features', D.classFeatures.map(f => `${f.name.toUpperCase()}${f.meta ? ' (' + f.meta + ')' : ''}\n${f.text}`).join('\n\n')]);
   if (D.racial.length) longText.push([`${id.species} traits`, D.racial.map(f => `${f.name.toUpperCase()}\n${f.text}`).join('\n\n')]);
@@ -64830,6 +64901,7 @@ function pdfFillMpmb(F, D) {
     if (rest) longText.push([`${f.name} (feat)`, f.text]);
   });
   if (D.feats.length > 4) use.add('TPL.ASoverflow.1');
+  D.feats.slice(8).forEach(f => longText.push([`${f.name}${f.meta ? ' (' + f.meta + ')' : ''}`, f.text]));
   D.magicItems.forEach((m, i) => {
     const n = i + 1;
     const pre = n <= 5 ? '' : n <= 12 ? 'TPL.ASoverflow.1.' : null;
@@ -64840,27 +64912,41 @@ function pdfFillMpmb(F, D) {
     const rest = S(pre + 'Extra.Magic Item Description ' + n, m.line + '. ' + m.text);
     if (rest) longText.push([m.name, m.line + '. ' + m.text]);
   });
+  if (gearOver.length > 36) longText.push(['More equipment', gearOver.slice(36).map(g => `${g.qty} x ${g.name}${g.wt ? ' (' + g.wt + ' lb)' : ''}`).join('\n')]);
   gearOver.slice(0, 36).forEach((g, i) => { S('Extra.Gear Row ' + (i + 1), g.name); S('Extra.Gear Amount ' + (i + 1), g.qty); S('Extra.Gear Weight ' + (i + 1), g.wt); });
   const extraNotes = [D.notes.notes, D.notes.spellNotes ? 'Spell notes: ' + D.notes.spellNotes : ''].filter(Boolean).join('\n');
   const enRest = S('Extra.Notes', extraNotes); if (enRest) longText.push(['Notes (cont.)', enRest]);
-  S('Extra.Other Holdings', D.notes.holdings);
+  SC('Extra.Other Holdings', D.notes.holdings, 'Other holdings');
   if (moreProfs.length) { use.add('TPL.ASoverflow.1'); S('TPL.ASoverflow.1.MoreProficiencies', moreProfs.join(', ')); }
 
   // ── page 4 : background / description ──
   const B = { 'Sex': id.gender, 'Age': id.age, 'Size Category': id.size, 'Height': id.height, 'Weight': id.weight, 'Alignment': id.alignment,
     'Faith/Deity': id.faith, 'Hair colour': id.hair, 'Eyes colour': id.eyes, 'Skin colour': id.skin };
   Object.entries(B).forEach(([k, v]) => S(k, v));
-  S('Background_Appearance', D.notes.appearance);
-  S('Background_Organisation.Left', D.notes.allies);
-  S('Background_Enemies', D.notes.enemies);
+  SC('Background_Appearance', D.notes.appearance, 'Appearance');
+  SC('Background_Organisation.Left', D.notes.allies, 'Allies & organisations');
+  SC('Background_Enemies', D.notes.enemies, 'Enemies');
   const hRest = S('Background_History', D.notes.backstory); if (hRest) longText.push(['Backstory (cont.)', hRest]);
 
   // ── spell sheet(s) ──
   if (D.spellGroups.length) pdfLayoutSpells(F, D, use);
 
-  // ── companion ──
-  if (D.companion) { use.add('TPL.AScomp.1'); pdfFillCompanion(F, 'TPL.AScomp.1.', D.companion); }
+  // ── companion pages: familiar / class companion, then every active summon ──
+  const creatures = [D.companion, ...D.summons].filter(Boolean);
+  creatures.forEach((cr, i) => {
+    if (cr.noStatBlock) { longText.push([cr.name, cr.note]); return; }
+    if (i < 3) { use.add(`TPL.AScomp.${i + 1}`); pdfFillCompanion(F, `TPL.AScomp.${i + 1}.`, cr); }
+    else longText.push([cr.name, pdfCreatureText(cr)]);
+  });
 
+  // ── wild shape forms (4 per page) ──
+  if (D.wildShapes.length) pdfFillWildShapes(F, D, use, longText);
+
+  D.extraText.forEach(t => longText.push(t));
+  D.tables.forEach(t => longText.push([`${t.name}${t.meta ? ' (' + t.meta + ')' : ''}`, t.text]));
+  if (D.mutations.length) longText.push(['Mutations', D.mutations.join('\n')]);
+
+  if (D._spellOverflow) longText.unshift(['More spells', D._spellOverflow]);
   // ── notes pages: full feature / item text and anything that overflowed ──
   const body = longText.filter(([, t]) => t && t.trim()).map(([h, t]) => `=== ${h.toUpperCase()} ===\n${t.trim()}`).join('\n\n');
   if (body) {
@@ -64870,11 +64956,20 @@ function pdfFillMpmb(F, D) {
       rest = S(`TPL.ASnotes.${k}.Notes.Left`, rest, { sizes: [7] });
       if (rest) rest = S(`TPL.ASnotes.${k}.Notes.Right`, rest, { sizes: [7] });
     }
+    if (rest) D.warnings.push(`Notes pages full - ${rest.length} characters of long text were left out`);
+  }
+
+  if (D.portraitImg) {
+    const page = F.page(P.indexOf('ASbackgr'));
+    const box = { x: 27.0, y: 436.3, w: 172.3, h: 219.1 }, pad = 4;
+    const sc = Math.min((box.w - 2 * pad) / D.portraitImg.width, (box.h - 2 * pad) / D.portraitImg.height);
+    const w = D.portraitImg.width * sc, h = D.portraitImg.height * sc;
+    page.drawImage(D.portraitImg, { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, width: w, height: h });
   }
 
   // ── keep the pages in use, in reading order ──
   const ORDER = ['CSfront', 'CSback', 'TPL.SSfront.1', 'TPL.SSmore.1', 'TPL.SSmore.2', 'TPL.SSmore.3', 'ASfront', 'TPL.ASoverflow.1',
-    'TPL.AScomp.1', 'TPL.AScomp.2', 'TPL.AScomp.3', 'ASbackgr', 'TPL.ASnotes.1', 'TPL.ASnotes.2', 'TPL.ASnotes.3'];
+    'TPL.AScomp.1', 'TPL.AScomp.2', 'TPL.AScomp.3', 'TPL.WSfront.1', 'TPL.WSfront.2', 'ASbackgr', 'TPL.ASnotes.1', 'TPL.ASnotes.2', 'TPL.ASnotes.3'];
   const order = ORDER.filter(p => use.has(p)).map(p => P.indexOf(p));
   F.keepPages(new Set(order), order);
 }
@@ -64972,7 +65067,10 @@ function pdfLayoutSpells(F, D, use) {
     F.setText(PAGES[last.pi].pre + `spells.description.${last.slot + 2}`,
       'P prepared, A always prepared, B Book of Shadows, R ritual, F invocation, I item, S species, T feat, O other.  Book: P PHB, X XGE, T TCE', { maxSize: 6 });
   }
-  if (placed.length < items.length) D.warnings.push(`Spell list truncated: ${items.length - placed.length} entries did not fit on 4 spell pages`);
+  if (placed.length < items.length) {
+    D.warnings.push(`${items.length - placed.length} spell-sheet lines did not fit on 4 spell pages - listed on the notes pages`);
+    D._spellOverflow = items.slice(placed.length).filter(x => x.t === 'row').map(x => `${x.r.name} (${x.r.level ? 'level ' + x.r.level : 'cantrip'}): ${x.r.desc}`).join('\n');
+  }
 
   // slots (first spell page only)
   const pre = PAGES[0].pre;
@@ -65007,9 +65105,58 @@ function pdfFillCompanion(F, pre, cr) {
     S(p + 'Weapon Selection', a.name); S(p + 'Range', a.range); S(p + 'To Hit', a.atkBonus !== undefined ? _pdfSign(a.atkBonus) : '');
     S(p + 'Damage', a.dmg); S(p + 'Damage Type', a.dmgType); S(p + 'Description', a.notes);
   });
-  S('Comp.Use.Features', (cr.actions || []).concat(cr.reactions || []).map(x => pdfPlain(x)).join('\n') || pdfPlain(cr.note || ''));
-  S('Comp.Use.Traits', (cr.traits || []).map(x => pdfPlain(x)).join('\n'));
-  if (cr.skills) S('Cnote.Left', 'Skills: ' + cr.skills);
+  if (cr.multiattack) S('Comp.Use.Attack.perAction', cr.multiattack);
+  const feat = [...(cr.actions || []), ...(cr.reactions || []).map(x => 'Reaction - ' + pdfPlain(x))].map(x => pdfPlain(x));
+  const featRest = S('Comp.Use.Features', feat.join('\n') || pdfPlain(cr.note || ''));
+  const trait = [cr.resistances ? 'Resistances: ' + cr.resistances : '', cr.condImm ? 'Condition immunities: ' + cr.condImm : '', ...(cr.traits || []).map(x => pdfPlain(x))].filter(Boolean);
+  const traitRest = S('Comp.Use.Traits', trait.join('\n'));
+  const extraAtk = (cr.attacks || []).slice(3).map(a => `${a.name}: ${a.atkBonus !== undefined ? _pdfSign(a.atkBonus) : ''} ${a.dmg || ''} ${a.dmgType || ''} ${a.notes || ''}`);
+  const cnote = [cr.spell ? `${cr.spell} (${['', '1st', '2nd', '3rd'][cr.slot] || cr.slot + 'th'}-level slot)` : '', cr.skills ? 'Skills: ' + cr.skills : '',
+    cr.note && (cr.actions || cr.reactions) ? pdfPlain(cr.note) : '', ...extraAtk, featRest, traitRest].filter(Boolean).join('\n');
+  S('Cnote.Left', cnote);
+}
+
+function pdfCreatureText(cr) {
+  const sc = cr.scores || {};
+  return [`${cr.size || ''} ${cr.type || ''}. AC ${cr.ac}, HP ${cr.hp}, Speed ${cr.speed}`,
+    ['str', 'dex', 'con', 'int', 'wis', 'cha'].map(k => `${k.toUpperCase()} ${sc[k] ?? 10}`).join(', '),
+    cr.senses, ...(cr.attacks || []).map(a => `${a.name}: ${_pdfSign(a.atkBonus || 0)}, ${a.dmg} ${a.dmgType || ''}`), ...(cr.traits || [])].filter(Boolean).map(pdfPlain).join('\n');
+}
+
+function pdfFillWildShapes(F, D, use, longText) {
+  const SKF = { acrobatics: 'Acr', animal_handling: 'Ani', arcana: 'Arc', athletics: 'Ath', deception: 'Dec', history: 'His', insight: 'Ins', intimidation: 'Inti',
+    investigation: 'Inv', medicine: 'Med', nature: 'Nat', perception: 'Perc', performance: 'Perf', persuasion: 'Pers', religion: 'Rel', sleight_of_hand: 'Sle', stealth: 'Ste', survival: 'Sur' };
+  const SKAB = { acrobatics: 1, animal_handling: 4, arcana: 3, athletics: 0, deception: 5, history: 3, insight: 4, intimidation: 5, investigation: 3, medicine: 4, nature: 3,
+    perception: 4, performance: 5, persuasion: 5, religion: 3, sleight_of_hand: 1, stealth: 1, survival: 4 };
+  const A3 = ['Str', 'Dex', 'Con', 'Int', 'Wis', 'Cha'];
+  D.wildShapes.forEach((b, i) => {
+    const pg = Math.floor(i / 4) + 1, slot = (i % 4) + 1;
+    if (pg > 2) { longText.push([`Wild Shape: ${b.name}`, pdfCreatureText({ ...b, scores: Object.fromEntries(['str', 'dex', 'con', 'int', 'wis', 'cha'].map((k, x) => [k, b.scores?.[x]])), attacks: [] })]); return; }
+    use.add(`TPL.WSfront.${pg}`);
+    const pre = `TPL.WSfront.${pg}.Wildshape.${slot}.`, S = (n, v, o) => F.setText(pre + n, v, o);
+    const sc = b.scores || [10, 10, 10, 10, 10, 10], pb = b.proficiencyBonus || 2, m = x => Math.floor((x - 10) / 2);
+    S('Size', b.size); S('MonsterType', `Beast (${b.name})`); S('CR', b.cr); S('AC', b.ac); S('HP Max', b.hp); S('HP Current', b.hp);
+    S('Speed', String(b.speed || '').replace(/,\s*/g, '\n'), { maxSize: 8 }); S('Proficiency Bonus', _pdfSign(pb)); S('Initiative Bonus', _pdfSign(m(sc[1])));
+    A3.forEach((a, x) => { S(`Ability.${a}.Score`, sc[x]); S(`Ability.${a}.Mod`, _pdfSign(m(sc[x]))); S(`Ability.${a}.ST.Mod`, _pdfSign(m(sc[x]))); });
+    Object.entries(SKF).forEach(([k, f]) => {
+      const v = b.skills && b.skills[k] !== undefined ? b.skills[k] : m(sc[SKAB[k]]);
+      S(`Skills.${f}.Mod`, _pdfSign(v)); if (b.skills && b.skills[k] !== undefined) F.check(pre + `Skills.${f}.Prof`);
+    });
+    S('Skills.PassPerc', 10 + (b.skills?.perception ?? m(sc[4])));
+    (b.attacks || []).slice(0, 2).forEach((a, x) => {
+      const mod = a.ability === 2 ? m(sc[1]) : m(sc[0]), p = `Attack.${x + 1}.`;
+      S(p + 'Weapon', a.name); S(p + 'Range', a.range); S(p + 'To Hit', _pdfSign(mod + pb));
+      S(p + 'Damage', a.condition || (a.dmg ? `${a.dmg}${mod ? ' ' + _pdfSign(mod) : ''}`.replace(/\s+(Piercing|Slashing|Bludgeoning|Poison|Acid|Fire|Cold)\b/i, '') : '-'));
+      S(p + 'Damage Type', a.dmgType); S(p + 'Description', a.desc || a.notes || '');
+    });
+    const tr = [b.senses ? 'Senses: ' + b.senses : '', ...(b.traits || []), ...(b.actions || []), ...(b.attacks || []).slice(2).map(a => `${a.name}: ${a.dmg || ''}`)].filter(Boolean).map(pdfPlain).join('\n');
+    const rest = S('Traits', tr); if (rest) longText.push([`Wild Shape: ${b.name} (cont.)`, rest]);
+  });
+  const u = D.wildShapeUses;
+  for (let pg = 1; pg <= Math.min(2, Math.ceil(D.wildShapes.length / 4)); pg++) {
+    if (u) { F.setText(`TPL.WSfront.${pg}.Wildshapes.Info.Uses`, `${Math.max(0, u.max - u.used)} / ${u.max} uses`); F.setText(`TPL.WSfront.${pg}.Wildshapes.Info.Limitations`, `Max CR ${u.maxCR}`); }
+    F.setText(`TPL.WSfront.${pg}.AdvLog.PC Name`, D.identity.name);
+  }
 }
 
 // ═══════════════════ 3. ENTRY POINT ═══════════════════
@@ -65024,6 +65171,16 @@ async function exportCharacterPdf() {
     const doc = await L.PDFDocument.load(bytes);
     const font = await doc.embedFont(L.StandardFonts.Helvetica);
     const F = pdfMakeFiller(L, doc, font);
+    if (D.portraitUrl) {
+      try {
+        const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
+        const r = await fetch(D.portraitUrl, { signal: ctl.signal }); clearTimeout(tm);
+        if (r.ok) {
+          const b = new Uint8Array(await r.arrayBuffer());
+          D.portraitImg = (b[0] === 0x89 && b[1] === 0x50) ? await doc.embedPng(b) : await doc.embedJpg(b);
+        }
+      } catch (e) { D.warnings.push('portrait: ' + e.message); }
+    }
     pdfFillMpmb(F, D);
     doc.setTitle(`${D.identity.name} - ${D.identity.classLine}`);
     doc.setProducer('Character Sheet export');
