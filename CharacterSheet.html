@@ -2826,6 +2826,7 @@ body.preview-readonly #mi-detail-edit-row * {
            destructive Logout action last so it's furthest from an
            accidental tap. -->
       <button class="tbtn" id="save-btn" onclick="saveChar()"><span class="btn-label-full">Save</span><span class="btn-label-short" style="display:none">💾</span></button>
+      <button class="tbtn" id="pdf-export-btn" onclick="exportCharacterPdf()" title="Export this character as a printable (still fillable) PDF"><span class="btn-label-full">PDF</span><span class="btn-label-short" style="display:none">📄</span></button>
       <button class="tbtn" id="dm-topbar-btn" onclick="openDMPanelDirect()" title="DM Panel" style="display:none;border-color:var(--gold);color:var(--gold)">⚔ DM</button>
       <button class="tbtn" id="view-as-player-btn" onclick="toggleViewAsPlayer()" title="Temporarily hide DM-only controls (edit pencils, Grants buttons, DM badges) to see exactly what a player sees" style="display:none;border-color:var(--gold);color:var(--gold)">👁 View As Player</button>
       <button class="tbtn" onclick="openPartyOverview()" title="Party Overview">👁 Parties</button>
@@ -51244,6 +51245,13 @@ function renderResourceTracker() {
   // sequence the Features tab itself builds from).
   visibleDefs.sort((a, b) => (a.minLevel ?? 99) - (b.minLevel ?? 99));
 
+  try {   // what the tracker shows, for the PDF export's Limited Features block
+    window._pdfResourceRows = visibleDefs.map(def => {
+      const eff = def._resClass ? getClassLevelCount(def._resClass) : level;
+      return { id: def.id, name: def.name, max: getResourceMax(def, eff, prof), recovery: def.recovery, type: def.type,
+        used: def.linkedField ? (parseInt(currentChar[def.linkedField]) || 0) : (parseInt(currentChar.resources[def.id]) || 0) };
+    });
+  } catch (err) { window._pdfResourceRows = null; }
   body.innerHTML = '';
   for (const def of visibleDefs) {
     body.appendChild(renderResourceEntry(def, level, prof));
@@ -60519,6 +60527,20 @@ function populateFeaturesTab() {
     else if (e.sourceType === 'Background Feat') key = `feat:${e.name}`;
     return !key || !_dmHidden.includes(key);
   });
+  try {
+    window._pdfFeatureEntries = nonTableEntries.map(e => {
+      let k = null;
+      if (!e.isHtml) {
+        if (e.sourceType === 'Class') k = `class:${cls}:${e.name}`;
+        else if (e.sourceType === 'Subclass' && subKey) k = `subclass:${subKey}:${e.name}`;
+        else if (e.sourceType === 'Race') k = `race:${race}:${e.name}`;
+        else if (e.sourceType === 'Feat' || e.sourceType === 'Background Feat') k = `feat:${e.name}`;
+      }
+      const text = (typeof getEffectiveText === 'function' && k) ? getEffectiveText(k, e.desc) : e.desc;
+      const meta = [e.source, e.level ? 'Lv ' + e.level : '', e.usages ? `${typeof resolveFeatureUsage === 'function' ? resolveFeatureUsage(e.usages) : e.usages}/${e.recovery || '-'}` : ''].filter(Boolean).join(', ');
+      return { name: e.name, text: text || '', sourceType: e.sourceType || '', meta, kind: e.kind || '' };
+    });
+  } catch (err) { console.warn('[pdf] feature list capture failed', err); }
 
   const tablesEl = document.getElementById('tables-tab-list');
   if (tablesEl) {
@@ -64203,5 +64225,833 @@ function updateWildCompanionUI() {
   </div>
 </div>
 
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// PDF EXPORT - fills the cleaned MPMB fillable template with this
+// character. Two halves:
+//   pdfCollectCharacter()  - gathers everything in app terms, using the
+//                             same functions/rendered panels the sheet uses,
+//                             so the PDF always shows what the sheet shows
+//   pdfFillMpmb()          - maps that onto the template's field names
+// The template is a plain fillable form (all MPMB scripts stripped); the
+// result stays editable. pdf-lib is lazy-loaded on first export.
+// ═══════════════════════════════════════════════════════════════════════
+const PDF_EXPORT_CFG = {
+  libUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
+  templatePath: 'templates/character_sheet_template.pdf',
+};
+// Ruled lines inside multi-line boxes: [distance of first rule below the
+// box top, number of rules]; rules are 11pt apart. Text sits on them.
+const PDF_RULES = {"Saving Throw advantages / disadvantages":[11.9,6],"Vision":[12.1,3],"Class Features":[11.6,44],"Personality Trait":[0.0,5],"Ideal":[0.0,4],"Bond":[0.0,4],"Flaw":[0.0,4],"Background Feature Description":[11.8,6],"Racial Traits":[-0.2,11],"Extra.Notes":[12.0,34],"Extra.Other Holdings":[13.0,7],"Feat Description 1":[12.2,5],"Feat Description 2":[12.2,5],"Feat Description 3":[12.2,5],"Feat Description 4":[12.2,5],"Extra.Magic Item Description 1":[12.3,5],"Extra.Magic Item Description 2":[12.2,5],"Extra.Magic Item Description 3":[12.2,5],"Extra.Magic Item Description 4":[12.2,5],"Extra.Magic Item Description 5":[13.3,5],"Background_Organisation.Left":[11.4,20],"Background_Organisation.Right":[11.6,4],"Background_Appearance":[11.6,11],"Background_Enemies":[11.5,16],"Background_History":[11.6,33],"Comp.Use.Features":[-0.2,18],"Comp.Use.Traits":[-0.2,18],"Cnote.Left":[11.5,19],"Wildshape.1.Traits":[0.6,9],"Wildshape.2.Traits":[0.5,9],"Wildshape.3.Traits":[0.6,9],"Wildshape.4.Traits":[0.5,9],"Extra.Magic Item Description 6":[12.3,7],"Extra.Magic Item Description 7":[12.3,7],"Extra.Magic Item Description 8":[12.3,7],"Extra.Magic Item Description 9":[12.2,7],"Extra.Magic Item Description 10":[12.2,7],"Extra.Magic Item Description 11":[12.2,7],"Extra.Magic Item Description 12":[12.3,7],"Feat Description 5":[12.3,5],"Feat Description 6":[12.2,5],"Feat Description 7":[12.2,5],"Feat Description 8":[12.3,5],"MoreProficiencies":[0.1,7],"Notes.Left":[-0.1,67],"Notes.Right":[-0.1,67]};
+let _pdfTemplateBytes = null;
+
+async function pdfLoadLib() {
+  if (window.PDFLib) return window.PDFLib;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = PDF_EXPORT_CFG.libUrl;
+    s.onload = res;
+    s.onerror = () => rej(new Error('Could not load the PDF library (pdf-lib) - check your connection'));
+    document.head.appendChild(s);
+  });
+  if (!window.PDFLib) throw new Error('PDF library failed to initialise');
+  return window.PDFLib;
+}
+
+function pdfPickTemplateFile() {
+  return new Promise(res => {
+    const i = document.createElement('input');
+    i.type = 'file'; i.accept = 'application/pdf,.pdf';
+    i.onchange = () => res(i.files[0] || null);
+    i.click();
+  });
+}
+
+async function pdfGetTemplate() {
+  if (_pdfTemplateBytes) return _pdfTemplateBytes;
+  const url = `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch}/${PDF_EXPORT_CFG.templatePath}`;
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _pdfTemplateBytes = new Uint8Array(await r.arrayBuffer());
+    return _pdfTemplateBytes;
+  } catch (e) {
+    console.warn('[pdf] template download failed, asking for the file instead:', e);
+    toast('Could not download the sheet template - choose the template PDF file', 'warn');
+  }
+  const file = await pdfPickTemplateFile();
+  if (!file) throw new Error('No template chosen');
+  _pdfTemplateBytes = new Uint8Array(await file.arrayBuffer());
+  return _pdfTemplateBytes;
+}
+
+// ── text helpers ───────────────────────────────────────────────────────
+function pdfPlain(s) {
+  if (s === null || s === undefined) return '';
+  s = String(s);
+  if (/<[a-z][\s\S]*>/i.test(s)) {           // rendered HTML -> text
+    const d = document.createElement('div');
+    d.innerHTML = s.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|tr|h\d)>/gi, '\n');
+    s = d.textContent || '';
+  }
+  return s
+    .replace(/\{\{[A-Z_]+\}\}/g, '')
+    .replace(/\*\*\*|\*\*|__/g, '')
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s.,;:)!?]|$)/g, '$1$2')
+    .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,;:)!?]|$)/g, '$1$2')
+    .replace(/^\s*\|?\s*:?-{3,}.*$/gm, '')     // markdown table separator rows
+    .replace(/\s+\|\s+/g, ' | ')
+    .replace(/\t/g, ' ')
+    .replace(/[ ]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+function pdfFirstSentences(s, maxLen = 170) {
+  s = pdfPlain(s).replace(/\s*\n+\s*/g, ' ');
+  if (s.length <= maxLen) return s;
+  const cut = s.slice(0, maxLen);
+  const dot = cut.lastIndexOf('. ');
+  return (dot > 60 ? cut.slice(0, dot + 1) : cut.replace(/\s+\S*$/, '') + '...');
+}
+const _pdfSign = n => (n >= 0 ? '+' : '') + n;
+const _pdfCap = s => s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : '';
+
+// ═══════════════════ 1. COLLECT (app terms) ═══════════════════
+function pdfCollectCharacter() {
+  const c = currentChar, warn = [];
+  const T = (label, f, fb) => { try { const v = f(); return v === undefined ? fb : v; } catch (e) { warn.push(label + ': ' + e.message); return fb; } };
+  // make sure every panel we read is freshly rendered for THIS character
+  ['renderSkillsBlock', 'renderSavesBlock', 'renderResourceTracker'].forEach(fn => { try { window[fn] && window[fn](); } catch (e) {} });
+  try { populateFeaturesTab(); } catch (e) { warn.push('features: ' + e.message); }
+
+  const D = {};
+  const abs = T('abilities', () => getAbilities(), {});
+  const prof = T('prof', () => getProf(), 2);
+  const AB = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+  const classes = T('classes', () => getAllClasses(), []);
+  D.identity = {
+    name: c.charName || c.name || '',
+    player: c.playerName || '',
+    level: T('level', () => getLevel(), c.level || 1),
+    classLine: classes.map(e => `${_pdfCap(e.class)} ${e.levels?.length || 0}${e.subclass ? ' (' + e.subclass + ')' : ''}`).join(' / '),
+    background: T('bg', () => (typeof PHB_BACKGROUNDS !== 'undefined' && PHB_BACKGROUNDS[(c.background || '').toLowerCase()]?.name) || _pdfCap(c.background), ''),
+    species: T('race', () => getRaceData(c.race)?.name || _pdfCap(c.race), ''),
+    xp: c.xp || 0,
+    alignment: c.alignment || '', faith: c.faith || '', age: c.age || '', height: c.height || '', weight: c.weight || '',
+    eyes: c.eyes || '', hair: c.hair || '', skin: c.skin || '', gender: c.gender || '',
+    size: c.sizeCurrentOverride || c.sizeOverride || '',
+  };
+  const XP = [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
+  D.identity.nextXp = D.identity.level < 20 ? XP[D.identity.level] : '';
+
+  D.abilities = AB.map(k => ({ key: k, score: abs[k] ?? 10, mod: abilityMod(abs[k] ?? 10) }));
+  D.saves = AB.map(k => ({
+    key: k,
+    val: T('save ' + k, () => document.getElementById('save-val-' + k)?.innerText.trim(), _pdfSign(abilityMod(abs[k] ?? 10))),
+    prof: !!document.getElementById('save-dot-' + k)?.classList.contains('prof'),
+  }));
+  D.skills = (typeof SKILLS !== 'undefined' ? SKILLS : []).map(sk => ({
+    key: sk.key, ability: sk.ability,
+    val: document.getElementById('skill-val-' + sk.key)?.innerText.trim() || '',
+    prof: !!document.getElementById('skill-prof-dot-' + sk.key)?.classList.contains('prof'),
+    expert: !!document.getElementById('skill-exp-dot-' + sk.key)?.classList.contains('expert'),
+  }));
+  const perc = parseInt(D.skills.find(s => s.key === 'perception')?.val || '0', 10) || 0;
+  D.passivePerception = 10 + perc;
+  D.prof = prof;
+  D.initiative = T('init', () => document.getElementById('disp-init')?.innerText.trim(), '');
+  const acb = T('ac', () => calcACBreakdown(), { total: c.ac, formula: '' });
+  D.ac = { total: acb.total, formula: acb.formula || '' };
+  D.armor = (c.armorOwned || []).find(a => a.worn) || null;
+  D.shield = !!c.shield;
+  D.hp = { max: c.hp_max || 0, cur: c.hp_current ?? '', temp: c.hp_temp || '' };
+  D.hitDice = classes.map(e => ({
+    cls: e.class, levels: e.levels?.length || 0,
+    die: 'd' + (T('die', () => getClassData(String(e.class).toLowerCase())?.die, 8) || 8),
+    used: (c.hd_used_by_class || {})[String(e.class).toLowerCase()] || 0,
+  }));
+  D.deathSaves = c.death_saves || c.deathSaves || { successes: 0, failures: 0 };
+  D.speed = T('speed', () => {
+    const walk = document.getElementById('disp-speed')?.innerText.trim() || c.speed || 30;
+    const o = c.speedOverrides || {};
+    const extra = ['climb', 'swim', 'fly', 'burrow'].filter(k => o[k]).map(k => `${_pdfCap(k)} ${o[k]}`);
+    if (c._raceFlySpeed && !o.fly) extra.push(`Fly ${c._raceFlySpeed}`);
+    return { walk: String(walk), extra: extra.join(', ') };
+  }, { walk: '30', extra: '' });
+  D.senses = T('senses', () => document.getElementById('senses-box')?.innerText.trim(), '');
+  D.resistances = Object.entries(c.damageStates || {}).filter(([, v]) => v).map(([k, v]) => _pdfCap(k) + (v === 'immune' ? ' (immune)' : v === 'vulnerable' ? ' (vuln.)' : ''));
+  D.conditionImmunities = c.conditionImmunities || [];
+  D.languages = T('langs', () => (document.getElementById('lang-profs-summary')?.innerText || '').split('\n').map(s => s.trim()).filter(Boolean), []);
+  D.tools = T('tools', () => {
+    const lines = (document.getElementById('tool-profs-summary')?.innerText || '').split('\n').map(s => s.trim()).filter(Boolean);
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (/^(STR|DEX|CON|INT|WIS|CHA)$/.test(lines[i]) || /^[+−-]\d+$/.test(lines[i])) continue;
+      if (/\(owned\)/i.test(lines[i])) continue;                  // owned, not proficient
+      const bonus = /^[+−-]\d+$/.test(lines[i + 2] || '') ? lines[i + 2].replace('−', '-') : '';
+      out.push(lines[i] + (bonus ? ` (${bonus})` : ''));
+    }
+    return out;
+  }, []);
+  const wap = c.weaponArmorProfs || {};
+  D.armorTraining = { light: !!wap.light_armor, medium: !!wap.medium_armor, heavy: !!wap.heavy_armor, shields: !!wap.shields };
+  D.weaponTraining = { simple: !!(wap.simple_weapons || wap.simple_melee_weapons), martial: !!wap.martial_weapons,
+    other: [...(c.customWeaponArmorProfs || [])].join(', ') };
+
+  // limited-use features <- resource tracker (Used = expended)
+  D.resources = T('resources', () => (window._pdfResourceRows || []).map(d => {
+    const rec = String(d.recovery ?? 'long').toLowerCase();
+    return { name: d.name, max: d.max, used: d.used || 0,
+      recovery: /short/.test(rec) ? 'Short Rest' : /long/.test(rec) ? 'Long Rest' : /dawn/.test(rec) ? 'Dawn' : /dusk/.test(rec) ? 'Dusk' : _pdfCap(rec) };
+  }).filter(r => r.max > 0 && !(r.name === 'Heroic Inspiration')), []);
+  D.heroicInspiration = T('hi', () => {
+    const def = buildAllResourceDefs().find(d => d.id === 'heroic_inspiration');
+    if (!def) return !!c.heroicInspiration;
+    const max = getResourceMax(def, getLevel(), prof);
+    return max > 0 && ((c.resources || {}).heroic_inspiration || 0) < max;
+  }, false);
+  const ss = T('slots', () => computeSpellSlotsForChar(c), { levels: [] });
+  if (ss?.warlock?.max) D.resources.push({ name: `Pact Magic slots (${ss.warlock.slotLevel}${['', 'st', 'nd', 'rd'][ss.warlock.slotLevel] || 'th'} level)`, max: ss.warlock.max, used: ss.warlock.used || 0, recovery: 'Short Rest' });
+
+  // attacks: equipped weapons + damaging cantrips
+  D.attacks = [];
+  const seen = new Set();
+  (c.weapons || []).filter(w => w.equipped !== false).forEach(w => {
+    const a = T('weapon ' + w.name, () => calcWeaponAttack(w), null);
+    if (!a) return;
+    const dm = String(a.dmgStr || '').match(/^(.*?)\s+([a-z]+)$/i);
+    const row = { name: w.name || a.phbWeapon?.name || 'Weapon', ability: _pdfCap(a.abilityKey), range: a.phbWeapon?.range || (a.isRanged ? 'Ranged' : 'Melee'),
+      hit: _pdfSign(a.atkBonus), dmg: dm ? dm[1] : a.dmgStr, type: dm ? _pdfCap(dm[2]) : _pdfCap(a.dmgType),
+      notes: [...(a.notes || []), a.phbWeapon?.mastery ? 'Mastery: ' + _pdfCap(a.phbWeapon.mastery) : ''].filter(Boolean).join(', '), prof: !!a.isProficient };
+    const sig = [row.name, row.hit, row.dmg].join('|');
+    if (seen.has(sig)) return; seen.add(sig);
+    D.attacks.push(row);
+  });
+
+  // spellcasting (per class) + spell rows grouped by owning class
+  D.spellClasses = T('spellClasses', () => getAllSpellcastingClasses().map(sc => {
+    const mod = abilityMod(abs[sc.ability] ?? 10);
+    return { cls: sc.cls, sub: sc.sub, level: sc.level, ability: sc.ability, mod,
+      dc: 8 + prof + mod + (getSpellDCBonus() || 0), atk: prof + mod + (getSpellAtkBonus() || 0),
+      prepare: getClassPreparedMax(sc.cls, sc.level) };
+  }), []);
+  D.slots = ss;
+  D.slotsUsed = c.spell_slots_used || {};
+  const rows = T('spellRows', () => buildKnownSpellRows(), []);
+  const owner = T('owner', () => resolveSpellRowClasses(rows), new Map());
+  const firstSc = D.spellClasses[0];
+  D.spellGroups = [];
+  const byGroup = new Map();
+  rows.forEach(r => {
+    if (r.pipType === 'locked-level' || r.unavailable) return;
+    const g = owner.get(r.key) || '_other';
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    if (byGroup.get(g).some(x => x.key === r.key)) return;
+    byGroup.get(g).push(r);
+  });
+  [...D.spellClasses.map(s => s.cls), '_other'].forEach(g => {
+    const list = byGroup.get(g); if (!list || !list.length) return;
+    D.spellGroups.push({ cls: g, info: D.spellClasses.find(s => s.cls === g) || null, rows: list.map(r => pdfSpellRow(r, g)) });
+  });
+  // cantrip attacks for the attacks block
+  D.spellGroups.flatMap(g => g.rows).filter(s => s.level === 0 && /\d+d\d+/.test(s.desc) && /damage/i.test(s.descFull || s.desc)).forEach(s => {
+    const sc = D.spellClasses.find(x => x.cls === s.group) || firstSc;
+    if (!sc) return;
+    const dice = (s.desc.match(/(\d+d\d+)/) || [])[1] || '';
+    const tier = D.identity.level >= 17 ? 4 : D.identity.level >= 11 ? 3 : D.identity.level >= 5 ? 2 : 1;
+    const perBeam = /beam/i.test(s.desc);
+    const scaled = dice && !perBeam ? dice.replace(/^(\d+)/, n => String(+n * tier)) : dice;
+    const type = (s.descFull.match(/\b(Acid|Bludgeoning|Cold|Fire|Force|Lightning|Necrotic|Piercing|Poison|Psychic|Radiant|Slashing|Thunder) damage/i) || [])[1] || '';
+    D.attacks.push({ name: s.name, ability: _pdfCap(sc.ability), range: s.range, prof: true,
+      hit: s.save ? `DC ${sc.dc}` : _pdfSign(sc.atk), dmg: (perBeam && tier > 1 ? `${tier}x ` : '') + scaled, type: _pdfCap(type),
+      notes: (s.save ? s.save + ' save; ' : 'Cantrip; ') + pdfFirstSentences(s.desc, 90) });
+  });
+
+  // features (exactly what the Features tab shows, DM text overrides applied)
+  D.features = T('features', () => (window._pdfFeatureEntries || []).map(e => ({ ...e, text: pdfPlain(e.text) })), []);
+  D.feats = D.features.filter(f => /feat/i.test(f.sourceType || '') || /\bfeat\b/i.test(f.kind || ''));
+  D.racial = D.features.filter(f => f.sourceType === 'Race');
+  D.classFeatures = D.features.filter(f => !D.feats.includes(f) && !D.racial.includes(f));
+
+  // actions / bonus actions / reactions found in features, feats and items
+  const act = { action: [], bonus: [], reaction: [] };
+  // Only explicit grants ("as a Bonus Action", "take a Magic action", "use
+  // your Reaction") count - not every passing mention of an action type.
+  const SKIPNAME = /known|options|improvement|choose|expanded|spell list|subclass$|book of shadows|^\w+ \(phb/i;
+  const scan = (name, text) => {
+    const t = pdfPlain(text);
+    if (!name || !t || SKIPNAME.test(name)) return;
+    if (/\b(as a|use a|take a|use your|as your|spend your) Bonus Action\b|\bBonus Action to\b/i.test(t)) act.bonus.push(name);
+    if (/\b(as a|use your|take a|you can take a|using your) Reaction\b/i.test(t)) act.reaction.push(name);
+    if (/\b(take a Magic action|as a Magic action|as an action|use an action|take an action|as an Action)\b/i.test(t)) act.action.push(name);
+  };
+  D.classFeatures.concat(D.feats, D.racial).forEach(f => scan(f.name, f.text));
+  const items = (c.magicItems || []);
+  items.forEach(mi => scan(mi.customName || mi.name, mi.desc || mi._baseDesc));
+  const uniq = a => [...new Set(a)];
+  D.actions = { action: uniq(act.action), bonus: uniq(act.bonus), reaction: uniq(act.reaction) };
+
+  // magic items: attuned first; consumables go to the gear list
+  const isConsumable = mi => /potion|scroll/i.test(mi.type || '') || /token|ammunition/i.test(mi.name || '');
+  const rarityShort = r => ({ common: 'Com.', uncommon: 'Unc.', rare: 'Rare', 'very rare': 'V.rare', legendary: 'Leg.', artifact: 'Artif.' }[String(r || '').toLowerCase()] || (r ? _pdfCap(String(r).split(' ')[0]).slice(0, 7) : ''));
+  D.magicItems = items.filter(mi => !isConsumable(mi)).map(mi => ({
+    name: mi.customName || mi.name || mi._baseName || 'Magic item', short: rarityShort(mi.rarity), attuned: !!mi.attuned,
+    line: [_pdfCap(mi.rarity), mi.type, mi.attunement ? (mi.attuned ? 'attuned' : 'requires attunement') : '', mi.attunementNoSlot ? 'no slot' : ''].filter(Boolean).join(', '),
+    text: pdfPlain((mi.desc || mi._baseDesc || '').replace(/\{\{VESSEL_AC\}\}/g, firstSc ? firstSc.dc : '').replace(/\{\{VESSEL_HP\}\}/g, '')) + (mi.notes ? '\nNotes: ' + mi.notes : ''),
+  })).sort((a, b) => (b.attuned - a.attuned));
+  D.attunedList = D.magicItems.filter(m => m.attuned).map(m => m.name);
+
+  // gear
+  const gear = [];
+  (c.armorOwned || []).forEach(a => gear.push({ name: (a.name || a.key) + (a.worn ? ' (worn)' : ''), qty: 1, wt: a.weight || '' }));
+  (c.weapons || []).filter(w => !w._fromMagicItem && !w.naturalWeapon && w.weaponKey !== 'unarmed_strike').forEach(w => gear.push({ name: w.name, qty: w.qty || 1, wt: (w.weight || '').replace(/\s*lb\.?/, '') }));
+  (c.equipment || []).forEach(e => gear.push({ name: e.name, qty: e.qty ?? 1, wt: String(e.weight || '').replace(/\s*lb\.?/, '') }));
+  items.filter(isConsumable).forEach(mi => gear.push({ name: (mi.customName || mi.name) + (mi.resistanceChoice ? ` (${mi.resistanceChoice})` : '') + (mi.scrollSpellKey ? ` (${(PHB_SPELL_LIST.find(s => s.key === mi.scrollSpellKey) || {}).name || mi.scrollSpellKey})` : ''), qty: mi.quantity || 1, wt: String(mi.weight || '').replace(/\s*lb\.?/, '') }));
+  (c.valuables || []).forEach(v => gear.push({ name: _pdfCap(String(v.key || '').replace(/_/g, ' ')) + (v.customValue ? ` (${v.customValue})` : (typeof getValuableValue === 'function' ? T('val', () => { const x = getValuableValue(v); return x ? ` (${x})` : ''; }, '') : '')), qty: v.qty || 1, wt: '' }));
+  Object.entries(c.ammo || {}).filter(([, n]) => n > 0).forEach(([k, n]) => gear.push({ name: _pdfCap(k.replace(/_/g, ' ')), qty: n, wt: '' }));
+  D.gear = gear;
+  D.coins = { cp: c.currency?.cp || 0, sp: c.currency?.sp || 0, ep: c.currency?.ep || 0, gp: c.currency?.gp || 0, pp: c.currency?.pp || 0 };
+  D.carry = T('carry', () => {
+    const txt = document.getElementById('page-inventory')?.innerText || '';
+    const m = txt.match(/([\d.]+)\s*\/\s*([\d.]+)\s*lb/);
+    const cap = getCarryCapacityFor(c);
+    return { carried: m ? m[1] + ' lb' : '', capacity: cap + ' lb', push: (cap * 2) + ' lb' };
+  }, { carried: '', capacity: '', push: '' });
+
+  // companion (familiar / class companion)
+  D.companion = T('companion', () => {
+    const a = getActiveCompanionDef(); if (!a?.def) return null;
+    const def = a.def, choice = (c._companionChoice || {})[def.choiceGroup];
+    const cr = (def.companions || []).find(x => x.id === choice) || (def.companions || []).find(x => !x.choosable) || null;
+    if (!cr) return null;
+    return { ...cr, hpCur: (c._companionHP || {})[cr.id] ?? cr.hp, tabLabel: def.tabLabel || 'Companion', note: def.note || '' };
+  }, null);
+
+  D.notes = { traits: c.traits || '', ideals: c.ideals || '', bonds: c.bonds || '', flaws: c.flaws || '',
+    appearance: c.appearance || '', allies: c.allies || '', enemies: c.enemies || '',
+    backstory: (c.backstoryPrivate ? '' : (typeof deobfuscateText === 'function' ? deobfuscateText(c.backstory || '') : c.backstory || '')),
+    holdings: c.holdings || '', notes: c.notes || '', spellNotes: c.spell_notes || '', savesNotes: c.saves_notes || '' };
+  D.backgroundBlurb = T('bgblurb', () => {
+    const el = [...document.querySelectorAll('#page-background *')].find(e => /BACKGROUND GRANTS/i.test(e.innerText || '') && e.children.length > 2);
+    return el ? el.innerText : '';
+  }, '');
+  D.warnings = warn;
+  return D;
+}
+
+function pdfSpellRow(r, group) {
+  const s = (typeof PHB_SPELL_LIST !== 'undefined' && PHB_SPELL_LIST.find(x => x.key === r.key)) || {};
+  const full = pdfPlain(s.descFull || '');
+  const save = (full.match(/\b(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) saving throw/) || [])[1];
+  const SCH = { Abjuration: 'Abjur', Conjuration: 'Conj', Divination: 'Div', Enchantment: 'Ench', Evocation: 'Evoc', Illusion: 'Illus', Necromancy: 'Necro', Transmutation: 'Trans' };
+  const src = String(s.source || '');
+  let mark = '';
+  if (r.pipType === 'prepared') mark = 'P';
+  else if (r.pipType === 'cantrip') mark = '';
+  else {
+    const lbl = String(r.label || r.source || '').toLowerCase();
+    const src = lbl + ' ' + String(r.source || '').toLowerCase();
+    mark = /book of shadows|pact_tome|ritual/.test(src) ? (r.level > 0 ? 'R' : 'B')
+      : /item|scroll|wand|rod|staff|ring|amulet|vestige/.test(lbl) || r.itemGrants ? 'I'
+      : /invocation|pact of|fiendish|chain/.test(lbl) || r.invocationGrants ? 'F'
+      : /subclass|always|domain|oath|circle|patron/.test(lbl) || r.pipType === 'always' ? 'A'
+      : /race|species|racial|lineage|heritage/.test(lbl) ? 'S'
+      : /feat/.test(lbl) || r.pipType === 'feat-spell' ? 'T'
+      : 'O';
+  }
+  return {
+    key: r.key, group, level: r.level ?? s.level ?? 0, mark,
+    name: (r.name || s.name || r.key) + (s.ritual ? ' (R)' : ''),
+    desc: pdfPlain(s.desc || r.desc || ''), descFull: full,
+    save: save ? save.slice(0, 3) : '',
+    school: SCH[s.school] || (s.school || '').slice(0, 5), time: s.time || '', range: s.range || '',
+    comp: s.components || '', dur: (s.duration || '').replace(/Instantaneous/i, 'Inst.'),
+    book: /PHB/.test(src) ? 'P' : /XGE|Xanathar/.test(src) ? 'X' : /TCE|Tasha/.test(src) ? 'T' : src ? src[0].toUpperCase() : '',
+  };
+}
+
+// ═══════════════════ 2. FILL (MPMB template) ═══════════════════
+function pdfMakeFiller(L, doc, font) {
+  const { PDFName, PDFDict, PDFArray, PDFNumber, PDFHexString } = L;
+  const ctx = doc.context, N = n => PDFName.of(n);
+  const idx = new Map();
+  const pages = doc.getPages();
+  pages.forEach((page, pi) => {
+    const annots = page.node.lookup(N('Annots'));
+    if (!(annots instanceof PDFArray)) return;
+    for (let i = 0; i < annots.size(); i++) {
+      const ref = annots.get(i), w = ctx.lookup(ref);
+      if (!(w instanceof PDFDict) || String(w.get(N('Subtype'))) !== '/Widget') continue;
+      const parts = []; let cur = w;
+      while (cur) {
+        const t = cur.lookup(N('T')); if (t) parts.unshift(t.decodeText());
+        const p = cur.lookup(N('Parent')); cur = p instanceof PDFDict ? p : null;
+      }
+      const name = parts.join('.');
+      if (!idx.has(name)) idx.set(name, []);
+      idx.get(name).push({ w, ref, pi });
+    }
+  });
+  const inh = (d, k) => { let cur = d; while (cur) { const v = cur.lookup(N(k)); if (v !== undefined) return v; const p = cur.lookup(N('Parent')); cur = p instanceof PDFDict ? p : null; } return undefined; };
+  const num = v => (v && typeof v.asNumber === 'function') ? v.asNumber() : 0;
+  const fieldOf = w => w.has(N('T')) ? w : w.lookup(N('Parent'));
+  const flags = w => num(w.lookup(N('F')));
+  const setFlags = (w, f) => w.set(N('F'), PDFNumber.of(f));
+  const rectOf = w => { const a = w.lookup(N('Rect')); const v = [0, 1, 2, 3].map(i => num(a.lookup(i))); return [Math.min(v[0], v[2]), Math.min(v[1], v[3]), Math.max(v[0], v[2]), Math.max(v[1], v[3])]; };
+  const missing = [], overflow = [];
+
+  const okChar = new Map();
+  const MAP = { '\u2212': '-', '\u2010': '-', '\u2011': '-', '\u00a0': ' ', '\u2009': ' ', '\u202f': ' ', '\u2192': '->', '\u2190': '<-', '\u2264': '<=', '\u2265': '>=', '\u2248': '~', '\u2713': 'v', '\u2714': 'v', '\u25cf': '\u2022', '\u2605': '*', '\u2606': '*', '\u2502': '|' };
+  const safe = text => [...String(text)].map(ch => {
+    if (MAP[ch] !== undefined) ch = MAP[ch];
+    if (ch === '\n') return ch;
+    if (!okChar.has(ch)) { try { font.encodeText(ch); okChar.set(ch, true); } catch (e) { okChar.set(ch, false); } }
+    return okChar.get(ch) ? ch : '?';
+  }).join('');
+  const width = (t, s) => font.widthOfTextAtSize(t, s);
+  const wrap = (text, size, w) => {
+    const out = [];
+    String(text).split('\n').forEach(para => {
+      let line = '';
+      para.split(' ').forEach(word => {
+        const t = line ? line + ' ' + word : word;
+        if (width(t, size) <= w || !line) line = t; else { out.push(line); line = word; }
+      });
+      out.push(line);
+    });
+    return out;
+  };
+  const stream = (ops, bw, bh, withFont = true) => {
+    const dict = { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, bw, bh] };
+    if (withFont) dict.Resources = { Font: { Helv: font.ref } };
+    return ctx.register(ctx.stream(ops, dict));
+  };
+  const textOps = (lines, size, xs, ys) => ['/Tx BMC', 'q', 'BT', `/Helv ${size.toFixed(2)} Tf`, '0 g',
+    ...lines.map((ln, i) => `1 0 0 1 ${xs[i].toFixed(2)} ${ys[i].toFixed(2)} Tm ${font.encodeText(ln).toString()} Tj`), 'ET', 'Q', 'EMC'].join('\n');
+
+  // returns any text that didn't fit (multi-line boxes) so it can flow on
+  function setText(name, value, o = {}) {
+    if (value === null || value === undefined || value === '') return '';
+    const list = idx.get(name);
+    if (!list) { missing.push(name); return ''; }
+    const text = safe(value);
+    const anyVisible = list.some(x => !(flags(x.w) & 2));
+    let rest = '';
+    list.forEach(({ w }) => {
+      const f = fieldOf(w);
+      f.set(N('V'), PDFHexString.fromText(text));
+      if (anyVisible && (flags(w) & 2)) return;
+      if (flags(w) & 2) setFlags(w, flags(w) & ~2);
+      const [x1, y1, x2, y2] = rectOf(w), bw = x2 - x1, bh = y2 - y1, pad = 1.5;
+      const ml = o.multiline ?? !!(num(inh(f, 'Ff')) & 4096);
+      const q = o.align ?? num(inh(f, 'Q'));
+      const key = name.replace(/^TPL\.[A-Za-z]+\.\d+\./, '');
+      const rules = PDF_RULES[key];
+      let lines, size, xs, ys;
+      if (ml && rules) {
+        const bases = []; for (let k = 0; k < rules[1]; k++) { const d = rules[0] + 11 * k; if (d >= 7 && d <= bh) bases.push(bh - d + 1.8); }
+        for (size of (o.sizes || [8, 7.5, 7, 6.5])) { lines = wrap(text, size, bw - 2 * pad); if (lines.length <= bases.length) break; }
+        if (lines.length > bases.length) { rest = lines.slice(bases.length).join(' '); lines = lines.slice(0, bases.length); overflow.push(name); }
+        xs = lines.map(() => pad); ys = bases;
+      } else if (ml) {
+        for (size = Math.min(o.maxSize || 9, 9); size >= 5; size -= 0.5) { lines = wrap(text, size, bw - 2 * pad); if (lines.length * size * 1.15 <= bh - pad) break; }
+        const maxL = Math.max(1, Math.floor((bh - pad) / (size * 1.15)));
+        if (lines.length > maxL) { rest = lines.slice(maxL).join(' '); lines = lines.slice(0, maxL); overflow.push(name); }
+        ys = lines.map((_, i) => bh - pad - size - i * size * 1.15); xs = lines.map(() => pad);
+      } else {
+        size = Math.min(o.maxSize || 9, bh * 0.72);
+        const one = text.replace(/\s*\n\s*/g, ' ');
+        while (size > (o.minSize || 4) && width(one, size) > bw - 2 * pad) size -= 0.25;
+        let t = one;
+        if (width(t, size) > bw - 2 * pad) { while (t.length > 1 && width(t + '...', size) > bw - 2 * pad) t = t.slice(0, -1); t += '...'; overflow.push(name); }
+        lines = [t]; ys = [(bh - size * 0.72) / 2];
+        const tw = width(t, size);
+        xs = [q === 1 ? (bw - tw) / 2 : q === 2 ? bw - pad - tw : pad];
+      }
+      w.set(N('AP'), ctx.obj({ N: stream(textOps(lines, size, xs, ys), bw, bh) }));
+    });
+    return rest;
+  }
+  function check(name, on = true, pip = false) {
+    const list = idx.get(name);
+    if (!list) { missing.push(name); return; }
+    list.forEach(({ w }) => {
+      if (flags(w) & 2) setFlags(w, flags(w) & ~2);
+      if (pip) {
+        const [x1, y1, x2, y2] = rectOf(w), d = Math.min(x2 - x1, y2 - y1), r = d / 2 - 0.8, cc = d / 2, k = 0.5523 * r;
+        const circ = `${cc + r} ${cc} m ${cc + r} ${cc + k} ${cc + k} ${cc + r} ${cc} ${cc + r} c ${cc - k} ${cc + r} ${cc - r} ${cc + k} ${cc - r} ${cc} c ${cc - r} ${cc - k} ${cc - k} ${cc - r} ${cc} ${cc - r} c ${cc + k} ${cc - r} ${cc + r} ${cc - k} ${cc + r} ${cc} c`;
+        w.set(N('AP'), ctx.obj({ N: { True: stream(`q 0.6 w 0 G 0 g ${circ} B Q`, d, d, false), Off: stream(`q 0.6 w 0 G ${circ} S Q`, d, d, false) } }));
+      }
+      const ap = w.lookup(N('AP')); const nd = ap && ap.lookup(N('N'));
+      let onName = 'True';
+      if (nd instanceof PDFDict) { const k = nd.keys().map(x => x.decodeText ? x.decodeText() : String(x).replace(/^\//, '')).find(x => x !== 'Off'); if (k) onName = k; }
+      fieldOf(w).set(N('V'), N(on ? onName : 'Off'));
+      w.set(N('AS'), N(on ? onName : 'Off'));
+    });
+  }
+  function shift(name, dy) {
+    (idx.get(name) || []).forEach(({ w }) => {
+      const [x1, y1, x2, y2] = rectOf(w);
+      w.set(N('Rect'), ctx.obj([x1, y1 + dy, x2, y2 + dy]));
+      if (flags(w) & 2) setFlags(w, flags(w) & ~2);
+    });
+  }
+  function hide(name) { (idx.get(name) || []).forEach(({ w }) => setFlags(w, flags(w) | 2)); }
+  function rect(name) { const l = idx.get(name); return l ? rectOf(l[0].w) : null; }
+  function namesWithPrefix(pre) { return [...idx.keys()].filter(k => k.startsWith(pre)); }
+  function fitSize(name, text, maxSize = 9, minSize = 4) {
+    const r = rect(name); if (!r) return maxSize;
+    const bw = r[2] - r[0] - 3; let s = Math.min(maxSize, (r[3] - r[1]) * 0.72);
+    const t = safe(text);
+    while (s > minSize && width(t, s) > bw) s -= 0.25;
+    return s;
+  }
+  // drop pages (and every form field that only lived on them)
+  function keepPages(keepIdx, order) {
+    const keepRefs = new Set();
+    pages.forEach((p, i) => { if (!keepIdx.has(i)) return; const a = p.node.lookup(N('Annots')); if (a instanceof PDFArray) for (let k = 0; k < a.size(); k++) keepRefs.add(a.get(k).toString()); });
+    const acro = doc.catalog.lookup(N('AcroForm'), PDFDict);
+    const prune = arr => {
+      const out = [];
+      for (let i = 0; i < arr.size(); i++) {
+        const ref = arr.get(i), d = ctx.lookup(ref);
+        const kids = d.lookup(N('Kids'));
+        if (kids instanceof PDFArray) {
+          const k = prune(kids);
+          if (!k.length && !d.has(N('Subtype'))) continue;
+          d.set(N('Kids'), ctx.obj(k)); out.push(ref);
+        } else {
+          if (d.has(N('Subtype')) && !keepRefs.has(ref.toString())) continue;
+          out.push(ref);
+        }
+      }
+      return out;
+    };
+    acro.set(N('Fields'), ctx.obj(prune(acro.lookup(N('Fields'), PDFArray))));
+    acro.set(N('NeedAppearances'), ctx.obj(false));
+    const pageObjs = pages.slice();
+    for (let i = pages.length - 1; i >= 0; i--) doc.removePage(i);
+    order.forEach(i => doc.addPage(pageObjs[i]));
+  }
+  return { setText, check, shift, hide, rect, namesWithPrefix, fitSize, keepPages, missing, overflow, has: n => idx.has(n) };
+}
+
+// page layout of the cleaned template (see the template build script)
+const PDF_PAGES = ['CSfront', 'CSback', 'ASfront', 'ASbackgr', 'TPL.SSfront.1', 'TPL.SSmore.1', 'TPL.SSmore.2', 'TPL.SSmore.3',
+  'TPL.AScomp.1', 'TPL.AScomp.2', 'TPL.AScomp.3', 'TPL.WSfront.1', 'TPL.ASoverflow.1', 'TPL.ASoverflow.2', 'TPL.ASnotes.1', 'TPL.ASnotes.2', 'TPL.ASnotes.3'];
+
+function pdfFillMpmb(F, D) {
+  const P = PDF_PAGES, use = new Set(['CSfront', 'CSback', 'ASfront', 'ASbackgr']);
+  const longText = [];                       // [title, text] for the notes pages
+  const S = (n, v, o) => F.setText(n, v, o);
+  const id = D.identity;
+
+  // ── page 1 ──
+  S('PC Name', id.name); S('Player Name', id.player);
+  S('Class and Levels', id.classLine); S('Character Level', id.level);
+  S('Background', id.background); S('Race', id.species);
+  S('Total Experience', id.xp); S('Next level', id.nextXp);
+  const A3 = { str: 'Str', dex: 'Dex', con: 'Con', int: 'Int', wis: 'Wis', cha: 'Cha' };
+  D.abilities.forEach(a => { S(A3[a.key], a.score); S(A3[a.key] + ' Mod', _pdfSign(a.mod)); });
+  D.saves.forEach(s => { S(A3[s.key] + ' ST Mod', s.val.replace('\u2212', '-')); if (s.prof) F.check(A3[s.key] + ' ST Prof'); });
+  const SKF = { acrobatics: 'Acr', animal_handling: 'Ani', arcana: 'Arc', athletics: 'Ath', deception: 'Dec', history: 'His', insight: 'Ins', intimidation: 'Inti',
+    investigation: 'Inv', medicine: 'Med', nature: 'Nat', perception: 'Perc', performance: 'Perf', persuasion: 'Pers', religion: 'Rel', sleight_of_hand: 'Sle', stealth: 'Ste', survival: 'Sur' };
+  D.skills.forEach(s => { const f = SKF[s.key]; if (!f) return; S(f, s.val.replace('\u2212', '-')); if (s.prof || s.expert) F.check(f + ' Prof'); if (s.expert) F.check(f + ' Exp'); });
+  S('Saving Throw advantages / disadvantages', D.notes.savesNotes);
+  S('Proficiency Bonus', _pdfSign(D.prof)); S('Initiative bonus', D.initiative);
+  S('AC', D.ac.total);
+  const acm = D.ac.formula.match(/^(.*?)\s+(\d+)\s*\+\s*DEX\s*([+\-−]\s*\d+)/i);
+  if (D.armor || acm) { S('AC Armor Bonus', acm ? acm[2] : ''); S('AC Armor Description', D.armor ? D.armor.name + (D.armor.magicBonus ? ` +${D.armor.magicBonus}` : '') : (acm ? acm[1] : '')); }
+  if (acm) S('AC Dexterity Modifier', acm[3].replace(/\s|−/g, m => m === '−' ? '-' : ''));
+  if (D.shield) S('AC Shield Bonus', '2');
+  if (!acm && D.ac.formula) S('AC Armor Description', D.ac.formula);
+  S('HP Max', D.hp.max); S('HP Current', D.hp.cur); S('HP Temp', D.hp.temp || '');
+  D.hitDice.slice(0, 3).forEach((h, i) => { S(`HD${i + 1} Level`, h.levels); S(`HD${i + 1} Die`, h.die); S(`HD${i + 1} Used`, h.used); });
+  for (let i = 1; i <= Math.min(3, D.deathSaves.successes || 0); i++) F.check('Death Save Success' + i);
+  for (let i = 1; i <= Math.min(3, D.deathSaves.failures || 0); i++) F.check('Death Save Fail' + i);
+  if (D.heroicInspiration) F.check('Inspiration');
+  S('Speed', D.speed.walk + (D.speed.extra ? '\n' + D.speed.extra : ''), { maxSize: 8 });
+  S('Passive Perception', D.passivePerception); S('Vision', D.senses);
+  D.resistances.concat(D.conditionImmunities.map(x => _pdfCap(x) + ' (cond.)')).slice(0, 6).forEach((r, i) => S('Resistance Damage Type ' + (i + 1), r));
+  if (D.spellClasses[0]) { S('Spell save DC 1', D.spellClasses[0].dc); S('Spell DC 1 Mod', _pdfCap(D.spellClasses[0].ability)); }
+  const at = D.armorTraining, wt = D.weaponTraining;
+  if (at.light) F.check('Proficiency Armor Light'); if (at.medium) F.check('Proficiency Armor Medium');
+  if (at.heavy) F.check('Proficiency Armor Heavy'); if (at.shields) F.check('Proficiency Shields');
+  if (wt.simple) F.check('Proficiency Weapon Simple'); if (wt.martial) F.check('Proficiency Weapon Martial');
+  if (wt.other) { F.check('Proficiency Weapon Other'); S('Proficiency Weapon Other Description', wt.other); }
+  D.languages.slice(0, 6).forEach((l, i) => S('Language ' + (i + 1), l));
+  D.tools.slice(0, 6).forEach((t, i) => S('Tool ' + (i + 1), t));
+  const moreProfs = [...D.languages.slice(6), ...D.tools.slice(6)];
+
+  const res = D.resources;
+  if (res.length > 8) use.add('TPL.ASoverflow.1');
+  res.slice(0, 16).forEach((r, i) => {
+    const n = i + 1, pre = n > 8 ? 'TPL.ASoverflow.1.' : '';
+    S(pre + 'Limited Feature ' + n, r.name); S(pre + 'Limited Feature Max Usages ' + n, r.max);
+    S(pre + 'Limited Feature Recovery ' + n, r.recovery); S(pre + 'Limited Feature Used ' + n, r.used);
+  });
+  const actRow = (label, list) => list.slice(0, 12).forEach((a, i) => S((i >= 6 ? 'TPL.ASoverflow.1.' : '') + `${label} ${i + 1}`, a));
+  actRow('Action', D.actions.action); actRow('Bonus Action', D.actions.bonus); actRow('Reaction', D.actions.reaction);
+  if ([D.actions.action, D.actions.bonus, D.actions.reaction].some(l => l.length > 6)) use.add('TPL.ASoverflow.1');
+  D.attacks.slice(0, 5).forEach((a, i) => {
+    const p = `Attack.${i + 1}.`;
+    S(p + 'Weapon Selection', a.name); S(p + 'Mod', a.ability); S(p + 'Range', a.range); S(p + 'To Hit', a.hit);
+    S(p + 'Damage', a.dmg); S(p + 'Damage Type', a.type); S(p + 'Description', a.notes); if (a.prof) F.check(p + 'Proficiency');
+  });
+  if (D.attacks.length > 5) longText.push(['More attacks', D.attacks.slice(5).map(a => `${a.name}: ${a.hit}, ${a.dmg} ${a.type} (${a.range}). ${a.notes}`).join('\n')]);
+
+  // ── page 2 ──
+  const cf = D.classFeatures.map(f => `${f.name.toUpperCase()}${f.meta ? ' (' + f.meta + ')' : ''}: ${pdfFirstSentences(f.text, 200)}`).join('\n');
+  const cfRest = S('Class Features', cf);
+  const rt = D.racial.map(f => `${f.name}: ${pdfFirstSentences(f.text, 160)}`).join('\n');
+  const rtRest = S('Racial Traits', `${id.species}${id.size ? ' - ' + id.size : ''}\n` + rt);
+  S('Background Feature', id.background);
+  S('Background Feature Description', pdfPlain(D.backgroundBlurb.replace(/^.*BACKGROUND GRANTS\s*/i, '').replace(/STARTING EQUIPMENT[^\n]*\n?/i, '')));
+  S('Personality Trait', D.notes.traits); S('Ideal', D.notes.ideals); S('Bond', D.notes.bonds); S('Flaw', D.notes.flaws);
+  // full text of everything summarised above goes on the notes pages
+  longText.push(['Class & subclass features', D.classFeatures.map(f => `${f.name.toUpperCase()}${f.meta ? ' (' + f.meta + ')' : ''}\n${f.text}`).join('\n\n')]);
+  if (D.racial.length) longText.push([`${id.species} traits`, D.racial.map(f => `${f.name.toUpperCase()}\n${f.text}`).join('\n\n')]);
+
+  const GEAR_ROWS = [...Array(50).keys()].map(i => i + 1);   // 51 is the attuned title row
+  let gearOver = [];
+  D.gear.forEach((g, i) => {
+    if (i < GEAR_ROWS.length) { const n = GEAR_ROWS[i]; S('Adventuring Gear Row ' + n, g.name); S('Adventuring Gear Amount ' + n, g.qty); S('Adventuring Gear Weight ' + n, g.wt); }
+    else gearOver.push(g);
+  });
+  D.attunedList.slice(0, 3).forEach((n, i) => S('Adventuring Gear Row ' + (52 + i), n));
+  S('Copper Pieces', D.coins.cp); S('Silver Pieces', D.coins.sp); S('Electrum Pieces', D.coins.ep); S('Gold Pieces', D.coins.gp); S('Platinum Pieces', D.coins.pp);
+  S('Weight Carried', D.carry.carried); S('Weight Carrying Capacity.Field', D.carry.capacity); S('Weight Push/Drag/Lift', D.carry.push);
+
+  // ── page 3 (+ overflow) : feats, magic items, extra gear, notes ──
+  D.feats.slice(0, 8).forEach((f, i) => {
+    const n = i + 1, pre = n > 4 ? 'TPL.ASoverflow.1.' : '';
+    S(pre + 'Feat Name ' + n, f.name); S(pre + 'Feat Note ' + n, f.meta);
+    const rest = S(pre + 'Feat Description ' + n, f.text);
+    if (rest) longText.push([`${f.name} (feat)`, f.text]);
+  });
+  if (D.feats.length > 4) use.add('TPL.ASoverflow.1');
+  D.magicItems.forEach((m, i) => {
+    const n = i + 1;
+    const pre = n <= 5 ? '' : n <= 12 ? 'TPL.ASoverflow.1.' : null;
+    if (!pre && pre !== '') { longText.push([m.name, m.line + '. ' + m.text]); return; }
+    if (n > 5) use.add('TPL.ASoverflow.1');
+    S(pre + 'Extra.Magic Item ' + n, m.name); S(pre + 'Extra.Magic Item Note ' + n, m.short, { align: 1 });
+    if (m.attuned) F.check(pre + 'Extra.Magic Item Attuned ' + n);
+    const rest = S(pre + 'Extra.Magic Item Description ' + n, m.line + '. ' + m.text);
+    if (rest) longText.push([m.name, m.line + '. ' + m.text]);
+  });
+  gearOver.slice(0, 36).forEach((g, i) => { S('Extra.Gear Row ' + (i + 1), g.name); S('Extra.Gear Amount ' + (i + 1), g.qty); S('Extra.Gear Weight ' + (i + 1), g.wt); });
+  const extraNotes = [D.notes.notes, D.notes.spellNotes ? 'Spell notes: ' + D.notes.spellNotes : ''].filter(Boolean).join('\n');
+  const enRest = S('Extra.Notes', extraNotes); if (enRest) longText.push(['Notes (cont.)', enRest]);
+  S('Extra.Other Holdings', D.notes.holdings);
+  if (moreProfs.length) { use.add('TPL.ASoverflow.1'); S('TPL.ASoverflow.1.MoreProficiencies', moreProfs.join(', ')); }
+
+  // ── page 4 : background / description ──
+  const B = { 'Sex': id.gender, 'Age': id.age, 'Size Category': id.size, 'Height': id.height, 'Weight': id.weight, 'Alignment': id.alignment,
+    'Faith/Deity': id.faith, 'Hair colour': id.hair, 'Eyes colour': id.eyes, 'Skin colour': id.skin };
+  Object.entries(B).forEach(([k, v]) => S(k, v));
+  S('Background_Appearance', D.notes.appearance);
+  S('Background_Organisation.Left', D.notes.allies);
+  S('Background_Enemies', D.notes.enemies);
+  const hRest = S('Background_History', D.notes.backstory); if (hRest) longText.push(['Backstory (cont.)', hRest]);
+
+  // ── spell sheet(s) ──
+  if (D.spellGroups.length) pdfLayoutSpells(F, D, use);
+
+  // ── companion ──
+  if (D.companion) { use.add('TPL.AScomp.1'); pdfFillCompanion(F, 'TPL.AScomp.1.', D.companion); }
+
+  // ── notes pages: full feature / item text and anything that overflowed ──
+  const body = longText.filter(([, t]) => t && t.trim()).map(([h, t]) => `=== ${h.toUpperCase()} ===\n${t.trim()}`).join('\n\n');
+  if (body) {
+    let rest = body;
+    for (let k = 1; k <= 3 && rest; k++) {
+      use.add(`TPL.ASnotes.${k}`);
+      rest = S(`TPL.ASnotes.${k}.Notes.Left`, rest, { sizes: [7] });
+      if (rest) rest = S(`TPL.ASnotes.${k}.Notes.Right`, rest, { sizes: [7] });
+    }
+  }
+
+  // ── keep the pages in use, in reading order ──
+  const ORDER = ['CSfront', 'CSback', 'TPL.SSfront.1', 'TPL.SSmore.1', 'TPL.SSmore.2', 'TPL.SSmore.3', 'ASfront', 'TPL.ASoverflow.1',
+    'TPL.AScomp.1', 'TPL.AScomp.2', 'TPL.AScomp.3', 'ASbackgr', 'TPL.ASnotes.1', 'TPL.ASnotes.2', 'TPL.ASnotes.3'];
+  const order = ORDER.filter(p => use.has(p)).map(p => P.indexOf(p));
+  F.keepPages(new Set(order), order);
+}
+
+function pdfLayoutSpells(F, D, use) {
+  // Rows are 10.5pt slots. A class header takes 4 slots, a level divider 2.
+  const PAGES = [
+    { pre: 'TPL.SSfront.1.', first: -6, last: 55, top0: 609.2 },   // header 0 + divider 0 sit above row 0 by default
+    { pre: 'TPL.SSmore.1.', first: 0, last: 70, top0: 768.2 },
+    { pre: 'TPL.SSmore.2.', first: 0, last: 70, top0: 768.2 },
+    { pre: 'TPL.SSmore.3.', first: 0, last: 70, top0: 768.2 },
+  ];
+  const LV = ['CANTRIPS', '1ST LEVEL', '2ND LEVEL', '3RD LEVEL', '4TH LEVEL', '5TH LEVEL', '6TH LEVEL', '7TH LEVEL', '8TH LEVEL', '9TH LEVEL'];
+  // build the item stream
+  const items = [];
+  D.spellGroups.forEach(g => {
+    items.push({ t: 'head', g });
+    const byLv = {};
+    g.rows.forEach(r => (byLv[r.level] = byLv[r.level] || []).push(r));
+    Object.keys(byLv).map(Number).sort((a, b) => a - b).forEach(lv => {
+      items.push({ t: 'div', label: LV[lv] || `LEVEL ${lv}` });
+      byLv[lv].sort((a, b) => a.name.localeCompare(b.name)).forEach(r => items.push({ t: 'row', r }));
+    });
+  });
+  const COLS = ['check', 'name', 'description', 'save', 'school', 'time', 'range', 'components', 'duration', 'book'];
+  const val = (r, c) => ({ check: r.mark, name: r.name, description: r.desc, save: r.save, school: r.school, time: r.time, range: r.range, components: r.comp, duration: r.dur, book: r.book }[c] || '');
+  let pi = 0, slot = PAGES[0].first, heads = 0, divs = 0;
+  const placed = [];                                  // {page, slot, item}
+  const SIZE = { head: 4, div: 2, row: 1 };
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    // keep a header/divider together with at least its first row
+    const need = it.t === 'head' ? 7 : it.t === 'div' ? 3 : 1;
+    const pg = PAGES[pi];
+    if (slot + need - 1 > pg.last || (it.t === 'head' && heads >= 4) || (it.t === 'div' && divs >= 10)) {
+      if (pi + 1 >= PAGES.length) break;
+      pi++; slot = PAGES[pi].first; heads = 0; divs = 0;
+      if (it.t === 'row') {                           // continuing a level on a new page
+        const lastDiv = [...placed].reverse().find(p => p.item.t === 'div');
+        if (lastDiv) { placed.push({ pi, slot, item: { t: 'div', label: lastDiv.item.label.replace(/ \(CONT\.\)$/, '') + ' (CONT.)' } }); slot += 2; divs++; }
+      }
+    }
+    if (pi === 0 && i === 0 && it.t !== 'head') slot = -2;
+    placed.push({ pi, slot, item: it });
+    slot += SIZE[it.t];
+    if (it.t === 'head') heads++; if (it.t === 'div') divs++;
+  }
+  // per page: uniform column font sizes
+  const used = new Set(placed.map(p => p.pi));
+  used.forEach(k => use.add(PAGES[k].pre.replace(/\.$/, '')));
+  const colSize = {};
+  COLS.forEach(c => {
+    const sizes = placed.filter(p => p.item.t === 'row').map(p => F.fitSize(PAGES[p.pi].pre + `spells.${c}.0`, val(p.item.r, c) || 'x', 8));
+    colSize[c] = sizes.length ? Math.min(...sizes) : 8;
+  });
+  colSize.name = Math.max(colSize.name, 6.5); colSize.description = Math.max(colSize.description, 5.6); colSize.save = Math.max(colSize.save, 6);
+  const counters = {};
+  const hideRow = (pre, r) => F.namesWithPrefix(pre + 'spells.').filter(n => n.endsWith('.' + r) && /^spells\.[a-z]+\.\d+$/.test(n.slice(pre.length))).forEach(n => F.hide(n));
+  placed.forEach(({ pi: k, slot: s, item }) => {
+    const pg = PAGES[k], pre = pg.pre;
+    const c = counters[k] = counters[k] || { head: 0, div: 0 };
+    const slotTop = pg.top0 + 10.5 * -s;          // top edge of slot s
+    if (item.t === 'head') {
+      const n = c.head++;
+      const r = F.rect(pre + `spellshead.Image.Header.Left.${n}`);
+      if (r) {
+        const dy = (slotTop - 0.5) - r[3];
+        F.namesWithPrefix(pre + 'spellshead.').filter(x => x.endsWith('.' + n)).forEach(x => F.shift(x, dy));
+      }
+      const info = item.g.info;
+      F.setText(pre + `spellshead.Text.header.${n}`, info ? `${_pdfCap(info.cls)}${info.sub ? ' (' + info.sub + ')' : ''}` : 'Other spells (granted)');
+      if (info) {
+        F.setText(pre + `spellshead.ability.${n}`, `${_pdfCap(info.ability)} ${_pdfSign(info.mod)}`);
+        F.setText(pre + `spellshead.prepare.${n}`, info.prepare || '');
+        F.setText(pre + `spellshead.attack.${n}`, _pdfSign(info.atk));
+        F.setText(pre + `spellshead.dc.${n}`, info.dc);
+      }
+      for (let r = Math.max(0, s); r < s + 4; r++) hideRow(pre, r);
+    } else if (item.t === 'div') {
+      const n = c.div++;
+      const r = F.rect(pre + `spellsdiv.Image.${n}`);
+      if (r) {
+        const dy = (slotTop - 0.5) - r[3];
+        F.namesWithPrefix(pre + 'spellsdiv.').filter(x => x.endsWith('.' + n)).forEach(x => F.shift(x, dy));
+      }
+      F.setText(pre + `spellsdiv.Text.${n}`, item.label);
+      for (let r = Math.max(0, s); r < s + 2; r++) hideRow(pre, r);
+    } else {
+      COLS.forEach(col => F.setText(pre + `spells.${col}.${s}`, val(item.r, col), { align: col === 'name' || col === 'description' ? 0 : 1, maxSize: colSize[col] }));
+    }
+  });
+  // legend under the last row
+  const last = placed[placed.length - 1];
+  if (last && last.slot + 2 <= PAGES[last.pi].last) {
+    F.setText(PAGES[last.pi].pre + `spells.description.${last.slot + 2}`,
+      'P prepared, A always prepared, B Book of Shadows, R ritual, F invocation, I item, S species, T feat, O other.  Book: P PHB, X XGE, T TCE', { maxSize: 6 });
+  }
+  if (placed.length < items.length) D.warnings.push(`Spell list truncated: ${items.length - placed.length} entries did not fit on 4 spell pages`);
+
+  // slots (first spell page only)
+  const pre = PAGES[0].pre;
+  const PIPS = { 1: ['mid'], 2: ['top1', 'bottom1'], 3: ['top1', 'bottom2.1', 'bottom2.2'], 4: ['top2.1', 'top2.2', 'bottom2.1', 'bottom2.2'] };
+  const lvMax = {}, lvUsed = {}, pact = {};
+  (D.slots.levels || []).forEach((m, i) => { const max = typeof m === 'number' ? m : (m?.max || 0); if (max) { lvMax[i + 1] = max; lvUsed[i + 1] = D.slotsUsed[i + 1] || D.slotsUsed[String(i + 1)] || 0; } });
+  if (D.slots.warlock?.max) { const l = D.slots.warlock.slotLevel; pact[l] = D.slots.warlock; if (!lvMax[l]) { lvMax[l] = D.slots.warlock.max; lvUsed[l] = D.slots.warlock.used || 0; } }
+  Object.keys(lvMax).forEach(l => {
+    const max = lvMax[l], usedN = lvUsed[l] || 0, pips = PIPS[Math.min(4, max)];
+    pips.forEach((p, i) => F.check(pre + `SpellSlots.Checkboxes.lvl${l}.${p}`, i < usedN, true));
+    const notes = [];
+    if (max > 4) notes.push(`${max} slots`);
+    if (pact[l]) notes.push(lvMax[l] === pact[l].max ? 'PACT' : `+${pact[l].max} pact`);
+    if (notes.length) F.setText(pre + `SpellSlots.Extra.lvl${l}`, notes.join(' '), { maxSize: 5 });
+  });
+  F.setText(pre + 'zAdvLog.PC Name', D.identity.name);
+}
+
+function pdfFillCompanion(F, pre, cr) {
+  const S = (n, v, o) => F.setText(pre + n, v, o);
+  S('Comp.Desc.Name', cr.name); S('Comp.Type', String(cr.tabLabel || 'Companion').toUpperCase());
+  S('Comp.Race', cr.name); S('Comp.Desc.Size', cr.size); S('Comp.Desc.MonsterType', cr.type); S('Comp.Desc.Alignment', cr.alignment);
+  const sc = cr.scores || {};
+  const A3 = { str: 'Str', dex: 'Dex', con: 'Con', int: 'Int', wis: 'Wis', cha: 'Cha' };
+  Object.entries(A3).forEach(([k, n]) => { const v = sc[k] ?? 10, m = abilityMod(v); S(`Comp.Use.Ability.${n}.Score`, v); S(`Comp.Use.Ability.${n}.Mod`, _pdfSign(m)); S(`Comp.Use.Ability.${n}.ST.Mod`, _pdfSign(m)); });
+  S('Comp.Use.AC', cr.ac); S('Comp.Use.HP.Max', cr.hp); S('Comp.Use.HP.Current', cr.hpCur);
+  S('Comp.Use.Combat.Init.Mod', _pdfSign(abilityMod(sc.dex ?? 10)));
+  S('Comp.Use.Speed', String(cr.speed || '').replace(/,\s*/g, '\n'), { maxSize: 8 });
+  S('Comp.Use.Senses', [cr.senses, cr.languages && cr.languages !== '-' ? 'Languages: ' + cr.languages : ''].filter(Boolean).join('\n'));
+  (cr.attacks || []).slice(0, 3).forEach((a, i) => {
+    const p = `Comp.Use.Attack.${i + 1}.`;
+    S(p + 'Weapon Selection', a.name); S(p + 'Range', a.range); S(p + 'To Hit', a.atkBonus !== undefined ? _pdfSign(a.atkBonus) : '');
+    S(p + 'Damage', a.dmg); S(p + 'Damage Type', a.dmgType); S(p + 'Description', a.notes);
+  });
+  S('Comp.Use.Features', (cr.actions || []).concat(cr.reactions || []).map(x => pdfPlain(x)).join('\n') || pdfPlain(cr.note || ''));
+  S('Comp.Use.Traits', (cr.traits || []).map(x => pdfPlain(x)).join('\n'));
+  if (cr.skills) S('Cnote.Left', 'Skills: ' + cr.skills);
+}
+
+// ═══════════════════ 3. ENTRY POINT ═══════════════════
+async function exportCharacterPdf() {
+  if (!currentChar) { toast('Open a character first', 'warn'); return; }
+  const btn = document.getElementById('pdf-export-btn');
+  if (btn) btn.disabled = true;
+  try {
+    toast('Building PDF...');
+    const [L, bytes] = await Promise.all([pdfLoadLib(), pdfGetTemplate()]);
+    const D = pdfCollectCharacter();
+    const doc = await L.PDFDocument.load(bytes);
+    const font = await doc.embedFont(L.StandardFonts.Helvetica);
+    const F = pdfMakeFiller(L, doc, font);
+    pdfFillMpmb(F, D);
+    doc.setTitle(`${D.identity.name} - ${D.identity.classLine}`);
+    doc.setProducer('Character Sheet export');
+    const out = await doc.save({ useObjectStreams: true, updateFieldAppearances: false });
+    const name = `${(D.identity.name || 'character').replace(/[^\w\- ]+/g, '').trim() || 'character'} - Character Sheet.pdf`;
+    pdfDownload(out, name);
+    if (F.missing.length) console.warn('[pdf] fields not in template:', F.missing);
+    if (D.warnings.length) console.warn('[pdf] warnings:', D.warnings);
+    window._pdfLastExport = { missing: F.missing, overflow: F.overflow, warnings: D.warnings, bytes: out };
+    toast('PDF ready' + (D.warnings.length ? ' (some sections skipped - see console)' : ''), D.warnings.length ? 'warn' : '');
+  } catch (e) {
+    console.error('[pdf] export failed', e);
+    toast('PDF export failed: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+window.exportCharacterPdf = exportCharacterPdf;
+
+function pdfDownload(bytes, filename) {
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+</script>
 </body>
 </html>
