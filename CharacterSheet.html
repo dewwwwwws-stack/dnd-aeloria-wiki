@@ -8911,6 +8911,7 @@ async function dmBulkRest(type) {
     for (const f of chars) {
       try {
         const { content: c, sha } = await GH.getFile(f.name);
+        if (c._simulacrum) continue;            // a simulacrum can't take Short or Long Rests
         if (type === 'long') {
           c.hp_current = c.hp_max || c.hp_current;
           c.hp_temp = 0;
@@ -34663,15 +34664,17 @@ function renderSpellbookList() {
   const countEl = document.getElementById('sp-spellbook-count');
   if (countEl) {
     const nonCantripSpells = book.filter(s => s.level > 0);
-    const freeCount = nonCantripSpells.filter(s => (s.source || 'levelup') === 'levelup').length;
-    const extraCount = nonCantripSpells.length - freeCount;
-    const max = typeof getSpellbookMax === 'function' ? getSpellbookMax() : 0;
+    const split = typeof getSpellbookFreeSplit === 'function' ? getSpellbookFreeSplit() : null;
+    const freeCount = split ? split.free : nonCantripSpells.filter(s => (s.source || 'levelup') === 'levelup').length;
+    const extraCount = split ? split.extra : nonCantripSpells.length - freeCount;
+    const max = split ? split.max : (typeof getSpellbookMax === 'function' ? getSpellbookMax() : 0);
     countEl.textContent = max > 0 ? `${freeCount} / ${max} free${extraCount > 0 ? ` \u00b7 +${extraCount} copied` : ''}` : '';
     // Amber only ever flags a genuine setup problem - more free-growth
     // spells picked than the level actually grants. Having extra spells
     // from scrolls, other spellbooks, or magic items is normal and never
     // colored as a warning; it's just shown as its own separate count.
-    countEl.style.color = (max > 0 && freeCount > max) ? 'var(--amber)' : 'var(--text3)';
+    const taggedFree = nonCantripSpells.filter(s => (s.source || 'levelup') === 'levelup').length;
+    countEl.style.color = (max > 0 && taggedFree > max) ? 'var(--amber)' : 'var(--text3)';
   }
   if (!book.length) {
     list.innerHTML = '<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);text-align:center;padding:6px;letter-spacing:.5px">Spellbook is empty</div>';
@@ -49274,7 +49277,11 @@ function computeSpellbookAllocation() {
   if (!caps.wizLv) return null;
   const book = currentChar.spells?.spellbook || [];
   const levelOf = (key) => PHB_SPELL_LIST.find(sp => sp.key === key)?.level ?? 99;
-  const owned = book.filter(s => s.level > 0).map(s => s.key).sort((a, b) => levelOf(a) - levelOf(b));
+  const SRC_RANK = { levelup: 0, undefined: 1, copied: 2, item: 3 };
+  const rankOf = (s) => SRC_RANK[s.source] ?? 2;
+  const owned = book.filter(s => s.level > 0)
+    .sort((a, b) => rankOf(a) - rankOf(b) || levelOf(a.key) - levelOf(b.key))
+    .map(s => s.key);
   let ownedPool = [...owned];
   let ownedSavantPool = caps.school
     ? owned.filter(k => (PHB_SPELL_LIST.find(sp => sp.key === k)?.school || '') === caps.school)
@@ -49312,6 +49319,29 @@ function computeSpellbookAllocation() {
 }
 window.computeSpellbookAllocation = computeSpellbookAllocation;
 
+// One answer for "how many of the spells in my book are the free ones?".
+// Free = whatever the level-up allowance (6 + 2 per Wizard level, plus any
+// Savant picks) can actually account for, given each pick's level cap.
+// Everything beyond that is an extra copied in (scrolls, other books...).
+// How a spell was added doesn't decide it - adding a free pick through
+// Browse Spells used to tag it "copied" and drop it out of the free count.
+function getSpellbookFreeSplit() {
+  const alloc = computeSpellbookAllocation();
+  const book = (currentChar?.spells?.spellbook || []).filter(s => s.level > 0);
+  if (!alloc) return null;
+  const free = alloc.steps.reduce((n, st) => n + st.baseFilled.length + st.savantFilled.length, 0);
+  return {
+    alloc,
+    total: book.length,
+    free,
+    extra: Math.max(0, book.length - free),
+    max: alloc.baseCaps.length + alloc.savantCaps.length,
+    baseMax: alloc.baseCaps.length,
+    savantMax: alloc.savantCaps.length,
+  };
+}
+window.getSpellbookFreeSplit = getSpellbookFreeSplit;
+
 let _sbsDraftByLevel = {}; // { level: { base: [keys], savant: [keys] } }
 
 function openSpellbookSetup() {
@@ -49319,13 +49349,12 @@ function openSpellbookSetup() {
   const summary = document.getElementById('sbs-summary');
   if (!alloc || !summary) { toast('Spellbook Setup is only for Wizards.', 'info'); return; }
 
-  const book = currentChar.spells?.spellbook || [];
-  const currentTotal = book.filter(s => s.level > 0).length;
-
-  let html = `Level ${alloc.wizLv} Wizard - your book should have <b>${alloc.baseCaps.length}</b> spells total. You have <b>${currentTotal}</b> in it now.`;
-  if (alloc.school) {
-    html += `<br>Of those, <b>${alloc.savantCaps.length}</b> should be free ${alloc.school} spells from your ${alloc.subclassName} Savant feature.`;
-  }
+  const split = getSpellbookFreeSplit();
+  let html = `Level ${alloc.wizLv} Wizard - your book gets <b>${split.max}</b> free spells: <b>${split.baseMax}</b> from levelling up (6 at level 1, then 2 per level)`;
+  if (alloc.school) html += ` plus <b>${split.savantMax}</b> free ${alloc.school} spells from ${alloc.subclassName} Savant`;
+  html += `.<br>You have <b>${split.total}</b> spells in it now: <b>${split.free}</b> count as free`;
+  html += split.extra ? `, <b>${split.extra}</b> as extra copied spells.` : '.';
+  if (split.free < split.max) html += ` <b>${split.max - split.free}</b> free pick${split.max - split.free === 1 ? '' : 's'} still open - see the levels without a \u2713 below.`;
   summary.innerHTML = html;
 
   _sbsDraftByLevel = {};
@@ -64339,7 +64368,8 @@ function pdfCollectCharacter() {
     species: T('race', () => {
       const r = getRaceData(c.race)?.name || _pdfCap(c.race);
       const sr = c.subrace ? (getSubraceData(c.race, c.subrace)?.name || _pdfCap(c.subrace)) : '';
-      return sr ? `${r} (${sr})` : r;
+      const base = sr ? `${r} (${sr})` : r;
+      return c._simulacrum ? `${base} - Simulacrum (Construct)` : base;
     }, ''),
     xp: c.xp || 0,
     alignment: c.alignment || '', faith: c.faith || '', age: c.age || '', height: c.height || '', weight: c.weight || '',
@@ -65425,6 +65455,580 @@ function pdfDownload(bytes, filename) {
   window.addEventListener('pageshow', e => { if (e.persisted) check(false); });
   // long-lived tabs
   setInterval(() => { if (document.visibilityState === 'visible') check(false); }, 10 * 60 * 1000);
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// SIMULACRUM (2024 rules)
+// Casting the spell makes a frozen copy of the caster or another PC as its
+// own character file, controlled by the caster:
+//   - Construct, half the original's Hit Point maximum, can't cast Simulacrum
+//   - no equipment (no items, armour, coins, gems, ammo - nothing carried)
+//   - can't gain levels, can't take Short or Long Rests (spent slots and
+//     uses stay spent)
+//   - HP only restored by the caster repairing it: 100 GP per HP
+//   - casting the spell again destroys the previous simulacrum
+//   - casting it expends a 7th-level or higher spell slot; the 1,500 GP
+//     ruby dust is NOT deducted automatically (players track components)
+// The copy is marked with c._simulacrum = { sourceId, sourceName, casterId,
+// casterName, createdAt, originalHpMax }; the caster records its id in
+// c._simulacrumId.
+// ═══════════════════════════════════════════════════════════════════════
+const SIM_REPAIR_GP_PER_HP = 100;
+const SIM_SPELL_LEVEL = 7;
+let _simCache = {};          // id -> { content, sha, at }
+
+function isSimulacrum(c = currentChar) { return !!(c && c._simulacrum && !c._simulacrum.destroyedAt); }
+window.isSimulacrum = isSimulacrum;
+
+function charKnowsSimulacrum(c = currentChar) {
+  const sp = c?.spells || {};
+  const has = arr => (arr || []).some(x => (typeof x === 'string' ? x : x?.key) === 'simulacrum');
+  return has(sp.known) || has(sp.prepared) || has(sp.spellbook);
+}
+
+// Coins are saved from the sheet's coin boxes, so change both
+function _simSpendGold(amount) {
+  currentChar.currency = currentChar.currency || {};
+  currentChar.currency.gp = (currentChar.currency.gp || 0) - amount;
+  const el = document.getElementById('cur-gp'); if (el) el.value = currentChar.currency.gp;
+  try { if (typeof updateHoldingsSummary === 'function') updateHoldingsSummary(); } catch (e) {}
+}
+
+// Spell slots of 7th level or higher that are still available
+function _simAvailableSlots(c = currentChar) {
+  const ss = typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(c) : { levels: [] };
+  return (ss.levels || []).filter(l => l.level >= SIM_SPELL_LEVEL && (l.max - (l.used || 0)) > 0)
+    .map(l => ({ level: l.level, left: l.max - (l.used || 0), max: l.max }));
+}
+function _simExpendSlot(level) {
+  const ss = computeSpellSlotsForChar(currentChar);
+  const l = (ss.levels || []).find(x => x.level === level);
+  if (!l || l.max - (l.used || 0) <= 0) throw new Error(`no ${level}th-level slot left`);
+  currentChar.spell_slots_used = currentChar.spell_slots_used || {};
+  for (let i = 0; i < l.max; i++) {
+    const key = `slot_${level}_${i}`;
+    if (!currentChar.spell_slots_used[key]) { currentChar.spell_slots_used[key] = true; break; }
+  }
+  try { if (typeof renderSpellSlots === 'function') renderSpellSlots(); } catch (e) {}
+}
+
+function _simBlocked(what) {
+  if (!isSimulacrum()) return false;
+  toast(`A simulacrum can't ${what}.`, 'warn');
+  return true;
+}
+
+// ── building the copy ──────────────────────────────────────────────────
+function buildSimulacrumFrom(source, caster) {
+  const s = JSON.parse(JSON.stringify(source));
+  const self = source.id === caster.id;
+  const slug = String(source.charName || 'sim').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 24) || 'sim';
+  s.id = `sim_${slug}_${Date.now()}`;
+  s.charName = `${source.charName || 'Unnamed'} (Simulacrum)`;
+  s.name = s.charName;
+  s.playerName = caster.playerName || '';
+  s.pinHash = caster.pinHash;                       // the caster controls it
+  s.createdAt = new Date().toISOString();
+  s._simulacrum = { sourceId: source.id, sourceName: source.charName || '', casterId: caster.id, casterName: caster.charName || '',
+    createdAt: s.createdAt, originalHpMax: source.hp_max || 0 };
+  delete s._simulacrumId;
+  delete s.hideFromSelector;
+
+  // equipment doesn't copy over
+  s.equipment = []; s.magicItems = []; s.magic_items = []; s.valuables = []; s.armorOwned = [];
+  s.currency = { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
+  s.ammo = {}; s.ammoCustom = {}; s.ammoBonus = {}; s.mountsVehicles = [];
+  s.weapons = (s.weapons || []).filter(w => w.naturalWeapon || w.weaponKey === 'unarmed_strike');
+  s.shield = false; s.ac_bonus = 0;
+  if (s.ac_armor_key) s.ac_armor_key = null;
+  if (['light', 'medium', 'heavy'].includes(s.ac_method)) s.ac_method = 'base';
+  s.customResources = (s.customResources || []).filter(r => !r._fromMagicItem);
+  Object.keys(s.resources || {}).forEach(k => { if (/^gr_mi_/.test(k)) delete s.resources[k]; });
+  s._activeEffects = {};
+  // undo everything items were granting (same bookkeeping the sheet keeps)
+  (s._magicItemGrantedSkills || []).forEach(k => { if (s.skill_profs) delete s.skill_profs[k]; });
+  (s._magicItemGrantedExpertise || []).forEach(k => { if (s.skill_expert) delete s.skill_expert[k]; });
+  (s._magicItemGrantedTools || []).forEach(k => { if (s.toolProfs) delete s.toolProfs[k]; });
+  (s._magicItemGrantedLanguages || []).forEach(k => { if (s.languageProfs) delete s.languageProfs[k]; });
+  s._magicItemGrantedSkills = []; s._magicItemGrantedExpertise = []; s._magicItemGrantedTools = []; s._magicItemGrantedLanguages = [];
+  const otherRes = new Set([...(s._autoGrantedSubclassResistances || []), ...(s._autoGrantedFeatResistances || []), ...(s._autoGrantedResistances || [])]);
+  [...(s._autoGrantedItemResistances || []), ...(s._autoGrantedItemVulnerabilities || [])].forEach(t => {
+    if (!otherRes.has(t) && s.damageStates) delete s.damageStates[t];
+    if (s._resistanceSources?.[t]) delete s._resistanceSources[t].item;
+  });
+  s._autoGrantedItemResistances = []; s._autoGrantedItemVulnerabilities = [];
+
+  // can't cast Simulacrum
+  const noSim = arr => (arr || []).filter(x => (typeof x === 'string' ? x : x?.key) !== 'simulacrum');
+  if (s.spells) {
+    s.spells.known = noSim(s.spells.known); s.spells.prepared = noSim(s.spells.prepared); s.spells.spellbook = noSim(s.spells.spellbook);
+    Object.keys(s.spells.featSpells || {}).forEach(k => { s.spells.featSpells[k] = noSim(s.spells.featSpells[k]); });
+  }
+
+  // half the Hit Point maximum, fixed (no auto-recalculation)
+  s.hp_method = 'manual';
+  s.hpMaxAdjust = 0;
+  s.hp_max = Math.max(1, Math.floor((source.hp_max || 1) / 2));
+  s.hp_current = s.hp_max; s.hp_temp = 0;
+
+  // a fresh creature: nothing spent yet, no ongoing effects
+  Object.keys(s.resources || {}).forEach(k => { s.resources[k] = 0; });
+  s.spell_slots_used = {}; s.hd_used = 0;
+  Object.keys(s.hd_used_by_class || {}).forEach(k => { s.hd_used_by_class[k] = 0; });
+  s.death_saves = { successes: 0, failures: 0 }; s.deathSaves = { successes: 0, failures: 0 };
+  s.conditions = []; s.conditionStates = {}; s.customConditions = []; s.exhaustion = 0; s.drunkenness = 0;
+  s._activeSummons = []; s._summonForm = {}; s._summonSlotLv = {}; s._summonHP = {}; s._activeSummonSpell = null;
+  s._companionHP = {}; s._companionTempHP = {};
+  s._wsUsesUsed = 0;
+
+  // another player's private writing never goes into a copy
+  if (!self) { delete s.notes_bg; delete s.secrets; if (s.backstoryPrivate) delete s.backstory; }
+  return s;
+}
+
+// ── creating ───────────────────────────────────────────────────────────
+async function openCreateSimulacrum() {
+  if (!currentChar || isSimulacrum()) return;
+  const caster = currentChar;
+  // only characters in the caster's party (same campaign) can be copied
+  const party = caster._campaign || null;
+  let others = [];
+  if (party) try {
+    const files = (await GH.listFiles()).filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
+    others = (await Promise.all(files.map(async f => {
+      const id = f.name.replace('.json', '');
+      if (id === caster.id) return null;
+      try {
+        const { content } = await GH.getFile(f.name);
+        if (content._simulacrum || content.hideFromSelector || content._campaign !== party) return null;
+        return { id, name: content.charName || id };
+      }
+      catch (e) { return null; }
+    }))).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { console.warn('[simulacrum] could not list characters', e); }
+
+  const slots = _simAvailableSlots(caster);
+  const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  const existing = caster._simulacrumId;
+  const ov = document.createElement('div');
+  ov.id = 'sim-create-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:440px;width:100%;padding:18px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+    <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:10px">CREATE SIMULACRUM</div>
+    <div style="color:var(--text3);margin-bottom:10px;line-height:1.5">Copies the chosen character as they are right now: half their HP maximum, a Construct, no equipment, can't rest or level up, can't cast Simulacrum. You control it.</div>
+    <label style="display:block;margin-bottom:4px">Who is being copied?</label>
+    <select id="sim-target" class="info-input" style="width:100%;margin-bottom:10px">
+      <option value="${caster.id}">Yourself (${caster.charName || ''})</option>
+      ${others.map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+    </select>
+    ${!party ? `<div style="color:var(--text3);margin:-4px 0 10px">You aren't in a party yet, so you can only copy yourself.</div>`
+      : !others.length ? `<div style="color:var(--text3);margin:-4px 0 10px">No other characters in your party.</div>` : ''}
+    <label style="display:block;margin-bottom:4px">Spell slot</label>
+    ${slots.length
+      ? `<select id="sim-slot" class="info-input" style="width:100%;margin-bottom:6px">${slots.map(s => `<option value="${s.level}">${ord(s.level)}-level slot (${s.left} of ${s.max} left)</option>`).join('')}</select>`
+      : `<div style="color:var(--red);margin-bottom:6px">No 7th-level or higher spell slot left - it comes back after a Long Rest.</div>`}
+    <div style="color:var(--text3);margin-bottom:6px">The 1,500 GP ruby dust is up to you to remove from your inventory.</div>
+    ${existing ? `<div style="color:var(--amber);margin:8px 0">Casting again destroys your current simulacrum.</div>` : ''}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="tbtn" id="sim-cancel">Cancel</button>
+      <button class="tbtn" id="sim-go" style="color:var(--accent);border-color:var(--accent)" ${slots.length ? '' : 'disabled'}>Create</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#sim-cancel').onclick = () => ov.remove();
+  ov.querySelector('#sim-go').onclick = async () => {
+    const btn = ov.querySelector('#sim-go'); btn.disabled = true; btn.textContent = 'Creating...';
+    try { await createSimulacrum(ov.querySelector('#sim-target').value, parseInt(ov.querySelector('#sim-slot')?.value, 10)); ov.remove(); }
+    catch (e) { toast('Simulacrum failed: ' + e.message, 'error'); btn.disabled = false; btn.textContent = 'Create'; }
+  };
+}
+window.openCreateSimulacrum = openCreateSimulacrum;
+
+async function createSimulacrum(targetId, slotLevel) {
+  const caster = currentChar;
+  if (!slotLevel || !_simAvailableSlots(caster).some(s => s.level === slotLevel)) throw new Error('no 7th-level or higher spell slot left');
+  // flush the caster first so we copy (and later save) the latest state
+  if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) { clearTimeout(_debounceSaveTimer); _debounceSaveTimer = null; }
+  if (typeof gatherSheetData === 'function') gatherSheetData();
+  let source;
+  if (targetId === caster.id) source = JSON.parse(JSON.stringify(caster));
+  else {
+    const { content } = await GH.getFile(`${targetId}.json`);
+    if (!caster._campaign || content._campaign !== caster._campaign) throw new Error('you can only copy a character in your own party');
+    if (content._simulacrum) throw new Error("a simulacrum can't be copied");
+    source = content; source.id = targetId;
+  }
+
+  const sim = buildSimulacrumFrom(source, caster);
+  await GH.putFile(`${sim.id}.json`, sim, null);
+
+  // casting again destroys the previous one (kept on file, hidden, for the DM)
+  if (caster._simulacrumId && caster._simulacrumId !== sim.id) {
+    try {
+      const { content: old, sha } = await GH.getFile(`${caster._simulacrumId}.json`);
+      old._simulacrum = { ...(old._simulacrum || {}), destroyedAt: new Date().toISOString(), destroyedReason: 'Simulacrum cast again' };
+      old.hideFromSelector = true;
+      await GH.putFile(`${caster._simulacrumId}.json`, old, sha);
+    } catch (e) { console.warn('[simulacrum] could not retire previous copy', e); }
+  }
+  caster._simulacrumId = sim.id;
+  _simExpendSlot(slotLevel);              // only once the copy has been saved
+  await saveChar();
+  _simCache[sim.id] = { content: sim, at: Date.now() };
+  toast(`Simulacrum of ${source.charName} created`, 'ok');
+  renderSimulacrumPanel();
+}
+
+// ── switching between caster and copy ──────────────────────────────────
+async function _simSwitchTo(id) {
+  if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) { clearTimeout(_debounceSaveTimer); _debounceSaveTimer = null; await saveChar(); }
+  _simCache = {};                                   // the other sheet may have changed it
+  const { content, sha } = await GH.getFile(`${id}.json`);
+  currentChar = content; currentChar.id = id; currentCharSHA = sha;
+  enterApp(); switchPage('main');
+}
+async function openSimulacrumSheet() {
+  const id = currentChar?._simulacrumId; if (!id) return;
+  try { await _simSwitchTo(id); } catch (e) { toast('Could not open the simulacrum: ' + e.message, 'error'); }
+}
+async function returnToSimulacrumCaster() {
+  const id = currentChar?._simulacrum?.casterId; if (!id) return;
+  try { await _simSwitchTo(id); } catch (e) { toast('Could not open the caster: ' + e.message, 'error'); }
+}
+window.openSimulacrumSheet = openSimulacrumSheet;
+window.returnToSimulacrumCaster = returnToSimulacrumCaster;
+
+// ── caster-side panel (Spells tab) ─────────────────────────────────────
+async function _simFetch(id, force) {
+  const hit = _simCache[id];
+  if (hit && !force && Date.now() - hit.at < 15000) return hit;
+  const { content, sha } = await GH.getFile(`${id}.json`);
+  return (_simCache[id] = { content, sha, at: Date.now() });
+}
+
+function renderSimulacrumPanel() {
+  const anchor = document.getElementById('sp-class-manage-bar');
+  if (!anchor || !currentChar) return;
+  let el = document.getElementById('sp-simulacrum-panel');
+  const show = !isSimulacrum() && (charKnowsSimulacrum() || currentChar._simulacrumId);
+  if (!show) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'sp-simulacrum-panel';
+    el.style.cssText = 'margin:8px 0;padding:10px 12px;border:1px solid var(--border,#444);border-radius:8px;background:var(--bg2);font-family:var(--font-ui);font-size:11px;display:flex;flex-wrap:wrap;gap:8px;align-items:center';
+    anchor.insertAdjacentElement('afterend', el);
+  }
+  const id = currentChar._simulacrumId;
+  if (!id) {
+    el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--text3);flex:1">No simulacrum yet.</span>
+      <button class="tbtn" onclick="openCreateSimulacrum()">Create Simulacrum...</button>`;
+    return;
+  }
+  el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--text3);flex:1">Loading...</span>`;
+  _simFetch(id).then(({ content: s }) => {
+    if (currentChar?._simulacrumId !== id) return;
+    const gone = s._simulacrum?.destroyedAt;
+    const melted = !gone && (s.hp_current ?? 0) <= 0;
+    const missing = Math.max(0, (s.hp_max || 0) - (s.hp_current || 0));
+    el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span>
+      <span style="flex:1">${s.charName}${s._simulacrum?.sourceId !== currentChar.id ? '' : ''} &middot;
+        <b style="color:${melted ? 'var(--red)' : 'var(--text)'}">HP ${s.hp_current ?? 0} / ${s.hp_max}</b>${melted ? ' &middot; <span style="color:var(--red)">melted (0 HP)</span>' : ''}${gone ? ' &middot; destroyed' : ''}</span>
+      ${!gone ? `<button class="tbtn" onclick="openSimulacrumSheet()">Open sheet</button>` : ''}
+      ${!gone && missing > 0 && !melted ? `<button class="tbtn" onclick="repairSimulacrum()">Repair (${SIM_REPAIR_GP_PER_HP} GP/HP)</button>` : ''}
+      <button class="tbtn" onclick="openCreateSimulacrum()">Cast again...</button>`;
+  }).catch(e => { el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--red);flex:1">Couldn't load it (${e.message}).</span><button class="tbtn" onclick="openCreateSimulacrum()">Create Simulacrum...</button>`; });
+}
+window.renderSimulacrumPanel = renderSimulacrumPanel;
+
+async function repairSimulacrum() {
+  const id = currentChar?._simulacrumId; if (!id) return;
+  try {
+    const { content: s, sha } = await _simFetch(id, true);
+    const missing = Math.max(0, (s.hp_max || 0) - (s.hp_current || 0));
+    const gp = currentChar.currency?.gp || 0;
+    const affordable = Math.min(missing, Math.floor(gp / SIM_REPAIR_GP_PER_HP));
+    if (!missing) { toast('Your simulacrum is at full HP', 'info'); return; }
+    if (!affordable) { toast(`Repairs cost ${SIM_REPAIR_GP_PER_HP} GP per HP - you have ${gp} GP`, 'warn'); return; }
+    const ans = prompt(`Repair during your Long Rest (simulacrum within 5 ft).\nHP to restore (missing ${missing}, you can afford ${affordable}; ${SIM_REPAIR_GP_PER_HP} GP each):`, String(affordable));
+    const n = Math.max(0, Math.min(affordable, parseInt(ans, 10) || 0));
+    if (!n) return;
+    s.hp_current = Math.min(s.hp_max, (s.hp_current || 0) + n);
+    await GH.putFile(`${id}.json`, s, sha);
+    _simSpendGold(n * SIM_REPAIR_GP_PER_HP);
+    await saveChar();
+    _simCache[id] = { content: s, at: Date.now() };
+    try { broadcastCharUpdate(id, 'full'); } catch (e) {}
+    toast(`Repaired ${n} HP for ${(n * SIM_REPAIR_GP_PER_HP).toLocaleString()} GP`, 'ok');
+    renderSimulacrumPanel();
+  } catch (e) { toast('Repair failed: ' + e.message, 'error'); }
+}
+window.repairSimulacrum = repairSimulacrum;
+
+// ── the copy's own sheet: banner + rules ───────────────────────────────
+function applySimulacrumMode() {
+  const old = document.getElementById('sim-banner'); if (old) old.remove();
+  const back = document.getElementById('sim-back-btn'); if (back) back.remove();
+  // the caster's quick switch, shown on the caster's sheet too
+  const tb = document.getElementById('pdf-export-btn') || document.getElementById('save-btn');
+  if (isSimulacrum()) {
+    const s = currentChar._simulacrum;
+    // can't cast Simulacrum (in case it was added back by hand)
+    if (charKnowsSimulacrum()) {
+      const noSim = arr => (arr || []).filter(x => (typeof x === 'string' ? x : x?.key) !== 'simulacrum');
+      currentChar.spells.known = noSim(currentChar.spells.known); currentChar.spells.prepared = noSim(currentChar.spells.prepared);
+      currentChar.spells.spellbook = noSim(currentChar.spells.spellbook);
+    }
+    if (currentChar.hp_method !== 'manual') currentChar.hp_method = 'manual';
+    const page = document.getElementById('page-main');
+    if (page) {
+      const b = document.createElement('div'); b.id = 'sim-banner';
+      const melted = (currentChar.hp_current ?? 0) <= 0;
+      b.style.cssText = `margin:0 0 10px;padding:8px 12px;border:1px solid ${melted ? 'var(--red)' : 'var(--accent)'};border-radius:8px;font-family:var(--font-ui);font-size:11px;color:var(--text2,#bbb);line-height:1.5`;
+      b.innerHTML = `<b style="color:var(--accent);letter-spacing:1px">SIMULACRUM</b> of ${s.sourceName || '?'}, controlled by ${s.casterName || '?'}. Construct &middot; half HP maximum (original ${s.originalHpMax}) &middot; no equipment &middot; can't rest or gain levels &middot; can't cast Simulacrum &middot; HP only restored by ${s.casterName || 'its caster'}'s repairs (${SIM_REPAIR_GP_PER_HP} GP per HP).` +
+        (melted ? `<br><b style="color:var(--red)">At 0 HP the simulacrum melts away.</b>` : '');
+      page.insertBefore(b, page.firstChild);
+    }
+    if (tb && s.casterId) {
+      const btn = document.createElement('button'); btn.id = 'sim-back-btn'; btn.className = 'tbtn';
+      btn.textContent = `\u2190 ${s.casterName || 'Caster'}`; btn.title = 'Back to the caster';
+      btn.onclick = returnToSimulacrumCaster; tb.insertAdjacentElement('afterend', btn);
+    }
+  } else if (currentChar?._simulacrumId && tb) {
+    const btn = document.createElement('button'); btn.id = 'sim-back-btn'; btn.className = 'tbtn';
+    btn.textContent = 'Simulacrum \u2192'; btn.title = 'Open your simulacrum\'s sheet';
+    btn.onclick = openSimulacrumSheet; tb.insertAdjacentElement('afterend', btn);
+  }
+  lockSimulacrumClassRows();
+}
+window.applySimulacrumMode = applySimulacrumMode;
+
+function lockSimulacrumClassRows() {
+  if (!isSimulacrum()) return;
+  document.querySelectorAll('#mc-class-rows input, #mc-class-rows select, #mc-class-rows button').forEach(x => { x.disabled = true; x.title = "A simulacrum can't gain levels"; });
+  document.querySelectorAll('button[onclick="addClassRow()"], button[onclick="openLevelPlanModal()"]').forEach(x => { x.disabled = true; x.title = "A simulacrum can't gain levels"; });
+}
+
+// ── hooks into the existing sheet ──────────────────────────────────────
+(function () {
+  const wrap = (name, before, after) => {
+    const orig = window[name];
+    if (typeof orig !== 'function') return;
+    const w = function () {
+      if (before && before.apply(this, arguments) === false) return;
+      const r = orig.apply(this, arguments);
+      if (after) after.apply(this, arguments);
+      return r;
+    };
+    window[name] = w;
+  };
+  wrap('doShortRest', () => !_simBlocked('take a Short Rest'));
+  wrap('doLongRest', () => !_simBlocked('take a Long Rest'));
+  wrap('addClassRow', () => !_simBlocked('gain levels'));
+  wrap('openLevelPlanModal', () => !_simBlocked('gain levels'));
+  wrap('renderClassRows', null, lockSimulacrumClassRows);
+  wrap('renderClassManageBar', null, () => { try { renderSimulacrumPanel(); } catch (e) {} });
+  wrap('enterApp', null, () => { try { applySimulacrumMode(); } catch (e) { console.warn('[simulacrum]', e); } });
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// WISH (2024 rules)
+// Opening Wish's spell card adds a "Use Wish" panel:
+//   - Duplicate a spell: search every spell of level 8 or lower (any class,
+//     any source); picking one opens that spell's card marked "via Wish" -
+//     no requirements or costly components, the spell simply takes effect
+//   - Other effects: Object Creation, Instant Health, Resistance, Spell
+//     Immunity, Sudden Learning, Roll Redo, Reshape Reality. These cause
+//     Wish stress, which the sheet tracks (c._wishStress):
+//       * Strength becomes 3 for 2d4 days (until you end it)
+//       * until your next Long Rest, each spell you cast deals 1d10 Necrotic
+//         per spell level to you (shown as a reminder)
+//       * 33% chance you can never cast Wish again (rolled, recorded)
+// ═══════════════════════════════════════════════════════════════════════
+const WISH_EFFECTS = [
+  ['Object Creation', 'Create one nonmagical object worth up to 25,000 GP, no more than 300 feet in any dimension, in an unoccupied space you can see on the ground.'],
+  ['Instant Health', 'You and up to twenty creatures you can see regain all Hit Points, and you end all effects on them listed in the Greater Restoration spell.'],
+  ['Resistance', 'Up to ten creatures you can see gain permanent Resistance to one damage type you choose.'],
+  ['Spell Immunity', 'Up to ten creatures you can see gain immunity to a single spell or other magical effect for 8 hours.'],
+  ['Sudden Learning', 'Replace one of your feats with another feat you are eligible for (not one that is a prerequisite for your other feats or features).'],
+  ['Roll Redo', 'Force a reroll of any die roll made within the last round, with Advantage or Disadvantage if you like; choose the reroll or the original.'],
+  ['Reshape Reality', 'State any other wish to the DM as precisely as possible. The DM rules what happens - it may fail, partly succeed, or have unforeseen consequences.'],
+];
+let _wishFilter = { q: '', lv: 'all' };
+
+function _wishHtmlEsc(s) { return String(s ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+
+function renderWishPanel(body) {
+  let el = document.getElementById('wish-panel');
+  if (!el) { el = document.createElement('div'); el.id = 'wish-panel'; body.appendChild(el); }
+  el.style.cssText = 'margin-top:14px;padding:12px;border:1px solid var(--accent);border-radius:8px;font-family:var(--font-ui);font-size:12px';
+  const st = currentChar?._wishStress;
+  const banned = st?.lostWish;
+  el.innerHTML = `
+    <div style="font-family:var(--font-label);letter-spacing:1px;margin-bottom:8px;color:var(--accent)">USE WISH</div>
+    ${banned ? `<div style="color:var(--red);margin-bottom:8px">Your last Wish stress roll means you can never cast Wish again (rolled ${st.lostWishRoll}). Your DM can clear this.</div>` : ''}
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="tbtn" id="wish-tab-dup" style="color:var(--accent);border-color:var(--accent)">Duplicate a spell</button>
+      <button class="tbtn" id="wish-tab-other">Other effects</button>
+    </div>
+    <div id="wish-tab-body"></div>`;
+  const showDup = () => {
+    el.querySelector('#wish-tab-dup').style.cssText = 'color:var(--accent);border-color:var(--accent)';
+    el.querySelector('#wish-tab-other').style.cssText = '';
+    const tb = el.querySelector('#wish-tab-body');
+    tb.innerHTML = `
+      <div style="color:var(--text3);margin-bottom:8px">Any spell of level 8 or lower, from any class or source. You don't need to meet its requirements, including costly components - it simply takes effect. Duplicating a spell causes no Wish stress.</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="wish-q" class="info-input" placeholder="Search spells..." style="flex:1" value="${_wishHtmlEsc(_wishFilter.q)}">
+        <select id="wish-lv" class="info-input" style="width:auto">
+          <option value="all">All levels</option>${[0, 1, 2, 3, 4, 5, 6, 7, 8].map(l => `<option value="${l}" ${String(_wishFilter.lv) === String(l) ? 'selected' : ''}>${l ? 'Level ' + l : 'Cantrips'}</option>`).join('')}
+        </select>
+      </div>
+      <div id="wish-list" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>`;
+    const draw = () => {
+      const q = _wishFilter.q.trim().toLowerCase();
+      const list = PHB_SPELL_LIST.filter(s => s.level <= 8 && s.key !== 'wish'
+        && (_wishFilter.lv === 'all' || String(s.level) === String(_wishFilter.lv))
+        && (!q || s.name.toLowerCase().includes(q) || (s.desc || '').toLowerCase().includes(q)))
+        .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+      const box = tb.querySelector('#wish-list');
+      box.innerHTML = list.length ? list.slice(0, 300).map(s => `
+        <div class="wish-row" data-key="${s.key}" style="display:flex;gap:8px;align-items:baseline;padding:5px 8px;cursor:pointer;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text3);min-width:18px">${s.level || 'C'}</span>
+          <span style="min-width:150px">${_wishHtmlEsc(s.name)}</span>
+          <span style="color:var(--text3);font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_wishHtmlEsc(s.desc || '')}</span>
+        </div>`).join('') + (list.length > 300 ? `<div style="padding:6px;color:var(--text3)">${list.length - 300} more - refine the search</div>` : '')
+        : '<div style="padding:8px;color:var(--text3)">No matching spells</div>';
+      box.querySelectorAll('.wish-row').forEach(r => r.onclick = () => openWishDuplicate(r.dataset.key));
+    };
+    tb.querySelector('#wish-q').oninput = e => { _wishFilter.q = e.target.value; draw(); };
+    tb.querySelector('#wish-lv').onchange = e => { _wishFilter.lv = e.target.value; draw(); };
+    draw();
+  };
+  const showOther = () => {
+    el.querySelector('#wish-tab-other').style.cssText = 'color:var(--accent);border-color:var(--accent)';
+    el.querySelector('#wish-tab-dup').style.cssText = '';
+    const tb = el.querySelector('#wish-tab-body');
+    tb.innerHTML = `
+      <div style="color:var(--amber);margin-bottom:8px">Any of these causes Wish stress: Strength 3 for 2d4 days, 1d10 Necrotic per spell level whenever you cast a spell until your next Long Rest, and a 33% chance you can never cast Wish again.</div>
+      ${WISH_EFFECTS.map(([n, d], i) => `<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;cursor:pointer">
+        <input type="radio" name="wish-eff" value="${i}" style="margin-top:2px"><span><b>${n}.</b> <span style="color:var(--text2)">${d}</span></span></label>`).join('')}
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="tbtn" id="wish-apply" style="color:var(--accent);border-color:var(--accent)" disabled>Make this wish (apply Wish stress)</button></div>`;
+    tb.querySelectorAll('input[name=wish-eff]').forEach(r => r.onchange = () => { tb.querySelector('#wish-apply').disabled = false; });
+    tb.querySelector('#wish-apply').onclick = () => {
+      const i = +tb.querySelector('input[name=wish-eff]:checked').value;
+      applyWishStress(WISH_EFFECTS[i][0]);
+      renderWishPanel(body);
+    };
+  };
+  el.querySelector('#wish-tab-dup').onclick = showDup;
+  el.querySelector('#wish-tab-other').onclick = showOther;
+  showDup();
+}
+
+// open the chosen spell's card, marked as cast through Wish
+function openWishDuplicate(key) {
+  const sp = PHB_SPELL_LIST.find(s => s.key === key); if (!sp) return;
+  window._wishDuplicating = key;
+  openSpellDetailModal(key, sp.name);
+}
+window.openWishDuplicate = openWishDuplicate;
+
+function _wishMarkDuplicate(body, key) {
+  const sp = PHB_SPELL_LIST.find(s => s.key === key);
+  const old = document.getElementById('wish-dup-note'); if (old) old.remove();
+  const n = document.createElement('div'); n.id = 'wish-dup-note';
+  n.style.cssText = 'margin-bottom:12px;padding:8px 10px;border:1px solid var(--accent);border-radius:8px;font-family:var(--font-ui);font-size:12px;line-height:1.5';
+  n.innerHTML = `<b style="color:var(--accent);letter-spacing:1px">VIA WISH</b> - duplicating ${_wishHtmlEsc(sp?.name)} with your 9th-level Wish. You don't need to meet any of its requirements, including costly components: the spell simply takes effect. No Wish stress.
+    <div style="margin-top:6px"><a href="#" id="wish-back" style="color:var(--accent)">\u2190 Back to Wish</a></div>`;
+  body.insertBefore(n, body.firstChild);
+  n.querySelector('#wish-back').onclick = e => { e.preventDefault(); window._wishDuplicating = null; openSpellDetailModal('wish', 'Wish'); };
+}
+
+// ── Wish stress ────────────────────────────────────────────────────────
+function applyWishStress(effectName) {
+  if (!currentChar) return;
+  const days = 2 + Math.floor(Math.random() * 4) + Math.floor(Math.random() * 4);   // 2d4
+  const d100 = 1 + Math.floor(Math.random() * 100);
+  const lost = d100 <= 33;
+  currentChar._wishStress = { effect: effectName, at: new Date().toISOString(), strDays: days, strActive: true,
+    necroticUntilLongRest: true, lostWish: lost || !!currentChar._wishStress?.lostWish, lostWishRoll: lost ? d100 : (currentChar._wishStress?.lostWishRoll || d100) };
+  try { computeAbilities(); recalcAll && recalcAll(); } catch (e) {}
+  try { if (typeof populateMainSheet === 'function') populateMainSheet(); } catch (e) {}
+  debouncedSave();
+  renderWishStressBanner();
+  toast(`Wish (${effectName}): Strength 3 for ${days} days.${lost ? ' You can never cast Wish again.' : ''}`, lost ? 'error' : 'warn');
+}
+
+function endWishStrength() {
+  if (!currentChar?._wishStress) return;
+  currentChar._wishStress.strActive = false;
+  _wishCleanup();
+  try { computeAbilities(); recalcAll && recalcAll(); populateMainSheet(); } catch (e) {}
+  debouncedSave(); renderWishStressBanner();
+}
+window.endWishStrength = endWishStrength;
+function clearWishBan() {
+  if (!currentChar?._wishStress) return;
+  currentChar._wishStress.lostWish = false; _wishCleanup(); debouncedSave(); renderWishStressBanner();
+}
+window.clearWishBan = clearWishBan;
+function _wishCleanup() {
+  const s = currentChar?._wishStress;
+  if (s && !s.strActive && !s.necroticUntilLongRest && !s.lostWish) delete currentChar._wishStress;
+}
+
+function renderWishStressBanner() {
+  ['page-main', 'page-spells'].forEach(pid => {
+    const page = document.getElementById(pid); if (!page) return;
+    const old = page.querySelector('.wish-stress-banner'); if (old) old.remove();
+    const s = currentChar?._wishStress; if (!s) return;
+    const lines = [];
+    if (s.strActive) lines.push(`Strength is 3 for ${s.strDays} days (2d4) - 2 days fewer for each day spent resting with only light activity. <a href="#" onclick="endWishStrength();return false" style="color:var(--accent)">Recovered</a>`);
+    if (s.necroticUntilLongRest) lines.push('Until your next Long Rest, each spell you cast deals <b>1d10 Necrotic damage per spell level</b> to you. It can\'t be reduced or prevented.');
+    if (s.lostWish) lines.push(`You can never cast Wish again (stress roll ${s.lostWishRoll} \u2264 33).${isDM ? ' <a href="#" onclick="clearWishBan();return false" style="color:var(--accent)">Clear (DM)</a>' : ''}`);
+    if (!lines.length) return;
+    const b = document.createElement('div'); b.className = 'wish-stress-banner';
+    b.style.cssText = 'margin:0 0 10px;padding:8px 12px;border:1px solid var(--red);border-radius:8px;font-family:var(--font-ui);font-size:11px;line-height:1.6';
+    b.innerHTML = `<b style="color:var(--red);letter-spacing:1px">WISH STRESS</b> (${_wishHtmlEsc(s.effect)})<br>` + lines.join('<br>');
+    page.insertBefore(b, page.firstChild);
+  });
+}
+window.renderWishStressBanner = renderWishStressBanner;
+
+// ── hooks ──────────────────────────────────────────────────────────────
+(function () {
+  const wrap = (name, before, after) => {
+    const orig = window[name]; if (typeof orig !== 'function') return;
+    window[name] = function () {
+      if (before && before.apply(this, arguments) === false) return;
+      const r = orig.apply(this, arguments);
+      if (after) after.apply(this, arguments);
+      return r;
+    };
+  };
+  // Strength 3 while the stress lasts
+  const origHS = window.getAbilityHardSet;
+  window.getAbilityHardSet = function (ab) {
+    if (ab === 'str' && currentChar?._wishStress?.strActive) return 3;
+    return origHS.apply(this, arguments);
+  };
+  // spell cards: Wish gets the panel, duplicated spells get the "via Wish" note
+  wrap('openSpellDetailModal', null, (key) => {
+    const body = document.getElementById('spell-detail-body'); if (!body) return;
+    const p = document.getElementById('wish-panel'); if (p) p.remove();
+    const n = document.getElementById('wish-dup-note'); if (n) n.remove();
+    if (key === 'wish') { window._wishDuplicating = null; renderWishPanel(body); }
+    else if (window._wishDuplicating === key) _wishMarkDuplicate(body, key);
+    else window._wishDuplicating = null;
+  });
+  // a Long Rest ends the necrotic-on-cast part of the stress
+  wrap('doLongRest', null, () => {
+    if (typeof isSimulacrum === 'function' && isSimulacrum()) return;      // it couldn't rest
+    if (currentChar?._wishStress?.necroticUntilLongRest) { currentChar._wishStress.necroticUntilLongRest = false; _wishCleanup(); debouncedSave(); }
+    renderWishStressBanner();
+  });
+  wrap('enterApp', null, () => { try { renderWishStressBanner(); } catch (e) {} });
+  wrap('switchPage', null, () => { try { renderWishStressBanner(); } catch (e) {} });
 })();
 </script>
 </body>
