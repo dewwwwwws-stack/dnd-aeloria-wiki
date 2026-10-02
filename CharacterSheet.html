@@ -64641,6 +64641,11 @@ function pdfCollectCharacter() {
         note: def.note || '', imgKey: form ? `${key}::${form}` : key, tabLabel: 'Summon' };
     }).filter(Boolean);
   }, []);
+  D.simCreature = T('simCreature', () => {
+    const s = c._simulacrumCreature; if (!s) return null;
+    return { ...s, name: `${s.name} (Simulacrum)`, hp: s.hpMax, hpCur: s.hpCur, tabLabel: 'Simulacrum',
+      note: `Simulacrum (original HP max ${s.originalHp}). Can't rest or gain levels; HP only restored by repair, 100 GP per HP.` };
+  }, null);
   D.wildShapes = T('wildshape', () => (c._wsKnownForms || []).map(k => WILD_SHAPE_BEASTS.find(b => b.key === k)).filter(Boolean), []);
   D.wildShapeUses = T('wsuses', () => ({ max: getWildShapeUsesMax(), used: parseInt(c._wsUsesUsed) || 0, maxCR: getWildShapeMaxCR() }), null);
   D.portraitUrl = c.tokenUrl || '';
@@ -64990,7 +64995,7 @@ function pdfFillMpmb(F, D) {
   if (D.spellGroups.length) pdfLayoutSpells(F, D, use);
 
   // ── companion pages: familiar / class companion, then every active summon ──
-  const creatures = [D.companion, ...D.summons].filter(Boolean);
+  const creatures = [D.companion, D.simCreature, ...D.summons].filter(Boolean);
   creatures.forEach((cr, i) => {
     if (cr.noStatBlock) { longText.push([cr.name, cr.note]); return; }
     if (i < 3) { use.add(`TPL.AScomp.${i + 1}`); pdfFillCompanion(F, `TPL.AScomp.${i + 1}.`, cr); }
@@ -65587,9 +65592,77 @@ function buildSimulacrumFrom(source, caster) {
   return s;
 }
 
+// ── creature simulacra (beasts, NPCs) ──────────────────────────────────
+// Anything that isn't a player character is a stat block, kept on the
+// controller's own sheet as c._simulacrumCreature:
+//   { kind:'beast'|'npc', name, size, type, alignment, cr, ac, hpMax, hpCur,
+//     originalHp, speed, scores{str..cha}, senses, languages,
+//     attacks:[{name, atkBonus, dmg, dmgType, range, notes}], traits:[..],
+//     createdAt, addedByDM }
+function simCreatureFromBeast(b) {
+  const sc = b.scores || [10, 10, 10, 10, 10, 10], m = x => Math.floor((x - 10) / 2), pb = b.proficiencyBonus || 2;
+  return {
+    kind: 'beast', name: b.name, size: b.size, type: 'Construct (simulacrum of a Beast)', alignment: 'Unaligned', cr: b.cr,
+    ac: b.ac, originalHp: b.hp, speed: b.speed,
+    scores: { str: sc[0], dex: sc[1], con: sc[2], int: sc[3], wis: sc[4], cha: sc[5] },
+    senses: b.senses || '', languages: '',
+    skills: Object.entries(b.skills || {}).map(([k, v]) => `${k.replace(/_/g, ' ').replace(/^./, ch => ch.toUpperCase())} +${v}`).join(', '),
+    attacks: (b.attacks || []).map(a => {
+      const mod = a.ability === 2 ? m(sc[1]) : m(sc[0]);
+      const dice = String(a.dmg || '').replace(/\s+[A-Za-z]+$/, '');
+      return { name: a.name, atkBonus: mod + pb, dmg: /d/.test(dice) && mod ? `${dice}${mod > 0 ? '+' : ''}${mod}` : dice, dmgType: a.dmgType || '', range: a.range || '', notes: a.desc || '' };
+    }),
+    traits: [...(b.traits || []), ...(b.actions || [])].map(x => typeof x === 'string' ? x : `${x.name || ''}${x.desc ? ': ' + x.desc : ''}`),
+  };
+}
+
+function _simRetireCreature(c) { if (c._simulacrumCreature) delete c._simulacrumCreature; }
+async function _simRetireFile(c, reason) {
+  if (!c._simulacrumId) return;
+  try {
+    const { content: old, sha } = await GH.getFile(`${c._simulacrumId}.json`);
+    old._simulacrum = { ...(old._simulacrum || {}), destroyedAt: new Date().toISOString(), destroyedReason: reason };
+    old.hideFromSelector = true;
+    await GH.putFile(`${c._simulacrumId}.json`, old, sha);
+  } catch (e) { console.warn('[simulacrum] could not retire previous copy', e); }
+  delete c._simulacrumId;
+}
+
+async function createCreatureSimulacrum(creature, slotLevel) {
+  const c = currentChar;
+  if (slotLevel && !_simAvailableSlots(c).some(s => s.level === slotLevel)) throw new Error('that spell slot is no longer available');
+  const hpMax = Math.max(1, Math.floor((parseInt(creature.originalHp, 10) || 1) / 2));
+  await _simRetireFile(c, 'Simulacrum cast again');
+  c._simulacrumCreature = { ...creature, hpMax, hpCur: hpMax, createdAt: new Date().toISOString(), addedByDM: !!isDM };
+  if (slotLevel) _simExpendSlot(slotLevel);
+  await saveChar();
+  toast(`Simulacrum of ${creature.name} added`, 'ok');
+  renderSimulacrumPanel();
+}
+
+async function removeSimulacrum() {
+  const c = currentChar; if (!c) return;
+  const name = c._simulacrumCreature?.name || 'this simulacrum';
+  if (!confirm(`Remove ${name}? A copied character's sheet is kept on file (hidden) for the DM.`)) return;
+  _simRetireCreature(c);
+  await _simRetireFile(c, 'Removed');
+  await saveChar(); _simCache = {};
+  toast('Simulacrum removed', 'ok'); renderSimulacrumPanel(); applySimulacrumMode();
+}
+window.removeSimulacrum = removeSimulacrum;
+
+function setSimCreatureHP(v) {
+  const s = currentChar?._simulacrumCreature; if (!s) return;
+  const n = Math.max(0, Math.min(s.hpMax, parseInt(v, 10) || 0));
+  if (n > s.hpCur && !isDM) { toast('A simulacrum only regains HP through repair', 'warn'); renderSimulacrumPanel(); return; }
+  s.hpCur = n; debouncedSave(); renderSimulacrumPanel();
+}
+window.setSimCreatureHP = setSimCreatureHP;
+
 // ── creating ───────────────────────────────────────────────────────────
 async function openCreateSimulacrum() {
   if (!currentChar || isSimulacrum()) return;
+  if (isDM) return openDMSimulacrum();
   const caster = currentChar;
   // only characters in the caster's party (same campaign) can be copied
   const party = caster._campaign || null;
@@ -65644,9 +65717,106 @@ async function openCreateSimulacrum() {
 }
 window.openCreateSimulacrum = openCreateSimulacrum;
 
-async function createSimulacrum(targetId, slotLevel) {
+// DM: give this character a simulacrum of anything - themselves, any player
+// character, a beast from the catalog, or a custom NPC / creature. No party
+// limit, and spending a spell slot is optional.
+async function openDMSimulacrum() {
+  const c = currentChar;
+  let chars = [];
+  try {
+    const files = (await GH.listFiles()).filter(f => !f.name.startsWith('_') && f.name.endsWith('.json'));
+    chars = (await Promise.all(files.map(async f => {
+      const id = f.name.replace('.json', ''); if (id === c.id) return null;
+      try { const { content } = await GH.getFile(f.name); if (content._simulacrum) return null; return { id, name: content.charName || id, camp: content._campaign || '' }; }
+      catch (e) { return null; }
+    }))).filter(Boolean).sort((a, b) => (a.camp !== c._campaign) - (b.camp !== c._campaign) || a.name.localeCompare(b.name));
+  } catch (e) {}
+  const beasts = (typeof WILD_SHAPE_BEASTS !== 'undefined' ? WILD_SHAPE_BEASTS : []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const slots = _simAvailableSlots(c);
+  const ord = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  const has = c._simulacrumId || c._simulacrumCreature;
+  const inp = (id, ph, w = '100%', v = '') => `<input id="${id}" class="info-input" placeholder="${ph}" value="${v}" style="width:${w}">`;
+  const ov = document.createElement('div');
+  ov.id = 'sim-create-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;padding:18px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+    <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">ADD SIMULACRUM (DM)</div>
+    <div style="color:var(--text3);margin-bottom:10px">Controlled by ${c.charName}. Half HP maximum, a Construct, no equipment.</div>
+    <label style="display:block;margin-bottom:4px">A copy of...</label>
+    <select id="dsim-kind" class="info-input" style="width:100%;margin-bottom:10px">
+      <option value="self">${c.charName} (themselves)</option>
+      <option value="pc">Another player character</option>
+      <option value="beast">A beast</option>
+      <option value="npc">An NPC or other creature (enter its stats)</option>
+    </select>
+    <div id="dsim-pc" style="display:none;margin-bottom:10px"><select id="dsim-pc-sel" class="info-input" style="width:100%">
+      ${chars.map(o => `<option value="${o.id}">${o.name}${o.camp && o.camp === c._campaign ? '' : o.camp ? ' (other party)' : ' (no party)'}</option>`).join('')}</select></div>
+    <div id="dsim-beast" style="display:none;margin-bottom:10px"><select id="dsim-beast-sel" class="info-input" style="width:100%">
+      ${beasts.map(b => `<option value="${b.key}">${b.name} (CR ${b.cr}, ${b.size})</option>`).join('')}</select>
+      <div style="color:var(--text3);margin-top:4px">Bigger beasts: use "An NPC or other creature".</div></div>
+    <div id="dsim-npc" style="display:none;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        ${inp('dsim-n-name', 'Name')} ${inp('dsim-n-type', 'Creature type, e.g. Humanoid (Elf)')}
+        ${inp('dsim-n-size', 'Size', '100%', 'Medium')} ${inp('dsim-n-cr', 'CR (optional)')}
+        ${inp('dsim-n-ac', 'AC')} ${inp('dsim-n-hp', "Original's HP maximum (halved)")}
+        ${inp('dsim-n-speed', 'Speed', '100%', '30 ft')} ${inp('dsim-n-senses', 'Senses (optional)')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:6px">
+        ${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => `<label style="text-align:center;font-size:10px">${a.toUpperCase()}${inp('dsim-n-' + a, '10', '100%', '10')}</label>`).join('')}
+      </div>
+      <textarea id="dsim-n-attacks" class="info-input" rows="3" style="width:100%;margin-top:6px" placeholder="Attacks, one per line:  Longsword | +5 | 1d8+3 | Slashing | Melee 5 ft"></textarea>
+      <textarea id="dsim-n-traits" class="info-input" rows="3" style="width:100%;margin-top:6px" placeholder="Traits, actions, spellcasting... one per line"></textarea>
+    </div>
+    <label style="display:block;margin-bottom:4px">Spell slot</label>
+    <select id="dsim-slot" class="info-input" style="width:100%;margin-bottom:6px"><option value="">Don't spend a slot</option>
+      ${slots.map(s => `<option value="${s.level}">${ord(s.level)}-level slot (${s.left} of ${s.max} left)</option>`).join('')}</select>
+    ${has ? `<div style="color:var(--amber);margin:8px 0">${c.charName} already has a simulacrum - this replaces it.</div>` : ''}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="tbtn" id="sim-cancel">Cancel</button>
+      <button class="tbtn" id="sim-go" style="color:var(--accent);border-color:var(--accent)">Add</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const kindSel = ov.querySelector('#dsim-kind');
+  const sync = () => ['pc', 'beast', 'npc'].forEach(k => { ov.querySelector('#dsim-' + k).style.display = kindSel.value === k ? '' : 'none'; });
+  kindSel.onchange = sync; sync();
+  ov.querySelector('#sim-cancel').onclick = () => ov.remove();
+  ov.querySelector('#sim-go').onclick = async () => {
+    const btn = ov.querySelector('#sim-go'); btn.disabled = true; btn.textContent = 'Adding...';
+    const slot = parseInt(ov.querySelector('#dsim-slot').value, 10) || 0;
+    const v = id => (ov.querySelector('#' + id)?.value || '').trim();
+    try {
+      const kind = kindSel.value;
+      if (kind === 'self') await createSimulacrum(c.id, slot, { dm: true });
+      else if (kind === 'pc') { if (!v('dsim-pc-sel')) throw new Error('no other characters'); await createSimulacrum(v('dsim-pc-sel'), slot, { dm: true }); }
+      else if (kind === 'beast') {
+        const b = beasts.find(x => x.key === v('dsim-beast-sel')); if (!b) throw new Error('choose a beast');
+        await createCreatureSimulacrum(simCreatureFromBeast(b), slot);
+      } else {
+        if (!v('dsim-n-name')) throw new Error('give the creature a name');
+        if (!(parseInt(v('dsim-n-hp'), 10) > 0)) throw new Error("enter the original's HP maximum");
+        const attacks = v('dsim-n-attacks').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+          const [name, hit, dmg, type, range, ...rest] = l.split('|').map(x => x.trim());
+          return { name, atkBonus: hit ? parseInt(hit, 10) : undefined, dmg: dmg || '', dmgType: type || '', range: range || '', notes: rest.join(' | ') };
+        });
+        await createCreatureSimulacrum({
+          kind: 'npc', name: v('dsim-n-name'), size: v('dsim-n-size') || 'Medium', cr: v('dsim-n-cr'),
+          type: `Construct (simulacrum${v('dsim-n-type') ? ' of ' + v('dsim-n-type') : ''})`, alignment: '',
+          ac: parseInt(v('dsim-n-ac'), 10) || 10, originalHp: parseInt(v('dsim-n-hp'), 10), speed: v('dsim-n-speed'),
+          scores: Object.fromEntries(['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => [a, parseInt(v('dsim-n-' + a), 10) || 10])),
+          senses: v('dsim-n-senses'), languages: '', attacks, traits: v('dsim-n-traits').split('\n').map(x => x.trim()).filter(Boolean),
+        }, slot);
+      }
+      ov.remove();
+    } catch (e) { toast('Could not add simulacrum: ' + e.message, 'error'); btn.disabled = false; btn.textContent = 'Add'; }
+  };
+}
+window.openDMSimulacrum = openDMSimulacrum;
+
+async function createSimulacrum(targetId, slotLevel, opts = {}) {
   const caster = currentChar;
-  if (!slotLevel || !_simAvailableSlots(caster).some(s => s.level === slotLevel)) throw new Error('no 7th-level or higher spell slot left');
+  const dm = !!opts.dm && isDM;
+  if (!dm && (!slotLevel || !_simAvailableSlots(caster).some(s => s.level === slotLevel))) throw new Error('no 7th-level or higher spell slot left');
+  if (dm && slotLevel && !_simAvailableSlots(caster).some(s => s.level === slotLevel)) throw new Error('that spell slot is no longer available');
   // flush the caster first so we copy (and later save) the latest state
   if (typeof _debounceSaveTimer !== 'undefined' && _debounceSaveTimer) { clearTimeout(_debounceSaveTimer); _debounceSaveTimer = null; }
   if (typeof gatherSheetData === 'function') gatherSheetData();
@@ -65654,25 +65824,21 @@ async function createSimulacrum(targetId, slotLevel) {
   if (targetId === caster.id) source = JSON.parse(JSON.stringify(caster));
   else {
     const { content } = await GH.getFile(`${targetId}.json`);
-    if (!caster._campaign || content._campaign !== caster._campaign) throw new Error('you can only copy a character in your own party');
+    if (!dm && (!caster._campaign || content._campaign !== caster._campaign)) throw new Error('you can only copy a character in your own party');
     if (content._simulacrum) throw new Error("a simulacrum can't be copied");
     source = content; source.id = targetId;
   }
 
   const sim = buildSimulacrumFrom(source, caster);
+  if (dm) sim._simulacrum.addedByDM = true;
   await GH.putFile(`${sim.id}.json`, sim, null);
 
   // casting again destroys the previous one (kept on file, hidden, for the DM)
-  if (caster._simulacrumId && caster._simulacrumId !== sim.id) {
-    try {
-      const { content: old, sha } = await GH.getFile(`${caster._simulacrumId}.json`);
-      old._simulacrum = { ...(old._simulacrum || {}), destroyedAt: new Date().toISOString(), destroyedReason: 'Simulacrum cast again' };
-      old.hideFromSelector = true;
-      await GH.putFile(`${caster._simulacrumId}.json`, old, sha);
-    } catch (e) { console.warn('[simulacrum] could not retire previous copy', e); }
-  }
+  if (caster._simulacrumId && caster._simulacrumId !== sim.id) await _simRetireFile(caster, 'Simulacrum cast again');
+  _simRetireCreature(caster);
   caster._simulacrumId = sim.id;
-  _simExpendSlot(slotLevel);              // only once the copy has been saved
+  if (dm) sim._simulacrum.addedByDM = true;
+  if (slotLevel) _simExpendSlot(slotLevel);   // only once the copy has been saved
   await saveChar();
   _simCache[sim.id] = { content: sim, at: Date.now() };
   toast(`Simulacrum of ${source.charName} created`, 'ok');
@@ -65710,7 +65876,7 @@ function renderSimulacrumPanel() {
   const anchor = document.getElementById('sp-class-manage-bar');
   if (!anchor || !currentChar) return;
   let el = document.getElementById('sp-simulacrum-panel');
-  const show = !isSimulacrum() && (charKnowsSimulacrum() || currentChar._simulacrumId);
+  const show = !isSimulacrum() && (isDM || charKnowsSimulacrum() || currentChar._simulacrumId || currentChar._simulacrumCreature);
   if (!show) { if (el) el.remove(); return; }
   if (!el) {
     el = document.createElement('div'); el.id = 'sp-simulacrum-panel';
@@ -65718,9 +65884,32 @@ function renderSimulacrumPanel() {
     anchor.insertAdjacentElement('afterend', el);
   }
   const id = currentChar._simulacrumId;
+  const addBtn = isDM ? `<button class="tbtn" onclick="openCreateSimulacrum()">${id || currentChar._simulacrumCreature ? 'Replace (DM)...' : 'Add Simulacrum (DM)...'}</button>`
+    : (charKnowsSimulacrum() ? `<button class="tbtn" onclick="openCreateSimulacrum()">${id || currentChar._simulacrumCreature ? 'Cast again...' : 'Create Simulacrum...'}</button>` : '');
+  const removeBtn = isDM && (id || currentChar._simulacrumCreature) ? `<button class="tbtn" onclick="removeSimulacrum()" style="color:var(--red);border-color:var(--red)">Remove</button>` : '';
+  const cr = currentChar._simulacrumCreature;
+  if (cr) {
+    const melted = (cr.hpCur ?? 0) <= 0, sc = cr.scores || {}, m = x => { const v = Math.floor(((x ?? 10) - 10) / 2); return (v >= 0 ? '+' : '') + v; };
+    el.style.display = 'block';
+    el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span>
+        <span style="flex:1"><b>${cr.name}</b> &middot; ${cr.size || ''} ${cr.type || ''}${cr.cr ? ' &middot; CR ' + cr.cr : ''}${melted ? ' &middot; <span style="color:var(--red)">melted (0 HP)</span>' : ''}</span>
+        ${cr.hpCur < cr.hpMax && !melted ? `<button class="tbtn" onclick="repairSimulacrum()">Repair (${SIM_REPAIR_GP_PER_HP} GP/HP)</button>` : ''}${addBtn}${removeBtn}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;align-items:center">
+        <span>AC <b>${cr.ac}</b></span>
+        <span>HP <input type="number" min="0" max="${cr.hpMax}" value="${cr.hpCur}" onchange="setSimCreatureHP(this.value)" class="info-input" style="width:56px;display:inline-block"> / ${cr.hpMax} <span style="color:var(--text3)">(original ${cr.originalHp})</span></span>
+        <span>Speed ${cr.speed || '-'}</span>
+        <span style="color:var(--text3)">${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => `${a.toUpperCase()} ${sc[a] ?? 10} (${m(sc[a])})`).join(' &middot; ')}</span>
+      </div>
+      ${cr.senses || cr.skills ? `<div style="margin-top:6px;color:var(--text2)">${[cr.senses, cr.skills ? 'Skills ' + cr.skills : ''].filter(Boolean).join(' &middot; ')}</div>` : ''}
+      ${(cr.attacks || []).length ? `<div style="margin-top:6px">${cr.attacks.map(a => `<div><b>${a.name}</b>${a.atkBonus !== undefined && !isNaN(a.atkBonus) ? ` ${a.atkBonus >= 0 ? '+' : ''}${a.atkBonus} to hit` : ''}${a.range ? ', ' + a.range : ''}${a.dmg ? ' - ' + a.dmg + ' ' + (a.dmgType || '') : ''}${a.notes ? `<span style="color:var(--text3)"> ${a.notes}</span>` : ''}</div>`).join('')}</div>` : ''}
+      ${(cr.traits || []).length ? `<div style="margin-top:6px;color:var(--text2)">${cr.traits.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
+      <div style="margin-top:6px;color:var(--text3)">Can't rest or gain levels; HP only comes back through repairs.</div>`;
+    return;
+  }
+  el.style.display = 'flex';
   if (!id) {
-    el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--text3);flex:1">No simulacrum yet.</span>
-      <button class="tbtn" onclick="openCreateSimulacrum()">Create Simulacrum...</button>`;
+    el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--text3);flex:1">No simulacrum yet.</span>${addBtn}`;
     return;
   }
   el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--text3);flex:1">Loading...</span>`;
@@ -65734,12 +65923,24 @@ function renderSimulacrumPanel() {
         <b style="color:${melted ? 'var(--red)' : 'var(--text)'}">HP ${s.hp_current ?? 0} / ${s.hp_max}</b>${melted ? ' &middot; <span style="color:var(--red)">melted (0 HP)</span>' : ''}${gone ? ' &middot; destroyed' : ''}</span>
       ${!gone ? `<button class="tbtn" onclick="openSimulacrumSheet()">Open sheet</button>` : ''}
       ${!gone && missing > 0 && !melted ? `<button class="tbtn" onclick="repairSimulacrum()">Repair (${SIM_REPAIR_GP_PER_HP} GP/HP)</button>` : ''}
-      <button class="tbtn" onclick="openCreateSimulacrum()">Cast again...</button>`;
-  }).catch(e => { el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--red);flex:1">Couldn't load it (${e.message}).</span><button class="tbtn" onclick="openCreateSimulacrum()">Create Simulacrum...</button>`; });
+      ${addBtn}${removeBtn}`;
+  }).catch(e => { el.innerHTML = `<span style="font-family:var(--font-label);letter-spacing:1px">SIMULACRUM</span><span style="color:var(--red);flex:1">Couldn't load it (${e.message}).</span>${addBtn}${removeBtn}`; });
 }
 window.renderSimulacrumPanel = renderSimulacrumPanel;
 
 async function repairSimulacrum() {
+  const cr = currentChar?._simulacrumCreature;
+  if (cr) {
+    const missing = Math.max(0, cr.hpMax - cr.hpCur), gp = currentChar.currency?.gp || 0;
+    const affordable = Math.min(missing, Math.floor(gp / SIM_REPAIR_GP_PER_HP));
+    if (!missing) { toast('Your simulacrum is at full HP', 'info'); return; }
+    if (!affordable) { toast(`Repairs cost ${SIM_REPAIR_GP_PER_HP} GP per HP - you have ${gp} GP`, 'warn'); return; }
+    const n = Math.max(0, Math.min(affordable, parseInt(prompt(`Repair during your Long Rest (simulacrum within 5 ft).\nHP to restore (missing ${missing}, you can afford ${affordable}; ${SIM_REPAIR_GP_PER_HP} GP each):`, String(affordable)), 10) || 0));
+    if (!n) return;
+    cr.hpCur += n; _simSpendGold(n * SIM_REPAIR_GP_PER_HP); await saveChar();
+    toast(`Repaired ${n} HP for ${(n * SIM_REPAIR_GP_PER_HP).toLocaleString()} GP`, 'ok'); renderSimulacrumPanel();
+    return;
+  }
   const id = currentChar?._simulacrumId; if (!id) return;
   try {
     const { content: s, sha } = await _simFetch(id, true);
