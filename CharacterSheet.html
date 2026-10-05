@@ -2851,6 +2851,7 @@ body.preview-readonly #mi-detail-edit-row * {
 
   <div id="page-tabs">
     <div class="page-tab active" data-page="main" data-short="Main">Main Sheet</div>
+    <div class="page-tab" id="tab-quickplay" data-page="quickplay" data-short="Quick" style="display:none">Quick Play</div>
     <div class="page-tab" data-page="features" data-short="Features">Features</div>
     <div class="page-tab" id="tab-tables" data-page="tables" data-short="Tables" style="display:none">Tables</div>
     <div class="page-tab" data-page="background" data-short="BG">Background</div>
@@ -3476,7 +3477,8 @@ body.preview-readonly #mi-detail-edit-row * {
         </div>
       </div>
     </div>
-    <div class="page" id="page-feats">
+    <div class="page" id="page-quickplay"><div id="qp-body"></div></div>
+<div class="page" id="page-feats">
       <div class="tab-grid-2col">
         <div class="panel">
           <div class="panel-title">Feats &amp; ASI Slots</div>
@@ -4521,8 +4523,8 @@ body.preview-readonly #mi-detail-edit-row * {
     <!-- Roll results (4d6 mode) -->
     <div id="asi-roll-results" style="display:none;margin-bottom:14px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase">Rolled Scores</span>
-        <button class="tbtn" onclick="rollASI4d6()" style="font-size:10px;padding:3px 10px">&#x1F3B2; Re-roll All</button>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text2);letter-spacing:1px;text-transform:uppercase">Your Rolled Scores</span>
+        <button class="tbtn" onclick="rollASI4d6()" style="font-size:10px;padding:3px 10px">Clear</button>
       </div>
       <div id="asi-roll-display" style="display:flex;gap:8px;flex-wrap:wrap"></div>
       <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;letter-spacing:.5px" id="asi-roll-note"></div>
@@ -8448,6 +8450,9 @@ async function loadDMCharList() {
             <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer">
               <input type="checkbox" ${c.hideFromPartyView?'checked':''} onchange="dmToggleCharVisibility('${id}','hideFromPartyView',this.checked)"/> Hide from Party View
             </label>
+            <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer" title="Adds the simplified Quick Play tab to this character and opens the sheet on it">
+              <input type="checkbox" ${c.quickPlay?'checked':''} onchange="dmToggleQuickPlay('${id}',this.checked)"/> Quick Play
+            </label>
           </div>
         `;
         listEl.appendChild(row);
@@ -8721,6 +8726,9 @@ async function refreshSingleCharacterCard(charId, knownFreshData) {
         <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer">
           <input type="checkbox" ${c.hideFromPartyView?'checked':''} onchange="dmToggleCharVisibility('${id}','hideFromPartyView',this.checked)"/> Hide from Party View
         </label>
+        <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-ui);font-size:9px;color:var(--text3);cursor:pointer" title="Adds the simplified Quick Play tab to this character and opens the sheet on it">
+          <input type="checkbox" ${c.quickPlay?'checked':''} onchange="dmToggleQuickPlay('${id}',this.checked)"/> Quick Play
+        </label>
       </div>
     `;
 
@@ -8800,6 +8808,23 @@ async function dmToggleCharVisibility(id, field, checked) {
   } catch(e) { toast('Save failed: ' + e.message, 'error'); }
 }
 window.dmToggleCharVisibility = dmToggleCharVisibility;
+
+// DM-only: turn the Quick Play tab on/off for one character. When on, the
+// tab is shown and the sheet opens on it.
+async function dmToggleQuickPlay(id, checked) {
+  try {
+    const { content: c, sha } = await GH.getFile(`${id}.json`);
+    c.quickPlay = !!checked;
+    await GH.putFile(`${id}.json`, c, sha);
+    broadcastCharUpdate(id, 'quickPlay');
+    const cached = _partyCharCache[id];
+    if (cached) cached.quickPlay = !!checked;
+    if (currentChar && currentChar.id === id) { currentChar.quickPlay = !!checked; if (typeof applyQuickPlayTab === 'function') applyQuickPlayTab(false); }
+    refreshSingleCharacterCard(id, c);
+    toast(`Quick Play ${checked ? 'enabled' : 'disabled'} for ${c.charName || id}`, 'ok');
+  } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+}
+window.dmToggleQuickPlay = dmToggleQuickPlay;
 
 // Lets the DM set a character's token directly, for players who haven't
 // set their own. Reuses the exact same resize step and tokens/{id}.jpg
@@ -9388,7 +9413,14 @@ function dmRenderCampaigns() {
     // Campaign header
     const header = document.createElement('div');
     header.style.cssText = `display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border)`;
+    const _first = ci === 0, _last = ci === _dmCampaigns.length - 1;
+    const _mvBtn = (dir, sym, off, tip) => `<button class="tbtn" onclick="dmMoveCampaign(${ci}, ${dir})" ${off ? 'disabled' : ''} title="${tip}"
+        style="font-size:9px;padding:1px 5px;line-height:1.2;${off ? 'opacity:.3;cursor:default' : ''}">${sym}</button>`;
     header.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+        ${_mvBtn(-1, '\u25B2', _first, 'Move up - campaigns show in this order everywhere, including Party View')}
+        ${_mvBtn(1, '\u25BC', _last, 'Move down')}
+      </div>
       <div style="width:10px;height:10px;border-radius:50%;background:${camp.color};flex-shrink:0"></div>
       <input class="info-input" value="${camp.name.replace(/"/g,'&quot;')}"
         style="flex:1;font-size:12px;font-weight:600;padding:2px 6px;background:transparent;border-color:transparent"
@@ -9463,6 +9495,16 @@ function dmUpdateCampaignColor(idx, color) {
 function dmUpdateCampaignLevelingMode(idx, mode) {
   if (_dmCampaigns[idx]) { _dmCampaigns[idx].levelingMode = mode; dmSaveCampaigns(); dmRenderCampaigns(); }
 }
+// Campaign order is the order of _dmCampaigns, which Party View, the DM
+// party list and every campaign dropdown already follow.
+function dmMoveCampaign(idx, dir) {
+  const to = idx + dir;
+  if (to < 0 || to >= _dmCampaigns.length) return;
+  [_dmCampaigns[idx], _dmCampaigns[to]] = [_dmCampaigns[to], _dmCampaigns[idx]];
+  dmSaveCampaigns();
+  dmRenderCampaigns();
+}
+window.dmMoveCampaign = dmMoveCampaign;
 function dmDeleteCampaign(idx) {
   if (!confirm('Delete this campaign? Characters will become unassigned.')) return;
   const id = _dmCampaigns[idx]?.id;
@@ -9742,6 +9784,31 @@ function highlightMultiClauseUpcast(raw, before, after, extraLevels) {
   return changed ? newBefore + newAfter : null;
 }
 
+// When upcasting turns a single target into several ("A creature you touch
+// has..." -> "Two creatures you touch has..."), the rest of that sentence
+// still speaks about one creature. This fixes the grammar in the remainder
+// of the sentence (up to its full stop): singular verbs become plural and
+// the subject pronoun "it" / "its" / "it's" become "they" / "their" /
+// "they're". Only text outside HTML tags is touched.
+const _UPCAST_VERB_PLURAL = {
+  has: 'have', is: 'are', was: 'were', makes: 'make', gains: 'gain', takes: 'take', hears: 'hear',
+  regains: 'regain', becomes: 'become', falls: 'fall', receives: 'receive', succeeds: 'succeed',
+  fails: 'fail', sees: 'see', moves: 'move', appears: 'appear', vanishes: 'vanish', 'shape-shifts': 'shape-shift',
+  "doesn't": "don't", "isn't": "aren't", "wasn't": "weren't", "hasn't": "haven't",
+};
+function _upcastPluralizeRest(rest) {
+  const stop = rest.search(/\.(\s|<|$)/);
+  const head = stop === -1 ? rest : rest.slice(0, stop), tail = stop === -1 ? '' : rest.slice(stop);
+  const verbs = Object.keys(_UPCAST_VERB_PLURAL).map(v => v.replace(/[-']/g, m => '\\' + m)).join('|');
+  const fixText = t => t
+    .replace(new RegExp(`\\bit (${verbs})\\b`, 'gi'), (m, v) => `they ${_UPCAST_VERB_PLURAL[v.toLowerCase()]}`)
+    .replace(new RegExp(`\\b(${verbs})\\b`, 'gi'), v => _UPCAST_VERB_PLURAL[v.toLowerCase()] || v)
+    .replace(/\bit's\b/gi, "they're")
+    .replace(/\bits\b/gi, 'their');
+  // keep HTML tags intact - only rewrite the text between them
+  return head.split(/(<[^>]+>)/).map(part => part.startsWith('<') ? part : fixText(part)).join('') + tail;
+}
+
 function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
   if (!spell || !spell.level || spell.level === 0 || !fullDescHtml) return fullDescHtml;
   const raw = spell.descFull || spell.desc || '';
@@ -9829,7 +9896,9 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
         const newNoun = newTotal === 1 ? noun : pluralize(noun);
         const replacement = `${newLead}${sm[2]} ${newNoun}`;
         const idx = before.search(step1);
-        return before.slice(0, idx) + `<span style="color:var(--accent);font-weight:600">${replacement}</span>` + before.slice(idx + sm[0].length) + after;
+        let rest = before.slice(idx + sm[0].length);
+        if (curNum === 1 && newTotal > 1) rest = _upcastPluralizeRest(rest);
+        return before.slice(0, idx) + `<span style="color:var(--accent);font-weight:600">${replacement}</span>` + rest + after;
       }
       if (extraLevels > 0) {
         const step2 = new RegExp(`\\b(a|an)\\b(${CONN})\\s+${noun}\\b`, 'i');
@@ -9839,7 +9908,7 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
           const newLead = matchCase(am[1], _NUMBER_WORDS[newTotal] || String(newTotal));
           const replacement = `${newLead}${am[2]} ${pluralize(noun)}`;
           const idx = before.search(step2);
-          return before.slice(0, idx) + `<span style="color:var(--accent);font-weight:600">${replacement}</span>` + before.slice(idx + am[0].length) + after;
+          return before.slice(0, idx) + `<span style="color:var(--accent);font-weight:600">${replacement}</span>` + _upcastPluralizeRest(before.slice(idx + am[0].length)) + after;
         }
       }
     }
@@ -9856,7 +9925,9 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
         const newFollow = newTotal === 1 ? gm[2] : pluralize(gm[2]);
         const replacement = `${newLead} ${newFollow}`;
         const idx = before.search(step3);
-        return before.slice(0, idx) + `<span style="color:var(--accent);font-weight:600">${replacement}</span>` + before.slice(idx + gm[0].length) + after;
+        let rest = before.slice(idx + gm[0].length);
+        if (curNum === 1 && newTotal > 1) rest = _upcastPluralizeRest(rest);
+        return before.slice(0, idx) + `<span style="color:var(--accent);font-weight:600">${replacement}</span>` + rest + after;
       }
     }
 
@@ -9874,7 +9945,7 @@ function highlightSpellUpcast(fullDescHtml, spell, castLevel) {
       const tm = before.match(step4);
       if (tm) {
         const addWord = _NUMBER_WORDS[extraLevels] || String(extraLevels);
-        const insertion = ` and up to ${addWord} additional ${pluralize(noun)}`;
+        const insertion = ` and up to ${addWord} additional ${extraLevels === 1 ? noun : pluralize(noun)}`;
         const idx = before.search(step4);
         const matchEnd = idx + tm[0].length;
         return before.slice(0, matchEnd) + `<span style="color:var(--accent);font-weight:600">${insertion}</span>` + before.slice(matchEnd) + after;
@@ -10170,6 +10241,24 @@ function getItemGrantChargeCost(g, sp, lv) {
 window.getItemGrantLevelRange = getItemGrantLevelRange;
 window.getItemGrantChargeCost = getItemGrantChargeCost;
 
+// The level a feat casts its free spell at. Normally the spell's own level;
+// the Greater dragonmarks upcast their mark's free spell to its level 3
+// version (Greater Mark of Shadow -> Invisibility, Greater Mark of Making ->
+// Magic Weapon).
+const FEAT_FREE_CAST_UPGRADES = [
+  { mark: 'mark of shadow', spell: 'invisibility', greater: 'Greater Mark of Shadow', level: 3 },
+  { mark: 'mark of making', spell: 'magic_weapon', greater: 'Greater Mark of Making', level: 3 },
+];
+function getFeatSpellFreeCastLevel(row, sp) {
+  const base = sp?.level ?? row?.level ?? 0;
+  if (!row || row.pipType !== 'feat-spell') return base;
+  const feat = String(row.label || currentChar?.spells?.featSpellNames?.[row.featKey] || '').toLowerCase();
+  const up = FEAT_FREE_CAST_UPGRADES.find(u => u.mark === feat && u.spell === (sp?.key || row.key)
+    && typeof characterHasFeatNamed === 'function' && characterHasFeatNamed(u.greater));
+  return up ? Math.max(base, up.level) : base;
+}
+window.getFeatSpellFreeCastLevel = getFeatSpellFreeCastLevel;
+
 function buildSpellDetailCastContext(sp, row) {
   const isMysticArcanum = typeof getMysticArcanumSpells === 'function'
     && getMysticArcanumSpells().some(a => a.key === sp.key);
@@ -10195,7 +10284,18 @@ function buildSpellDetailCastContext(sp, row) {
   // which - unlike an invocation grant - still cost a normal spell slot.
   const invocationGrants = row?.invocationGrants || [];
   const isInvocationOnly = row?.source === 'invocation';
-  if ((!row || row.pipType !== 'item-spell') && !isInvocationOnly) {
+  // A feat's free cast (e.g. Mark of Shadow's Invisibility, once per Long
+  // Rest) is its own source, at the level the feat casts it - 3rd with
+  // Greater Mark of Shadow. Casting it with a slot is only offered if the
+  // character actually has slots high enough.
+  const isFeatSpell = row?.pipType === 'feat-spell' && sp.level > 0;
+  if (isFeatSpell) {
+    const lv = getFeatSpellFreeCastLevel(row, sp);
+    sources.push({ id: 'feat', label: `${row.label || 'Feat'} (free cast)`, levels: [lv], defaultLevel: lv });
+  }
+  const _slots = typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(currentChar) : null;
+  const _hasSlotFor = !!(_slots && ((_slots.levels || []).some(l => l.max && l.level >= sp.level) || (_slots.warlock?.max && _slots.warlock.slotLevel >= sp.level)));
+  if ((!row || row.pipType !== 'item-spell') && !isInvocationOnly && (!isFeatSpell || _hasSlotFor)) {
     sources.push({
       id: 'slot', label: 'Spell Slot',
       levels: isUpcastable ? range(sp.level, 9) : [sp.level],
@@ -12720,11 +12820,14 @@ const ARCANE_SHOT_DESCS = {"Banishing Shot":"Your ammunition temporarily sequest
 // ── Wild Magic Surge Roller ──────────────────────────────
 function rollWildMagicSurge(btn) { rollTableCard(btn); } // legacy alias
 
-function rollTableCard(btn) {
-  const card = btn.closest('[data-table-lines]');
+function rollTableCard(input) {
+  // The die is rolled at the table; this looks up the number typed in.
+  const card = input.closest('[data-table-lines]');
   const tableLines = card ? JSON.parse(decodeURIComponent(card.dataset.tableLines)) : [];
   const dieSides = card ? (parseInt(card.dataset.dieSides) || 100) : 100;
-  const roll = Math.ceil(Math.random() * dieSides);
+  const roll = parseInt(input.value, 10);
+  const resultEl0 = card ? card.querySelector('[id^="wms-result-"]') : null;
+  if (!(roll >= 1 && roll <= dieSides)) { if (resultEl0) resultEl0.style.display = 'none'; return; }
   let result = null;
   for (const line of tableLines) {
     const m = line.match(/^(\d+)(?:-(\d+))?[:\s]\s*(.+)$/);
@@ -12736,10 +12839,10 @@ function rollTableCard(btn) {
   if (resultEl) {
     if (result) {
       resultEl.style.display = 'block';
-      resultEl.innerHTML = `<strong style="color:var(--accent);font-family:var(--font-ui);font-size:11px">🎲 Roll: ${roll}</strong><br><span style="font-family:var(--font-body)">${result}</span>`;
+      resultEl.innerHTML = `<strong style="color:var(--accent);font-family:var(--font-ui);font-size:11px">Result for ${roll}:</strong><br><span style="font-family:var(--font-body)">${result}</span>`;
     } else {
       resultEl.style.display = 'block';
-      resultEl.innerHTML = `<strong style="color:var(--accent);font-family:var(--font-ui);font-size:11px">🎲 Roll: ${roll}</strong> - No matching entry`;
+      resultEl.innerHTML = `<strong style="color:var(--accent);font-family:var(--font-ui);font-size:11px">${roll}:</strong> no matching entry`;
     }
   }
 }
@@ -26066,7 +26169,7 @@ const ASI_MODES = {
   },
   '4d6': {
     label: '4d6 Drop Lowest',
-    desc:  'Rolls 4d6 and drops the lowest die for each of the 6 scores. Assign each rolled value to an ability using the dropdowns.'
+    desc:  'Roll 4d6 at the table and drop the lowest die, six times. Type each total in below, then assign them to abilities using the dropdowns.'
   },
   standard: {
     label: 'Standard Array',
@@ -26113,15 +26216,9 @@ function switchASIMode(mode) {
 }
 
 function rollASI4d6() {
-  // Roll 4d6 drop lowest, 6 times
+  // Dice stay on the table: the six 4d6-drop-lowest totals are typed in
+  // (see renderASIRollDisplay). This just starts a fresh, empty set.
   _asiRolls = [];
-  for (let i = 0; i < 6; i++) {
-    const dice = [1,2,3,4].map(() => Math.floor(Math.random() * 6) + 1);
-    dice.sort((a,b) => b - a);
-    const dropped = dice[3];
-    const total   = dice[0] + dice[1] + dice[2];
-    _asiRolls.push({ dice, dropped, total });
-  }
   // Reset assignments
   _asiAssign = {};
   for (const ab of ABILITIES) _asiAssign[ab] = null;
@@ -26208,7 +26305,28 @@ function renderASIRollDisplay() {
   const disp = document.getElementById('asi-roll-display');
   const note = document.getElementById('asi-roll-note');
   if (!disp) return;
+  // six boxes for the totals rolled at the table
   disp.innerHTML = '';
+  const vals = [...Array(6)].map((_, i) => _asiRolls[i]?.total ?? '');
+  vals.forEach((v, i) => {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.min = '3'; inp.max = '18'; inp.value = v; inp.placeholder = '#' + (i + 1);
+    inp.className = 'info-input'; inp.style.cssText = 'width:58px;text-align:center;font-size:16px;font-weight:700';
+    inp.addEventListener('change', () => {
+      const n = parseInt(inp.value, 10);
+      const next = [...Array(6)].map((_, k) => _asiRolls[k]?.total ?? null);
+      next[i] = (n >= 3 && n <= 18) ? n : null;
+      if (inp.value && next[i] === null) { toast('A 4d6-drop-lowest total is between 3 and 18', 'warn'); inp.value = ''; }
+      _asiRolls = next.map(t => t === null ? null : { dice: [], dropped: null, total: t }).map(r => r || { dice: [], dropped: null, total: null });
+      for (const ab of ABILITIES) _asiAssign[ab] = null;      // the pool changed - reassign
+      renderASIAssignment(); renderASISummary();
+      if (note) { const got = _asiRolls.filter(r => r.total !== null); const t = got.reduce((x, r) => x + r.total, 0);
+        note.textContent = got.length ? `Entered ${got.length}/6  ·  Total: ${t}  ·  Average: ${(t / got.length).toFixed(1)}` : 'Roll 4d6 six times at the table, dropping the lowest die each time.'; }
+    });
+    disp.appendChild(inp);
+  });
+  if (note) note.textContent = 'Roll 4d6 six times at the table, dropping the lowest die each time.';
+  return;
 
   let total = 0;
   for (const r of _asiRolls) {
@@ -26267,7 +26385,7 @@ function renderASIAssignment() {
   grid.innerHTML = '';
 
   const pool = _asiMode === '4d6'
-    ? _asiRolls.map(r => r.total)
+    ? _asiRolls.map(r => r && r.total).filter(t => t !== null && t !== undefined)
     : _asiArray;
 
   for (const ab of ABILITIES) {
@@ -52711,10 +52829,10 @@ function buildAllResourceDefs() {
       const id = `feat_spell_${s.key}`.replace(/[^a-z0-9_]/g,'_');
       const grantingFeat = currentChar.spells?.featSpellNames?.[s.featKey] || '';
       // Greater Mark of Shadow's "Improved Shadow" benefit upcasts the free
-      // Invisibility cast to 3rd level, and its "Improved Intuition" benefit
+      // Invisibility cast to 3rd level (now applied on the spell card - see
+      // getFeatSpellFreeCastLevel), and its "Improved Intuition" benefit
       // upgrades the unrelated Cunning Intuition check bonus from 1d4 to
-      // 1d6. Neither is automated (no die-roller or spell-level override
-      // exists for feat-granted spells), so this is purely a reminder note
+      // 1d6 (not automated - no dice are rolled digitally), so this is a reminder note
       // on the one resource card Mark of Shadow actually produces - it has
       // nowhere else to live since Cunning Intuition itself has no charge
       // to track.
@@ -58278,7 +58396,10 @@ function activateMutableForm() {
 
   const subLv = getClassLevelCount('psion') || getLevel();
   const dieSize = subLv < 5 ? 6 : subLv < 11 ? 8 : subLv < 17 ? 10 : 12;
-  const dieRoll = Math.floor(Math.random() * dieSize) + 1;
+  const _ans = prompt(`Roll your Psionic Energy Die (d${dieSize}) and enter the result:`);
+  if (_ans === null) return;                                     // cancelled - nothing spent
+  const dieRoll = parseInt(_ans, 10);
+  if (!(dieRoll >= 1 && dieRoll <= dieSize)) { toast(`Enter a number from 1 to ${dieSize}`, 'warn'); return; }
   const intMod  = abilityMod(getAbilities().int);
   const rolledTempHP = Math.max(1, dieRoll + intMod);
 
@@ -60844,10 +60965,8 @@ function makeTableFeatureCard(id, name, level, desc, source) {
         <div class="feat-card-meta">${levelStr}${sourceStr}</div>
       </div>
       <div style="margin-bottom:8px">
-        <button class="btn-sm" style="font-family:var(--font-ui);font-size:10px;letter-spacing:.5px;padding:4px 12px;background:var(--accent);color:#000;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600"
-          onclick="rollTableCard(this)">
-          🎲 Roll d${dieSides}
-        </button>
+        <label style="font-family:var(--font-ui);font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:6px">Your d${dieSides} roll:
+        <input type="number" min="1" max="${dieSides}" class="info-input" style="width:70px;display:inline-block" oninput="rollTableCard(this)"></label>
         <div id="wms-result-${id}" style="margin-top:8px;font-family:var(--font-body);font-size:12px;color:var(--text);display:none;padding:8px 12px;background:var(--bg3);border-radius:var(--radius);border-left:3px solid var(--accent)"></div>
       </div>
       <table style="width:100%;border-collapse:collapse">${tableRows}</table>
@@ -64436,7 +64555,7 @@ function pdfCollectCharacter() {
     const walk = document.getElementById('disp-speed')?.innerText.trim() || c.speed || 30;
     const o = c.speedOverrides || {};
     const extra = ['climb', 'swim', 'fly', 'burrow'].filter(k => o[k]).map(k => `${_pdfCap(k)} ${o[k]}`);
-    if (c._raceFlySpeed && !o.fly) extra.push(`Fly ${c._raceFlySpeed}`);
+    if (c._raceFlySpeed && !o.fly && !/fly/i.test(String(walk))) extra.push(`Fly ${c._raceFlySpeed}`);
     return { walk: String(walk), extra: extra.join(', ') };
   }, { walk: '30', extra: '' });
   D.senses = T('senses', () => document.getElementById('senses-box')?.innerText.trim(), '');
@@ -64504,7 +64623,7 @@ function pdfCollectCharacter() {
   D.spellGroups = [];
   const byGroup = new Map();
   rows.forEach(r => {
-    if (r.pipType === 'locked-level' || r.unavailable) return;
+    if (r.pipType === 'locked-level' || r.pipType === 'subclass-locked' || r.unavailable) return;   // not castable yet
     const g = owner.get(r.key) || '_other';
     if (!byGroup.has(g)) byGroup.set(g, []);
     if (byGroup.get(g).some(x => x.key === r.key)) return;
@@ -66043,7 +66162,9 @@ function lockSimulacrumClassRows() {
 //       * Strength becomes 3 for 2d4 days (until you end it)
 //       * until your next Long Rest, each spell you cast deals 1d10 Necrotic
 //         per spell level to you (shown as a reminder)
-//       * 33% chance you can never cast Wish again (rolled, recorded)
+//       * 33% chance you can never cast Wish again
+//     The dice (2d4 days, d100 for the 33%) are rolled at the table; the
+//     player enters the results - the sheet never rolls.
 // ═══════════════════════════════════════════════════════════════════════
 const WISH_EFFECTS = [
   ['Object Creation', 'Create one nonmagical object worth up to 25,000 GP, no more than 300 feet in any dimension, in an unoccupied space you can see on the ground.'],
@@ -66066,7 +66187,7 @@ function renderWishPanel(body) {
   const banned = st?.lostWish;
   el.innerHTML = `
     <div style="font-family:var(--font-label);letter-spacing:1px;margin-bottom:8px;color:var(--accent)">USE WISH</div>
-    ${banned ? `<div style="color:var(--red);margin-bottom:8px">Your last Wish stress roll means you can never cast Wish again (rolled ${st.lostWishRoll}). Your DM can clear this.</div>` : ''}
+    ${banned ? `<div style="color:var(--red);margin-bottom:8px">Your Wish stress roll (${st.lostWishRoll}) means you can never cast Wish again. Your DM can clear this.</div>` : ''}
     <div style="display:flex;gap:6px;margin-bottom:10px">
       <button class="tbtn" id="wish-tab-dup" style="color:var(--accent);border-color:var(--accent)">Duplicate a spell</button>
       <button class="tbtn" id="wish-tab-other">Other effects</button>
@@ -66113,11 +66234,21 @@ function renderWishPanel(body) {
       <div style="color:var(--amber);margin-bottom:8px">Any of these causes Wish stress: Strength 3 for 2d4 days, 1d10 Necrotic per spell level whenever you cast a spell until your next Long Rest, and a 33% chance you can never cast Wish again.</div>
       ${WISH_EFFECTS.map(([n, d], i) => `<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;cursor:pointer">
         <input type="radio" name="wish-eff" value="${i}" style="margin-top:2px"><span><b>${n}.</b> <span style="color:var(--text2)">${d}</span></span></label>`).join('')}
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+        <div style="color:var(--text2);margin-bottom:6px">Roll at the table, then enter the results:</div>
+        <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px">Strength stays 3 for <input id="wish-days" type="number" min="2" max="8" class="info-input" style="width:60px" placeholder="2d4"> days</label>
+        <label style="display:flex;gap:8px;align-items:center">d100 roll <input id="wish-d100" type="number" min="1" max="100" class="info-input" style="width:70px" placeholder="d100"> <span style="color:var(--text3)">(33 or lower: you can never cast Wish again)</span></label>
+      </div>
       <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="tbtn" id="wish-apply" style="color:var(--accent);border-color:var(--accent)" disabled>Make this wish (apply Wish stress)</button></div>`;
-    tb.querySelectorAll('input[name=wish-eff]').forEach(r => r.onchange = () => { tb.querySelector('#wish-apply').disabled = false; });
+    const ready = () => {
+      const days = parseInt(tb.querySelector('#wish-days').value, 10), d100 = parseInt(tb.querySelector('#wish-d100').value, 10);
+      tb.querySelector('#wish-apply').disabled = !(tb.querySelector('input[name=wish-eff]:checked') && days >= 2 && days <= 8 && d100 >= 1 && d100 <= 100);
+    };
+    tb.querySelectorAll('input[name=wish-eff]').forEach(r => r.onchange = ready);
+    tb.querySelector('#wish-days').oninput = ready; tb.querySelector('#wish-d100').oninput = ready;
     tb.querySelector('#wish-apply').onclick = () => {
       const i = +tb.querySelector('input[name=wish-eff]:checked').value;
-      applyWishStress(WISH_EFFECTS[i][0]);
+      applyWishStress(WISH_EFFECTS[i][0], parseInt(tb.querySelector('#wish-days').value, 10), parseInt(tb.querySelector('#wish-d100').value, 10));
       renderWishPanel(body);
     };
   };
@@ -66146,10 +66277,8 @@ function _wishMarkDuplicate(body, key) {
 }
 
 // ── Wish stress ────────────────────────────────────────────────────────
-function applyWishStress(effectName) {
+function applyWishStress(effectName, days, d100) {     // both rolled at the table
   if (!currentChar) return;
-  const days = 2 + Math.floor(Math.random() * 4) + Math.floor(Math.random() * 4);   // 2d4
-  const d100 = 1 + Math.floor(Math.random() * 100);
   const lost = d100 <= 33;
   currentChar._wishStress = { effect: effectName, at: new Date().toISOString(), strDays: days, strActive: true,
     necroticUntilLongRest: true, lostWish: lost || !!currentChar._wishStress?.lostWish, lostWishRoll: lost ? d100 : (currentChar._wishStress?.lostWishRoll || d100) };
@@ -66186,7 +66315,7 @@ function renderWishStressBanner() {
     const lines = [];
     if (s.strActive) lines.push(`Strength is 3 for ${s.strDays} days (2d4) - 2 days fewer for each day spent resting with only light activity. <a href="#" onclick="endWishStrength();return false" style="color:var(--accent)">Recovered</a>`);
     if (s.necroticUntilLongRest) lines.push('Until your next Long Rest, each spell you cast deals <b>1d10 Necrotic damage per spell level</b> to you. It can\'t be reduced or prevented.');
-    if (s.lostWish) lines.push(`You can never cast Wish again (stress roll ${s.lostWishRoll} \u2264 33).${isDM ? ' <a href="#" onclick="clearWishBan();return false" style="color:var(--accent)">Clear (DM)</a>' : ''}`);
+    if (s.lostWish) lines.push(`You can never cast Wish again (d100 roll ${s.lostWishRoll} \u2264 33).${isDM ? ' <a href="#" onclick="clearWishBan();return false" style="color:var(--accent)">Clear (DM)</a>' : ''}`);
     if (!lines.length) return;
     const b = document.createElement('div'); b.className = 'wish-stress-banner';
     b.style.cssText = 'margin:0 0 10px;padding:8px 12px;border:1px solid var(--red);border-radius:8px;font-family:var(--font-ui);font-size:11px;line-height:1.6';
@@ -66230,6 +66359,588 @@ window.renderWishStressBanner = renderWishStressBanner;
   });
   wrap('enterApp', null, () => { try { renderWishStressBanner(); } catch (e) {} });
   wrap('switchPage', null, () => { try { renderWishStressBanner(); } catch (e) {} });
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// QUICK PLAY - a simplified one-page way to play the character, aimed at
+// players who don't play often. Built automatically from the character:
+//   saves, ability checks, HP, movement/AC, then Actions / Bonus Actions /
+//   Reactions with plain-language explainers, a simple weapon table with a
+//   damage + crit calculator, and tap-to-use counters for limited features.
+// Crits use "crunchy crits": every damage die is maxed once, then rolled
+// again on top (e.g. Rapier + Sneak Attack: 8+5+30 = 43 + 1d8 + 5d6).
+// No digital dice: all rolling happens at the table. The sheet only shows
+// what to roll and adds up the total the player types in.
+// Per character, set by the DM only (DM panel character card):
+// c.quickPlay = true shows the Quick Play tab and opens the sheet on it.
+// ═══════════════════════════════════════════════════════════════════════
+const _qpE = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const _qpSign = n => (n >= 0 ? '+' : '') + n;
+let _qp = { sneak: true, cunning: 0 };
+
+function _qpLevelOf(cls) { return (currentChar?.classes || []).filter(c => String(c.class).toLowerCase() === cls).reduce((n, c) => n + (c.levels?.length || 0), 0); }
+function _qpSub(cls) { return ((currentChar?.classes || []).find(c => String(c.class).toLowerCase() === cls)?.subclass || '').toLowerCase(); }
+function _qpHasFeat(name) {
+  const c = currentChar;
+  return Object.values(c.featSlots || {}).some(s => String(s?.feat || '').toLowerCase().startsWith(name.toLowerCase()))
+    || (c.feats || []).some(f => String(f.name || '').toLowerCase().startsWith(name.toLowerCase()));
+}
+function _qpFeature(name) {
+  const f = (window._pdfFeatureEntries || []).find(x => x.name === name);
+  return f ? (typeof pdfPlain === 'function' ? pdfPlain(f.text) : f.text) : '';
+}
+
+// ── data ───────────────────────────────────────────────────────────────
+function _qpBuild() {
+  const c = currentChar;
+  ['renderSkillsBlock', 'renderSavesBlock', 'renderResourceTracker'].forEach(fn => { try { window[fn] && window[fn](); } catch (e) {} });
+  try { populateFeaturesTab(); } catch (e) {}
+  const rogue = _qpLevelOf('rogue'), fighter = _qpLevelOf('fighter');
+  const champion = fighter >= 3 && /champion/.test(_qpSub('fighter'));
+  const critMin = champion ? (fighter >= 15 ? 18 : 19) : 20;
+  const sneakDice = rogue ? Math.ceil(rogue / 2) : 0;
+  const piercer = _qpHasFeat('Piercer');
+  const elvenAcc = _qpHasFeat('Elven Accuracy');
+  const twf = /two-weapon/i.test(c.class_choices?.fighting_style || '') || (window._pdfFeatureEntries || []).some(f => /two-weapon fighting/i.test(f.name));
+  const res = {};
+  (window._pdfResourceRows || []).forEach(r => { res[r.id] = r; res['name:' + String(r.name).toLowerCase()] = r; });
+  // a weapon's mastery property only applies if the character has mastered that weapon type
+  const mastered = typeof getWeaponMasteries === 'function' ? getWeaponMasteries() : new Set();
+  const seenW = new Set();
+  const weapons = (c.weapons || []).filter(w => w.equipped !== false).map(w => {
+    const a = calcWeaponAttack(w);
+    const pw = a.phbWeapon || {};
+    const base = String(pw.name || w.weaponKey || '').toLowerCase().replace(/_/g, ' ');
+    return { name: w.name, key: w.weaponKey, idx: (c.weapons || []).indexOf(w), phbName: pw.name || '', masteryProp: pw.mastery || '', hit: a.atkBonus, count: a.dmgCount || 1, die: a.dmgDie || 4, mod: a.abilMod + (a.dmgBonus || 0) + (w.damageBonus || 0),
+      type: a.dmgType || '', range: pw.range || (a.isRanged ? 'Ranged' : 'Melee'), mastery: mastered.has(base) ? (pw.mastery || '') : '', light: !!a.isLight,
+      finesseOrRanged: !!(a.isFinesse || a.isRanged), piercing: /piercing/i.test(a.dmgType || '') };
+  }).filter(w => { const sig = [w.name, w.hit, w.count, w.die, w.mod].join('|'); if (seenW.has(sig)) return false; seenW.add(sig); return true; });
+  const rows = (typeof buildKnownSpellRows === 'function' ? buildKnownSpellRows() : []).filter(r => r.pipType !== 'locked-level' && r.pipType !== 'subclass-locked' && r.pipType !== '');   // not yet available at this level
+  const spells = rows.map(r => {
+    const s = PHB_SPELL_LIST.find(x => x.key === r.key) || {};
+    const t = s.time || '';
+    const bucket = /\brea/i.test(t) ? 'reaction' : /bns|bonus/i.test(t) ? 'bonus' : /^1\s*a\b/i.test(t) ? 'action' : 'longer';
+    const rr = res['name:' + String(r.name || s.name).toLowerCase()];
+    const castLv = typeof getFeatSpellFreeCastLevel === 'function' ? getFeatSpellFreeCastLevel(r, s) : (r.level ?? s.level ?? 0);
+    return { key: r.key, name: s.name || r.name, level: castLv, ritualOnly: r.pipType === 'ritual-only', upcast: castLv > (s.level ?? r.level ?? 0), desc: s.desc || '', source: r.label || '', bucket, res: rr && rr.type !== 'display' ? rr : null, conc: /conc/i.test(s.duration || '') };
+  });
+  const abs = getAbilities();
+  return { c, rogue, fighter, champion, critMin, sneakDice, piercer, elvenAcc, twf, res, weapons, spells, abs,
+    attacksPer: 1 + (parseInt(c._extraAttacks, 10) || 0),
+    slots: typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(c) : { levels: [] },
+    prof: getProf(), cunningDC: 8 + getProf() + abilityMod(abs.dex), strikeFear: rogue >= 9 && /scion/.test(_qpSub('rogue')) };
+}
+
+// ── damage maths ───────────────────────────────────────────────────────
+function _qpSA(Q) { return (Q.sneakDice && _qp.sneak) ? Math.max(0, Q.sneakDice - _qp.cunning) : 0; }
+function _qpFormula(w, Q, crit, offhand) {
+  const sa = _qpSA(Q), mod = offhand && !Q.twf ? Math.min(0, w.mod) : w.mod;
+  if (!crit) return `${w.count}d${w.die}${mod ? _qpSign(mod) : ''}${sa ? ` + ${sa}d6` : ''}`;
+  const extra = Q.piercer && w.piercing ? 1 : 0;
+  const flat = w.count * w.die + mod + sa * 6;
+  return `${flat} + ${w.count + extra}d${w.die}${sa ? ` + ${sa}d6` : ''}`;
+}
+// Add-up helper: the player rolls real dice and types the total of the dice;
+// the sheet adds the flat part (modifier, or the maxed crit dice + modifier).
+function qpAddUp() {
+  const Q = window._qpData; if (!Q) return;
+  const w = Q.weapons[parseInt(document.getElementById('qp-add-w')?.value, 10) || 0]; if (!w) return;
+  const crit = document.getElementById('qp-add-crit')?.checked;
+  const dice = parseInt(document.getElementById('qp-add-dice')?.value, 10);
+  const out = document.getElementById('qp-add-out'); if (!out) return;
+  const sa = _qpSA(Q);
+  const flat = crit ? w.count * w.die + sa * 6 + w.mod : w.mod;
+  const roll = crit ? `${w.count + (Q.piercer && w.piercing ? 1 : 0)}d${w.die}${sa ? ` + ${sa}d6` : ''}` : `${w.count}d${w.die}${sa ? ` + ${sa}d6` : ''}`;
+  out.innerHTML = isNaN(dice)
+    ? `Roll <b>${roll}</b>, add the dice up and type the total.`
+    : `<span class="qp-big">${dice + flat}</span> <span class="qp-dim">${_qpE(w.type)} damage = your dice ${dice} ${flat >= 0 ? '+' : '-'} ${Math.abs(flat)}${crit ? ' (maxed dice + modifier)' : ''}</span>`;
+}
+window.qpAddUp = qpAddUp;
+function qpSetSneak(on) { _qp.sneak = !!on; renderQuickPlay(); }
+function qpSetCunning(n) { const Q = window._qpData; _qp.cunning = Math.max(0, Math.min(Q?.sneakDice || 0, n)); renderQuickPlay(); }
+window.qpSetSneak = qpSetSneak; window.qpSetCunning = qpSetCunning;
+
+// ── live state: HP and limited uses ────────────────────────────────────
+function qpHP(kind) {
+  const c = currentChar, inp = document.getElementById('qp-hp-amt');
+  const n = Math.max(0, parseInt(inp?.value, 10) || 0); if (!n) return;
+  let cur = parseInt(c.hp_current, 10) || 0, tmp = parseInt(c.hp_temp, 10) || 0, max = parseInt(c.hp_max, 10) || 0;
+  if (kind === 'dmg') { const fromTemp = Math.min(tmp, n); tmp -= fromTemp; cur = Math.max(0, cur - (n - fromTemp)); }
+  else if (kind === 'heal') cur = Math.min(max, cur + n);
+  else if (kind === 'temp') tmp = Math.max(tmp, n);
+  c.hp_current = cur; c.hp_temp = tmp;
+  const a = document.querySelector('[data-key="hp_current"]'); if (a) a.value = cur;
+  const b = document.querySelector('[data-key="hp_temp"]'); if (b) b.value = tmp || '';
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderQuickPlay();
+}
+window.qpHP = qpHP;
+
+function qpUse(id, delta) {                          // +1 = use one, -1 = get one back
+  const c = currentChar; c.resources = c.resources || {};
+  const r = (window._pdfResourceRows || []).find(x => x.id === id);
+  const used = parseInt(c.resources[id], 10) || 0;
+  c.resources[id] = Math.max(0, Math.min(r ? r.max : used + delta, used + delta));
+  try { renderResourceTracker(); } catch (e) {}
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderQuickPlay();
+}
+window.qpUse = qpUse;
+// spell slots: tap a filled dot to spend one, an empty dot to get one back
+function qpSlot(level, delta, pact) {
+  const c = currentChar; c.spell_slots_used = c.spell_slots_used || {};
+  const ss = computeSpellSlotsForChar(c);
+  const max = pact ? (ss.warlock?.max || 0) : ((ss.levels || []).find(l => l.level === level)?.max || 0);
+  const key = i => pact ? `pact_slot_${i}` : `slot_${level}_${i}`;
+  if (delta > 0) { for (let i = 0; i < max; i++) if (!c.spell_slots_used[key(i)]) { c.spell_slots_used[key(i)] = true; break; } }
+  else { for (let i = max - 1; i >= 0; i--) if (c.spell_slots_used[key(i)]) { c.spell_slots_used[key(i)] = false; break; } }
+  try { renderSpellSlots(); } catch (e) {}
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderQuickPlay();
+}
+window.qpSlot = qpSlot;
+// Show the tab only for characters the DM has enabled; when enabled it is
+// the page the sheet opens on.
+function applyQuickPlayTab(onOpen) {
+  const tab = document.getElementById('tab-quickplay');
+  const on = !!currentChar?.quickPlay;
+  if (tab) tab.style.display = on ? '' : 'none';
+  const active = document.querySelector('.page.active')?.id;
+  if (on && onOpen) switchPage('quickplay');
+  else if (!on && active === 'page-quickplay') switchPage('main');
+}
+window.applyQuickPlayTab = applyQuickPlayTab;
+
+// ── rendering ──────────────────────────────────────────────────────────
+function renderQuickPlay() {
+  const body = document.getElementById('qp-body');
+  if (!body || !currentChar) return;
+  let Q;
+  try { Q = window._qpData = _qpBuild(); }
+  catch (e) { body.innerHTML = `<div style="padding:16px;color:var(--red)">Couldn't build Quick Play: ${_qpE(e.message)}</div>`; console.warn(e); return; }
+  const c = Q.c;
+  const card = (title, sub, inner) => `<div class="qp-card" id="qp-c-${String(title).toLowerCase().replace(/[^a-z]+/g, '-')}"><div class="qp-h">${title}${sub ? `<span class="qp-hs">${sub}</span>` : ''}</div>${inner}</div>`;
+  const pips = r => {
+    if (!r) return '';
+    const left = Math.max(0, r.max - (r.used || 0));
+    if (r.max > 10) {
+      const rec = String(r.recovery || '').toLowerCase();
+      return `<span class="qp-pips"><button class="qp-mini" onclick="qpUse('${r.id}', 1)" title="Use one">-</button> <b>${left}</b>/${r.max} <button class="qp-mini" onclick="qpUse('${r.id}', -1)" title="Get one back">+</button></span><span class="qp-dim">${/short/.test(rec) ? ' \u00b7 back on a Short Rest' : /long/.test(rec) ? ' \u00b7 back on a Long Rest' : ''}</span>`;
+    }
+    let h = '<span class="qp-pips">';
+    for (let i = 0; i < r.max; i++) h += `<button class="qp-pip${i < left ? ' on' : ''}" onclick="qpUse('${r.id}', ${i < left ? 1 : -1})" title="${i < left ? 'Tap to use one' : 'Tap to get one back'}"></button>`;
+    const rec = String(r.recovery || '').toLowerCase();
+    return h + `</span><span class="qp-dim"> ${left}/${r.max}${/short/.test(rec) ? ' \u00b7 back on a Short Rest' : /long/.test(rec) ? ' \u00b7 back on a Long Rest' : ''}</span>`;
+  };
+  const item = (name, text, extra = '') => `<div class="qp-item"><div class="qp-name">${name}${extra ? ` ${extra}` : ''}</div>${text ? `<div class="qp-text">${text}</div>` : ''}</div>`;
+
+  // 1-2. saves & checks
+  const SAVE = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+  const ABN = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+  const saves = SAVE.map(k => {
+    const v = (document.getElementById('save-val-' + k)?.innerText || _qpSign(abilityMod(Q.abs[k]))).replace('\u2212', '-');
+    const p = document.getElementById('save-dot-' + k)?.classList.contains('prof');
+    return `<span class="qp-chip${p ? ' prof' : ''}">${k.toUpperCase()} ${v}</span>`;
+  }).join('');
+  const saveNotes = [Q.rogue >= 7 ? '<b>Evasion:</b> on a Dexterity save for half damage, you take none if you succeed and half if you fail.' : ''].filter(Boolean);
+  const skillsBy = {};
+  (typeof SKILLS !== 'undefined' ? SKILLS : []).forEach(sk => {
+    const v = (document.getElementById('skill-val-' + sk.key)?.innerText || '').replace('\u2212', '-');
+    const p = document.getElementById('skill-prof-dot-' + sk.key)?.classList.contains('prof');
+    const x = document.getElementById('skill-exp-dot-' + sk.key)?.classList.contains('expert');
+    (skillsBy[sk.ability] = skillsBy[sk.ability] || []).push(`<span class="qp-chip${p || x ? ' prof' : ''}">${_qpE(sk.name)} ${v}${x ? ' \u2605' : ''}</span>`);
+  });
+  const checks = SAVE.map(k => `<div class="qp-checkrow"><span class="qp-chip qp-ab">${ABN[k]} ${_qpSign(abilityMod(Q.abs[k]))}</span>${(skillsBy[k] || []).join('')}</div>`).join('');
+  const checkNotes = [
+    Q.rogue >= 7 ? '<b>Reliable Talent:</b> on a check with a skill you\'re proficient in (highlighted), a d20 roll of 9 or lower counts as 10.' : '',
+    Q.champion ? '<b>Remarkable Athlete:</b> Advantage on Initiative and Athletics checks.' : '',
+    _qpHasFeat('Greater Mark of Shadow') ? '<b>Cunning Intuition:</b> add 1d6 to Stealth and Performance checks.' : _qpHasFeat('Mark of Shadow') ? '<b>Cunning Intuition:</b> add 1d4 to Stealth and Performance checks.' : '',
+  ].filter(Boolean);
+
+  // 3-4. HP, movement, AC
+  const hp = `<div class="qp-hp"><span class="qp-big">${c.hp_current ?? 0}</span><span class="qp-dim"> / ${c.hp_max}</span>${c.hp_temp ? ` <span class="qp-temp">+${c.hp_temp} temp</span>` : ''}</div>
+    <div class="qp-hprow"><input id="qp-hp-amt" type="number" min="0" class="info-input" placeholder="amount" style="width:80px">
+      <button class="tbtn" onclick="qpHP('dmg')">Take damage</button><button class="tbtn" onclick="qpHP('heal')">Heal</button><button class="tbtn" onclick="qpHP('temp')">Temp HP</button></div>`;
+  const init = (document.getElementById('disp-init')?.innerText || '').trim();
+  const speedTxt = (document.getElementById('disp-speed')?.innerText || c.speed || '').toString().trim();
+  const ac = calcACBreakdown();
+  const move = `<div class="qp-stats">
+      <div class="qp-stat"><div class="qp-sl">Armor Class</div><div class="qp-big">${ac.total}</div></div>
+      <div class="qp-stat"><div class="qp-sl">Speed</div><div class="qp-big">${_qpE(speedTxt)}</div><div class="qp-dim">feet per turn</div></div>
+      <div class="qp-stat"><div class="qp-sl">Initiative</div><div class="qp-big">${_qpE(init)}</div><div class="qp-dim">${Q.champion ? 'roll with Advantage' : ''}</div></div>
+    </div>`;
+
+  // other features & resources, sorted into Action / Bonus Action / Reaction by their own wording
+  const HANDLED = new Set(['action surge', 'second wind', 'bloodthirst', 'sneak attack', 'cunning strike', 'cunning action', 'steady aim', 'uncanny dodge',
+    'evasion', 'reliable talent', 'improved critical', 'remarkable athlete', 'fighting style', 'weapon mastery', 'extra attack', 'expertise', 'spellcasting',
+    'pact magic', 'heroic inspiration']);
+  const SKIP_FEATURE = /known|options|improvement|choose|expanded|spell list|subclass$|book of shadows|^\w+ \(phb|proficienc|languages?$|\bspells?$/i;
+  const extra = { action: [], bonus: [], reaction: [], other: [] };
+  const shownNames = new Set(Q.spells.map(s => String(s.name).toLowerCase()));
+  const STRICT = {
+    bonus: /\b(as a|use a|take a|use your|as your|spend your) Bonus Action\b|\bBonus Action to\b/i,
+    reaction: /\b(as a|use your|take a|you can take a|using your) Reaction\b/i,
+    action: /\b(take a Magic action|as a Magic action|as an action|use an action|take an action|as an Action)\b/i,
+  };
+  const featureText = name => {
+    const n = String(name).toLowerCase().replace(/\s*\(.*\)$/, '');
+    const f = (window._pdfFeatureEntries || []).find(x => x.name.toLowerCase() === n) || (window._pdfFeatureEntries || []).find(x => x.name.toLowerCase().includes(n) || n.includes(x.name.toLowerCase()));
+    return f ? (typeof pdfPlain === 'function' ? pdfPlain(f.text) : f.text) : '';
+  };
+  const sentenceFor = (text, b) => {
+    const ss = String(text || '').replace(/\s*\n+\s*/g, ' ').split(/(?<=[.!?])\s+(?=[A-Z])/);
+    const hits = b ? ss.filter(x => STRICT[b].test(x)).slice(0, 2).join(' ') : '';
+    const t = hits || ss.slice(0, 2).join(' ');
+    return t.length > 300 ? t.slice(0, 297) + '...' : t;
+  };
+  const bucketFor = text => ['bonus', 'reaction', 'action'].find(b => STRICT[b].test(text)) || null;
+  const usedRes = new Set(['action_surge', 'second_wind', 'scfeat_rogue_scion_of_the_three_bloodthirst']);
+  Q.spells.forEach(s => { if (s.res) usedRes.add(s.res.id); });
+  (window._pdfResourceRows || []).filter(r => r.max > 0 && r.type !== 'display' && !usedRes.has(r.id) && !/heroic inspiration/i.test(r.name)).forEach(r => {
+    if (shownNames.has(String(r.name).toLowerCase())) return;
+    const txt = featureText(r.name) || r.desc || '';
+    const b = bucketFor(txt) || 'other';
+    extra[b].push({ name: r.name, text: sentenceFor(txt, b === 'other' ? null : b), res: r });
+    shownNames.add(String(r.name).toLowerCase()); shownNames.add(String(r.name).toLowerCase().replace(/\s*\(.*\)$/, ''));
+  });
+  (window._pdfFeatureEntries || []).filter(f => ['Class', 'Subclass', 'Race', 'Feat', 'Background Feat'].includes(f.sourceType)).forEach(f => {
+    const n = String(f.name).toLowerCase();
+    if (HANDLED.has(n) || SKIP_FEATURE.test(f.name) || shownNames.has(n)) return;
+    const txt = typeof pdfPlain === 'function' ? pdfPlain(f.text) : String(f.text || '');
+    const b = bucketFor(txt); if (!b) return;
+    extra[b].push({ name: f.name, text: sentenceFor(txt, b), res: null });
+    shownNames.add(n);
+  });
+  const extraItems = b => extra[b].map(e => item(_qpE(e.name), _qpE(e.text), e.res ? pips(e.res) : '')).join('');
+
+  // spell slots (tap a dot to spend one)
+  const slotRows = [];
+  (Q.slots.levels || []).filter(l => l.max).forEach(l => {
+    const left = l.max - (l.used || 0);
+    slotRows.push(`<div class="qp-slotrow"><span class="qp-name">Level ${l.level}</span><span class="qp-pips">${[...Array(l.max)].map((_, i) => `<button class="qp-pip${i < left ? ' on' : ''}" onclick="qpSlot(${l.level}, ${i < left ? 1 : -1}, false)"></button>`).join('')}</span><span class="qp-dim">${left}/${l.max}</span></div>`);
+  });
+  if (Q.slots.warlock?.max) {
+    const w = Q.slots.warlock, left = w.max - (w.used || 0);
+    slotRows.push(`<div class="qp-slotrow"><span class="qp-name">Pact (level ${w.slotLevel})</span><span class="qp-pips">${[...Array(w.max)].map((_, i) => `<button class="qp-pip${i < left ? ' on' : ''}" onclick="qpSlot(${w.slotLevel}, ${i < left ? 1 : -1}, true)"></button>`).join('')}</span><span class="qp-dim">${left}/${w.max} \u00b7 back on a Short Rest</span></div>`);
+  }
+  const heroic = Q.res.heroic_inspiration;
+  // spell save DC / attack for each casting class, shown with the slots
+  let casterLine = '';
+  try {
+    const sc = typeof getAllSpellcastingClasses === 'function' ? getAllSpellcastingClasses() : [];
+    casterLine = sc.map(x => { const m = abilityMod(Q.abs[x.ability] ?? 10);
+      return `<span class="qp-chip prof">${_qpE(x.cls.charAt(0).toUpperCase() + x.cls.slice(1))} spells: save DC <b>${8 + Q.prof + m + (getSpellDCBonus() || 0)}</b> \u00b7 <b>${_qpSign(Q.prof + m + (getSpellAtkBonus() || 0))}</b> to hit</span>`; }).join(' ');
+    if (casterLine) casterLine = `<div class="qp-chips" style="margin-bottom:6px">${casterLine}</div>`;
+  } catch (e) {}
+  let stored = '';
+  try {
+    const pc = typeof getPortentDieCount === 'function' ? getPortentDieCount() : 0;
+    const dd = typeof hasDivinersDice === 'function' && hasDivinersDice();
+    const om = typeof hasStarsDruid === 'function' && hasStarsDruid();
+    if (pc || dd || om) {
+      ensureStoredRolls();
+      const sr = currentChar._storedRolls;
+      if (pc) { while (sr.portent.length < pc) sr.portent.push({ value: null, used: false });
+        stored += item('Portent', 'Replace any d20 roll you can see (yours or another creature\'s) with one of these, once per turn.', '') + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 8px">${_renderDiceSlotRow(sr.portent.slice(0, pc), 20, 'setPortentValue', 'rollPortentDie', 'togglePortentUsed')}</div>`; }
+      if (dd) { while (sr.divinersDice.length < 3) sr.divinersDice.push({ value: null, used: false });
+        stored += item("Diviner's dice", '', '') + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 8px">${_renderDiceSlotRow(sr.divinersDice.slice(0, 3), 6, 'setDivinersDiceValue', 'rollDivinersDie', 'toggleDivinersDiceUsed')}</div>`; }
+      if (om) stored += item('Cosmic Omen', '', `<button class="qp-mini" style="${sr.omen === 'weal' ? 'background:var(--accent);color:#000' : ''}" onclick="setOmenManual('weal')">Weal (+1d6)</button>
+          <button class="qp-mini" style="${sr.omen === 'woe' ? 'background:var(--red);color:#000' : ''}" onclick="setOmenManual('woe')">Woe (\u22121d6)</button>
+          <button class="qp-mini" onclick="rollCosmicOmen()" title="Roll digitally instead">\uD83C\uDFB2</button>`);
+    }
+  } catch (e) { console.warn('[quick play] stored dice', e); }
+
+  // spells get their own sub-section at the bottom of each card, below the
+  // card's normal options (weapon attacks, class features, standard actions)
+  const spellLine = s => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>`,
+    _qpE(s.desc), s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
+  const spellSection = bucket => {
+    const list = Q.spells.filter(s => s.bucket === bucket).sort((a, b) => a.level - b.level || String(a.name).localeCompare(String(b.name)));
+    if (!list.length) return '';
+    let h = '<div class="qp-spellsec"><div class="qp-spsub">Spells <span class="qp-dim">\u00b7 tap a name for the full spell</span></div>', lv = null;
+    list.forEach(s => { if (s.level !== lv) { lv = s.level; h += `<div class="qp-lvl">${lv === 0 ? 'Cantrips' : 'Level ' + lv}</div>`; } h += spellLine(s); });
+    return h + '</div>';
+  };
+
+  // 5. actions
+  const sa = _qpSA(Q);
+  const wRows = Q.weapons.map((w, i) => `<tr>
+      <td><b class="qp-feat" onclick="openInventoryItemDetailModal(currentChar.weapons[${w.idx}], 'weapon')">${_qpE(w.name)}</b><div class="qp-dim">${_qpE(w.range)}${w.mastery ? ` \u00b7 <span class="qp-feat" onclick="openWeaponMasteryInfoModal('${_qpE(String(w.phbName).replace(/'/g, "\\'"))}')">${_qpE(w.mastery.charAt(0).toUpperCase() + w.mastery.slice(1))}</span>` : ''}</div></td>
+      <td data-label="To hit"><span class="qp-num">${_qpSign(w.hit)}</span></td>
+      <td data-label="Damage"><span class="qp-num">${_qpE(_qpFormula(w, Q, false))}</span><div class="qp-dim">${_qpE(w.type)}</div></td>
+      <td data-label="Crit"><span class="qp-num qp-critlink">${_qpE(_qpFormula(w, Q, true))}</span></td>
+    </tr>`).join('');
+  const critPct = Q.elvenAcc ? 1 - Math.pow((Q.critMin - 1) / 20, 3) : 1 - Math.pow((Q.critMin - 1) / 20, 2);
+  const lightsAll = Q.weapons.filter(w => w.light);
+  const nickOK = lightsAll.length >= 2 && Q.weapons.some(w => w.mastery === 'nick' && w.light);
+  const attackCard = card('Action', 'one each turn', `
+    ${item('Attack', `${Q.weapons.length ? '' : 'You have no weapons equipped - an Unarmed Strike still works. '}Make <b>${Q.attacksPer === 1 ? 'one attack' : ['', '', 'two attacks', 'three attacks', 'four attacks'][Q.attacksPer] || Q.attacksPer + ' attacks'}</b>${Q.attacksPer > 1 ? ' (Extra Attack)' : ''} with ${Q.weapons.length ? (Q.attacksPer > 1 ? 'the weapons below' : 'a weapon below') : 'it'}${nickOK ? ', plus a free extra attack if you use the Nick trick (see Bonus Actions)' : ''}. Roll a d20 and add the to-hit number; if it equals or beats the target's AC, you hit.
+      <br>You score a <b>critical hit</b> on a d20 roll of <b>${Q.critMin === 20 ? '20' : Q.critMin + ' or 20'}</b>${Q.critMin < 20 ? ' (Improved Critical)' : ''}.
+      ${Q.elvenAcc ? `<br>With <b>Advantage</b> you roll two d20s; thanks to <b>Elven Accuracy</b> you can reroll one of them once (reroll the lower one if neither is a crit). That's about a <b>${Math.round(critPct * 100)}%</b> crit chance per attack.` : ''}`)}
+    <div class="qp-calc">
+      ${Q.sneakDice ? `<label class="qp-dim"><input type="checkbox" ${_qp.sneak ? 'checked' : ''} onchange="qpSetSneak(this.checked)"> include Sneak Attack (${sa}d6)</label>
+        ${Q.rogue >= 5 && _qp.sneak ? `<span class="qp-dim"> \u00b7 Cunning Strike dice spent: <button class="qp-mini" onclick="qpSetCunning(${_qp.cunning - 1})">-</button> ${_qp.cunning} <button class="qp-mini" onclick="qpSetCunning(${_qp.cunning + 1})">+</button></span>` : ''}` : ''}
+      ${Q.weapons.length ? `<table class="qp-table"><tr><th>Weapon</th><th>To hit</th><th>Damage</th><th>Crit${Q.piercer ? ' (incl. Piercer)' : ''}</th></tr>${wRows}</table>` : ''}
+      <div class="qp-dim" style="margin-top:4px">Crit: the big number is every die at its maximum plus your modifier - then roll the dice shown and add them on.${Q.piercer ? ' Piercer: once per turn you can reroll one piercing damage die; on a crit you roll one extra weapon die (included above).' : ''}</div>
+      <div class="qp-result"><b>Add it up:</b>
+        <select id="qp-add-w" class="info-input" style="width:auto;display:inline-block" onchange="qpAddUp()">${Q.weapons.map((w, i) => `<option value="${i}">${_qpE(w.name)}</option>`).join('')}</select>
+        <label class="qp-dim"><input type="checkbox" id="qp-add-crit" onchange="qpAddUp()"> crit</label>
+        <input id="qp-add-dice" type="number" min="0" class="info-input" placeholder="dice total" style="width:90px;display:inline-block" oninput="qpAddUp()">
+        <div id="qp-add-out" class="qp-dim" style="margin-top:6px">Pick the weapon, tick crit if it was one, and type what your damage dice add up to.</div></div>
+    </div>
+    ${Q.sneakDice ? item(`Sneak Attack <span class="qp-badge">${Q.sneakDice}d6</span>`, `Once per turn, add <b>${Q.sneakDice}d6</b> damage when you hit with a <b>Finesse or ranged</b> weapon, if <b>either</b> you have Advantage on the attack, <b>or</b> an ally is within 5 feet of the target (and you don't have Disadvantage). "Once per turn" counts other creatures' turns too, so a hit with a Reaction can also Sneak Attack.`) : ''}
+    ${Q.rogue >= 5 ? item('Cunning Strike', `When you deal Sneak Attack damage you can give up Sneak Attack dice (before rolling) for an extra effect. Save DC <b>${Q.cunningDC}</b>.
+      <ul class="qp-ul"><li><b>Poison</b> (1d6): Constitution save or Poisoned for 1 minute.</li><li><b>Trip</b> (1d6): a Large or smaller target makes a Dexterity save or falls Prone.</li><li><b>Withdraw</b> (1d6): right after the attack, move up to half your Speed without provoking Opportunity Attacks.</li>
+      ${Q.strikeFear ? `<li><b>Terrify</b> (1d6): Wisdom save or Frightened for 1 minute, and <b>you have Advantage on attacks against it</b> - free Advantage for your crits. It repeats the save at the end of each of its turns.</li>` : ''}</ul>`) : ''}
+    ${Q.res.action_surge ? item('Action Surge', 'Once on your turn, take one extra action (not a Magic action) - for example a second Attack action.', pips(Q.res.action_surge)) : ''}
+    ${extraItems('action')}
+    <div class="qp-other"><b>Other actions anyone can take:</b> Dash (move again), Disengage (move without Opportunity Attacks), Dodge (attacks against you have Disadvantage), Help, Hide, Influence, Search, Study, Utilize, Ready.</div>
+    ${spellSection('action')}`);
+
+  // 6. bonus actions
+  const lights = Q.weapons.filter((w, i, a) => w.light && a.findIndex(x => x.light && (x.key || x.name) === (w.key || w.name)) === i);
+  const nick = Q.weapons.find(w => w.mastery === 'nick' && w.light);
+  const bonusCard = card('Bonus Action', 'one each turn', `
+    ${Q.rogue >= 2 ? item('Cunning Action', 'Take the <b>Dash</b>, <b>Disengage</b> or <b>Hide</b> action as a Bonus Action.') : ''}
+    ${Q.rogue >= 3 ? item('Steady Aim', 'Give yourself <b>Advantage on your next attack</b> this turn. Only if you haven\'t moved this turn, and your Speed becomes 0 until the end of the turn.' + (Q.elvenAcc ? ' Best friend of Elven Accuracy.' : '')) : ''}
+    ${lights.length >= 2 ? item('Off-hand attack (two Light weapons)', `After attacking with a Light weapon, attack with a different Light weapon in your other hand (${lights.map(w => _qpE(w.name)).join(', ')}).${Q.twf ? ' Two-Weapon Fighting: add your +' + (lights[0]?.mod ?? 0) + ' to its damage like a normal attack.' : ' It doesn\'t add your ability modifier to damage.'}
+      ${nick ? `<br><b>Nick trick:</b> if one of the two is your <b>${_qpE(nick.name)}</b> (Nick), this extra attack becomes part of your Attack <b>action</b> instead - keeping your Bonus Action free for Steady Aim. Once per turn.` : ''}
+      Sneak Attack still only once per turn.`) : ''}
+    ${Q.res.second_wind ? item('Second Wind', `Roll <b>1d10 + ${Q.fighter}</b> and regain that many Hit Points (enter it in the Hit Points box and press Heal). You get one use back on a Short Rest and all of them on a Long Rest.`, pips(Q.res.second_wind)) : ''}
+    ${extraItems('bonus')}
+    ${spellSection('bonus')}`);
+
+  // 7. reactions
+  const bt = Q.res.scfeat_rogue_scion_of_the_three_bloodthirst;
+  const reactCard = card('Reaction', 'one each round', `
+    ${item('Opportunity Attack', 'When an enemy you can see leaves your reach, make one melee attack against it. A hit can include Sneak Attack if you haven\'t used it this turn.')}
+    ${bt ? item('Bloodthirst', 'When an enemy you can see within 30 feet takes damage and becomes <b>Bloodied</b> (at or below half its HP) without dying, teleport next to it and make <b>one melee attack</b> - another chance for Sneak Attack and a crit.', pips(bt)) : ''}
+    ${Q.rogue >= 5 ? item('Uncanny Dodge', 'When an attacker you can see hits you, halve the attack\'s damage against you.') : ''}
+    ${extraItems('reaction')}
+    ${spellSection('reaction')}`);
+  const longer = Q.spells.filter(s => s.bucket === 'longer');
+
+  body.innerHTML = `
+    <div class="qp-top"><div class="qp-whobox">${(c.tokenUrl || '').trim() ? `<div class="qp-token" style="background-image:url('${_qpE(String(c.tokenUrl).trim().replace(/'/g, '%27'))}')" role="img" aria-label="${_qpE(c.charName || '')}"></div>` : ''}<div><div class="qp-who">${_qpE(c.charName || '')}</div><div class="qp-dim">${_qpE((c.classes || []).map(x => `${x.class.charAt(0).toUpperCase() + x.class.slice(1)} ${x.levels?.length || 0}${x.subclass ? ' (' + x.subclass + ')' : ''}`).join(' / '))}</div></div>
+      </div><div class="qp-dim">The full sheet is still on the other tabs.</div></div>
+    <nav class="qp-bar" aria-label="Quick Play sections">
+      <a href="#" onclick="return qpJump('hit-points')" class="qp-bar-hp">HP <b>${c.hp_current ?? 0}</b>/${c.hp_max}${c.hp_temp ? ` <span class="qp-temp">+${c.hp_temp}</span>` : ''}</a>
+      <span class="qp-bar-ac">AC <b>${calcACBreakdown().total}</b></span>
+      ${slotRows.length ? `<a href="#" onclick="return qpJump('spell-slots')">Slots</a>` : ''}
+      <a href="#" onclick="return qpJump('action')">Action</a>
+      <a href="#" onclick="return qpJump('bonus-action')">Bonus</a>
+      <a href="#" onclick="return qpJump('reaction')">Reaction</a>
+      <a href="#" onclick="return qpJump('ability-checks')">Checks</a>
+    </nav>
+    <div class="qp-grid3">
+      ${card('Hit Points', '', hp)}
+      ${card('Movement & AC', '', move)}
+      ${card('Saving Throws', '', `<div class="qp-chips">${saves}</div>${saveNotes.map(n => `<div class="qp-note">${n}</div>`).join('')}`)}
+    </div>
+    ${slotRows.length ? card('Spell Slots', 'tap a dot to use one', `${casterLine}<div class="qp-slotgrid">${slotRows.join('')}</div>`) : ''}
+    ${card('Ability Checks', '\u2605 = Expertise', `${checks}${checkNotes.map(n => `<div class="qp-note">${n}</div>`).join('')}`)}
+    ${attackCard}
+    <div class="qp-grid2">${bonusCard}${reactCard}</div>
+    ${stored ? card('Stored dice', '', stored) : ''}
+    ${extra.other.length || heroic ? card('Other limited abilities', '', (heroic ? item('Heroic Inspiration', 'Reroll a d20 right after rolling it.', pips(heroic)) : '') + extraItems('other')) : ''}
+    ${longer.length ? card('Takes longer', 'more than one action, or ritual only', spellSection('longer')) : ''}`;
+
+  // feature / item / trait names open their modal, like on the other tabs;
+  // anything else that's a rules term (Opportunity Attack, Heroic
+  // Inspiration...) links to the glossary instead
+  body.querySelectorAll('.qp-item > .qp-name').forEach(n => {
+    if (n.querySelector('.qp-spell, .qp-feat')) return;
+    const t = n.firstChild; if (!t || t.nodeType !== 3) return;
+    const label = t.textContent.trim(); if (!label) return;
+    const target = _qpFeatureTarget(label);
+    if (target) {
+      const s = document.createElement('span'); s.className = 'qp-feat'; s.setAttribute('onclick', target); s.textContent = t.textContent;
+      n.replaceChild(s, t);
+    } else if (typeof linkifyGlossaryTerms === 'function') {
+      const s = document.createElement('span'); s.innerHTML = linkifyGlossaryTerms(_qpE(t.textContent), ''); n.replaceChild(s, t);
+    }
+  });
+
+  // the same automatic rule / condition / spell links as the rest of the sheet
+  if (typeof linkifyGlossaryTerms === 'function') {
+    body.querySelectorAll('.qp-text, .qp-note, .qp-other, .qp-always').forEach(el => {
+      const own = el.closest('.qp-item')?.querySelector('.qp-name')?.firstChild?.textContent?.trim() || '';
+      try { el.innerHTML = linkifyGlossaryTerms(el.innerHTML, own); } catch (e) {}
+    });
+  }
+}
+// What a feature-like name should open, using the same modals as the rest
+// of the sheet: class & subclass features, feats, magic items, species.
+// Returns the onclick code, or null if nothing matches.
+function _qpFeatureTarget(name) {
+  const c = currentChar; if (!c || !name) return null;
+  const js = v => String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const lc = s => String(s || '').toLowerCase().trim();
+  const full = lc(name), base = lc(String(name).replace(/\s*\(.*\)\s*$/, ''));
+  const ALIAS = { 'terrify': 'strike fear', 'focus points': "monk's focus", 'sorcery points': 'font of magic', 'superiority dice': 'combat superiority' };
+  if (/^off-hand attack/.test(full)) return Q_TWF() ? `openFeatInfoModal('Two-Weapon Fighting')` : `qpOpenRule('light')`;
+  if (full === 'attack') return `qpOpenRule('attack')`;
+  if (full === 'opportunity attack') return `qpOpenRule('opportunity')`;
+  const want = [full, base, ALIAS[base]].filter(Boolean);
+  for (const e of (c.classes || [])) {
+    const ck = lc(e.class), cd = (typeof PHB_CLASSES !== 'undefined') ? PHB_CLASSES[ck] : null;
+    const subKey = Object.keys(typeof PHB_SUBCLASSES !== 'undefined' ? PHB_SUBCLASSES : {}).find(k => k.startsWith(ck + '/') && lc(PHB_SUBCLASSES[k].name) === lc(e.subclass)) || null;
+    const sd = subKey ? PHB_SUBCLASSES[subKey] : null;
+    const hit = [...(cd?.features || []), ...(sd?.features || [])].find(f => want.includes(lc(f.name)));
+    if (hit) return `openClassFeatureInfoModal('${js(ck)}','${js(hit.name)}',${subKey ? `'${js(subKey)}'` : 'null'})`;
+  }
+  if (typeof findFeatCatalogEntry === 'function') { const f = findFeatCatalogEntry(name) || findFeatCatalogEntry(String(name).replace(/\s*\(.*\)\s*$/, '')); if (f) return `openFeatInfoModal('${js(f.name || name)}')`; }
+  const mi = (c.magicItems || []).findIndex(m => want.includes(lc(m.customName)) || want.includes(lc(m.name)) || (base.length > 5 && (lc(m.customName || m.name).includes(base))));
+  if (mi >= 0) return `openMagicItemDetailModal(currentChar.magicItems[${mi}])`;
+  const race = (typeof PHB_RACES !== 'undefined') ? PHB_RACES[c.race] : null;
+  const traits = [...(race?.features || []), ...(race?.subraces?.[c.subrace]?.features || [])];
+  if (traits.some(t => want.includes(lc(t.name || t)))) return `openRaceInfoModal('${js(c.race)}')`;
+  return null;
+}
+window._qpFeatureTarget = _qpFeatureTarget;
+function Q_TWF() { return !!window._qpData?.twf; }
+
+// Core rules that have no entry of their own anywhere else on the sheet,
+// shown in the same info pop-up the sheet uses for features (SRD 5.2 rules,
+// in plain words).
+const QP_RULES = {
+  attack: ['Attack (action)', 'When you take the Attack action, you make one attack roll with a weapon or an Unarmed Strike. Features like Extra Attack let you make more than one attack with the same action. You can move between those attacks.<br><br><b>Equipping and unequipping:</b> you can draw or stow one weapon as part of each attack you make with this action.'],
+  opportunity: ['Opportunity Attack', 'You can make an Opportunity Attack when a creature you can see leaves your reach using its action, Bonus Action, Reaction or movement. It takes your Reaction: make one melee attack with a weapon or an Unarmed Strike against the provoking creature, right before it leaves your reach.<br><br>A creature doesn\'t provoke one if it Disengages, or if it\'s moved without using its own movement, action or Reaction (for example by being pushed, or by teleporting).'],
+  light: ['Light weapons (two-weapon attacks)', 'When you take the Attack action on your turn and attack with a Light weapon, you can make one extra attack as a Bonus Action later on the same turn. That extra attack must be made with a different Light weapon, and you don\'t add your ability modifier to its damage unless the modifier is negative.'],
+};
+function qpOpenRule(k) {
+  const r = QP_RULES[k]; if (!r) return;
+  const t = document.getElementById('feat-info-title'), b = document.getElementById('feat-info-body');
+  if (t) t.textContent = r[0];
+  if (b) b.innerHTML = `<div style="font-family:var(--font-body);font-size:13px;line-height:1.6">${typeof linkifyGlossaryTerms === 'function' ? linkifyGlossaryTerms(r[1], r[0]) : r[1]}</div>`;
+  openModal('feat-info-modal');
+}
+window.qpOpenRule = qpOpenRule;
+
+// spell names open the spell's own card, like everywhere else
+function _qpSpellName(s) {
+  const js = v => _qpE(String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));   // JS-escape, then HTML-escape
+  return `<span class="qp-spell" onclick="openSpellDetailModal('${js(s.key)}','${js(s.name)}')">${_qpE(s.name)}</span>`;
+}
+window.renderQuickPlay = renderQuickPlay;
+function qpJump(id) {
+  const el = document.getElementById('qp-c-' + id); if (!el) return false;
+  const bar = document.querySelector('#qp-body .qp-bar');
+  let sc = el.parentElement;                                  // nearest scrolling container
+  while (sc && sc !== document.body && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
+  if (!sc || sc === document.body) sc = document.scrollingElement;
+  const off = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - (bar ? bar.offsetHeight + 6 : 0);
+  sc.scrollTo({ top: off, behavior: 'smooth' });
+  return false;
+}
+window.qpJump = qpJump;
+
+(function () {
+  const css = document.createElement('style');
+  css.textContent = `
+  .qp-bar{position:sticky;top:0;z-index:20;display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none;
+    background:var(--bg);border-bottom:1px solid var(--border);padding:8px 2px;margin:-4px 0 0}
+  .qp-bar::-webkit-scrollbar{display:none}
+  .qp-bar a,.qp-bar span{flex-shrink:0;white-space:nowrap;padding:6px 10px;border-radius:14px;background:var(--bg3);color:var(--text2);font-size:12px;text-decoration:none}
+  .qp-bar a:active{background:var(--accent);color:var(--bg)}
+  .qp-bar-hp,.qp-bar-ac{color:var(--text)!important;border:1px solid var(--accent)}
+  #qp-body{font-family:var(--font-ui);font-size:13px;color:var(--text);max-width:1050px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+  .qp-top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
+  .qp-who{font-family:var(--font-title);font-size:22px;font-weight:700}
+  .qp-whobox{display:flex;align-items:center;gap:14px}
+  .qp-token{width:72px;height:72px;border-radius:50%;border:2px solid var(--accent);background-color:var(--bg3);background-size:cover;background-position:center;flex-shrink:0}
+  @media (max-width:520px){.qp-token{width:56px;height:56px}}
+  .qp-grid3{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:12px}.qp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:820px){.qp-grid3,.qp-grid2{grid-template-columns:1fr}}
+
+  .qp-card{border:1px solid var(--border);border-radius:var(--radius,8px);background:var(--bg2);padding:12px 14px}
+  .qp-h{font-family:var(--font-label);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .qp-hs{font-size:10px;color:var(--text3);letter-spacing:.05em}
+  .qp-dim{color:var(--text3);font-size:11px}
+  .qp-big{font-family:var(--font-title);font-size:26px;font-weight:700;line-height:1.1}
+  .qp-hp{margin-bottom:8px}.qp-temp{color:var(--blue,#6af);font-weight:700}
+  .qp-hprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .qp-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .qp-stat{background:var(--bg3);border:none;border-radius:var(--radius,8px);padding:8px;text-align:center;color:var(--text);font:inherit}
+  .qp-click{cursor:pointer}.qp-sl{font-family:var(--font-label);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
+  .qp-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .qp-chip{padding:3px 9px;border-radius:12px;background:var(--bg3);border:1px solid transparent;color:var(--text2);font-size:12px}
+  .qp-chip.prof{color:var(--text);border-color:var(--accent)}
+  .qp-ab{font-weight:700;color:var(--text);min-width:120px;text-align:left}
+  .qp-checkrow{display:flex;flex-wrap:wrap;gap:5px;padding:4px 0;border-bottom:1px solid var(--border)}.qp-checkrow:last-of-type{border-bottom:none}
+  .qp-note{font-size:12px;color:var(--text2);margin-top:6px;line-height:1.45}
+  .qp-item{padding:8px 0;border-bottom:1px solid var(--border)}.qp-item:last-child{border-bottom:none}
+  .qp-name{font-weight:700;font-size:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .qp-text{color:var(--text2);line-height:1.5;margin-top:3px}
+  .qp-badge{background:var(--accent);color:var(--bg);border-radius:10px;padding:1px 8px;font-size:12px}
+  .qp-ul{margin:4px 0 0 18px;padding:0}.qp-ul li{margin:2px 0}
+  .qp-calc{background:var(--bg3);border-radius:var(--radius,8px);padding:10px;margin:6px 0 4px}
+  .qp-table{width:100%;border-collapse:collapse;margin-top:6px}.qp-table th{font-family:var(--font-label);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);text-align:left;padding:4px}
+  .qp-table td{padding:6px 4px;border-top:1px solid var(--border);vertical-align:top}
+  .qp-num{font-weight:700;color:var(--text)}
+  .qp-critlink{color:var(--gold,#e6b84d)}
+  .qp-result{margin-top:8px;padding:8px;border:1px dashed var(--border);border-radius:6px;min-height:20px}
+  .qp-crit{color:var(--gold,#e6b84d)}
+  .qp-mini{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:0 6px;cursor:pointer;font:inherit;font-size:11px}
+  .qp-slotgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));column-gap:24px}
+  .qp-spellsec{margin-top:10px;padding-top:4px;border-top:2px solid var(--border)}
+  .qp-lvl{font-family:var(--font-label);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:8px 0 0}
+  .qp-spsub{font-family:var(--font-label);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:8px 0 2px}
+  .qp-slotrow{display:grid;grid-template-columns:110px 1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}.qp-slotrow:last-child{border-bottom:none}
+  .qp-pips{display:inline-flex;gap:3px;flex-wrap:wrap;align-items:center}.qp-pip{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--accent);background:transparent;cursor:pointer;padding:0}.qp-pip.on{background:var(--accent)}
+  .qp-other{font-size:12px;color:var(--text2);margin-top:8px;line-height:1.5}
+  .qp-feat{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}.qp-feat:hover{color:var(--accent)}
+  .qp-spell{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}.qp-spell:hover{color:var(--accent)}
+  .qp-always{font-size:11px;color:var(--text3);padding:4px 0}
+  /* ── phones ── */
+  @media (max-width:600px){
+    #qp-body{font-size:14px;gap:10px}
+    .qp-card{padding:12px}
+    .qp-top{flex-direction:column;align-items:flex-start;gap:4px}
+    .qp-who{font-size:20px}
+    .qp-text{font-size:14px;line-height:1.55}
+    .qp-name{font-size:15px}
+    .qp-hprow .tbtn{flex:1 1 30%;min-height:40px;font-size:12px}
+    .qp-hprow input{flex:1 1 100%;min-height:40px}
+    .qp-chip{padding:6px 10px;font-size:13px}
+    .qp-ab{min-width:0;flex:1 1 100%}
+    .qp-slotgrid{grid-template-columns:1fr}
+    .qp-slotrow{grid-template-columns:90px 1fr auto}
+    /* weapons: one small card each instead of a 4-column table */
+    .qp-table,.qp-table tbody,.qp-table tr,.qp-table td{display:block;width:100%}
+    .qp-table tr:first-child{display:none}
+    .qp-table tr{border-top:1px solid var(--border);padding:8px 0;display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 12px}
+    .qp-table td{border:none;padding:0}
+    .qp-table td:first-child{grid-column:1/-1;font-size:15px}
+    .qp-table td[data-label]::before{content:attr(data-label);display:block;font-family:var(--font-label);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)}
+    .qp-result select,.qp-result input[type=number]{min-height:40px;font-size:16px}
+    .qp-result{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .qp-result #qp-add-out{flex-basis:100%}
+    .qp-pip{width:24px;height:24px;border-width:2px}
+    .qp-pips{gap:6px}
+    .qp-mini{min-width:34px;min-height:32px;font-size:14px;padding:2px 10px}
+    #qp-body .qp-calc input[type=checkbox],#qp-body .qp-result input[type=checkbox]{width:24px!important;height:24px!important;min-width:24px;vertical-align:middle}
+  }
+  /* finger-sized controls on touch screens */
+  @media (pointer:coarse){
+    .qp-pip{width:24px;height:24px;border-width:2px}
+    .qp-pips{gap:6px}
+    .qp-mini{min-width:34px;min-height:32px;font-size:14px;padding:2px 10px}
+    #qp-body .qp-calc input[type=checkbox],#qp-body .qp-result input[type=checkbox]{width:24px!important;height:24px!important;min-width:24px;vertical-align:middle}
+    .qp-feat,.qp-spell{display:inline-block;padding:4px 0}
+    .qp-bar a,.qp-bar span{padding:8px 12px;font-size:13px}
+  }
+`;
+  document.head.appendChild(css);
+  const wrap = (name, after) => { const o = window[name]; if (typeof o !== 'function') return; window[name] = function () { const r = o.apply(this, arguments); try { after.apply(this, arguments); } catch (e) { console.warn('[quick play]', e); } return r; }; };
+  wrap('switchPage', page => { if (page === 'quickplay') renderQuickPlay(); });
+  ['setPortentValue', 'rollPortentDie', 'togglePortentUsed', 'setDivinersDiceValue', 'rollDivinersDie', 'toggleDivinersDiceUsed', 'setOmenManual', 'rollCosmicOmen']
+    .forEach(fn => wrap(fn, () => { if (document.getElementById('page-quickplay')?.classList.contains('active')) renderQuickPlay(); }));
+  // characters the DM has enabled show the tab and open straight onto it
+  wrap('enterApp', () => setTimeout(() => applyQuickPlayTab(true), 0));
+  // a live update (e.g. the DM toggling it while the player has the sheet open)
+  wrap('handleRemoteCharUpdate', () => setTimeout(() => applyQuickPlayTab(false), 300));
 })();
 </script>
 </body>
