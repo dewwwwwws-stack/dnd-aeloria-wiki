@@ -6760,6 +6760,35 @@ function startCatalogFallbackPolling() {
   _catalogFallbackPollTimer = setInterval(() => { loadDMItemOverrides(); }, 60000);
 }
 
+// Fields only the DM panel ever writes, straight to the character's file
+// (campaign assignment, the Hide from Login / Party View ticks, Quick Play,
+// the DM's note). An open sheet never edits these itself, so whenever it
+// learns of a newer copy of its file - a broadcast, the fallback poll, or a
+// save conflict - the file's value always wins. Without this, the open
+// sheet's next save (there is one every 60s) wrote its own stale copy back
+// and silently undid the DM's change.
+const DM_OWNED_FIELDS = ['_campaign', 'hideFromSelector', 'hideFromPartyView', 'quickPlay', '_dmNote'];
+function adoptDmOwnedFields(fresh) {
+  if (!currentChar || !fresh) return [];
+  const changed = [];
+  DM_OWNED_FIELDS.forEach(f => {
+    const has = Object.prototype.hasOwnProperty.call(fresh, f);
+    if (JSON.stringify(has ? fresh[f] : undefined) === JSON.stringify(currentChar[f])) return;
+    if (has) currentChar[f] = fresh[f]; else delete currentChar[f];
+    changed.push(f);
+  });
+  if (changed.includes('quickPlay') && typeof applyQuickPlayTab === 'function') { try { applyQuickPlayTab(false); } catch (e) {} }
+  return changed;
+}
+window.adoptDmOwnedFields = adoptDmOwnedFields;
+// After a DM-panel write to a character file: if that same character is the
+// one open in this window, keep the in-memory copy and its SHA in step.
+function syncOpenCharAfterDmWrite(id, fields, putResult) {
+  if (!currentChar || currentChar.id !== id) return;
+  Object.entries(fields || {}).forEach(([k, v]) => { if (v === undefined) delete currentChar[k]; else currentChar[k] = v; });
+  if (putResult?.content?.sha) currentCharSHA = putResult.content.sha;
+}
+
 let _remoteUpdateInFlight = false;
 async function handleRemoteCharUpdate(field, notify) {
   if (!currentChar?.id || _remoteUpdateInFlight) return;
@@ -6775,6 +6804,11 @@ async function handleRemoteCharUpdate(field, notify) {
     // toasting every 20s for no reason. A real broadcast always implies
     // something changed, so this only meaningfully gates the polling path.
     if (!shaChanged) { console.log('[realtime] no change since last sync, skipping'); return; }
+
+    // The new SHA has just been adopted above, so the next save from this
+    // window will overwrite the file without any conflict - DM-owned
+    // fields must be taken across now or that save would erase them.
+    adoptDmOwnedFields(fresh);
 
     // Broadened beyond just magicItems/customResources - a plain-equipment
     // gift (confirmGiveItem's source:'equipment' path) or a DM grant of a
@@ -8806,7 +8840,8 @@ async function dmToggleCharVisibility(id, field, checked) {
   try {
     const { content: c, sha } = await GH.getFile(`${id}.json`);
     c[field] = checked;
-    await GH.putFile(`${id}.json`, c, sha);
+    const _putRes = await GH.putFile(`${id}.json`, c, sha);
+    syncOpenCharAfterDmWrite(id, { [field]: checked }, _putRes);
     broadcastCharUpdate(id, field);
     const cached = _partyCharCache[id];
     if (cached) cached[field] = checked;
@@ -8822,7 +8857,8 @@ async function dmToggleQuickPlay(id, checked) {
   try {
     const { content: c, sha } = await GH.getFile(`${id}.json`);
     c.quickPlay = !!checked;
-    await GH.putFile(`${id}.json`, c, sha);
+    const _putRes = await GH.putFile(`${id}.json`, c, sha);
+    syncOpenCharAfterDmWrite(id, { quickPlay: !!checked }, _putRes);
     broadcastCharUpdate(id, 'quickPlay');
     const cached = _partyCharCache[id];
     if (cached) cached.quickPlay = !!checked;
@@ -9532,7 +9568,9 @@ async function dmSetCharCampaign(charId, campaignId) {
     const { content: c, sha } = await GH.getFile(charId + '.json');
     if (campaignId) c._campaign = campaignId;
     else delete c._campaign;
-    await GH.putFile(charId + '.json', c, sha);
+    const _putRes = await GH.putFile(charId + '.json', c, sha);
+    syncOpenCharAfterDmWrite(charId, { _campaign: campaignId || undefined }, _putRes);
+    broadcastCharUpdate(charId, 'campaign');
     // Update cache
     const cached = _allCharFiles.find(f => f.id === charId);
     if (cached) { if (campaignId) cached.char._campaign = campaignId; else delete cached.char._campaign; }
@@ -13583,6 +13621,8 @@ async function saveChar() {
           currentChar.conditions = fresh.content.conditions;
           mergedConditions = true;
         }
+        // DM-owned fields (campaign, visibility ticks, Quick Play, DM note)
+        adoptDmOwnedFields(fresh.content);
         const result = await GH.putFile(`${currentChar.id}.json`, currentChar, fresh.sha);
         currentCharSHA = result.content.sha;
         setSyncStatus('ok', '✓ Saved');
