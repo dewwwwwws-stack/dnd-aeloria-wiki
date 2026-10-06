@@ -66746,6 +66746,8 @@ function renderQuickPlay() {
     ${extra.other.length || heroic ? card('Other limited abilities', '', (heroic ? item('Heroic Inspiration', 'Reroll a d20 right after rolling it.', pips(heroic)) : '') + extraItems('other')) : ''}
     ${longer.length ? card('Takes longer', 'more than one action, or ritual only', spellSection('longer')) : ''}`;
 
+  qpPinBar();
+
   // feature / item / trait names open their modal, like on the other tabs;
   // anything else that's a rules term (Opportunity Attack, Heroic
   // Inspiration...) links to the glossary instead
@@ -66824,6 +66826,18 @@ function _qpSpellName(s) {
   return `<span class="qp-spell" onclick="openSpellDetailModal('${js(s.key)}','${js(s.name)}')">${_qpE(s.name)}</span>`;
 }
 window.renderQuickPlay = renderQuickPlay;
+// The scrolling area has padding at the top, and a sticky element sticks
+// below that padding - leaving a strip where cards show through above the
+// bar. Offset the bar by the padding so it sits flush against the top edge.
+function qpPinBar() {
+  const bar = document.querySelector('#qp-body .qp-bar'); if (!bar) return;
+  let sc = bar.parentElement;
+  while (sc && sc !== document.body && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+  const pad = sc && sc !== document.body ? parseFloat(getComputedStyle(sc).paddingTop) || 0 : 0;
+  bar.style.top = (-pad) + 'px';
+}
+window.qpPinBar = qpPinBar;
+window.addEventListener('resize', () => { try { qpPinBar(); } catch (e) {} });
 function qpJump(id) {
   const el = document.getElementById('qp-c-' + id); if (!el) return false;
   const bar = document.querySelector('#qp-body .qp-bar');
@@ -66839,7 +66853,7 @@ window.qpJump = qpJump;
 (function () {
   const css = document.createElement('style');
   css.textContent = `
-  .qp-bar{position:sticky;top:0;z-index:20;display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none;
+  .qp-bar{position:sticky;top:0;z-index:20;box-shadow:0 6px 10px -8px rgba(0,0,0,.6);display:flex;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none;
     background:var(--bg);border-bottom:1px solid var(--border);padding:8px 2px;margin:-4px 0 0}
   .qp-bar::-webkit-scrollbar{display:none}
   .qp-bar a,.qp-bar span{flex-shrink:0;white-space:nowrap;padding:6px 10px;border-radius:14px;background:var(--bg3);color:var(--text2);font-size:12px;text-decoration:none}
@@ -66941,6 +66955,341 @@ window.qpJump = qpJump;
   wrap('enterApp', () => setTimeout(() => applyQuickPlayTab(true), 0));
   // a live update (e.g. the DM toggling it while the player has the sheet open)
   wrap('handleRemoteCharUpdate', () => setTimeout(() => applyQuickPlayTab(false), 300));
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// QUICK PLAY PDF - the Quick Play page as a printable / fillable A4 sheet
+// (white background), laid out like the approved mock-up:
+//   front: header, stats + HP box, death saves, (spell slots), saves,
+//          skills, Action (weapon table with/without Sneak Attack and crits)
+//   back:  Bonus Action, Reaction, other limited abilities, notes & HP tally
+// Content is read from the rendered Quick Play page, so the PDF always
+// matches what the player sees there. Tick boxes and HP boxes are real form
+// fields: tick them on paper or on a tablet. Used uses start ticked.
+// ═══════════════════════════════════════════════════════════════════════
+const QPP = { W: 595.28, H: 841.89, M: 28 };
+
+function _qppText(el) {
+  if (!el) return '';
+  const c = el.cloneNode(true);
+  c.querySelectorAll('li').forEach(li => { li.insertAdjacentText('afterbegin', ' \u2022 '); });
+  c.querySelectorAll('br').forEach(br => br.replaceWith(' '));
+  return (c.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+// read one Quick Play card into { items: [...], spells: [...], other: '' }
+function _qppCard(id) {
+  const card = document.getElementById('qp-c-' + id); if (!card) return null;
+  const out = { items: [], spells: [], other: '' };
+  const readItem = it => {
+    const nm = it.querySelector('.qp-name');
+    const label = (nm?.firstChild?.textContent || '').trim();
+    const pipsEl = nm?.querySelector('.qp-pips');
+    let uses = null;
+    if (pipsEl) {
+      const btns = [...pipsEl.querySelectorAll('.qp-pip')];
+      const onclick = (pipsEl.querySelector('[onclick]')?.getAttribute('onclick') || '');
+      const id = (onclick.match(/qpUse\('([^']+)'/) || [])[1] || label;
+      if (btns.length) uses = { id, max: btns.length, left: btns.filter(b => b.classList.contains('on')).length };
+      else { const m = pipsEl.textContent.match(/(\d+)\s*\/\s*(\d+)/); if (m) uses = { id, max: +m[2], left: +m[1], pool: true }; }
+    }
+    const dims = [...(nm?.querySelectorAll(':scope > .qp-dim') || [])].map(d => d.textContent.trim());
+    const meta = dims.join(' ').replace(/^\d+\/\d+\s*\u00b7?\s*/, '').replace(/\d+\/\d+\s*\u00b7\s*/, '').trim();
+    return { name: label, meta, text: _qppText(it.querySelector('.qp-text')), uses };
+  };
+  card.querySelectorAll('.qp-item').forEach(it => {
+    if (it.closest('.qp-spellsec')) return;
+    out.items.push(readItem(it));
+  });
+  const sec = card.querySelector('.qp-spellsec');
+  if (sec) {
+    let lv = '';
+    [...sec.children].forEach(ch => {
+      if (ch.classList.contains('qp-lvl')) lv = ch.textContent.trim();
+      else if (ch.classList.contains('qp-item')) { const s = readItem(ch); s.level = lv; out.spells.push(s); }
+    });
+  }
+  out.other = _qppText(card.querySelector('.qp-other'));
+  return out;
+}
+
+async function exportQuickPlayPdf() {
+  if (!currentChar) return;
+  const btn = document.getElementById('pdf-export-btn'); if (btn) btn.disabled = true;
+  try {
+    toast('Building Quick Play PDF...');
+    const L = await pdfLoadLib();
+    renderQuickPlay();                                     // fresh numbers, read below
+    const Q = window._qpData, c = currentChar;
+    const doc = await L.PDFDocument.create();
+    const F = await doc.embedFont(L.StandardFonts.Helvetica), B = await doc.embedFont(L.StandardFonts.HelveticaBold);
+    const form = doc.getForm();
+    const { rgb } = L;
+    const ACC = rgb(.42, .30, .62), GREY = rgb(.45, .45, .45), LIGHT = rgb(.85, .85, .88), BLACK = rgb(0, 0, 0), WHITE = rgb(1, 1, 1);
+    const { W, H, M } = QPP;
+    let page, y, pageNo = 0, fieldN = 0;
+    const pages = [];
+
+    // ── text helpers (Helvetica only knows Western characters) ──
+    const okCache = new Map();
+    const MAP = { '\u2212': '-', '\u2192': '->', '\u2264': '<=', '\u2265': '>=', '\u2605': '*', '\u25cf': '\u2022', '\u00a0': ' ', '\u2009': ' ', '\u202f': ' ' };
+    const safe = t => [...String(t ?? '')].map(ch => {
+      if (MAP[ch] !== undefined) ch = MAP[ch];
+      if (!okCache.has(ch)) { try { F.encodeText(ch); okCache.set(ch, true); } catch (e) { okCache.set(ch, false); } }
+      return okCache.get(ch) ? ch : '';
+    }).join('');
+    const w = (t, size, f = F) => f.widthOfTextAtSize(safe(t), size);
+    const wrap = (t, size, width, f = F) => {
+      const out = []; let line = '';
+      safe(t).split(' ').forEach(word => { const tt = line ? line + ' ' + word : word; if (w(tt, size, f) <= width || !line) line = tt; else { out.push(line); line = word; } });
+      if (line) out.push(line); return out;
+    };
+    const text = (x, yy, t, size = 8, f = F, color = BLACK) => { const s = safe(t); if (s) page.drawText(s, { x, y: yy, size, font: f, color }); return w(s, size, f); };
+    const textR = (xr, yy, t, size = 8, f = F, color = BLACK) => text(xr - w(t, size, f), yy, t, size, f, color);
+    const para = (x, yy, t, width, size = 7.5, f = F, color = BLACK, lead) => { lead = lead || size * 1.25; wrap(t, size, width, f).forEach(ln => { ensure(lead); text(x, yy = y, ln, size, f, color); y -= lead; }); return y; };
+    const line = (x1, y1, x2, y2, color = LIGHT, th = .6) => page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, color, thickness: th });
+    const rect = (x, yy, ww, hh, color = GREY, th = .7) => page.drawRectangle({ x, y: yy, width: ww, height: hh, borderColor: color, borderWidth: th });
+    const footer = () => text(M, M - 14, `Quick Play sheet \u00b7 ${c.charName || ''} \u00b7 page ${pageNo}`, 6.5, F, GREY);
+    const newPage = () => { if (page) footer(); page = doc.addPage([W, H]); pages.push(page); pageNo++; y = H - M - 10; };
+    const ensure = need => { if (y - need < M + 6) newPage(); };
+    const ticks = (x, yy, n, checkedN, base, size = 8) => {
+      for (let i = 0; i < n; i++) {
+        const cb = form.createCheckBox(`${base}_${fieldN++}`);
+        cb.addToPage(page, { x: x + i * (size + 3), y: yy, width: size, height: size, borderColor: GREY, borderWidth: .7, backgroundColor: WHITE });
+        if (i < checkedN) cb.check();
+      }
+      return x + n * (size + 3);
+    };
+    const tfield = (name, x, yy, ww, hh, value, size = 11) => {
+      const tf = form.createTextField(`${name}_${fieldN++}`);
+      if (value !== undefined && value !== null && value !== '') tf.setText(safe(value));
+      tf.addToPage(page, { x, y: yy, width: ww, height: hh, borderColor: GREY, borderWidth: .5, backgroundColor: WHITE, textColor: BLACK, font: F });
+      tf.setFontSize(size);
+    };
+    const section = (title, sub) => {
+      ensure(40);
+      text(M, y, title.toUpperCase(), 10, B, ACC);
+      if (sub) textR(W - M, y, sub, 7, F, GREY);
+      line(M, y - 4, W - M, y - 4, ACC, 1); y -= 16;
+    };
+    // name line + uses boxes + note, then the text below it
+    const item = (it, base) => {
+      const lines = wrap(it.text, 7.5, W - 2 * M);
+      ensure(12 + Math.min(lines.length, 3) * 9.4);
+      let x = M + text(M, y, it.name, 8.5, B) + 6;
+      if (it.uses && !it.uses.pool) { x = ticks(x, y - 1.5, it.uses.max, it.uses.max - it.uses.left, base) + 4; }
+      if (it.uses && it.uses.pool) { x += text(x, y, `${it.uses.left} / ${it.uses.max}  used: `, 7, F, GREY); tfield(base, x, y - 3, 34, 11, '', 8); x += 40; }
+      if (it.meta) text(x, y, it.meta, 6.8, F, GREY);
+      y -= 10;
+      lines.forEach(ln => { ensure(9.4); text(M, y, ln, 7.5); y -= 9.4; });
+      y -= 4;
+    };
+    const spellLines = (spells, base) => {
+      if (!spells.length) return;
+      ensure(24); text(M, y, 'SPELLS', 7, B, GREY); y -= 11;
+      const descX = M + 235, descW = W - M - descX;
+      spells.forEach(s => {
+        const dl = wrap(s.text, 7.2, descW);
+        ensure(Math.max(11, dl.length * 9));
+        let x = M + text(M, y, s.name, 8, B) + 5;
+        const lvl = (s.level || '').replace(/^Level /, 'level ').replace(/^Cantrips$/, 'cantrip');
+        const meta = [lvl, ...String(s.meta || '').replace(/back on a Long Rest/gi, 'per Long Rest').replace(/back on a Short Rest/gi, 'per Short Rest')
+          .split('\u00b7').map(t => t.trim()).filter(t => t && !/^(level|cantrip)\b/i.test(t) && !/^at will$/i.test(t) && !/^version$/i.test(t))]
+          .map(t => t.replace(/^Concentration$/i, 'Conc.')).slice(0, 3).join(' \u00b7 ');
+        if (meta) { const mm = meta.length > 46 ? meta.slice(0, 44) + '...' : meta; x += text(x, y, mm, 6.6, F, GREY) + 4; }
+        if (s.uses && x < descX - 30) { x = ticks(x, y - 1.5, s.uses.max, s.uses.max - s.uses.left, base) + 2; }
+        let yy = y; dl.forEach(ln => { text(descX, yy, ln, 7.2); yy -= 9; });
+        y = Math.min(y - 11, yy - 2);
+      });
+      y -= 2;
+    };
+
+    newPage();
+    // ── header ──
+    const cx = M + 24, cy = H - M - 24;
+    if (c.tokenUrl) {
+      try {
+        const r = await fetch(c.tokenUrl); const bytes = new Uint8Array(await r.arrayBuffer());
+        const img = (bytes[0] === 0x89 && bytes[1] === 0x50) ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+        const k = 0.5523 * 24, op = L;
+        page.pushOperators(op.pushGraphicsState(), op.moveTo(cx + 24, cy), op.appendBezierCurve(cx + 24, cy + k, cx + k, cy + 24, cx, cy + 24),
+          op.appendBezierCurve(cx - k, cy + 24, cx - 24, cy + k, cx - 24, cy), op.appendBezierCurve(cx - 24, cy - k, cx - k, cy - 24, cx, cy - 24),
+          op.appendBezierCurve(cx + k, cy - 24, cx + 24, cy - k, cx + 24, cy), op.closePath(), op.clip(), op.endPath());
+        const s = Math.max(48 / img.width, 48 / img.height);
+        page.drawImage(img, { x: cx - img.width * s / 2, y: cy - img.height * s / 2, width: img.width * s, height: img.height * s });
+        page.pushOperators(op.popGraphicsState());
+      } catch (e) { /* no token image available offline */ }
+    }
+    page.drawCircle({ x: cx, y: cy, size: 24, borderColor: ACC, borderWidth: 1.5 });
+    const classLine = (c.classes || []).map(x => `${x.class.charAt(0).toUpperCase() + x.class.slice(1)} ${x.levels?.length || 0}${x.subclass ? ' (' + x.subclass + ')' : ''}`).join(' / ');
+    const species = (() => { try { const r = getRaceData(c.race)?.name || c.race; const sr = c.subrace ? (getSubraceData(c.race, c.subrace)?.name || c.subrace) : ''; return sr ? `${r} (${sr})` : r; } catch (e) { return c.race || ''; } })();
+    text(M + 58, H - M - 16, c.charName || '', 18, B);
+    text(M + 58, H - M - 30, [classLine, species, c.playerName ? 'Player: ' + c.playerName : ''].filter(Boolean).join(' \u00b7 '), 8, F, GREY);
+    y = H - M - 60;
+    const init = (document.getElementById('disp-init')?.innerText || '').trim();
+    const speed = (document.getElementById('disp-speed')?.innerText || c.speed || '').toString().trim();
+    const pp = (document.getElementById('qs-pp')?.innerText || '').trim();
+    const stats = [['ARMOR CLASS', String(calcACBreakdown().total)], ['SPEED', /ft/.test(speed) ? speed : speed + ' ft'],
+      ['INITIATIVE', init + (Q.champion ? ' (Adv.)' : '')], ['PROF. BONUS', _qpSign(getProf())], ['PASSIVE PERC.', pp]];
+    let bx = M; const bw = (W - 2 * M - 170 - 4 * 6) / 5;
+    stats.forEach(([lab, v]) => { rect(bx, y - 34, bw, 40); text(bx + 5, y - 2, lab, 6, F, GREY); text(bx + 5, y - 24, v, v.length > 9 ? 11 : 14, B); bx += bw + 6; });
+    const hx = W - M - 164; rect(hx, y - 34, 164, 40);
+    text(hx + 5, y - 2, `HIT POINTS  (max ${c.hp_max})`, 6, F, GREY); text(hx + 5, y - 14, 'Current', 6, F, GREY); text(hx + 92, y - 14, 'Temp', 6, F, GREY);
+    tfield('hp_current', hx + 5, y - 31, 80, 15, c.hp_current); tfield('hp_temp', hx + 92, y - 31, 66, 15, c.hp_temp || '');
+    y -= 48;
+    const ds = c.death_saves || c.deathSaves || {};
+    text(M, y, 'DEATH SAVES   successes', 7, F, GREY); ticks(M + 90, y - 1.5, 3, ds.successes || 0, 'ds_s');
+    text(M + 130, y, 'failures', 7, F, GREY); ticks(M + 162, y - 1.5, 3, ds.failures || 0, 'ds_f');
+    const hi = Q.res.heroic_inspiration;
+    if (hi) { text(M + 215, y, 'HEROIC INSPIRATION', 7, F, GREY); const ex = ticks(M + 300, y - 1.5, hi.max, Math.max(0, hi.max - (hi.used || 0)), 'hi'); text(ex + 2, y, 'ticked = you have it', 6, F, GREY); }
+    textR(W - M, y, 'Use boxes: tick one each time you use it', 6, F, GREY);
+    y -= 16;
+
+    // ── spell slots (casters) ──
+    const ss = Q.slots || { levels: [] };
+    const slotLv = (ss.levels || []).filter(l => l.max);
+    if (slotLv.length || ss.warlock?.max) {
+      section('Spell slots', 'tick a box when you use one');
+      let x = M;
+      try {
+        const sc = getAllSpellcastingClasses();
+        const dc = sc.map(s => { const m = abilityMod(Q.abs[s.ability] ?? 10); return `${s.cls.charAt(0).toUpperCase() + s.cls.slice(1)}: save DC ${8 + Q.prof + m + (getSpellDCBonus() || 0)}, ${_qpSign(Q.prof + m + (getSpellAtkBonus() || 0))} to hit`; }).join('   ');
+        if (dc) { text(M, y, dc, 8, B); y -= 13; }
+      } catch (e) {}
+      const slots = slotLv.map(l => [`Level ${l.level}`, l.max, l.used || 0]);
+      if (ss.warlock?.max) slots.push([`Pact (L${ss.warlock.slotLevel})`, ss.warlock.max, ss.warlock.used || 0]);
+      slots.forEach(([lab, max, used]) => {
+        const need = w(lab, 7.5, B) + 6 + max * 11 + 16;
+        if (x + need > W - M) { x = M; y -= 14; }
+        x += text(x, y, lab, 7.5, B) + 5; x = ticks(x, y - 1.5, max, used, 'slot') + 14;
+      });
+      y -= 18;
+    }
+
+    // ── saves & checks ──
+    section('Saving throws & ability checks', 'filled dot = proficient   two dots = expertise');
+    const AB = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+    const sw = (W - 2 * M - 5 * 5) / 6; let sx = M;
+    AB.forEach(k => {
+      const v = (document.getElementById('save-val-' + k)?.innerText || '').replace('\u2212', '-');
+      const p = document.getElementById('save-dot-' + k)?.classList.contains('prof');
+      rect(sx, y - 12, sw, 18, p ? ACC : LIGHT); text(sx + 5, y - 6, `${k.toUpperCase()} save`, 7, F, GREY); textR(sx + sw - 5, y - 6, v, 9, B); sx += sw + 5;
+    });
+    y -= 26;
+    const SK = (typeof SKILLS !== 'undefined' ? SKILLS : []);
+    const colw = (W - 2 * M) / 3, rows = Math.ceil(SK.length / 3);
+    SK.forEach((sk, i) => {
+      const col = Math.floor(i / rows), row = i % rows, x = M + col * colw, yy = y - row * 11;
+      const v = (document.getElementById('skill-val-' + sk.key)?.innerText || '').replace('\u2212', '-');
+      const p = document.getElementById('skill-prof-dot-' + sk.key)?.classList.contains('prof');
+      const ex = document.getElementById('skill-exp-dot-' + sk.key)?.classList.contains('expert');
+      page.drawCircle({ x: x + 3, y: yy + 2.6, size: 2.4, borderColor: p || ex ? BLACK : GREY, borderWidth: .6, color: p || ex ? BLACK : undefined });
+      if (ex) page.drawCircle({ x: x + 9, y: yy + 2.6, size: 2.4, borderColor: BLACK, borderWidth: .6, color: BLACK });
+      text(x + (ex ? 15 : 9), yy, sk.name, 7.5, p || ex ? B : F, p || ex ? BLACK : GREY);
+      textR(x + colw - 14, yy, v, 7.5, p || ex ? B : F, p || ex ? BLACK : GREY);
+    });
+    y -= rows * 11 + 2;
+    const notes = [...document.querySelectorAll('#qp-c-saving-throws .qp-note, #qp-c-ability-checks .qp-note')].map(_qppText).filter(Boolean).join('   ');
+    if (notes) { para(M, y, notes, W - 2 * M, 6.8, F, GREY); y -= 6; }
+
+    // ── action ──
+    const act = _qppCard('action');
+    section('Action', 'one each turn');
+    if (act) {
+      const atk = act.items.find(i => i.name === 'Attack');
+      if (atk) { para(M, y, atk.text + ' Crits: the big number is every die at its maximum plus your modifier - then roll the dice shown and add them.', W - 2 * M, 7.5); y -= 4; }
+      if (Q.weapons.length) {
+        const keepS = _qp.sneak, keepC = _qp.cunning; _qp.cunning = 0;
+        const withSA = !!Q.sneakDice;
+        const cols = withSA
+          ? [['WEAPON', 0], ['RANGE \u00b7 MASTERY', 92], ['TO HIT', 190], ['DAMAGE', 232], ['+ SNEAK ATTACK', 298], ['CRIT', 380], ['CRIT + SNEAK', 452]]
+          : [['WEAPON', 0], ['RANGE \u00b7 MASTERY', 120], ['TO HIT', 260], ['DAMAGE', 320], ['CRIT', 430]];
+        ensure(30);
+        cols.forEach(([t, dx]) => text(M + dx, y, t, 6, B, GREY)); y -= 4; line(M, y, W - M, y); y -= 11;
+        Q.weapons.forEach(wp => {
+          ensure(14);
+          _qp.sneak = false; const dmg = _qpFormula(wp, Q, false), crit = _qpFormula(wp, Q, true);
+          _qp.sneak = true; const dmgS = _qpFormula(wp, Q, false), critS = _qpFormula(wp, Q, true);
+          const range = [wp.range, wp.mastery ? wp.mastery.charAt(0).toUpperCase() + wp.mastery.slice(1) : ''].filter(Boolean).join(' \u00b7 ');
+          const vals = withSA ? [wp.name, range, _qpSign(wp.hit), dmg, dmgS, crit, critS] : [wp.name, range, _qpSign(wp.hit), dmg, crit];
+          cols.forEach(([t, dx], k) => {
+            const isCrit = /CRIT/.test(t), bold = k === 0 || t === 'TO HIT' || t === 'CRIT + SNEAK' || (!withSA && t === 'CRIT');
+            let v = vals[k]; const maxW = (cols[k + 1] ? cols[k + 1][1] : W - 2 * M) - dx - 4;
+            while (v.length > 3 && w(v, 8, bold ? B : F) > maxW) v = v.slice(0, -2);
+            text(M + dx, y, v, 8, bold ? B : F, isCrit ? ACC : BLACK);
+          });
+          y -= 3; line(M, y, W - M, y); y -= 10;
+        });
+        _qp.sneak = keepS; _qp.cunning = keepC;
+        const wnote = [Q.weapons.every(x => /piercing/i.test(x.type)) ? 'All piercing.' : '', Q.piercer ? 'Piercer: once per turn reroll one damage die; crits include its extra weapon die.' : ''].filter(Boolean).join(' ');
+        if (wnote) { text(M, y, wnote, 6.8, F, GREY); y -= 14; }
+      }
+      act.items.filter(i => i.name !== 'Attack').forEach(i => item(i, 'act'));
+      if (act.other) { para(M, y, act.other, W - 2 * M, 7, F, GREY); y -= 4; }
+      spellLines(act.spells, 'sp');
+    }
+
+    // ── back: bonus action, reaction, the rest ──
+    newPage();
+    [['bonus-action', 'Bonus Action', 'one each turn'], ['reaction', 'Reaction', 'one each round'], ['takes-longer', 'Takes longer', 'more than one action, or ritual only'],
+     ['other-limited-abilities', 'Other limited abilities', '']].forEach(([id, title, sub]) => {
+      const cd = _qppCard(id); if (!cd) return;
+      if (id === 'other-limited-abilities') cd.items = cd.items.filter(i => !/^heroic inspiration$/i.test(i.name));
+      if (!cd.items.length && !cd.spells.length) return;
+      section(title, sub);
+      cd.items.filter(i => !/^heroic inspiration$/i.test(i.name)).forEach(i => item(i, id));   // already in the header
+      spellLines(cd.spells, id + '_sp');
+      y -= 6;
+    });
+    // stored dice (Portent / Diviner's dice): boxes to write the rolls in
+    const sr = c._storedRolls || {};
+    const pc = typeof getPortentDieCount === 'function' ? getPortentDieCount() : 0;
+    if (pc || (typeof hasDivinersDice === 'function' && hasDivinersDice())) {
+      section('Stored dice', '');
+      let x = M;
+      if (pc) { x += text(x, y, 'Portent', 8.5, B) + 6; (sr.portent || []).slice(0, pc).concat(Array(Math.max(0, pc - (sr.portent || []).length)).fill({})).forEach(d => { tfield('portent', x, y - 4, 26, 14, d?.value ?? '', 9); x += 32; }); x += 10; }
+      if (typeof hasDivinersDice === 'function' && hasDivinersDice()) { x += text(x, y, "Diviner's dice", 8.5, B) + 6; (sr.divinersDice || []).slice(0, 3).concat(Array(Math.max(0, 3 - (sr.divinersDice || []).length)).fill({})).forEach(d => { tfield('ddice', x, y - 4, 26, 14, d?.value ?? '', 9); x += 32; }); }
+      y -= 22;
+    }
+    // notes & HP tally fill whatever room is left on the last page
+    if (y > M + 70) {
+      section('Notes & HP tally', '');
+      for (let yy = y; yy > M + 6; yy -= 16) line(M, yy, W - M, yy);
+    }
+    footer();
+    pages.forEach((pg, i) => pg.drawText(`of ${pages.length}`, { x: M + w(`Quick Play sheet \u00b7 ${c.charName || ''} \u00b7 page ${i + 1}`, 6.5) + 3, y: M - 14, size: 6.5, font: F, color: GREY }));
+    form.updateFieldAppearances(F);
+    doc.setTitle(`${c.charName || 'Character'} - Quick Play`);
+    const out = await doc.save();
+    window._qpPdfLast = out;
+    pdfDownload(out, `${(c.charName || 'character').replace(/[^\w\- ]+/g, '').trim() || 'character'} - Quick Play.pdf`);
+    toast('Quick Play PDF ready');
+  } catch (e) {
+    console.error('[quick play pdf]', e);
+    toast('Quick Play PDF failed: ' + e.message, 'error');
+  } finally { if (btn) btn.disabled = false; }
+}
+window.exportQuickPlayPdf = exportQuickPlayPdf;
+
+// The PDF button: characters with Quick Play enabled get a choice.
+(function () {
+  const full = window.exportCharacterPdf;
+  if (typeof full !== 'function') return;
+  window.exportCharacterPdf = function () {
+    if (!currentChar?.quickPlay) return full.apply(this, arguments);
+    const old = document.getElementById('pdf-choice'); if (old) { old.remove(); return; }
+    const btn = document.getElementById('pdf-export-btn');
+    const r = btn ? btn.getBoundingClientRect() : { left: 20, bottom: 60 };
+    const m = document.createElement('div'); m.id = 'pdf-choice';
+    m.style.cssText = `position:fixed;z-index:10000;top:${r.bottom + 6}px;left:${Math.max(8, Math.min(r.left, window.innerWidth - 230))}px;width:220px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px;display:flex;flex-direction:column;gap:4px`;
+    const opt = (label, sub, fn) => { const b = document.createElement('button'); b.className = 'tbtn'; b.style.cssText = 'text-align:left;padding:8px 10px;line-height:1.3';
+      b.innerHTML = `${label}<div style="font-size:9px;color:var(--text3);text-transform:none;letter-spacing:0">${sub}</div>`; b.onclick = () => { m.remove(); fn(); }; return b; };
+    m.appendChild(opt('Quick Play sheet', 'A4, white, 2 pages, fillable', exportQuickPlayPdf));
+    m.appendChild(opt('Full character sheet', 'every page, every detail', () => full()));
+    document.body.appendChild(m);
+    setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
+  };
 })();
 </script>
 </body>
