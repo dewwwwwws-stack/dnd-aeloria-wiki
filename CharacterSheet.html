@@ -59729,7 +59729,8 @@ function getSummonSpells() {
 function updateSummonTabVisibility() {
   const tab = document.getElementById('tab-summon');
   if (!tab) return;
-  const hasSummon = getSummonSpells().length > 0;
+  // Magen created with Create Magen live on this tab too (see CREATE MAGEN)
+  const hasSummon = getSummonSpells().length > 0 || (typeof magenWantsSummonTab === 'function' && magenWantsSummonTab());
   tab.style.display = hasSummon ? '' : 'none';
   if (!hasSummon && document.getElementById('page-summon')?.classList.contains('active')) {
     switchPage('main');
@@ -68422,7 +68423,7 @@ async function createMagen(typeKey, opts = {}) {
     createdAt: new Date().toISOString(), addedByDM: !!isDM });
   if (reduce) { c._magenHpReduction = getMagenHpReduction() + reduce; _mgShiftHpMax(-reduce); }
   if (typeof debouncedSave === 'function') debouncedSave();
-  renderMagenPanel();
+  _mgRefreshAll();
   toast(`${t.name} created${reduce ? ` \u00b7 hit point maximum reduced by ${reduce}` : ''}`, 'ok');
 }
 function setMagenHP(id, v) {
@@ -68430,7 +68431,7 @@ function setMagenHP(id, v) {
   const m = getMagenList().find(x => x.id === id); if (!m) return;
   m.hpCur = Math.max(0, Math.min(m.hpMax, parseInt(v, 10) || 0));
   if (typeof debouncedSave === 'function') debouncedSave();
-  renderMagenPanel();
+  _mgRefreshAll();
 }
 function removeMagen(id) {
   if (window._previewMode) return;
@@ -68439,7 +68440,7 @@ function removeMagen(id) {
   if (!confirm(`Remove ${t.name}?${m.hpCost ? `\n\nYour hit point maximum stays reduced by ${m.hpCost} - only a Wish spell can undo that.` : ''}`)) return;
   c._magen = getMagenList().filter(x => x.id !== id);
   if (typeof debouncedSave === 'function') debouncedSave();
-  renderMagenPanel();
+  _mgRefreshAll();
 }
 // DM only: the reduction is undone (a Wish spell)
 function clearMagenHpReduction() {
@@ -68450,7 +68451,7 @@ function clearMagenHpReduction() {
   getMagenList().forEach(m => { m.hpCost = 0; });
   _mgShiftHpMax(n);
   if (typeof debouncedSave === 'function') debouncedSave();
-  renderMagenPanel();
+  _mgRefreshAll();
   toast(`Hit point maximum restored by ${n}`, 'ok');
 }
 window.createMagen = createMagen; window.setMagenHP = setMagenHP; window.removeMagen = removeMagen; window.clearMagenHpReduction = clearMagenHpReduction;
@@ -68501,52 +68502,124 @@ function openCreateMagen() {
 }
 window.openCreateMagen = openCreateMagen;
 
-// ── Spells tab panel ───────────────────────────────────────────────────
-function _mgCard(m, ro) {
-  const t = MAGEN_TYPES[m.key]; if (!t) return '';
-  const dead = (m.hpCur ?? 0) <= 0;
-  const line = (label, val) => val ? `<div><span style="color:var(--text3)">${label}</span> ${_mgE(val)}</div>` : '';
-  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-      <span style="flex:1;min-width:0"><b style="font-size:13px">${_mgE(t.name)}</b> <span style="color:var(--text3)">\u00b7 ${_mgE(t.size)} ${_mgE(t.type)}, ${_mgE(t.alignment)} \u00b7 CR ${_mgE(t.crText)}</span>${dead ? ' \u00b7 <span style="color:var(--red)">0 HP</span>' : ''}</span>
-      ${ro ? '' : `<button class="tbtn" style="min-height:32px;color:var(--red);border-color:var(--red)" onclick="removeMagen('${_mgE(m.id)}')">Remove</button>`}
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;align-items:center">
-      <span>AC <b>${_mgE(t.ac)}</b></span>
-      <span>HP ${ro ? `<b>${m.hpCur}</b>` : `<input type="number" inputmode="numeric" min="0" max="${m.hpMax}" value="${m.hpCur}" onchange="setMagenHP('${_mgE(m.id)}', this.value)" class="info-input" style="width:64px;display:inline-block;font-size:16px;text-align:center">`} / ${m.hpMax} <span style="color:var(--text3)">${_mgE(t.hpText.replace(/^\d+\s*/, ''))}</span></span>
-      <span>Speed ${_mgE(t.speed)}</span>
-    </div>
-    <div style="margin-top:6px;color:var(--text3)">${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => `${a.toUpperCase()} ${t.scores[a]} (${_mgMod(t.scores[a])})`).join(' \u00b7 ')}</div>
-    <div style="margin-top:6px;color:var(--text2);line-height:1.5">
-      ${line('Damage Immunities', t.damageImmunities)}${line('Condition Immunities', t.conditionImmunities)}${line('Senses', t.senses)}${line('Languages', t.languages)}
-    </div>
-    <details open style="margin-top:6px"><summary style="cursor:pointer;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;font-size:9px;font-weight:600">Traits</summary>
-      <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5">${t.traits.map(x => `<div style="margin-top:4px">${_mgBold(x)}</div>`).join('')}</div></details>
-    <details open style="margin-top:6px"><summary style="cursor:pointer;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;font-size:9px;font-weight:600">Actions</summary>
-      <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5">${t.actions.map(x => `<div style="margin-top:4px">${_mgBold(x)}</div>`).join('')}</div></details>
-  </div>`;
+// ── where magen live on the sheet ──────────────────────────────────────
+// Full cards (stat block, HP, picture) sit on the Summons tab with the
+// other summoned creatures; the Spells tab keeps the casting controls and a
+// short list. Pictures use the sheet's summon-image system: one image per
+// magen type, set by the DM from the card's portrait or the DM panel's
+// summon list, stored under the key "magen::<type>".
+const magenImgKey = key => `magen::${key}`;
+function magenWantsSummonTab() { try { return getMagenList().length > 0 || charKnowsCreateMagen(); } catch (e) { return false; } }
+window.magenWantsSummonTab = magenWantsSummonTab;
+function _mgRefreshAll() {
+  try { renderMagenPanel(); } catch (e) {}
+  try { if (typeof updateSummonTabVisibility === 'function') updateSummonTabVisibility(); } catch (e) {}
+  try { if (typeof renderSummonTab === 'function') renderSummonTab(); } catch (e) {}
 }
+function _mgHeaderBits(ro) {
+  const list = getMagenList(), red = getMagenHpReduction(), knows = charKnowsCreateMagen();
+  const addBtn = ro ? '' : isDM ? `<button class="tbtn" style="min-height:32px" onclick="openCreateMagen()">Add Magen (DM)...</button>`
+    : knows ? `<button class="tbtn" style="min-height:32px" onclick="openCreateMagen()">Create Magen...</button>` : '';
+  const redLine = red ? `<div style="margin-top:8px;color:var(--amber);display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--font-ui);font-size:11px"><span style="flex:1">Hit point maximum reduced by <b>${red}</b> from creating magen. Only a wish spell can undo this reduction.</span>${isDM && !ro ? `<button class="tbtn" style="min-height:32px" onclick="clearMagenHpReduction()">Undo reduction (DM)</button>` : ''}</div>` : '';
+  return { list, red, knows, addBtn, redLine };
+}
+
+// Spells tab: casting controls + a one-line list
 function renderMagenPanel() {
   const anchor = document.getElementById('sp-class-manage-bar');
   let el = document.getElementById('sp-magen-panel');
   if (!anchor || !currentChar) { if (el) el.remove(); return; }
-  const list = getMagenList(), red = getMagenHpReduction(), ro = !!window._previewMode;
-  const knows = charKnowsCreateMagen();
-  if (!(knows || isDM || list.length || red)) { if (el) el.remove(); return; }
+  const ro = !!window._previewMode, h = _mgHeaderBits(ro);
+  if (!(h.knows || isDM || h.list.length || h.red)) { if (el) el.remove(); return; }
   if (!el) {
     el = document.createElement('div'); el.id = 'sp-magen-panel';
     el.style.cssText = 'margin:8px 0;padding:10px 12px;border:1px solid var(--border,#444);border-radius:8px;background:var(--bg2);font-family:var(--font-ui);font-size:11px';
     anchor.insertAdjacentElement('afterend', el);
   }
-  const addBtn = ro ? '' : isDM ? `<button class="tbtn" style="min-height:32px" onclick="openCreateMagen()">Add Magen (DM)...</button>`
-    : knows ? `<button class="tbtn" style="min-height:32px" onclick="openCreateMagen()">Create Magen...</button>` : '';
   el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
       <span style="font-family:var(--font-label);letter-spacing:1px">MAGEN</span>
-      <span style="color:var(--text3);flex:1">${list.length ? `${list.length} created \u00b7 they obey your commands without question` : 'No magen yet.'}</span>${addBtn}</div>
-    ${red ? `<div style="margin-top:8px;color:var(--amber);display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1">Hit point maximum reduced by <b>${red}</b> from creating magen. Only a wish spell can undo this reduction.</span>${isDM && !ro ? `<button class="tbtn" style="min-height:32px" onclick="clearMagenHpReduction()">Undo reduction (DM)</button>` : ''}</div>` : ''}
-    ${list.map(m => _mgCard(m, ro)).join('')}`;
+      <span style="color:var(--text3);flex:1">${h.list.length ? `${h.list.length} created \u00b7 they obey your commands without question` : 'No magen yet.'}</span>${h.addBtn}</div>
+    ${h.redLine}
+    ${h.list.length ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+      ${h.list.map(m => { const t = MAGEN_TYPES[m.key]; return t ? `<div style="display:flex;gap:8px;padding:2px 0"><span style="flex:1"><b>${_mgE(t.name)}</b></span><span style="color:${(m.hpCur ?? 0) <= 0 ? 'var(--red)' : 'var(--text2)'}">HP ${m.hpCur} / ${m.hpMax}</span></div>` : ''; }).join('')}
+      <div style="margin-top:6px"><span onclick="switchPage('summon')" style="cursor:pointer;color:var(--accent);text-decoration:underline dotted;text-underline-offset:3px">Stat blocks and pictures are on the Summons tab \u2192</span></div></div>` : ''}`;
 }
 window.renderMagenPanel = renderMagenPanel;
+
+// Summons tab: one card per magen, laid out like the other summon cards
+function _mgSummonCard(m, ro) {
+  const t = MAGEN_TYPES[m.key]; if (!t) return '';
+  const imgKey = magenImgKey(t.key), id = _mgE(m.id);
+  const notesKey = typeof getSummonNotesKey === 'function' ? getSummonNotesKey(imgKey) : '';
+  const notes = (notesKey && typeof getEffectiveText === 'function') ? (getEffectiveText(notesKey, '') || '') : '';
+  const q = v => JSON.stringify(v).replace(/"/g, '&quot;');
+  const sc = t.scores, ab = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+  const stat = (label, val) => val ? `<strong>${label}:</strong> ${_mgE(val)}<br>` : '';
+  const para = x => `<div style="font-size:12px;color:var(--text2);margin-bottom:4px;line-height:1.4">${_mgBold(x)}</div>`;
+  const head = txt => `<div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:10px 0 6px">${txt}</div>`;
+  return `
+    <div class="panel mg-summon-card" style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;margin-bottom:12px">
+    <div style="flex:1 1 420px;min-width:0;max-width:460px">
+      <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div>
+          <div style="font-family:var(--font-heading);font-size:16px;color:var(--accent);display:flex;align-items:center;gap:6px">
+            ${_mgE(t.name)}
+            ${isDM && !ro && typeof openTextOverrideModal === 'function' ? `<span style="cursor:pointer;color:var(--text3);font-size:11px" title="${notes ? 'Edit' : 'Add'} DM notes" onclick="openTextOverrideModal(${q(notesKey)},${q(t.name + ' - DM Notes')},${q(notes)})">\ud83d\udcdd</span>` : ''}
+          </div>
+          <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${_mgE(t.size)} ${_mgE(t.type)}, ${_mgE(t.alignment)} \u00b7 CR ${_mgE(t.crText)}</div>
+        </div>
+        ${ro ? '' : `<span style="cursor:pointer;color:var(--text3);font-size:14px;line-height:1;padding:6px" title="Remove" onclick="removeMagen('${id}')">\u2715</span>`}
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px">
+        <div style="text-align:center">
+          <div style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${_mgE(t.ac)}</div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">AC</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-family:var(--font-title);font-size:18px;font-weight:700;color:${(m.hpCur ?? 0) <= 0 ? 'var(--red)' : 'var(--text)'}">${m.hpCur} / ${m.hpMax}</div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">HP ${_mgE(t.hpText.replace(/^\d+\s*/, ''))}</div>
+          ${ro ? '' : `<div style="display:flex;gap:4px;margin-top:4px;align-items:center;justify-content:center">
+            <button class="tbtn" style="padding:2px 10px;font-size:13px;min-height:30px" onclick="setMagenHP('${id}',${m.hpCur - 1})">\u2212</button>
+            <input type="number" inputmode="numeric" value="${m.hpCur}" min="0" max="${m.hpMax}" style="width:60px;text-align:center;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text);font-size:16px;padding:2px 4px" onchange="setMagenHP('${id}',this.value)">
+            <button class="tbtn" style="padding:2px 10px;font-size:13px;min-height:30px" onclick="setMagenHP('${id}',${m.hpCur + 1})">+</button>
+            <button class="tbtn" style="padding:2px 8px;font-size:10px;min-height:30px;color:var(--text3)" onclick="setMagenHP('${id}',${m.hpMax})">Full</button>
+          </div>`}
+        </div>
+      </div>
+      ${notes ? `<div style="background:var(--bg3);border-left:2px solid var(--accent);border-radius:var(--radius);padding:8px 10px;margin-bottom:10px;font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5;white-space:pre-wrap">${_mgE(notes)}</div>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:var(--bg3);border-radius:var(--radius);padding:8px;margin-bottom:10px;text-align:center">
+        ${ab.map(a => `<div><div style="font-family:var(--font-ui);font-size:9px;color:var(--text3)">${a.toUpperCase()}</div><div style="font-weight:700;font-size:13px">${sc[a]}</div><div style="font-size:10px;color:var(--text3)">${_mgMod(sc[a])}</div></div>`).join('')}
+      </div>
+      <div style="font-family:var(--font-body);font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.8">
+        ${stat('Speed', t.speed)}${stat('Damage Immunities', t.damageImmunities)}${stat('Condition Immunities', t.conditionImmunities)}${stat('Senses', t.senses)}${stat('Languages', t.languages)}
+      </div>
+      ${head('Traits')}${t.traits.map(para).join('')}
+      ${head('Actions')}${t.actions.map(para).join('')}
+      <div style="font-family:var(--font-body);font-size:10px;color:var(--text3);margin-top:10px">Created with Create Magen (${_mgE(t.source)} p${_mgE(t.page)}) \u00b7 fixed stat block.</div>
+    </div>
+    <div style="position:relative;flex:1 1 200px;min-width:180px;min-height:220px;border-radius:var(--radius);overflow:hidden;background:var(--bg2);border:1px dashed var(--border);${isDM && !ro ? 'cursor:pointer' : ''}" ${isDM && !ro ? `onclick="openDMSummonImageEditor('${imgKey}',${q(t.name)})" title="Click to set an image"` : ''}>
+      <img src="${typeof summonImageUrl === 'function' ? summonImageUrl(imgKey) : ''}" alt="" style="width:100%;height:100%;object-fit:contain;display:none" onload="this.style.display='block';if(this.nextElementSibling)this.nextElementSibling.style.display='none'" onerror="this.style.display='none'"/>
+      ${isDM && !ro ? `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text3);pointer-events:none"><span style="font-size:32px">\ud83d\uddbc</span><span style="font-family:var(--font-ui);font-size:10px">Click to set image</span></div>` : ''}
+    </div>
+  </div>`;
+}
+function renderMagenSummonCards() {
+  const block = document.getElementById('summon-stat-block'); if (!block || !currentChar) return;
+  block.querySelector('#summon-magen-block')?.remove();
+  const ro = !!window._previewMode, h = _mgHeaderBits(ro);
+  if (!(h.list.length || h.knows || h.red)) return;
+  // the "No summons active" prompt is the tab's only content when nothing else is out
+  if (h.list.length && !(currentChar._activeSummons || []).length) block.innerHTML = '';
+  const wrap = document.createElement('div'); wrap.id = 'summon-magen-block';
+  wrap.innerHTML = `<div class="panel" style="margin-bottom:12px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--font-ui);font-size:11px">
+        <span style="font-family:var(--font-label);letter-spacing:1px">MAGEN</span>
+        <span style="color:var(--text3);flex:1">${h.list.length ? `${h.list.length} created \u00b7 they obey your commands without question` : 'No magen yet.'}</span>${h.addBtn}</div>
+      ${h.redLine}</div>
+    ${h.list.map(m => _mgSummonCard(m, ro)).join('')}`;
+  block.appendChild(wrap);
+}
+window.renderMagenSummonCards = renderMagenSummonCards;
 
 // ── full PDF: each magen as a companion page ───────────────────────────
 function getMagenPdfCreatures() {
@@ -68561,15 +68634,25 @@ function getMagenPdfCreatures() {
       });
       return { name: t.name, size: t.size, type: t.type, alignment: t.alignment, cr: t.cr, ac: t.ac, hp: m.hpMax, hpCur: m.hpCur, speed: t.speed,
         scores: t.scores, senses: t.senses, languages: t.languages, resistances: t.damageImmunities ? 'Immune: ' + t.damageImmunities : '', condImm: t.conditionImmunities,
-        traits: [...t.traits, ...other], attacks, tabLabel: 'Magen', note: `Created with Create Magen (${t.source} p${t.page}). Obeys its creator's commands without question.` };
+        traits: [...t.traits, ...other], attacks, tabLabel: 'Magen', imgKey: magenImgKey(t.key), note: `Created with Create Magen (${t.source} p${t.page}). Obeys its creator's commands without question.` };
     }).filter(Boolean);
   } catch (e) { return []; }
 }
 window.getMagenPdfCreatures = getMagenPdfCreatures;
 
 (function () {
-  const orig = window.renderClassManageBar;
-  if (typeof orig === 'function') window.renderClassManageBar = function () { const r = orig.apply(this, arguments); try { renderMagenPanel(); } catch (e) { console.warn('[magen]', e.message); } return r; };
+  const wrap = (name, after) => {
+    const orig = window[name]; if (typeof orig !== 'function') return;
+    window[name] = function () { const r = orig.apply(this, arguments); try { const x = after.call(this, r); return x === undefined ? r : x; } catch (e) { console.warn('[magen]', name, e.message); return r; } };
+  };
+  wrap('renderClassManageBar', () => { renderMagenPanel(); });
+  wrap('renderSummonTab', () => { renderMagenSummonCards(); });
+  // DM panel's summon picture list: one entry per magen type
+  wrap('getAllSummonCreatures', list => {
+    if (!Array.isArray(list)) return list;
+    Object.values(MAGEN_TYPES).forEach(t => { if (!list.some(c => c.imgKey === magenImgKey(t.key))) list.push({ imgKey: magenImgKey(t.key), name: t.name, group: 'Magen' }); });
+    return list.sort((a, b) => a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group));
+  });
 })();
 </script>
 </body>
