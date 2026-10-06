@@ -3003,12 +3003,12 @@ body.preview-readonly #mi-detail-edit-row * {
               </div>
               <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
                 <div><label class="field-label">Name</label><input class="info-input" id="ci-name" data-key="charName" placeholder="Character name" oninput="onCharNameChange(this.value)" style="width:100%;box-sizing:border-box"/></div>
-                <div id="ci-race-cell"><label class="field-label">Race</label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off" style="width:100%;box-sizing:border-box"/></div>
+                <div id="ci-race-cell"><label class="field-label">Race <span onclick="openCurrentRaceInfo(false)" title="See what this race gives" style="cursor:pointer;color:var(--accent);text-transform:none;letter-spacing:0;padding:6px 8px;display:inline-block">&#8505; details</span></label><input class="info-input" id="ci-race" data-key="race" placeholder="Race" autocomplete="off" style="width:100%;box-sizing:border-box"/></div>
                 <div id="ci-xp-row"><label class="field-label">XP</label><input class="info-input" type="number" id="ci-xp" data-key="xp" placeholder="0" style="width:100%;box-sizing:border-box"/></div>
               </div>
             </div>
             <div id="ci-subrace-row" style="display:none;margin-bottom:10px">
-              <label class="field-label">Subrace</label>
+              <label class="field-label">Subrace <span onclick="openCurrentRaceInfo(true)" title="See what each subrace gives" style="cursor:pointer;color:var(--accent);text-transform:none;letter-spacing:0;padding:6px 8px;display:inline-block">&#8505; details</span></label>
               <select class="info-input" id="ci-subrace" data-key="subrace" style="width:100%" onchange="onSubraceChange()">
                 <option value="">- Subrace -</option>
               </select>
@@ -3049,7 +3049,8 @@ body.preview-readonly #mi-detail-edit-row * {
             <label class="field-label">Classes</label>
             <div id="mc-class-rows"></div>
             <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:4px">
-              <button class="tbtn" style="font-size:9px;padding:1px 7px" onclick="openLevelPlanModal()">&#9776; Level Plan</button>
+              <button class="tbtn" id="qs-resume-btn" style="font-size:9px;padding:1px 7px;display:none;border-color:var(--accent);color:var(--accent)" onclick="resumeQuickStart()" title="Carry on with the step-by-step character setup">&#8635; Quick Start</button>
+<button class="tbtn" style="font-size:9px;padding:1px 7px" onclick="openLevelPlanModal()">&#9776; Level Plan</button>
               <button class="tbtn" style="font-size:9px;padding:1px 7px;color:var(--accent);border-color:var(--accent)" onclick="addClassRow()">+ Add Class</button>
             </div>
             <div style="text-align:right;font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:2px;letter-spacing:.5px">Total Level: <span id="mc-total-level">1</span></div>
@@ -6502,6 +6503,8 @@ const GH = {
       console.error(`[getFile] JSON parse failed for ${filename}:`, e.message, 'raw length:', raw.length);
       throw new Error(`Corrupt file: ${filename} - ${e.message}`);
     }
+    // character files: names never carry markup (see stripNameMarkup)
+    if (!String(filename).startsWith('_') && typeof _sanitiseCharNames === 'function') _sanitiseCharNames(json);
     return { content: json, sha: data.sha };
   },
 
@@ -7456,6 +7459,9 @@ function openModal(id, keepOthersOpen = false) {
 // to that descendant instead, so this can't fire from clicking content.
 document.addEventListener('click', (e) => {
   if (e.target.classList && e.target.classList.contains('modal-overlay')) {
+    // Quick Start is left with its own "Finish later" / X, which remember
+    // where it got to; a backdrop click used to hide it with no way back.
+    if (e.target.id === 'quick-start-modal') return;
     closeModal(e.target.id);
   }
 });
@@ -7469,6 +7475,14 @@ function closeModal(id) {
   // end up with neither modal visible no matter how they exit.
   if (id === 'asi-modal' && typeof _qsActive !== 'undefined' && _qsActive &&
       (QS_STEPS[_qsStepIndex] === 'abilities' || QS_STEPS[_qsStepIndex] === 'background')) {
+    // Closed with Cancel / X rather than Apply: the wizard still moves on
+    // (so nobody is left with no window at all), but says nothing was set.
+    const _applied = !!window._qsAsiApplied; window._qsAsiApplied = false;
+    if (!_applied) {
+      toast(QS_STEPS[_qsStepIndex] === 'abilities'
+        ? 'Ability scores not set yet - you can set them later with Setup on Ability Scores.'
+        : 'Background ability bonuses not applied yet - you can add them later with Setup on Ability Scores.', 'warn');
+    }
     quickStartAdvance();
   }
   if (id === 'level-plan-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'classes') {
@@ -7666,8 +7680,8 @@ async function doLogin() {
 // ═══════════════════════════════════════════════════════════
 
 async function createCharacter() {
-  const charName   = document.getElementById('new-char-name').value.trim();
-  const playerName = document.getElementById('new-player-name').value.trim();
+  const charName   = stripNameMarkup(document.getElementById('new-char-name').value).trim();
+  const playerName = stripNameMarkup(document.getElementById('new-player-name').value).trim();
   const pin        = document.getElementById('new-char-pin').value;
   const pin2       = document.getElementById('new-char-pin2').value;
   const errEl      = document.getElementById('create-error');
@@ -7802,7 +7816,7 @@ async function fetchAllCharacters() {
     try {
       const id = f.name.replace('.json','');
       const { content, sha } = await GH.getFile(f.name);
-      return { id, char: content, sha };
+      return { id, char: _sanitiseCharNames(content), sha };
     } catch(e) {
       console.warn('[fetchAllCharacters] failed for', f.name, e.message);
       return null;
@@ -13319,6 +13333,9 @@ function confirmGrantFreeSpell() {
 window.confirmGrantFreeSpell = confirmGrantFreeSpell;
 
 function enterApp() {
+  _sanitiseCharNames(currentChar);
+  // A Quick Start left running for a different character must not carry over
+  if (typeof _qsActive !== 'undefined' && _qsActive && _qsCharId && _qsCharId !== currentChar?.id && typeof quickStartReset === 'function') quickStartReset();
   // Remember the file as loaded (before any on-load tidying) as the merge
   // base - only when this is a fresh load, never over an existing base for
   // the same file version, which may already have local edits on top.
@@ -13656,6 +13673,7 @@ openModal = function(id, keepOthersOpen = false) {
 };
 
 function doLogout() {
+  if (typeof quickStartReset === 'function') quickStartReset();
   _teardownPreviewState();
   currentChar = null; currentCharSHA = null; isDM = false;
   _realIsDM = false; _viewingAsPlayer = false;
@@ -13838,6 +13856,17 @@ function debouncedSave() {
 // CHAR SUMMARY
 // ═══════════════════════════════════════════════════════════
 
+// Character and player names are shown in many places as raw HTML (top
+// bar, party view, DM lists). Angle brackets are stripped wherever a name
+// is typed in or loaded, so a name can never smuggle markup or script
+// into someone else's browser.
+function stripNameMarkup(v) { return String(v ?? '').replace(/[<>]/g, ''); }
+window.stripNameMarkup = stripNameMarkup;
+function _sanitiseCharNames(c) {
+  if (!c || typeof c !== 'object') return c;
+  ['charName', 'playerName', 'name'].forEach(k => { if (typeof c[k] === 'string' && /[<>]/.test(c[k])) c[k] = stripNameMarkup(c[k]); });
+  return c;
+}
 function updateCharSummary() {
   if (!currentChar) return;
   const c = currentChar;
@@ -13863,7 +13892,7 @@ function updateCharSummary() {
   }
   const totalLv = getLevel();
   const parts = [
-    `<strong>${c.charName||'-'}</strong>`,
+    `<strong>${stripNameMarkup(c.charName||'-').replace(/&/g,'&amp;')}</strong>`,
     classSummary ? `<span class="sum-sep"> · </span>${classSummary}` : '',
     ` <span style="color:#7a7a82;font-size:10px">[Lv ${totalLv}]</span>`,
     (() => {
@@ -26684,7 +26713,7 @@ function renderASIAssignment() {
 
   for (const ab of ABILITIES) {
     const curVal = _asiAssign[ab]; // null = unassigned
-    const mod    = curVal !== '' ? abilityMod(parseInt(curVal)) : null;
+    const mod    = (curVal !== '' && curVal !== null && curVal !== undefined) ? abilityMod(parseInt(curVal)) : null;
     const modStr = mod !== null ? (mod >= 0 ? '+' : '') + mod : '-';
 
     const row = document.createElement('div');
@@ -26838,6 +26867,7 @@ function applyASI() {
     const errEl = document.getElementById('asi-error');
     if (errEl) errEl.textContent = 'Error: ' + e.message;
   }
+  window._qsAsiApplied = true;
   closeModal('asi-modal');
   toast('Ability scores applied!', 'ok');
 }
@@ -28508,12 +28538,13 @@ function calcSpeed() {
   // `final` so it follows anything that changes walking Speed.
   const _spdRaceData = typeof getRaceData === 'function' ? getRaceData(currentChar.race) : null;
   const raceClimb = _spdRaceData?.climbEqualsSpeed ? final : 0;
+  const raceSwim  = _spdRaceData?.swimEqualsSpeed ? final : 0;
 
   // Build all speed parts
   const parts = [];
   if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: [exLevel > 0 ? `−${penalty} exh` : '', drunkLevel >= 5 ? 'halved - Drunk' : '', unarmoredMovementBonus > 0 ? `+${unarmoredMovementBonus} Unarmored Movement` : '', fastMovementBonus > 0 ? '+10 Fast Movement' : '', rovingBonus > 0 ? '+10 Roving' : ''].filter(Boolean).map(s=>` (${s})`).join('') });
   if (overrides.climb || superiorStride || rovingActive || glovesClimb || pantherClimb || raceClimb) parts.push({ label: 'Climb',  val: (superiorStride || rovingActive) ? final : (overrides.climb || glovesClimb || pantherClimb || raceClimb),  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : (rovingActive && !overrides.climb ? ' (Roving)' : (glovesClimb && !overrides.climb ? ' (Gloves of Swimming and Climbing)' : (pantherClimb && !overrides.climb ? ' (Panther Aspect)' : (raceClimb && !overrides.climb ? ' (Racial)' : '')))) });
-  if (overrides.swim  || superiorStride || rovingActive || mantaRaySwim || glovesSwim || salmonSwim) parts.push({ label: 'Swim',   val: (superiorStride || rovingActive) ? final : (overrides.swim || mantaRaySwim || glovesSwim || salmonSwim),   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : (rovingActive && !overrides.swim  ? ' (Roving)' : (overrides.swim ? '' : (mantaRaySwim ? ' (Cloak of the Manta Ray)' : (glovesSwim ? ' (Gloves of Swimming and Climbing)' : (salmonSwim ? ' (Salmon Aspect)' : ''))))) });
+  if (overrides.swim  || superiorStride || rovingActive || mantaRaySwim || glovesSwim || salmonSwim || raceSwim) parts.push({ label: 'Swim',   val: (superiorStride || rovingActive) ? final : (overrides.swim || mantaRaySwim || glovesSwim || salmonSwim || raceSwim),   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : (rovingActive && !overrides.swim  ? ' (Roving)' : (overrides.swim ? '' : (mantaRaySwim ? ' (Cloak of the Manta Ray)' : (glovesSwim ? ' (Gloves of Swimming and Climbing)' : (salmonSwim ? ' (Salmon Aspect)' : (raceSwim ? ' (Racial)' : '')))))) });
   if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource + (canHover ? ' (hover)' : '') });
   if (overrides.burrow)parts.push({ label: 'Burrow', val: overrides.burrow, note: '' });
 
@@ -31556,6 +31587,7 @@ window.renderCreatureType = renderCreatureType;
 function recalcAll() {
   if (!currentChar) return;
   try { renderCreatureType(); } catch (e) {}
+  try { if (typeof updateQuickStartResumeButton === 'function') updateQuickStartResumeButton(); } catch (e) {}
   syncMagicWeaponsToInventory(); // keep equipped magic weapons in sync with the Attacks panel
   syncMagicArmorToInventory();   // keep ac_armor_key in sync with equipped magic armor
   syncMagicAmmoToInventory();    // keep ammoBonus in sync with assigned magic ammunition
@@ -31928,6 +31960,7 @@ saveChar = async function() {
 
 // ── Currency ────────────────────────────────────────────
 function updateCurrencyTotal() {
+  { const _qg = document.getElementById('qs-gold-input'); if (_qg && currentChar && document.activeElement !== _qg) _qg.value = parseInt(document.getElementById('cur-gp')?.value, 10) || currentChar.currency?.gp || 0; }
   const cp = parseInt(document.getElementById('cur-cp')?.value) || 0;
   const sp = parseInt(document.getElementById('cur-sp')?.value) || 0;
   const gp = parseInt(document.getElementById('cur-gp')?.value) || 0;
@@ -46271,6 +46304,7 @@ function _dmGetAllSubclassFeatureRows() {
 function _dmGetAllRaceFeatureRows() {
   const rows = [];
   Object.entries(PHB_RACES).forEach(([raceKey, race]) => {
+    if (race.hidden) return;   // not on the DM's list
     (race.features || []).forEach(f => {
       if (!f?.name) return;
       rows.push({
@@ -46293,6 +46327,7 @@ function _dmGetAllRaceFeatureRows() {
 function _dmGetAllSubraceRows() {
   const rows = [];
   Object.entries(PHB_RACES).forEach(([raceKey, race]) => {
+    if (race.hidden) return;   // not on the DM's list
     Object.entries(race.subraces || {}).forEach(([subKey, sub]) => {
       if (!sub?.name || !(sub.trait || '').trim()) return;
       rows.push({
@@ -53550,12 +53585,27 @@ function buildRaceDropdown() {
   function buildOpts(query) {
     list.innerHTML = '';
     let count = 0;
-    Object.entries(PHB_RACES).forEach(([key, r]) => {
+    const hint = document.createElement('div');
+    hint.textContent = 'Tap a race to choose it, or \u2139 to see what it gives first.';
+    hint.style.cssText = 'padding:6px 10px;font-family:var(--font-ui);font-size:10px;color:var(--text3);border-bottom:1px solid var(--border)';
+    hint.addEventListener('mousedown', e => e.preventDefault());
+    list.appendChild(hint);
+    const _curRace = inp.getAttribute('data-raceval') || '';
+    Object.entries(PHB_RACES).sort((a, b) => a[1].name.localeCompare(b[1].name)).forEach(([key, r]) => {
+      if (r.hidden && key !== _curRace) return;     // not on the DM's list
       if (query && !r.name.toLowerCase().includes(query.toLowerCase())) return;
       const opt = document.createElement('div');
-      opt.textContent = r.name;
+      const nameEl = document.createElement('span');
+      nameEl.textContent = r.name; nameEl.style.cssText = 'flex:1;min-width:0';
+      // ℹ: look before you pick. mousedown (not click) so the search box
+      // keeps focus and the list stays open behind the pop-up.
+      const info = document.createElement('span');
+      info.textContent = '\u2139'; info.title = 'See what ' + r.name + ' gives';
+      info.style.cssText = 'flex-shrink:0;min-width:34px;text-align:center;padding:6px 8px;margin:-6px -6px -6px 6px;color:var(--accent);font-size:14px;border-left:1px solid var(--border);cursor:pointer';
+      info.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); openRaceInfoModal(key); });
+      opt.appendChild(nameEl); opt.appendChild(info);
       opt.dataset.val = key;
-      opt.style.cssText = 'padding:7px 10px;font-family:var(--font-body);font-size:12px;color:var(--text2);cursor:pointer' + (key === current ? ';background:var(--bg3);color:var(--accent)' : '');
+      opt.style.cssText = 'display:flex;align-items:center;padding:7px 10px;font-family:var(--font-body);font-size:12px;color:var(--text2);cursor:pointer' + (key === current ? ';background:var(--bg3);color:var(--accent)' : '');
       opt.addEventListener('mouseover', () => opt.style.background = 'var(--bg3)');
       opt.addEventListener('mouseout',  () => opt.style.background = key === inp.getAttribute('data-raceval') ? 'var(--bg3)' : '');
       opt.addEventListener('mousedown', e => {
@@ -55726,6 +55776,7 @@ function commitBackgroundASI() {
   recalcAll();
   updateCharSummary();
 
+  window._qsAsiApplied = true;
   closeModal('asi-modal');
   const methodLabel = _bgASIMethod === 'split' ? '+2/+1' : '+1/+1/+1';
   toast(`Background ASI applied (${methodLabel})`, 'ok');
@@ -57185,45 +57236,84 @@ window.openWeaponMasteryInfoModal = openWeaponMasteryInfoModal;
 // openFeatInfoModal/openClassFeatureInfoModal, formatted for a race's
 // speed/size/darkvision/ability-score line plus its full features list,
 // all sourced directly from PHB_RACES so nothing here is re-typed.
-function openRaceInfoModal(raceKey) {
+// What a race gives, as HTML: summary line, traits, and every subrace's own
+// details (previously the pop-up only said "Has N subrace option(s)").
+// subKey highlights one subrace and lists it first.
+function buildRaceInfoHtml(raceKey, subKey) {
   const race = PHB_RACES[raceKey];
-  if (!race) return;
-  const titleEl = document.getElementById('feat-info-title');
-  const bodyEl  = document.getElementById('feat-info-body');
-  if (titleEl) titleEl.textContent = race.name || raceKey;
-  if (bodyEl) {
-    const summaryBits = [];
-    if (race.type) summaryBits.push(`Creature Type ${race.type}`);
-    if (race.size) summaryBits.push(`Size ${race.size}`);
-    if (race.speed) summaryBits.push(`Speed ${race.speed} ft`);
-    if (race.climbEqualsSpeed) summaryBits.push(`Climb equal to walking speed`);
-    if (race.flySpeed) summaryBits.push(`Fly ${race.flySpeed} ft`);
-    if (race.darkvision) summaryBits.push(`Darkvision ${race.darkvision} ft`);
-    const summaryLine = summaryBits.length
+  if (!race) return '';
+  const esc = v => String(v ?? '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  const summaryBits = [];
+  if (race.type) summaryBits.push(`Creature Type ${race.type}`);
+  if (race.size) summaryBits.push(`Size ${race.size}`);
+  if (race.speed) summaryBits.push(`Speed ${race.speed} ft`);
+  if (race.climbEqualsSpeed) summaryBits.push(`Climb equal to walking speed`);
+  if (race.flySpeed) summaryBits.push(`Fly ${race.flySpeed} ft`);
+  if (race.darkvision) summaryBits.push(`Darkvision ${race.darkvision} ft`);
+  if ((race.dmgres || []).length) summaryBits.push(`Resist ${race.dmgres.join(', ')}`);
+  // Species whose text was supplied word for word show its own header
+  // lines; the rest keep the summary worked out from their data.
+  const headLines = race._fromSuppliedText
+    ? [['Creature Type', race.type], ['Size', race.sizeText], ['Speed', race.speedText]].filter(([, v]) => v)
+    : null;
+  const summaryLine = headLines
+    ? `<div style="font-family:var(--font-ui);font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6">${headLines.map(([l, v]) => `<div><span style="color:var(--accent);font-weight:600">${l}:</span> ${esc(v)}</div>`).join('')}</div>`
+    : (summaryBits.length
       ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-bottom:8px">${summaryBits.join(' · ')}</div>`
-      : '';
-    const asiText = race.scorestxt || race.asi || '';
-    const asiLine = asiText
-      ? `<div style="font-family:var(--font-ui);font-size:11px;color:var(--gold);margin-bottom:10px">${asiText}</div>`
-      : '';
-    const featuresHtml = (race.features || []).map(f =>
-      `<div style="margin-bottom:8px"><span style="font-weight:600;color:var(--text-hi)">${(f.name||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}.</span> <span style="color:var(--text2)">${formatFeatDescHtml(f.desc||'')}</span></div>`
-    ).join('');
-    const fallbackTrait = race.trait
-      ? `<div style="color:var(--text2)">${race.trait.replace(/\\n|\n/g,'<br>').replace(/•/g,'&bull;')}</div>`
-      : '<div style="color:var(--text3)">No details available.</div>';
-    const subracesHtml = race.subraces && Object.keys(race.subraces).length
-      ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-ui);font-size:10px;color:var(--text3)">Has ${Object.keys(race.subraces).length} subrace option(s) - choose one after selecting this race.</div>`
-      : '';
-    bodyEl.innerHTML = `
+      : '');
+  // No ability-score line: in 5.5e those come from the background.
+  const asiLine = race.intro
+    ? `<div style="font-family:var(--font-body);font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">${esc(race.intro)}</div>`
+    : '';
+  const _fmt = d => (typeof formatFeatureDescHtml === 'function' ? formatFeatureDescHtml(d) : formatFeatDescHtml(d));
+  const featuresHtml = (race.features || []).map(f =>
+    `<div style="margin-bottom:8px"><span style="font-weight:600;color:var(--text-hi)">${esc(f.name||'')}.</span> <span style="color:var(--text2)">${_fmt(f.desc||'')}</span></div>`
+  ).join('');
+  const fallbackTrait = race.trait
+    ? `<div style="color:var(--text2)">${race.trait.replace(/\\n|\n/g,'<br>').replace(/•/g,'&bull;')}</div>`
+    : '<div style="color:var(--text3)">No details available.</div>';
+  let subEntries = Object.entries(race.subraces || {});
+  if (subKey && race.subraces?.[subKey]) subEntries = [[subKey, race.subraces[subKey]], ...subEntries.filter(([k]) => k !== subKey)];
+  const subracesHtml = subEntries.length
+    ? `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">${subEntries.length} subrace option${subEntries.length === 1 ? '' : 's'} - you choose one after picking this race</div>
+        ${subEntries.map(([k, sr]) => {
+          const bits = [];
+          if (sr.speed && sr.speed !== race.speed) bits.push(`Speed ${sr.speed} ft`);
+          if (sr.darkvision && sr.darkvision !== race.darkvision) bits.push(`Darkvision ${sr.darkvision} ft`);
+          if ((sr.dmgres || []).length) bits.push(`Resist ${sr.dmgres.join(', ')}`);
+          return `<div style="margin-bottom:8px;padding:8px 10px;border-radius:var(--radius);background:var(--bg3);border:1px solid ${k === subKey ? 'var(--accent)' : 'var(--border)'}">
+            <div style="font-weight:600;color:${k === subKey ? 'var(--accent)' : 'var(--text-hi)'};font-size:13px">${esc(sr.name || k)}</div>
+            ${bits.length ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--accent);margin-top:2px">${bits.join(' · ')}</div>` : ''}
+            ${sr.trait ? `<div style="color:var(--text2);font-size:12px;line-height:1.5;margin-top:4px">${race._fromSuppliedText ? _fmt(sr.trait) : String(sr.trait).replace(/\\n|\n/g,'<br>').replace(/•/g,'&bull;')}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
+  return `
       ${summaryLine}
       ${asiLine}
       <div style="font-family:var(--font-body);font-size:13px;line-height:1.6">${featuresHtml || fallbackTrait}</div>
       ${subracesHtml}
     `;
-  }
+}
+window.buildRaceInfoHtml = buildRaceInfoHtml;
+function openRaceInfoModal(raceKey, subKey) {
+  const race = PHB_RACES[raceKey];
+  if (!race) return;
+  const titleEl = document.getElementById('feat-info-title');
+  const bodyEl  = document.getElementById('feat-info-body');
+  if (titleEl) titleEl.textContent = race.name || raceKey;
+  if (bodyEl) bodyEl.innerHTML = buildRaceInfoHtml(raceKey, subKey);
   openModal('feat-info-modal', true);
 }
+// Main sheet: the ℹ beside the Race / Subrace labels - the race currently chosen
+function openCurrentRaceInfo(withSubrace) {
+  const key = currentChar?.race || document.getElementById('ci-race')?.getAttribute('data-raceval') || '';
+  if (!key || !PHB_RACES[key]) { toast('No race chosen yet - open the Race list and tap \u2139 beside any race to see what it gives.', 'info'); return; }
+  openRaceInfoModal(key, withSubrace ? (currentChar?.subrace || '') : '');
+}
+window.openCurrentRaceInfo = openCurrentRaceInfo;
 window.openRaceInfoModal = openRaceInfoModal;
 
 function openClassFeatureInfoModal(cls, featureName, subKey) {
@@ -60624,11 +60714,12 @@ function populateFeaturesTab() {
     // Stats summary as a pseudo-entry at level 0
     const dv  = currentChar._darkvision || 0;
     const res = currentChar._dmgres || [];
-    const asiText = rd.scorestxt || rd.asiNote || rd.scoresTxt || '';
+    const asiText = '';   // 5.5e: ability score increases come from the background, not the species
     const statParts = [
       rd.type ? `Creature Type ${rd.type}` : '',
       `Speed ${rd.speed} ft`,
       rd.climbEqualsSpeed ? 'Climb equal to walking speed' : '',
+      rd.swimEqualsSpeed ? 'Swim equal to walking speed' : '',
       `Size ${rd.size}`,
       dv ? `Darkvision ${dv} ft` : '',
       res.length ? `Resist ${res.join(', ')}` : '',
@@ -61156,7 +61247,11 @@ function populateFeaturesTab() {
         else if (e.sourceType === 'Race') k = `race:${race}:${e.name}`;
         else if (e.sourceType === 'Feat' || e.sourceType === 'Background Feat') k = `feat:${e.name}`;
       }
-      const text = (typeof getEffectiveText === 'function' && k) ? getEffectiveText(k, e.desc) : e.desc;
+      let text = (typeof getEffectiveText === 'function' && k) ? getEffectiveText(k, e.desc) : e.desc;
+      if (typeof text === 'string' && text.includes('[TABLE:')) {
+        text = text.replace(/\[TABLE:([^\]]*)\]([\s\S]*?)\[\/TABLE\]/g, (m0, title, body) =>
+          (title.trim() ? title.trim() + ':\n' : '') + body.split('~~').map(r => r.split(';;').map(c => c.trim()).join(' | ')).join('\n'));
+      }
       const meta = [e.source, e.level ? 'Lv ' + e.level : '', e.usages ? `${typeof resolveFeatureUsage === 'function' ? resolveFeatureUsage(e.usages) : e.usages}/${e.recovery || '-'}` : ''].filter(Boolean).join(', ');
       return { name: e.name, text: text || '', sourceType: e.sourceType || '', meta, kind: e.kind || '' };
     });
@@ -62016,13 +62111,57 @@ const QS_STEPS = ['identity', 'level', 'abilities', 'race', 'background', 'class
 let _qsActive = false;
 let _qsStepIndex = 0;
 let _qsTargetLevel = 1; // carried forward for the Level Plan step in a later batch
+let _qsCharId = null;   // which character the running wizard belongs to
+
+// Where the wizard got to is remembered on the character, so "Finish
+// later" can really be picked back up (Quick Start button, Character panel).
+function _qsRemember(done) {
+  if (!currentChar) return;
+  currentChar._quickStart = { step: Math.max(0, Math.min(QS_STEPS.length - 1, _qsStepIndex)), level: _qsTargetLevel, done: !!done };
+  if (typeof debouncedSave === 'function') debouncedSave();
+  updateQuickStartResumeButton();
+}
+// A character the wizard has given a class but no hit points would sit at
+// 0 / 0 HP (and trip the 0-HP prompts). Nothing in the wizard sets HP, so
+// do it on the way out, with the sheet's default method - only when HP
+// has never been set.
+function qsEnsureHitPoints() {
+  const c = currentChar;
+  if (!c || !c.classes?.[0]?.class || (parseInt(c.hp_max, 10) || 0) > 0) return;
+  const method = c.hp_method || 'average';
+  const max = typeof calcHPMax === 'function' ? calcHPMax(method) : 0;
+  if (!(max > 0)) return;
+  c.hp_method = method; c.hp_max = max; c.hp_current = max;
+  const maxEl = document.getElementById('hp-max'), curEl = document.getElementById('hp-current');
+  if (maxEl) maxEl.value = max; if (curEl) curEl.value = max;
+  try { if (typeof clampCurrentHP === 'function') clampCurrentHP(); if (typeof recalcAll === 'function') recalcAll(); } catch (e) {}
+  toast(`Hit points set to ${max} - change how they're worked out with Method on Hit Points.`, 'info');
+}
+// Drop a wizard left running for a character that is no longer the one
+// open (logout, switching character) so it can't reappear over the wrong sheet.
+function quickStartReset() {
+  _qsActive = false; _qsCharId = null;
+  document.getElementById('quick-start-modal')?.classList.add('hidden');
+  document.getElementById('qs-return-banner')?.remove();
+}
+window.quickStartReset = quickStartReset;
+function updateQuickStartResumeButton() {
+  const btn = document.getElementById('qs-resume-btn'); if (!btn) return;
+  const c = currentChar;
+  const show = !!c && !window._previewMode && !c._simulacrum
+    && ((c._quickStart && !c._quickStart.done) || !c.classes?.[0]?.class);
+  btn.style.display = show ? '' : 'none';
+}
+window.updateQuickStartResumeButton = updateQuickStartResumeButton;
 
 function quickStartAdvance() {
   _qsStepIndex++;
   if (_qsStepIndex >= QS_STEPS.length) {
     _qsActive = false;
     closeModal('quick-start-modal');
-    toast('More setup steps are coming soon - continue building your character below for now.', 'info');
+    _qsRemember(true);
+    qsEnsureHitPoints();
+    toast('Quick Start finished - skills, class choices and anything else left to pick are on the sheet.', 'ok');
     return;
   }
   openModal('quick-start-modal');
@@ -62030,19 +62169,28 @@ function quickStartAdvance() {
 }
 window.quickStartAdvance = quickStartAdvance;
 
-function startQuickStart() {
-  if (!currentChar) return;
+function startQuickStart(fromStep) {
+  if (!currentChar || window._previewMode) return;
   _qsActive = true;
-  _qsStepIndex = 0;
+  _qsCharId = currentChar.id;
+  _qsStepIndex = Math.max(0, Math.min(QS_STEPS.length - 1, parseInt(fromStep, 10) || 0));
+  // Start from this character's own level, never the last wizard's
+  const hasClass = !!currentChar.classes?.[0]?.class;
+  _qsTargetLevel = Math.max(1, Math.min(20, (hasClass ? getLevel() : currentChar._quickStart?.level) || 1));
+  document.getElementById('qs-return-banner')?.remove();
   openModal('quick-start-modal');
   renderQuickStartStep();
 }
 window.startQuickStart = startQuickStart;
+function resumeQuickStart() { startQuickStart(currentChar?._quickStart?.done ? 0 : (currentChar?._quickStart?.step || 0)); }
+window.resumeQuickStart = resumeQuickStart;
 
 function skipQuickStart() {
   _qsActive = false;
   closeModal('quick-start-modal');
-  toast('You can pick this back up any time from the main sheet.', 'info');
+  _qsRemember(false);
+  qsEnsureHitPoints();
+  toast('Quick Start paused - the Quick Start button in the Character panel picks it back up.', 'info');
 }
 window.skipQuickStart = skipQuickStart;
 
@@ -62066,11 +62214,11 @@ function renderQuickStartStep() {
     body.innerHTML = `
       <div class="info-field">
         <label class="field-label">Character Name</label>
-        <input class="info-input" id="qs-char-name" value="${(currentChar.charName||'').replace(/"/g,'&quot;')}"/>
+        <input class="info-input" style="font-size:16px" id="qs-char-name" value="${(currentChar.charName||'').replace(/"/g,'&quot;')}"/>
       </div>
       <div class="info-field" style="margin-top:10px">
         <label class="field-label">Player Name</label>
-        <input class="info-input" id="qs-player-name" value="${(currentChar.playerName||'').replace(/"/g,'&quot;')}"/>
+        <input class="info-input" style="font-size:16px" id="qs-player-name" value="${(currentChar.playerName||'').replace(/"/g,'&quot;')}"/>
       </div>`;
   } else if (stepId === 'level') {
     titleEl.textContent = 'Starting Level';
@@ -62211,7 +62359,7 @@ function renderQuickStartItemsStep(body) {
     <div style="margin-bottom:16px">
       <label class="field-label">Gold (gp) - adjust freely</label>
       <input type="number" min="0" class="info-input" id="qs-gold-input" value="${currentGP}"
-        onchange="setQuickStartGold(this.value)" style="width:120px"/>
+        onchange="setQuickStartGold(this.value)" style="width:120px;font-size:16px"/>
       <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:4px">Reflects the equipment choices above plus anything else you add - edit directly if your table uses different starting-wealth rules.</div>
     </div>
 
@@ -62403,7 +62551,7 @@ function renderQuickStartBackgroundStep(body) {
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">
       Picking a background grants its skills, tools, starting gold, and equipment automatically. Next opens the ability score bonus that comes with it.
     </div>
-    <input type="text" class="info-input" id="qs-bg-search" placeholder="Search backgrounds…" style="margin-bottom:8px" oninput="renderQuickStartBackgroundGrid()"/>
+    <input type="text" class="info-input" id="qs-bg-search" placeholder="Search backgrounds…" style="margin-bottom:8px;font-size:16px" oninput="renderQuickStartBackgroundGrid()"/>
     <button class="tbtn" style="width:100%;justify-content:center;margin-bottom:8px" onclick="openCustomBackgroundBuilder()">🛠 Build Custom Background…</button>
     <div id="qs-bg-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:280px;overflow-y:auto"></div>
     <div id="qs-bg-detail" style="margin-top:12px"></div>
@@ -62426,20 +62574,38 @@ function renderQuickStartBackgroundGrid() {
       onclick="selectQuickStartBackground('${key}')">
       <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
         <span>${bg.name}</span>
-        <span onclick="event.stopPropagation();openBackgroundInfoModal('${key}')" title="View ${bg.name.replace(/"/g,'&quot;')} details" style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px">&#8505;</span>
+        <span onclick="event.stopPropagation();openBackgroundInfoModal('${key}')" title="View ${bg.name.replace(/"/g,'&quot;')} details" style="cursor:pointer;color:var(--accent);font-size:14px;margin:-8px -10px -8px 4px;padding:8px 10px;min-width:30px;text-align:center;flex-shrink:0;border-left:1px solid var(--border)">&#8505;</span>
       </div>
       <span style="font-size:9px;color:var(--gold)">${bg.scoresTxt || ''}</span>
     </div>
-  `).join('') : `<div style="grid-column:1/-1;font-family:var(--font-body);font-size:12px;color:var(--text3);padding:8px">No backgrounds match "${q}".</div>`;
+  `).join('') : `<div style="grid-column:1/-1;font-family:var(--font-body);font-size:12px;color:var(--text3);padding:8px">No backgrounds match "${q.replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}".</div>`;
 
   if (currentKey) renderQuickStartBackgroundDetail(currentKey);
 }
 window.renderQuickStartBackgroundGrid = renderQuickStartBackgroundGrid;
 
 function selectQuickStartBackground(key) {
+  const _prevBg = document.getElementById('bg-background')?.getAttribute('data-bgval') || '';
+  if (_prevBg && _prevBg !== key) {
+    const _kit = currentChar._bgEquipChoice;
+    if (_kit && typeof undoBackgroundEquipmentChoice === 'function') {
+      undoBackgroundEquipmentChoice();
+      const gpEl = document.getElementById('cur-gp'); if (gpEl) gpEl.value = currentChar.currency?.gp || 0;
+      try { if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal(); if (typeof renderEquipList === 'function') renderEquipList(); if (typeof renderFeatItemsWeapons === 'function') renderFeatItemsWeapons(); } catch (e) {}
+      toast(`${PHB_BACKGROUNDS[_prevBg]?.name || 'Previous background'} starting equipment removed - choose again on the items step.`, 'info');
+    }
+    const _layer = currentChar.abilityLayers?.background;
+    if (_layer && Object.values(_layer).some(v => v) && typeof setLayer === 'function') {
+      setLayer('background', {});
+      delete currentChar._bgASIMethod;
+      try { if (typeof renderAbilityBlock === 'function') renderAbilityBlock(); if (typeof recalcAll === 'function') recalcAll(); } catch (e) {}
+      toast(`${PHB_BACKGROUNDS[_prevBg]?.name || 'Previous background'} ability bonuses removed - Next sets the new background's.`, 'info');
+    }
+  }
   const el = document.getElementById('bg-background');
   if (el) { el.value = PHB_BACKGROUNDS[key]?.name || key; el.setAttribute('data-bgval', key); }
   if (typeof onBackgroundChange === 'function') onBackgroundChange();
+  qsPruneOrphanFeatSlots();
   // Re-render only the grid (to update the selection highlight) rather
   // than the whole step, which would reset scroll position back to the
   // top of the list every time - the actual bug being fixed here.
@@ -62480,6 +62646,7 @@ function renderQuickStartClassStep(body) {
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">
       Picks a single class for now, at your full starting level (${_qsTargetLevel}). Want to multiclass instead? Use the full Level Plan.
     </div>
+    ${(currentChar.classes || []).filter(e => e?.class).length > 1 ? `<div style="font-family:var(--font-ui);font-size:11px;color:var(--amber);margin-bottom:12px;line-height:1.5">You have a multiclass plan: ${(currentChar.classes || []).filter(e => e?.class).map(e => e.class.charAt(0).toUpperCase() + e.class.slice(1) + ' ' + (e.levels?.length || 0)).join(' / ')}. Press Next to keep it - picking a class below replaces it with a single class.</div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:260px;overflow-y:auto;margin-bottom:12px">
       ${classNames.map(c => `
         <div class="tbtn" style="text-align:left;justify-content:flex-start;padding:8px 10px;${c===currentCls?'border-color:var(--accent);color:var(--accent)':''}"
@@ -62490,13 +62657,54 @@ function renderQuickStartClassStep(body) {
   `;
 }
 
+// Feat / ASI choices are stored per slot (e.g. "asi_fighter_4"). When the
+// wizard changes the class, level, race or background, slots can stop
+// existing - but a choice left behind in one still counted: its +2 stayed
+// on the ability score and its feat still read as taken, on top of the
+// new class's own slot. Inside the wizard those leftovers are removed.
+// ("feat_N" entries belong to the Additional Feats list, not to a slot.)
+function qsPruneOrphanFeatSlots() {
+  const c = currentChar; if (!c?.featSlots) return 0;
+  const valid = new Set((typeof getFeatSlots === 'function' ? getFeatSlots() : []).map(s => s.id));
+  let n = 0;
+  Object.keys(c.featSlots).forEach(id => {
+    if (valid.has(id) || /^feat_/.test(id)) return;
+    const d = c.featSlots[id];
+    if (d && (d.choice || d.feat || d.featDetail)) n++;
+    delete c.featSlots[id];
+    if (c.spells?.featSpells) { delete c.spells.featSpells[id]; delete c.spells.featSpells['feat_' + id]; }
+  });
+  if (n) {
+    try { if (typeof applyFeatSlotASIs === 'function') applyFeatSlotASIs(); } catch (e) {}
+    try { if (typeof applyFeatDetailEffects === 'function') applyFeatDetailEffects(); } catch (e) {}
+    try { if (typeof renderFeatSlotsPanel === 'function') renderFeatSlotsPanel(); if (typeof recalcAll === 'function') recalcAll(); } catch (e) {}
+    toast(`${n} feat / ability score choice${n === 1 ? '' : 's'} no longer appl${n === 1 ? 'ies' : 'y'} and ${n === 1 ? 'was' : 'were'} cleared - see the Feats step.`, 'info');
+  }
+  return n;
+}
+window.qsPruneOrphanFeatSlots = qsPruneOrphanFeatSlots;
+
 function selectQuickStartClass(cls) {
   if (!currentChar.classes) currentChar.classes = [];
+  const _multi = currentChar.classes.filter(e => e?.class).length > 1;
+  if (_multi && !confirm(`This replaces your multiclass plan (${currentChar.classes.filter(e => e?.class).map(e => e.class.charAt(0).toUpperCase() + e.class.slice(1) + ' ' + (e.levels?.length || 0)).join(' / ')}) with ${cls.charAt(0).toUpperCase() + cls.slice(1)} ${_qsTargetLevel}. Continue?`)) return;
+  // A different class's starting equipment (picked on the items step
+  // before coming back here) would otherwise stay in the inventory while
+  // the items step offers the new class's kit as well.
+  const _oldKit = currentChar._clsEquipChoice;
+  if (_oldKit && _oldKit.clsKey !== cls && typeof undoClassEquipmentChoice === 'function') {
+    undoClassEquipmentChoice();
+    const gpEl = document.getElementById('cur-gp'); if (gpEl) gpEl.value = currentChar.currency?.gp || 0;
+    try { if (typeof updateCurrencyTotal === 'function') updateCurrencyTotal(); if (typeof renderEquipList === 'function') renderEquipList(); if (typeof renderFeatItemsWeapons === 'function') renderFeatItemsWeapons(); } catch (e) {}
+    toast(`${(PHB_CLASSES[_oldKit.clsKey]?.name || _oldKit.clsKey)} starting equipment removed - choose again on the items step.`, 'info');
+  }
   const levels = Array.from({length: _qsTargetLevel}, (_, i) => i + 1);
-  currentChar.classes[0] = { class: cls, subclass: '', levels };
+  const _same = currentChar.classes.length === 1 && currentChar.classes[0]?.class === cls;
+  currentChar.classes[0] = { class: cls, subclass: _same ? (currentChar.classes[0].subclass || '') : '', levels };
   currentChar.classes.length = 1; // drop any other class rows - single-class pick
   if (typeof rebuildLevelPlan === 'function') rebuildLevelPlan();
   if (typeof onMulticlassChange === 'function') onMulticlassChange();
+  qsPruneOrphanFeatSlots();
   renderQuickStartClassStep(document.getElementById('qs-step-body'));
 }
 window.selectQuickStartClass = selectQuickStartClass;
@@ -62568,18 +62776,24 @@ function renderQuickStartRaceStep(body) {
   const prevQuery = document.getElementById('qs-race-search')?.value || '';
 
   body.innerHTML = `
-    <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;margin-bottom:8px">RACE</div>
-    <input type="text" class="info-input" id="qs-race-search" placeholder="Search races…" value="${prevQuery.replace(/"/g,'&quot;')}" style="margin-bottom:8px" oninput="renderQuickStartRaceGrid()"/>
+    <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;margin-bottom:4px">RACE</div>
+    <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5">Tap a race to choose it, or <span style="color:var(--accent)">&#8505;</span> to see what it gives first.</div>
+    <input type="text" class="info-input" id="qs-race-search" placeholder="Search races…" value="${prevQuery.replace(/"/g,'&quot;')}" style="margin-bottom:8px;font-size:16px" oninput="renderQuickStartRaceGrid()"/>
     <div id="qs-race-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:220px;overflow-y:auto;margin-bottom:${subEntries.length ? '14px' : '0'}"></div>
     <div id="qs-subrace-section" style="${subEntries.length ? '' : 'display:none'}">
       <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;margin-bottom:8px">SUBRACE</div>
       <div id="qs-subrace-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">
         ${subEntries.map(([key, s]) => `
-          <div class="tbtn" style="text-align:left;justify-content:flex-start;padding:8px 10px;${key===(currentChar.subrace||'')?'border-color:var(--accent);color:var(--accent)':''}"
-            onclick="selectQuickStartSubrace('${key}')">${s.name}</div>
+          <div class="tbtn" style="display:flex;align-items:center;text-align:left;justify-content:space-between;padding:8px 10px;${key===(currentChar.subrace||'')?'border-color:var(--accent);color:var(--accent)':''}"
+            onclick="selectQuickStartSubrace('${key}')"><span>${s.name}</span>
+            <span onclick="event.stopPropagation();openRaceInfoModal('${currentRace}','${key}')" title="See what ${String(s.name).replace(/"/g,'&quot;')} gives" style="cursor:pointer;color:var(--accent);font-size:14px;margin:-8px -10px -8px 4px;padding:8px 10px;min-width:30px;text-align:center;flex-shrink:0;border-left:1px solid var(--border)">&#8505;</span></div>
         `).join('')}
       </div>
-    </div>`;
+    </div>
+    ${currentRace && PHB_RACES[currentRace] ? `<details open style="margin-top:14px;padding:10px;background:var(--bg3);border:1px solid var(--accent3);border-radius:var(--radius)">
+      <summary style="cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--accent3);letter-spacing:.5px;text-transform:uppercase">${String(PHB_RACES[currentRace].name).replace(/[<>&]/g,'')} gives you</summary>
+      <div style="margin-top:8px">${buildRaceInfoHtml(currentRace, currentChar.subrace || '')}</div>
+    </details>` : ''}`;
   renderQuickStartRaceGrid();
 }
 
@@ -62590,6 +62804,7 @@ function renderQuickStartRaceGrid() {
   const q = (document.getElementById('qs-race-search')?.value || '').trim();
   const matchQ = buildSearchMatcher(q);
   const raceEntries = Object.entries(PHB_RACES)
+    .filter(([k, r]) => !r.hidden || k === currentRace)     // not on the DM's list
     .filter(([, r]) => !q || matchQ(r.name))
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
@@ -62597,9 +62812,9 @@ function renderQuickStartRaceGrid() {
     <div class="tbtn" data-race-key="${key}" style="display:flex;align-items:center;text-align:left;justify-content:space-between;padding:8px 10px;${key===currentRace?'border-color:var(--accent);color:var(--accent)':''}"
       onclick="selectQuickStartRace('${key}')">
       <span>${r.name}</span>
-      <span onclick="event.stopPropagation();openRaceInfoModal('${key}')" title="View ${r.name.replace(/"/g,'&quot;')} details" style="cursor:pointer;color:var(--text3);font-size:11px;margin-left:6px">&#8505;</span>
+      <span onclick="event.stopPropagation();openRaceInfoModal('${key}')" title="View ${r.name.replace(/"/g,'&quot;')} details" style="cursor:pointer;color:var(--accent);font-size:14px;margin:-8px -10px -8px 4px;padding:8px 10px;min-width:30px;text-align:center;flex-shrink:0;border-left:1px solid var(--border)">&#8505;</span>
     </div>
-  `).join('') : `<div style="grid-column:1/-1;font-family:var(--font-body);font-size:12px;color:var(--text3);padding:8px">No races match "${q}".</div>`;
+  `).join('') : `<div style="grid-column:1/-1;font-family:var(--font-body);font-size:12px;color:var(--text3);padding:8px">No races match "${q.replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}".</div>`;
 
   // If the currently-selected race is filtered out by the active search
   // (e.g. the player searched, picked one, then the search itself no
@@ -62617,6 +62832,7 @@ function selectQuickStartRace(key) {
   const el = document.getElementById('ci-race');
   if (el) { el.value = PHB_RACES[key]?.name || key; el.setAttribute('data-raceval', key); }
   onRaceChange();
+  qsPruneOrphanFeatSlots();
   renderQuickStartRaceStep(document.getElementById('qs-step-body'));
 }
 window.selectQuickStartRace = selectQuickStartRace;
@@ -62676,8 +62892,8 @@ function quickStartNext() {
   const stepId = QS_STEPS[_qsStepIndex];
 
   if (stepId === 'identity') {
-    const name = document.getElementById('qs-char-name').value.trim();
-    const player = document.getElementById('qs-player-name').value.trim();
+    const name = stripNameMarkup(document.getElementById('qs-char-name').value).trim();
+    const player = stripNameMarkup(document.getElementById('qs-player-name').value).trim();
     if (!name)   { toast('Character name is required.', 'info'); return; }
     if (!player) { toast('Player name is required.', 'info'); return; }
     currentChar.charName = name;
@@ -62685,19 +62901,34 @@ function quickStartNext() {
     updateCharSummary();
     debouncedSave();
   } else if (stepId === 'level') {
-    // _qsTargetLevel already tracked live - nothing else to validate
+    // Coming back here after a class is already picked: the new level has
+    // to reach the class row too, or the sheet stays at the old level
+    // while this wizard talks about the new one. Single-class only - a
+    // multiclass split belongs to the Level Plan.
+    const cl = currentChar.classes || [];
+    if (cl.length === 1 && cl[0]?.class && (cl[0].levels?.length || 0) !== _qsTargetLevel) {
+      cl[0].levels = Array.from({length: _qsTargetLevel}, (_, i) => i + 1);
+      if (typeof rebuildLevelPlan === 'function') rebuildLevelPlan();
+      if (typeof onMulticlassChange === 'function') onMulticlassChange();
+      qsPruneOrphanFeatSlots();
+    }
   } else if (stepId === 'abilities') {
     // Pause the wizard and hand off to the real Ability Score modal -
     // applyASI() resumes the wizard automatically once it's confirmed.
     // Deliberately not forcing a specific mode (manual/4d6/standard/etc.)
     // here - that would override whatever the player actually wants to
     // use, including the draggable-chip modes manual entry doesn't have.
+    window._qsAsiApplied = false;
     closeModal('quick-start-modal');
     openModal('asi-modal');
     renderASIOverrides();
     return;
   } else if (stepId === 'race') {
     if (!currentChar.race) { toast('Pick a race to continue.', 'info'); return; }
+    const _rd = typeof getRaceData === 'function' ? getRaceData(currentChar.race) : null;
+    if (_rd && Object.keys(_rd.subraces || {}).length && !currentChar.subrace) {
+      toast(`No subrace chosen for ${(_rd.name || 'this race').replace(/\s*\(.*?\)\s*$/, '')} - you can always set this later.`, 'info');
+    }
   } else if (stepId === 'classes') {
     if (!currentChar.classes?.[0]?.class) { toast('Pick a class to continue.', 'info'); return; }
   } else if (stepId === 'subclasses') {
@@ -62708,6 +62939,7 @@ function quickStartNext() {
     }
   } else if (stepId === 'background') {
     if (!currentChar.background) { toast('Pick a background to continue.', 'info'); return; }
+    window._qsAsiApplied = false;
     closeModal('quick-start-modal');
     openModal('asi-modal');
     renderASIOverrides();
@@ -62724,6 +62956,14 @@ function quickStartNext() {
     if (needsConfig.length) {
       toast(`${needsConfig.map(s => s.featName).join(', ')} still need${needsConfig.length===1?'s':''} its options configured (⚙ Config, above) - you can always finish this later.`, 'info');
     }
+  } else if (stepId === 'spells') {
+    const _sc = typeof getAllSpellcastingClasses === 'function' ? getAllSpellcastingClasses() : [];
+    const _none = _sc.filter(sc => {
+      const picked = _getKnownSpellsForClass(sc.cls, true).length + _getKnownSpellsForClass(sc.cls, false).length
+        + (sc.cls === 'wizard' ? (currentChar.spells?.spellbook || []).length : 0);
+      return picked === 0;
+    });
+    if (_none.length) toast(`No spells chosen yet for ${_none.map(sc => sc.cls.charAt(0).toUpperCase() + sc.cls.slice(1)).join(', ')} - you can always pick them later on the Spells tab.`, 'info');
   }
 
   quickStartAdvance();
@@ -67009,6 +67249,13 @@ function applyQuickPlayTab(onOpen) {
 window.applyQuickPlayTab = applyQuickPlayTab;
 
 // ── rendering ──────────────────────────────────────────────────────────
+// Race (and subrace) in the header, clickable to see what it gives
+function _qpRaceLink(c) {
+  const r = c && c.race && typeof PHB_RACES !== 'undefined' ? PHB_RACES[c.race] : null; if (!r) return '';
+  const sub = c.subrace && r.subraces?.[c.subrace] ? r.subraces[c.subrace].name : '';
+  const js = v => String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return ` \u00b7 <span class="qp-feat" style="display:inline-block;padding:7px 0" onclick="openRaceInfoModal('${_qpE(js(c.race))}','${_qpE(js(c.subrace || ''))}')">${_qpE(r.name)}${sub ? ' (' + _qpE(sub) + ')' : ''}</span>`;
+}
 function renderQuickPlay() {
   const body = document.getElementById('qp-body');
   if (!body || !currentChar) return;
@@ -67218,7 +67465,7 @@ function renderQuickPlay() {
   const longer = Q.spells.filter(s => s.bucket === 'longer');
 
   body.innerHTML = `
-    <div class="qp-top"><div class="qp-whobox">${(c.tokenUrl || '').trim() ? `<div class="qp-token" style="background-image:url('${_qpE(String(c.tokenUrl).trim().replace(/'/g, '%27'))}')" role="img" aria-label="${_qpE(c.charName || '')}"></div>` : ''}<div><div class="qp-who">${_qpE(c.charName || '')}</div><div class="qp-dim">${_qpE((c.classes || []).map(x => `${x.class.charAt(0).toUpperCase() + x.class.slice(1)} ${x.levels?.length || 0}${x.subclass ? ' (' + x.subclass + ')' : ''}`).join(' / '))}</div></div>
+    <div class="qp-top"><div class="qp-whobox">${(c.tokenUrl || '').trim() ? `<div class="qp-token" style="background-image:url('${_qpE(String(c.tokenUrl).trim().replace(/'/g, '%27'))}')" role="img" aria-label="${_qpE(c.charName || '')}"></div>` : ''}<div><div class="qp-who">${_qpE(c.charName || '')}</div><div class="qp-dim">${_qpE((c.classes || []).map(x => `${x.class.charAt(0).toUpperCase() + x.class.slice(1)} ${x.levels?.length || 0}${x.subclass ? ' (' + x.subclass + ')' : ''}`).join(' / '))}${_qpRaceLink(c)}</div></div>
       </div><div class="qp-dim">The full sheet is still on the other tabs.</div></div>
     <nav class="qp-bar" aria-label="Quick Play sections">
       <a href="#" onclick="return qpJump('hit-points')" class="qp-bar-hp">HP <b>${c.hp_current ?? 0}</b>/${c.hp_max}${c.hp_temp ? ` <span class="qp-temp">+${c.hp_temp}</span>` : ''}</a>
@@ -68122,6 +68369,2218 @@ window.spellStoringPdfText = spellStoringPdfText;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
+// SPECIES TEXT (1:1) - trait wording exactly as supplied by the DM
+// Generated from races-sublist.md by race_build.py / race_gen.py; no word
+// is typed by hand. For each species below this replaces the sheet's older
+// paraphrased trait text with the supplied wording, sets creature type,
+// size, speed and Darkvision range from the same file, and gives each
+// lineage / ancestry (subrace) its own line or table row from that text.
+// A trait that keeps its name keeps its level gate and usage pill.
+// "Ability Scores" lines are deliberately not carried over: in 5.5e
+// ability score increases come from the background, not the species.
+// ═══════════════════════════════════════════════════════════════════════
+// Species on the DM's list that the sheet did not have at all. Text and
+// header values come from the same file; only what the text states
+// outright is automated (size, speed, climb / swim / fly, Darkvision,
+// a stated damage resistance, a fixed skill). Their spells and limited-use
+// traits are text only.
+const SPECIES_NEW = {
+"deep_imaskari": {
+"name": "Deep Imaskari",
+"type": "Humanoid",
+"sizeText": "Medium (about 4–6 feet tall) or Small (about 2–4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"darkvision": 0,
+"dmgres": [
+"Radiant"
+],
+"flySpeed": 0,
+"subraces": {},
+"features": [
+{
+"name": "Photoresistant",
+"level": 1,
+"desc": "You have Resistance to Radiant damage.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Resourceful",
+"level": 1,
+"desc": "You gain Heroic Inspiration whenever you finish a Long Rest.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Unluminescent",
+"level": 1,
+"desc": "As an action, you can will the crystals protruding from your body to glow with Unlight. You shed Bright Light in a 5-foot radius until you use an action to stop the effect. Your crystals stop glowing if you die or have the Unconscious condition.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Aura of Unlight",
+"level": 1,
+"desc": "When you reach character level 3, you can use a Bonus Action to create an Aura of Unlight that sheds Bright Light in a 10-foot Emanation originating from you.\nChoose one of the options below each time you create the aura; the aura lasts for 1 minute or until you end it (no action required), and once you create this aura, you can't do so again until you finish a Long Rest:\nAbjuring Unlight. You and your allies in the aura gain a bonus to AC equal to half your Proficiency Bonus (round down).\nBrilliant Unlight. Creatures other than your allies that start their turn within the Emanation must succeed on a Constitution saving throw (DC 8 plus your Charisma modifier and Proficiency Bonus) or have the Blinded condition until the end of your next turn.\nCorrupting Unlight. When you deal damage to a creature with an attack or a spell, you can change the damage type to Radiant. Additionally, you can roll one of your unexpended Hit Point Dice and deal extra Radiant damage equal to the number rolled. That die is then expended.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true
+},
+"drider": {
+"name": "Drider",
+"type": "Monstrosity",
+"sizeText": "Medium (about 6–8 feet tall)",
+"speedText": "30 feet, Climb 30 feet",
+"size": "Medium",
+"speed": 30,
+"darkvision": 120,
+"dmgres": [],
+"flySpeed": 0,
+"subraces": {},
+"features": [
+{
+"name": "Arachnid Build",
+"level": 1,
+"desc": "You count as one size larger when determining your carrying capacity.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Darkvision",
+"level": 1,
+"desc": "You have Darkvision with a range of 120 feet.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Spells of the Spider Queen",
+"level": 1,
+"desc": "You know the Dancing Lights cantrip. When you reach character level 3, you always have the Faerie Fire spell prepared. When you reach character level 5, you always have the Web spell prepared. You can cast each of these spells once without a spell slot. Once you cast either of these spells with this trait, you can't cast that spell with it again until you finish a Long Rest. You can also cast these spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select this species).",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Spider Climb",
+"level": 1,
+"desc": "You have a Climb Speed equal to your Speed. When you reach character level 3, you can move up, down, and across vertical surfaces and along ceilings while leaving your hands free.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Web Walker",
+"level": 1,
+"desc": "You ignore movement restrictions caused by webs, and you know the location of any other creature in contact with the same web.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true,
+"climbEqualsSpeed": true
+},
+"fairy": {
+"name": "Fairy",
+"type": "Fey",
+"sizeText": "Small",
+"speedText": "30 feet, Fly equal to your walking speed",
+"size": "Small",
+"speed": 30,
+"darkvision": 0,
+"dmgres": [],
+"flySpeed": 30,
+"subraces": {},
+"features": [
+{
+"name": "Creature Type",
+"level": 1,
+"desc": "You are a Fey.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Fairy Magic",
+"level": 1,
+"desc": "You know the druidcraft cantrip. Starting at 3rd level, you can cast the faerie fire spell with this trait. Starting at 5th level, you can also cast the enlarge/reduce spell with this trait. Once you cast faerie fire or enlarge/reduce with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race).",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Flight",
+"level": 1,
+"desc": "Because of your wings, you have a flying speed equal to your walking speed. You can't use this flying speed if you're wearing medium or heavy armor.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Languages",
+"level": 1,
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true
+},
+"harengon": {
+"name": "Harengon",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"darkvision": 0,
+"dmgres": [],
+"flySpeed": 0,
+"subraces": {},
+"features": [
+{
+"name": "Size",
+"level": 1,
+"desc": "You are Medium or Small. You choose the size when you select this race.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Hare-Trigger",
+"level": 1,
+"desc": "You can add your proficiency bonus to your initiative rolls.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Leporine Senses",
+"level": 1,
+"desc": "You have proficiency in the Perception skill.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Lucky Footwork",
+"level": 1,
+"desc": "When you fail a Dexterity saving throw, you can use your reaction to roll a d4 and add it to the save, potentially turning the failure into a success. You can't use this reaction if you're prone or your speed is 0.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Rabbit Hop",
+"level": 1,
+"desc": "As a bonus action, you can jump a number of feet equal to five times your proficiency bonus, without provoking opportunity attacks. You can use this trait only if your speed is greater than 0. You can use it a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Languages",
+"level": 1,
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true
+},
+"illithidkin": {
+"name": "Illithidkin",
+"type": "Humanoid",
+"sizeText": "Medium (about 5–6 feet tall) or Small (about 2–4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"darkvision": 120,
+"dmgres": [
+"Psychic"
+],
+"flySpeed": 0,
+"subraces": {},
+"features": [
+{
+"name": "Darkvision",
+"level": 1,
+"desc": "You have Darkvision with a range of 120 feet.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Psionic Aptitude",
+"level": 1,
+"desc": "You know the Mage Hand cantrip, and you can make the spectral hand Invisible. When you reach character level 3, you always have the Command spell prepared. When you reach character level 5, you always have the Levitate spell prepared. You can cast each of these spells once without a spell slot. Once you cast either of these spells with this trait, you can't cast that spell with it again until you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select this species).",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Sharpened Mind",
+"level": 1,
+"desc": "You have Resistance to Psychic damage. You also have Advantage on saving throws you make to avoid or end the Charmed condition.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Telepathy",
+"level": 1,
+"desc": "You have telepathy with a range of 30 feet.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true
+},
+"kithkin": {
+"name": "Kithkin",
+"type": "Humanoid",
+"sizeText": "Small (about 2-3 feet tall)",
+"speedText": "30 feet",
+"size": "Small",
+"speed": 30,
+"darkvision": 0,
+"dmgres": [],
+"flySpeed": 0,
+"subraces": {
+"lorwyn": {
+"name": "Lorwyn",
+"trait": "Lorwyn. You do not gain any additional traits.",
+"dmgres": []
+},
+"shadowmoor": {
+"name": "Shadowmoor",
+"trait": "Shadowmoor. You have Darkvision with a range of 120 feet.",
+"dmgres": [],
+"darkvision": 120
+}
+},
+"features": [
+{
+"name": "Brave",
+"level": 1,
+"desc": "You have Advantage on saving throws you make to avoid or end the Frightened condition.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Halfling Nimbleness",
+"level": 1,
+"desc": "You can move through the space of any creature that is a size larger than you, but you can't stop in the same space.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Luck",
+"level": 1,
+"desc": "When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Naturally Stealthy",
+"level": 1,
+"desc": "You can take the Hide action even when you are obscured only by a creature that is at least one size larger than you.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Kithkin Lineage",
+"level": 1,
+"desc": "As a native of either Lorwyn and Shadowmoor, you may gain additional traits.\nLorwyn. You do not gain any additional traits.\nShadowmoor. You have Darkvision with a range of 120 feet.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true
+},
+"kuo_toa": {
+"name": "Kuo-Toa",
+"type": "Humanoid",
+"sizeText": "Medium (about 5–6 feet tall)",
+"speedText": "30 feet, Swim 30 feet",
+"size": "Medium",
+"speed": 30,
+"darkvision": 0,
+"dmgres": [],
+"flySpeed": 0,
+"subraces": {},
+"features": [
+{
+"name": "Amphibious",
+"level": 1,
+"desc": "You can breathe both air and water. Additionally, you have a Swim Speed equal to your Speed.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Slippery",
+"level": 1,
+"desc": "You have Advantage on saving throws to avoid or end the Grappled and Restrained conditions.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Deific Manifestation",
+"level": 1,
+"desc": "You always have the Find Familiar spell prepared and can cast it without material components. You can cast it once without a spell slot, and you regain the ability to cast it in this way when you finish a Long Rest.\nWhen you cast the spell, you choose one of the normal forms for your familiar or one of the following special forms: Homunculus or Myconid Sprout. The familiar's creature type is Celestial. Additionally, your familiar's form is a divine blend of multiple creatures. When you cast this spell, choose a second form from the available options. Your familiar gains one action, Reaction, or trait from that second form.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true,
+"swimEqualsSpeed": true
+},
+"myconid": {
+"name": "Myconid",
+"type": "Plant",
+"sizeText": "Medium (about 4–7 feet tall) or Small (about 2–4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"darkvision": 120,
+"dmgres": [],
+"flySpeed": 0,
+"subraces": {},
+"features": [
+{
+"name": "Darkvision",
+"level": 1,
+"desc": "You have Darkvision with a range of 120 feet.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Telepathy",
+"level": 1,
+"desc": "You have telepathy with a range of 30 feet.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Rapport Spores",
+"level": 1,
+"desc": "As an action, you expel spores in a 30-foot Emanation originating from yourself. Creatures in the area with an Intelligence score of 2 or higher that aren't Constructs, Elementals, or Undead gain telepathy within a range of 30 feet for 1 hour. Once you use this trait, you can't do so again until you finish a Long Rest.",
+"usages": null,
+"recovery": null
+},
+{
+"name": "Skill Meld",
+"level": 1,
+"desc": "When you finish a Long Rest, you can perform a melding ritual to share knowledge and experiences. When you do so, choose up to six allies (which can include yourself) within 30 feet of yourself to partake in the ritual and a skill proficiency that at least one participant has proficiency in. The chosen creatures each have proficiency in that skill until they finish a Long Rest.",
+"usages": null,
+"recovery": null
+}
+],
+"intro": "",
+"_fromSuppliedText": true
+}
+};
+const SPECIES_TEXT = {
+"multiverse_aarakocra": {
+"file": "Aarakocra",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet, Fly equal to your walking speed",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Flight",
+"desc": "Because of your wings, you have a flying speed equal to your walking speed. You can't use this flying speed if you're wearing medium or heavy armor."
+},
+{
+"name": "Talons",
+"desc": "You have talons that you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + your Strength modifier slashing damage, instead of the bludgeoning damage normal for an unarmed strike."
+},
+{
+"name": "Wind Caller",
+"desc": "Starting at 3rd level, you can cast the gust of wind spell with this trait, without requiring a material component. Once you cast the spell with this trait, you can't do so again until you finish a long rest. You can also cast the spell using any spell slots you have of 2nd level or higher.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for when you cast gust of wind with this trait (choose when you select this race)."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"aasimar": {
+"file": "Aasimar",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Celestial Resistance",
+"desc": "You have Resistance to Necrotic damage and Radiant damage."
+},
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Healing Hands",
+"desc": "As a Magic action, you touch a creature and roll a number of d4s equal to your Proficiency Bonus. The creature regains a number of Hit Points equal to the total rolled. Once you use this trait, you can't use it again until you finish a Long Rest."
+},
+{
+"name": "Light Bearer",
+"desc": "You know the Light cantrip. Charisma is your spellcasting ability for it."
+},
+{
+"name": "Celestial Revelation",
+"desc": "When you reach character level 3, you can transform as a Bonus Action using one of the options below (choose the option each time you transform). The transformation lasts for 1 minute or until you end it (no action required). Once you transform, you can't do so again until you finish a Long Rest.\nOnce on each of your turns before the transformation ends, you can deal extra damage to one target when you deal damage to it with an attack or a spell. The extra damage equals your Proficiency Bonus, and the extra damage's type is either Necrotic for Necrotic Shroud or Radiant for Heavenly Wings and Inner Radiance.\nHere are the transformation options:\nHeavenly Wings. Two spectral wings sprout from your back temporarily. Until the transformation ends, you have a Fly Speed equal to your Speed.\nInner Radiance. Searing light temporarily radiates from your eyes and mouth. For the duration, you shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet, and at the end of each of your turns, each creature within 10 feet of you takes Radiant damage equal to your Proficiency Bonus.\nNecrotic Shroud. Your eyes briefly become pools of darkness, and flightless wings sprout from your back temporarily. Creatures other than your allies within 10 feet of you must succeed on a Charisma saving throw (DC 8 plus your Charisma modifier and Proficiency Bonus) or have the Frightened condition until the end of your next turn."
+}
+],
+"darkvision": 60
+},
+"boggart": {
+"file": "Boggart",
+"type": "Humanoid",
+"sizeText": "Small",
+"speedText": "30 feet",
+"size": "Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered a goblinoid for any prerequisite or effect that requires you to be a goblinoid."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were in dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed condition on yourself."
+},
+{
+"name": "Fury of the Small",
+"desc": "When you damage a creature with an attack or a spell and the creature's size is larger than yours, you can cause the attack or spell to deal extra damage to the creature. The extra damage equals your proficiency bonus.\nYou can use this trait a number of times equal to your proficiency bonus, regaining all expended uses when you finish a long rest, and you can use it no more than once per turn."
+},
+{
+"name": "Nimble Escape",
+"desc": "You can take the Disengage or Hide action as a bonus action on each of your turns."
+}
+],
+"darkvision": 60
+},
+"multiverse_bugbear": {
+"file": "Bugbear",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered a goblinoid for any prerequisite or effect that requires you to be a goblinoid."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed condition on yourself."
+},
+{
+"name": "Long-Limbed",
+"desc": "When you make a melee attack on your turn, your reach for it is 5 feet greater than normal."
+},
+{
+"name": "Powerful Build",
+"desc": "You count as one size larger when determining your carrying capacity and the weight you can push, drag, or lift."
+},
+{
+"name": "Sneaky",
+"desc": "You are proficient in the Stealth skill. In addition, without squeezing, you can move through and stop in a space large enough for a Small creature."
+},
+{
+"name": "Surprise Attack",
+"desc": "If you hit a creature with an attack roll, the creature takes an extra 2d6 damage if it hasn't taken a turn yet in the current combat."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60
+},
+"multiverse_centaur": {
+"file": "Centaur",
+"type": "Fey",
+"sizeText": "Medium",
+"speedText": "40 feet",
+"size": "Medium",
+"speed": 40,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Fey."
+},
+{
+"name": "Charge",
+"desc": "If you move at least 30 feet straight toward a target and then hit it with a melee weapon attack on the same turn, you can immediately follow that attack with a bonus action, making one attack against the target with your hooves."
+},
+{
+"name": "Equine Build",
+"desc": "You count as one size larger when determining your carrying capacity and the weight you can push or drag.\nIn addition, any climb that requires hands and feet is especially difficult for you because of your equine legs. When you make such a climb, each foot of movement costs you 4 extra feet instead of the normal 1 extra foot."
+},
+{
+"name": "Hooves",
+"desc": "You have hooves that you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + your Strength modifier bludgeoning damage, instead of the bludgeoning damage normal for an unarmed strike."
+},
+{
+"name": "Natural Affinity",
+"desc": "Your fey connection to nature gives you an intuitive connection to the natural world and the animals within it. You therefore have proficiency in one of the following skills of your choice: Animal Handling, Medicine, Nature, or Survival."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"changeling": {
+"file": "Changeling",
+"type": "Fey",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Changeling Instincts",
+"desc": "Thanks to your connection to the fey realm, you gain proficiency in two of the following skills of your choice: Deception, Insight, Intimidation, Performance, or Persuasion."
+},
+{
+"name": "Shape-Shifter",
+"desc": "As an action, you can shape-shift to change your appearance and your voice. You determine the specifics of the changes, including your coloration, hair length, and sex. You can also adjust your height and weight and can change your size between Medium and Small. You can make yourself appear as a member of another playable species, though none of your game statistics change. You can't duplicate the appearance of an individual you've never seen, and you must adopt a form that has the same basic arrangement of limbs that you have. This trait doesn't change your clothing and equipment.\nWhile shape-shifted with this trait, you have Advantage on Charisma checks.\nYou stay in the new form until you take an action to revert to your true form."
+}
+]
+},
+"multiverse_deep_gnome": {
+"file": "Deep Gnome",
+"type": "Humanoid",
+"sizeText": "Small",
+"speedText": "30 feet",
+"size": "Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered a gnome for any prerequisite or effect that requires you to be a gnome."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 120 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Gift of the Svirfneblin",
+"desc": "Starting at 3rd level, you can cast the disguise self spell with this trait. Starting at 5th level, you can also cast the nondetection spell with it, without requiring a material component. Once you cast either of these spells with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast these using spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+},
+{
+"name": "Gnomish Magic Resistance",
+"desc": "You have advantage on Intelligence, Wisdom, and Charisma saving throws against spells."
+},
+{
+"name": "Svirfneblin Camouflage",
+"desc": "When you make a Dexterity (Stealth) check, you can make the check with advantage. You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 120
+},
+"dhampir": {
+"file": "Dhampir",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "35 feet, Climb equal to your walking speed",
+"size": "Medium or Small",
+"speed": 35,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Spider Climb",
+"desc": "You have a Climb Speed equal to your Speed. When you reach character level 3, you can move up, down, and across vertical surfaces and along ceilings while leaving your hands free."
+},
+{
+"name": "Trace of Undeath",
+"desc": "You have Resistance to Necrotic damage."
+},
+{
+"name": "Vampiric Bite",
+"desc": "When you use your Unarmed Strike and deal damage, you can choose to bite with your fangs. You deal Piercing damage equal to 1d4 plus your Constitution modifier instead of the normal damage of an Unarmed Strike.\nIn addition, when you deal this damage to a creature that isn't a Construct or an Undead, you can empower yourself in one of the following ways:\nDrain. You regain Hit Points equal to the Piercing damage dealt.\nStrengthen. You gain a bonus to the next ability check or attack roll you make within the next minute; the bonus is equal to the Piercing damage dealt.\nYou can empower yourself with this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+}
+],
+"darkvision": 60,
+"climbEqualsSpeed": true
+},
+"dragonborn": {
+"file": "Dragonborn",
+"type": "Humanoid",
+"sizeText": "Medium (about 5-7 feet tall)",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Draconic Ancestry",
+"desc": "Your lineage stems from a dragon progenitor. Choose the kind of dragon from the Draconic Ancestors table. Your choice affects your Breath Weapon and Damage Resistance traits as well as your appearance.\n[TABLE:Draconic Ancestors]Dragon;;Damage Type~~Black;;Acid~~Blue;;Lightning~~Brass;;Fire~~Bronze;;Lightning~~Copper;;Acid~~Gold;;Fire~~Green;;Poison~~Red;;Fire~~Silver;;Cold~~White;;Cold[/TABLE]"
+},
+{
+"name": "Breath Weapon",
+"desc": "When you take the Attack action on your turn, you can replace one of your attacks with an exhalation of magical energy in either a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose the shape each time). Each creature in that area must make a Dexterity saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus). On a failed save, a creature takes 1d10 damage of the type determined by your Draconic Ancestry trait. On a successful save, a creature takes half as much damage. This damage increases by 1d10 when you reach character levels 5 (2d10), 11 (3d10), and 17 (4d10).\nYou can use this Breath Weapon a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+},
+{
+"name": "Damage Resistance",
+"desc": "You have Resistance to the damage type determined by your Draconic Ancestry trait."
+},
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Draconic Flight",
+"desc": "When you reach character level 5, you can channel draconic magic to give yourself temporary flight. As a Bonus Action, you sprout spectral wings on your back that last for 10 minutes or until you retract the wings (no action required) or have the Incapacitated condition. During that time, you have a Fly Speed equal to your Speed. Your wings appear to be made of the same energy as your Breath Weapon. Once you use this trait, you can't use it again until you finish a Long Rest."
+}
+],
+"darkvision": 60,
+"subraces": {
+"black": {
+"trait": "Damage Type. Acid"
+},
+"blue": {
+"trait": "Damage Type. Lightning"
+},
+"brass": {
+"trait": "Damage Type. Fire"
+},
+"bronze": {
+"trait": "Damage Type. Lightning"
+},
+"copper": {
+"trait": "Damage Type. Acid"
+},
+"gold": {
+"trait": "Damage Type. Fire"
+},
+"green": {
+"trait": "Damage Type. Poison"
+},
+"red": {
+"trait": "Damage Type. Fire"
+},
+"silver": {
+"trait": "Damage Type. Cold"
+},
+"white": {
+"trait": "Damage Type. Cold"
+}
+}
+},
+"multiverse_duergar": {
+"file": "Duergar",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered a dwarf for any prerequisite or effect that requires you to be a dwarf."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 120 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Duergar Magic",
+"desc": "Starting at 3rd level, you can cast the enlarge/reduce spell on yourself with this trait, without requiring a material component. Starting at 5th level, you can also cast the invisibility spell on yourself with this trait, without requiring a material component. Once you cast either of these spells with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast these spells using spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+},
+{
+"name": "Dwarven Resilience",
+"desc": "You have advantage on saving throws you make to avoid or end the poisoned condition on yourself. You also have resistance to poison damage."
+},
+{
+"name": "Psionic Fortitude",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed or stunned condition on yourself."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 120
+},
+"duskling": {
+"file": "Duskling",
+"type": "Fey",
+"sizeText": "Medium (about 4–7 feet tall)",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Enhanced Jump",
+"desc": "Add 2 feet to the distance you can leap with a running High Jump and 10 feet to the distance you can leap with a running Long Jump."
+},
+{
+"name": "Inner Magic",
+"desc": "You have magic inside you that you can manipulate to enhance your physical or mental attributes. When you finish a Long Rest, choose one of the following benefits, which lasts until you choose a different ability.\nAs a Bonus Action, you can switch to a different benefit. You can switch the benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.\nArdor. You have Advantage on Charisma ability checks and on saving throws to avoid or end the Frightened condition.\nMobility. Your Speed increases by 10 feet, and climbing and swimming don't cost you extra movement.\nVigor. You gain a number of Temporary Hit Points equal to your Proficiency Bonus, and you have Advantage on Strength (Athletics) and Dexterity (Acrobatics) checks."
+}
+],
+"darkvision": 60
+},
+"dwarf": {
+"file": "Dwarf",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-5 feet tall)",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 120 feet."
+},
+{
+"name": "Dwarven Resilience",
+"desc": "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition."
+},
+{
+"name": "Dwarven Toughness",
+"desc": "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level."
+},
+{
+"name": "Stonecunning",
+"desc": "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense. The stone can be natural or worked.\nYou can use this Bonus Action a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+}
+],
+"darkvision": 120
+},
+"multiverse_eladrin": {
+"file": "Eladrin",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "Choose your eladrin's season: autumn, winter, spring, or summer. When finishing a long rest, you can change your season. See the \"Info\" tab for more information.",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered an elf for any prerequisite or effect that requires you to be an elf."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed condition on yourself."
+},
+{
+"name": "Fey Step",
+"desc": "As a bonus action, you can magically teleport up to 30 feet to an unoccupied space you can see. You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.\nWhen you reach 3rd level, your Fey Step gain an additional effect based on your season; if the effect requires a saving throw, the DC equals 8 + your proficiency bonus + your Intelligence, Wisdom, or Charisma modifier (choose when you select this race):\nAutumn. Immediately after you use your Fey Step, up to two creatures of your choice that you can see within 10 feet of you must succeed on a Wisdom saving throw or be charmed by you for 1 minute, or until you or your companions deal any damage to the creatures.\nWinter. When you use your Fey Step, one creature of your choice that you can see within 5 feet of you before you teleport must succeed on a Wisdom saving throw or be frightened of you until the end of your next turn.\nSpring. When you use your Fey Step, you can touch one willing creature within 5 feet of you. That creature then teleports instead of you, appearing in an unoccupied space of your choice that you can see within 30 feet of you.\nSummer. Immediately after you use your Fey Step, each creature of your choice that you can see within 5 feet of you takes fire damage equal to your proficiency bonus."
+},
+{
+"name": "Keen Senses",
+"desc": "You have proficiency in the Perception skill."
+},
+{
+"name": "Trance",
+"desc": "You don't need to sleep, and magic can't put you to sleep. You can finish a long rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness.\nWhenever you finish this trance, you can change your season, and you can gain two proficiencies that you don't have, each one with a weapon or a tool of your choice selected from the Player's Handbook. You mystically acquire these proficiencies by drawing them from shared elven memory, and you retain them until you finish your next long rest."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60
+},
+"elf_lfl": {
+"file": "Elf",
+"type": "Humanoid",
+"sizeText": "Medium (about 5-6 feet tall)",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Elven Lineage",
+"desc": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage).\n[TABLE:Elven Lineages]Lineage;;Level 1;;Level 3;;Level 5~~Lorwyn;;You know the Thorn Whip cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Druid spell list.;;Command;;Silence~~Shadowmoor;;The range of your Darkvision increases to 120 feet. You also know the Starry Wisp cantrip.;;Heroism;;Gentle Repose[/TABLE]"
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have Advantage on saving throws you make to avoid or end the Charmed condition."
+},
+{
+"name": "Keen Senses",
+"desc": "You have proficiency in the Insight, Perception, or Survival skill."
+},
+{
+"name": "Trance",
+"desc": "You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness."
+}
+],
+"darkvision": 60,
+"subraces": {
+"lorwyn": {
+"trait": "Level 1. You know the Thorn Whip cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Druid spell list.\nLevel 3. Command\nLevel 5. Silence"
+},
+"shadowmoor": {
+"trait": "Level 1. The range of your Darkvision increases to 120 feet. You also know the Starry Wisp cantrip.\nLevel 3. Heroism\nLevel 5. Gentle Repose"
+}
+}
+},
+"elf": {
+"file": "Elf",
+"type": "Humanoid",
+"sizeText": "Medium (about 5-6 feet tall)",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Elven Lineage",
+"desc": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage).\n[TABLE:Elven Lineages]Lineage;;Level 1;;Level 3;;Level 5~~Drow;;The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip.;;Faerie Fire;;Darkness~~High Elf;;You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list.;;Detect Magic;;Misty Step~~Wood Elf;;Your Speed increases to 35 feet. You also know the Druidcraft cantrip.;;Longstrider;;Pass without Trace[/TABLE]"
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have Advantage on saving throws you make to avoid or end the Charmed condition."
+},
+{
+"name": "Keen Senses",
+"desc": "You have proficiency in the Insight, Perception, or Survival skill."
+},
+{
+"name": "Trance",
+"desc": "You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness."
+}
+],
+"darkvision": 60,
+"subraces": {
+"dark": {
+"trait": "Level 1. The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip.\nLevel 3. Faerie Fire\nLevel 5. Darkness",
+"name": "Drow"
+},
+"high": {
+"trait": "Level 1. You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list.\nLevel 3. Detect Magic\nLevel 5. Misty Step"
+},
+"wood": {
+"trait": "Level 1. Your Speed increases to 35 feet. You also know the Druidcraft cantrip.\nLevel 3. Longstrider\nLevel 5. Pass without Trace"
+}
+}
+},
+"faerie": {
+"file": "Faerie",
+"type": "Fey",
+"sizeText": "Small",
+"speedText": "30 feet, Fly equal to your walking speed",
+"size": "Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Fey."
+},
+{
+"name": "Fairy Magic",
+"desc": "You know the druidcraft cantrip. Starting at 3rd level, you can cast the faerie fire spell with this trait. Starting at 5th level, you can also cast the enlarge/reduce spell with this trait. Once you cast faerie fire or enlarge/reduce with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+},
+{
+"name": "Flight",
+"desc": "Because of your wings, you have a flying speed equal to your walking speed. You can't use this flying speed if you're wearing medium or heavy armor."
+},
+{
+"name": "Faerie Lineage",
+"desc": "As a native of either Lorwyn and Shadowmoor, you may gain additional traits.\nLorwyn. You do not gain any additional traits.\nShadowmoor. You have Darkvision with a range of 120 feet."
+}
+],
+"darkvision": 0,
+"subraces": {
+"lorwyn": {
+"trait": "Lorwyn. You do not gain any additional traits.",
+"name": "Lorwyn"
+},
+"shadowmoor": {
+"trait": "Shadowmoor. You have Darkvision with a range of 120 feet.",
+"name": "Shadowmoor",
+"darkvision": 120
+}
+}
+},
+"multiverse_firbolg": {
+"file": "Firbolg",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Firbolg Magic",
+"desc": "You can cast detect magic and disguise self spells with this trait. When you use this version of disguise self, you can seem up to 3 feet shorter or taller. Once you cast either of these spells with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast these spells using any spell slots you have.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+},
+{
+"name": "Hidden Step",
+"desc": "As a bonus action, you can magically turn invisible until the start of your next turn or until you attack, make a damage roll, or force someone to make a saving throw. You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+},
+{
+"name": "Powerful Build",
+"desc": "You count as one size larger when determining your carrying capacity and the weight you can push, drag, or lift."
+},
+{
+"name": "Speech of Beast and Leaf",
+"desc": "You have the ability to communicate in a limited manner with Beasts, Plants, and vegetation. They can understand the meaning of your words, though you have no special ability to understand them in return. You have advantage on all Charisma checks you make to influence them."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"flamekin": {
+"file": "Flamekin",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fire Resistance",
+"desc": "You have resistance to fire damage."
+},
+{
+"name": "Reach to the Blaze",
+"desc": "You know the produce flame cantrip. Starting at 3rd level, you can cast the burning hands spell with this trait. Starting at 5th level, you can also cast the flame blade spell with this trait, without a material component. Once you cast burning hands or flame blade with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+}
+],
+"darkvision": 60
+},
+"multiverse_air_genasi": {
+"file": "Genasi (Air)",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "35 feet",
+"size": "Medium or Small",
+"speed": 35,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+},
+{
+"name": "Unending Breath",
+"desc": "You can hold your breath indefinitely while you're not incapacitated."
+},
+{
+"name": "Lightning Resistance",
+"desc": "You have resistance to lightning damage."
+},
+{
+"name": "Mingle with the Wind",
+"desc": "You know the shocking grasp cantrip. Starting at 3rd level, you can cast the feather fall spell with this trait, without requiring a material component. Starting 5th level, you can also cast the levitate spell with this trait, without requiring a material component. Once you cast feather fall or levitate with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+}
+],
+"darkvision": 60
+},
+"multiverse_earth_genasi": {
+"file": "Genasi (Earth)",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+},
+{
+"name": "Earth Walk",
+"desc": "You can move across difficult terrain without expending extra movement if you are using your walking speed on the ground or a floor."
+},
+{
+"name": "Merge with Stone",
+"desc": "You know the blade ward cantrip. You can cast it as normal, and you can also cast it as a bonus action a number of times equal to your proficiency bonus, regaining all expended uses when you finish a long rest.\nStarting at 5th level, you can cast the pass without trace spell with this trait, without requiring a material component. Once you cast that spell with this trait, you can't do so again until you finish a long rest. You can also cast it using any spell slots you have of 2nd level or higher.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+}
+],
+"darkvision": 60
+},
+"multiverse_fire_genasi": {
+"file": "Genasi (Fire)",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+},
+{
+"name": "Fire Resistance",
+"desc": "You have resistance to fire damage."
+},
+{
+"name": "Reach to the Blaze",
+"desc": "You know the produce flame cantrip. Starting at 3rd level, you can cast the burning hands spell with this trait. Starting at 5th level, you can also cast the flame blade spell with this trait, without a material component. Once you cast burning hands or flame blade with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+}
+],
+"darkvision": 60
+},
+"multiverse_water_genasi": {
+"file": "Genasi (Water)",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet, Swim equal to your walking speed",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+},
+{
+"name": "Speed",
+"desc": "Your walking speed is 30 feet, and you have a swimming speed equal to your walking speed."
+},
+{
+"name": "Acid Resistance",
+"desc": "You have resistance to acid damage."
+},
+{
+"name": "Amphibious",
+"desc": "You breathe air and water."
+},
+{
+"name": "Call to the Wave",
+"desc": "You know the acid splash cantrip. Starting at 3rd level, you can cast the create or destroy water spell with this trait. Starting at 5th level, you can also cast the water walk spell with this trait, without requiring a material component. Once you cast create or destroy water or water walk with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+}
+],
+"darkvision": 60,
+"swimEqualsSpeed": true
+},
+"multiverse_githyanki": {
+"file": "Githyanki",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Astral Knowledge",
+"desc": "You can mystically access a reservoir of experiences of entities connected to the Astral Plane. Whenever you finish a long rest, you gain proficiency in one skill of your choice and with one weapon or tool of your choice, selected from the Player's Handbook, as you momentarily project your consciousness into the Astral Plane. These proficiencies last until the end of your next long rest."
+},
+{
+"name": "Githyanki Psionics",
+"desc": "You know the mage hand cantrip, and the hand is invisible when you cast the cantrip with this trait.\nStarting at 3rd level, you can cast the jump spell with this trait. Starting at 5th level, you can also cast misty step with it. Once you cast jump or misty step with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race). None of these spells require spell components when you cast them with this trait."
+},
+{
+"name": "Psychic Resilience",
+"desc": "You have resistance to psychic damage."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"multiverse_githzerai": {
+"file": "Githzerai",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Githzerai Psionics",
+"desc": "You know the mage hand cantrip, and the hand is invisible when you cast the cantrip with this trait.\nStarting at 3rd level, you can cast the shield spell with this trait. Starting at 5th level, you can also cast the detect thoughts spell with it. Once you cast shield or detect thoughts spell with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast either of those spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race). None of these spells require spell components when you cast them with this trait."
+},
+{
+"name": "Mental Discipline",
+"desc": "Your innate psychic defenses grant you advantage on saving throws you make to avoid or end the charmed and frightened conditions on yourself."
+},
+{
+"name": "Psychic Resilience",
+"desc": "You have resistance to psychic damage."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"gnome": {
+"file": "Gnome",
+"type": "Humanoid",
+"sizeText": "Small (about 3-4 feet tall)",
+"speedText": "30 feet",
+"size": "Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Gnomish Cunning",
+"desc": "You have Advantage on Intelligence, Wisdom, and Charisma saving throws."
+},
+{
+"name": "Gnomish Lineage",
+"desc": "You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage):\nForest Gnome. You know the Minor Illusion cantrip. You also always have the Speak with Animals spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell.\nRock Gnome. You know the Mending and Prestidigitation cantrips. In addition, you can spend 10 minutes casting Prestidigitation to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
+}
+],
+"darkvision": 60,
+"subraces": {
+"forest": {
+"trait": "Forest Gnome. You know the Minor Illusion cantrip. You also always have the Speak with Animals spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell."
+},
+"rock": {
+"trait": "Rock Gnome. You know the Mending and Prestidigitation cantrips. In addition, you can spend 10 minutes casting Prestidigitation to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
+}
+}
+},
+"multiverse_goblin": {
+"file": "Goblin",
+"type": "Humanoid",
+"sizeText": "Small",
+"speedText": "30 feet",
+"size": "Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered a goblinoid for any prerequisite or effect that requires you to be a goblinoid."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were in dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed condition on yourself."
+},
+{
+"name": "Fury of the Small",
+"desc": "When you damage a creature with an attack or a spell and the creature's size is larger than yours, you can cause the attack or spell to deal extra damage to the creature. The extra damage equals your proficiency bonus.\nYou can use this trait a number of times equal to your proficiency bonus, regaining all expended uses when you finish a long rest, and you can use it no more than once per turn."
+},
+{
+"name": "Nimble Escape",
+"desc": "You can take the Disengage or Hide action as a bonus action on each of your turns."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60
+},
+"goliath": {
+"file": "Goliath",
+"type": "Humanoid",
+"sizeText": "Medium (about 7-8 feet tall)",
+"speedText": "35 feet",
+"size": "Medium",
+"speed": 35,
+"intro": "",
+"features": [
+{
+"name": "Giant Ancestry",
+"desc": "You are descended from Giants. Choose one of the following benefits—a supernatural boon from your ancestry; you can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest:\nCloud's Jaunt (Cloud Giant). As a Bonus Action, you magically teleport up to 30 feet to an unoccupied space you can see.\nFire's Burn (Fire Giant). When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target.\nFrost's Chill (Frost Giant). When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn.\nHill's Tumble (Hill Giant). When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition.\nStone's Endurance (Stone Giant). When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.\nStorm's Thunder (Storm Giant). When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature."
+},
+{
+"name": "Large Form",
+"desc": "Starting at character level 5, you can change your size to Large as a Bonus Action if you're in a big enough space. This transformation lasts for 10 minutes or until you end it (no action required). For that duration, you have Advantage on Strength checks, and your Speed increases by 10 feet. Once you use this trait, you can't use it again until you finish a Long Rest."
+},
+{
+"name": "Powerful Build",
+"desc": "You have Advantage on any ability check you make to end the Grappled condition. You also count as one size larger when determining your carrying capacity."
+}
+],
+"subraces": {
+"cloud": {
+"trait": "Cloud's Jaunt (Cloud Giant). As a Bonus Action, you magically teleport up to 30 feet to an unoccupied space you can see."
+},
+"fire": {
+"trait": "Fire's Burn (Fire Giant). When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target."
+},
+"frost": {
+"trait": "Frost's Chill (Frost Giant). When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn."
+},
+"hill": {
+"trait": "Hill's Tumble (Hill Giant). When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition."
+},
+"stone": {
+"trait": "Stone's Endurance (Stone Giant). When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total."
+},
+"storm": {
+"trait": "Storm's Thunder (Storm Giant). When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature."
+}
+}
+},
+"halfling": {
+"file": "Halfling",
+"type": "Humanoid",
+"sizeText": "Small (about 2-3 feet tall)",
+"speedText": "30 feet",
+"size": "Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Brave",
+"desc": "You have Advantage on saving throws you make to avoid or end the Frightened condition."
+},
+{
+"name": "Halfling Nimbleness",
+"desc": "You can move through the space of any creature that is a size larger than you, but you can't stop in the same space."
+},
+{
+"name": "Luck",
+"desc": "When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll."
+},
+{
+"name": "Naturally Stealthy",
+"desc": "You can take the Hide action even when you are obscured only by a creature that is at least one size larger than you."
+}
+]
+},
+"hexblood": {
+"file": "Hexblood",
+"type": "Fey",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Eerie Token",
+"desc": "As a Bonus Action, you can create a magical token by harmlessly removing a lock of hair, detaching a nail, or using some other method. While the token exists, you gain the following benefits:\nDistant Message. As a Magic action, you can send a telepathic message of 25 words or fewer to a creature holding or carrying the token, as long as you are within 10 miles of it.\nRemote Viewing. If you are within 10 miles of the token, you can take a Magic action to extend your senses through the token for 1 minute, until you have the Incapacitated condition, or until you end this state (no action required). During this state, you can see and hear from the token as if you were located where it is. When this state ends, the token is harmlessly destroyed.\n• Unless the token is destroyed early, it lasts until you finish a Long Rest. Once you create a token using this feature, you can't do so again until you finish a Long Rest.\nHex Magic. You always have the Disguise Self and Hex spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select this species)."
+}
+],
+"darkvision": 60
+},
+"multiverse_hobgoblin": {
+"file": "Hobgoblin",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered a goblinoid for any prerequisite or effect that requires you to be a goblinoid."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed condition on yourself."
+},
+{
+"name": "Fey Gift",
+"desc": "You can use this trait to take the Help action as a bonus action, and you can do so a number of times equal to your proficiency bonus. You regain all expended uses when you finish a long rest.\nStarting at 3rd level, choose one of the options below each time you take the Help action with this trait:\nHospitality. You and the creature you help each gain a number of temporary hit points equal to 1d6 plus your proficiency bonus.\nPassage. You and the creature you help each increase your walking speeds by 10 feet until the start of your next turn.\nSpite. Until the start of your next turn, the first time the creature you help hits a target with an attack roll, that target has disadvantage on the next attack roll it makes within the next minute."
+},
+{
+"name": "Fortune from the Many",
+"desc": "If you miss with an attack roll or fail an ability check or a saving throw, you can draw on your bonds of reciprocity to gain a bonus to the roll equal to the number of allies you can see within 30 feet of you (maximum bonus of +3). You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60
+},
+"human": {
+"file": "Human",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Resourceful",
+"desc": "You gain Heroic Inspiration whenever you finish a Long Rest."
+},
+{
+"name": "Skillful",
+"desc": "You gain proficiency in one skill of your choice."
+},
+{
+"name": "Versatile",
+"desc": "You gain an Origin feat of your choice."
+}
+]
+},
+"kalashtar": {
+"file": "Kalashtar",
+"type": "Aberration",
+"sizeText": "Medium (about 6–7 feet tall)",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Dual Mind",
+"desc": "You have Advantage on Wisdom and Charisma saving throws."
+},
+{
+"name": "Mental Discipline",
+"desc": "You have Resistance to Psychic damage."
+},
+{
+"name": "Mind Link",
+"desc": "You have telepathy with a range in feet equal to 10 times your level. When you're using this trait to speak telepathically to a creature, you can take a Magic action to give that creature the ability to speak telepathically with you for 1 hour or until you take another Magic action to end this effect."
+},
+{
+"name": "Severed from Dreams",
+"desc": "You can't be the target of the Dream spell. In addition, when you finish a Long Rest, you gain proficiency in one skill of your choice. This proficiency lasts until you finish another Long Rest."
+}
+]
+},
+"multiverse_kenku": {
+"file": "Kenku",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "Your size is Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Expert Duplication",
+"desc": "When you copy writing or craftwork produced by yourself or someone else, you have advantage on any ability checks you make to produce an exact duplicate."
+},
+{
+"name": "Kenku Recall",
+"desc": "Thanks to your supernaturally good memory, you have proficiency in two skills of your choice.\nMoreover, when you make an ability check using any skill in which you have proficiency, you can give yourself advantage on the check before rolling the d20. You can give yourself advantage in this way a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+},
+{
+"name": "Mimicry",
+"desc": "You can accurately mimic sounds you have heard, including voices. A creature that hears the sounds you make can tell they are imitations only with a successful Wisdom (Insight) check against a DC of 8 + your proficiency bonus + your Charisma modifier."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"half_elf": {
+"file": "Khoravar",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-6 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have Advantage on saving throws you make to avoid or end the Charmed condition."
+},
+{
+"name": "Fey Gift",
+"desc": "You know the Friends cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Cleric, Druid, or Wizard spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for it (choose the ability when you select this species)."
+},
+{
+"name": "Lethargy Resilience",
+"desc": "When you fail a saving throw to avoid or end the Unconscious condition, you can succeed instead. Once you use this trait, you can't do so again until you finish 1d4 Long Rests."
+},
+{
+"name": "Skill Versatility",
+"desc": "You gain proficiency in one skill or with one tool of your choice. Whenever you finish a Long Rest, you can replace it with another skill or tool proficiency."
+}
+],
+"darkvision": 60,
+"name": "Khoravar (EFotA)"
+},
+"multiverse_kobold": {
+"file": "Kobold",
+"type": "Humanoid",
+"sizeText": "Small",
+"speedText": "30 feet",
+"size": "Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light, and in darkness as if it were in dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Draconic Cry",
+"desc": "As a bonus action, you let out a cry at your enemies within 10 feet of you. Until the start of your next turn, you and your allies have advantage on attack rolls against any of those enemies who could hear you. You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+},
+{
+"name": "Kobold Legacy",
+"desc": "Kobold's connections to dragons can manifest in unpredictable ways in an individual kobold. Choose one of the following legacy options for your kobold.\nCraftiness. You have proficiency in one of the following skills of your choice: Arcana, Investigation, Medicine, Sleight of Hand, or Survival.\nDefiance. You have advantage on saving throws to avoid or end the frightened condition on yourself.\nDraconic Sorcery. You know one cantrip of your choice from the sorcerer spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for that cantrip (choose when you select this race)."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60
+},
+"multiverse_lizardfolk": {
+"file": "Lizardfolk",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet, Swim equal to your walking speed",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Speed",
+"desc": "Your walking speed is 30 feet, and you have a swimming speed equal to your walking speed."
+},
+{
+"name": "Bite",
+"desc": "You have a fanged maw that you can use to make unarmed strikes. When you hit with it, the strike deals 1d6 + your Strength modifier slashing damage, instead of the bludgeoning damage normal for an unarmed strike."
+},
+{
+"name": "Hold Breath",
+"desc": "You can hold your breath for up to 15 minutes at a time."
+},
+{
+"name": "Hungry Jaws",
+"desc": "You can throw yourself into a feeding frenzy. As a bonus action, you can make a special attack with your Bite. If the attack hits, it deals its normal damage, and you gain temporary hit points equal to your proficiency bonus. You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+},
+{
+"name": "Natural Armor",
+"desc": "You have tough, scaly skin. When you aren't wearing armor, your base AC is 13 + Dexterity modifier. You can use your natural armor to determine your AC if the armor you wear would leave you with a lower AC. A shield's benefits apply as normal while you use your natural armor."
+},
+{
+"name": "Nature's Intuition",
+"desc": "Thanks to your mystical connection to nature, you gain proficiency with two of the following skills of your choice: Animal Handling, Medicine, Nature, Perception, Stealth, or Survival."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"swimEqualsSpeed": true
+},
+"lorwyn_changeling": {
+"file": "Lorwyn Changeling",
+"type": "Fey",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Shape Self",
+"desc": "As an action, you can reshape your body to a two-legged Humanoid shape or to a four-legged Beast shape. While you have a Humanoid shape, you can wear clothing and armor made for a Humanoid of your size."
+},
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 120 feet."
+},
+{
+"name": "Delightful Imitator",
+"desc": "You have proficiency in the Deception or Performance skill."
+},
+{
+"name": "Unpredictable Movement",
+"desc": "When you roll Initiative, you can immediately move up to half your Speed, provided you don't have Disadvantage on the Initiative roll."
+}
+],
+"darkvision": 120
+},
+"lupin": {
+"file": "Lupin",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Feral Pounce",
+"desc": "Your Unarmed Strikes deal Slashing damage instead of Bludgeoning damage. In addition, when you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Shove options. You can use this benefit only once per turn."
+},
+{
+"name": "Howl",
+"desc": "As a Bonus Action, you let out an unearthly howl. Each creature of your choice within 15 feet of you must succeed on a Wisdom saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus) or have Disadvantage on attack rolls and saving throws until the start of your next turn.\nYou can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+},
+{
+"name": "Werewolf Instincts",
+"desc": "You have proficiency in the Perception, Stealth, or Survival skill."
+}
+],
+"darkvision": 60
+},
+"multiverse_minotaur": {
+"file": "Minotaur",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Horns",
+"desc": "You have horns that you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + your Strength modifier piercing damage, instead of the bludgeoning damage normal for an unarmed strike."
+},
+{
+"name": "Goring Rush",
+"desc": "Immediately after you take the Dash action on your turn and move at least 20 feet, you can make one melee attack with your Horns as a bonus action."
+},
+{
+"name": "Hammering Horns",
+"desc": "Immediately after you hit a creature with a melee attack as part of the Attack action on your turn, you can use a bonus action to attempt to push that target with your horns. The target must be within 5 feet of you and no more than one size larger than you. Unless it succeeds on a Strength saving throw against a DC equal to 8 + your proficiency bonus + your Strength modifier, you can push it up to 10 feet away from you."
+},
+{
+"name": "Labyrinthine Recall",
+"desc": "You always know which direction is north, and you have advantage on any Wisdom (Survival) check you make to navigate or track."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"orc": {
+"file": "Orc",
+"type": "Humanoid",
+"sizeText": "Medium (about 6-7 feet tall)",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Adrenaline Rush",
+"desc": "You can take the Dash action as a Bonus Action. When you do so, you gain a number of Temporary Hit Points equal to your Proficiency Bonus.\nYou can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Short or Long Rest."
+},
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 120 feet."
+},
+{
+"name": "Relentless Endurance",
+"desc": "When you are reduced to 0 Hit Points but not killed outright, you can drop to 1 Hit Point instead. Once you use this trait, you can't do so again until you finish a Long Rest."
+}
+],
+"darkvision": 120
+},
+"reborn": {
+"file": "Reborn",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Escaped Death",
+"desc": "You have Advantage on Death Saving Throws."
+},
+{
+"name": "Everlasting",
+"desc": "You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in an inactive, motionless state, during which you retain consciousness."
+},
+{
+"name": "Knowledge from a Past Life",
+"desc": "You gain proficiency in one skill of your choice.\nIn addition, you can temporarily peer into the past to aid you in the present. When you fail an ability check, you can roll 1d6 and add the number rolled to the d20, potentially turning the failure into a success. You can do this a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+},
+{
+"name": "Strange Endurance",
+"desc": "You have Resistance to one of the following damage types of your choice: Cold, Necrotic, or Poison."
+}
+]
+},
+"rimekin": {
+"file": "Rimekin",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Cold Fire Magic",
+"desc": "You know the Ray of Frost cantrip. When you reach character levels 3 and 5, you learn the Ice Knife spell and the Flame Blade spell, respectively. You always have those spells prepared. You can cast each once without a spell slot, and you regain the ability to cast these spells in this way when you finish a Long Rest. You can also cast the spells using any spell slots you have of the appropriate level. When you cast Flame Blade using this trait, the spell deals Cold damage instead of Fire damage.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose the ability when you select this species)."
+},
+{
+"name": "Cold Resistance",
+"desc": "You have Resistance to Cold damage."
+},
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+}
+],
+"darkvision": 60
+},
+"multiverse_satyr": {
+"file": "Satyr",
+"type": "Fey",
+"sizeText": "Medium",
+"speedText": "35 feet",
+"size": "Medium",
+"speed": 35,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Fey."
+},
+{
+"name": "Ram",
+"desc": "You can use your head and horns to make unarmed strikes. When you hit with them, the strike deals 1d6 + your Strength modifier bludgeoning damage, instead of the bludgeoning damage normal for an unarmed strike."
+},
+{
+"name": "Magic Resistance",
+"desc": "You have advantage on saving throws against spells."
+},
+{
+"name": "Mirthful Leaps",
+"desc": "Whenever you make a long jump or a high jump, you can roll a d8 and add the number rolled to the number of feet you cover, even when making a standing jump. This extra distance costs movement as usual."
+},
+{
+"name": "Reveler",
+"desc": "As an embodiment of revelry, you have proficiency in the Performance and Persuasion skills, and you have proficiency with one musical instrument of your choice."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"multiverse_sea_elf": {
+"file": "Sea Elf",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet, Swim equal to your walking speed",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered an elf for any prerequisite or effect that requires you to be an elf."
+},
+{
+"name": "Speed",
+"desc": "Your walking speed is 30 feet, and you have a swimming speed equal to your walking speed."
+},
+{
+"name": "Child of the Sea",
+"desc": "You can breathe air and water, and you have resistance to cold damage."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed condition on yourself."
+},
+{
+"name": "Friend of the Sea",
+"desc": "Aquatic animals have an extraordinary affinity with your people. You can communicate simple ideas to any Beast that has a swimming speed. It can understand your words, though you have no special ability to understand it in return."
+},
+{
+"name": "Keen Senses",
+"desc": "You have proficiency in the Perception skill."
+},
+{
+"name": "Trance",
+"desc": "You don't need to sleep, and magic can't put you to sleep. You can finish a long rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness.\nWhenever you finish this trance, you can gain two proficiencies that you don't have, each one with a weapon or a tool of your choice selected from the Player's Handbook. You mystically acquire these proficiencies by drawing them from shared elven memory, and you retain them until you finish your next long rest."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60,
+"swimEqualsSpeed": true
+},
+"multiverse_shadar_kai": {
+"file": "Shadar-Kai",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Creature Type",
+"desc": "You are a Humanoid. You are also considered an elf for any prerequisite or effect that requires you to be an elf."
+},
+{
+"name": "Blessing of the Raven Queen",
+"desc": "As a bonus action, you can magically teleport up to 30 feet to an unoccupied space you can see. You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest.\nStarting at 3rd level, you also gain resistance to all damage when you teleport using this trait. The resistance lasts until the start of your next turn. During that time, you appear ghostly and translucent."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Fey Ancestry",
+"desc": "You have advantage on saving throws you make to avoid or end the charmed condition on yourself."
+},
+{
+"name": "Keen Senses",
+"desc": "You have proficiency in the Perception skill."
+},
+{
+"name": "Necrotic Resistance",
+"desc": "You have resistance to necrotic damage."
+},
+{
+"name": "Trance",
+"desc": "You don't need to sleep, and magic can't put you to sleep. You can finish a long rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness.\nWhenever you finish this trance, you can gain two proficiencies that you don't have, each one with a weapon or a tool of your choice selected from the Player's Handbook. You mystically acquire these proficiencies by drawing them from shared elven memory, and you retain them until you finish your next long rest."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60
+},
+"shifter": {
+"file": "Shifter",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 2-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Bestial Instincts",
+"desc": "Channeling the beast within, you gain proficiency in one of the following skills of your choice: Acrobatics, Athletics, Intimidation, or Survival."
+},
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Shifting",
+"desc": "As a Bonus Action, you can shape-shift to assume a more bestial appearance. This transformation lasts for 1 minute or until you revert to your normal appearance as a Bonus Action. When you shift, you gain Temporary Hit Points equal to 2 times your Proficiency Bonus. You can shift a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.\nWhenever you shift, you gain the benefit of one of the following options (choose when you select this species)\nBeasthide. You gain 1d6 additional Temporary Hit Points. While shifted, you have a +1 bonus to your Armor Class.\nLongtooth. When you shift and as a Bonus Action on your other turns while shifted, you can use your elongated fangs to make an Unarmed Strike. If you hit with this Unarmed Strike and deal damage, you can deal Piercing damage equal to 1d6 plus your Strength modifier, instead of the normal damage of an Unarmed Strike.\nSwiftstride. While you are shifted, your Speed increases by 10 feet. Additionally, you can move up to 10 feet as a Reaction when a creature ends its turn within 5 feet of you. This reactive movement doesn't provoke Opportunity Attacks.\nWildhunt. While shifted, you have Advantage on Wisdom checks. Additionally, no creature within 30 feet of you can have Advantage on an attack roll against you unless you have the Incapacitated condition."
+}
+],
+"darkvision": 60,
+"subraces": {
+"beasthide": {
+"trait": "Beasthide. You gain 1d6 additional Temporary Hit Points. While shifted, you have a +1 bonus to your Armor Class."
+},
+"longtooth": {
+"trait": "Longtooth. When you shift and as a Bonus Action on your other turns while shifted, you can use your elongated fangs to make an Unarmed Strike. If you hit with this Unarmed Strike and deal damage, you can deal Piercing damage equal to 1d6 plus your Strength modifier, instead of the normal damage of an Unarmed Strike."
+},
+"swiftstride": {
+"trait": "Swiftstride. While you are shifted, your Speed increases by 10 feet. Additionally, you can move up to 10 feet as a Reaction when a creature ends its turn within 5 feet of you. This reactive movement doesn't provoke Opportunity Attacks."
+},
+"wildhunt": {
+"trait": "Wildhunt. While shifted, you have Advantage on Wisdom checks. Additionally, no creature within 30 feet of you can have Advantage on an attack roll against you unless you have the Incapacitated condition."
+}
+}
+},
+"tabaxi_motm": {
+"file": "Tabaxi",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet, Climb equal to your walking speed",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Speed",
+"desc": "Your walking speed is 30 feet, and you have a climbing speed equal to your walking speed."
+},
+{
+"name": "Cat's Claws",
+"desc": "You can use your claws to make unarmed strikes. When you hit with them, the strike deals 1d6 + your Strength modifier slashing damage, instead of the bludgeoning damage normal for an unarmed strike."
+},
+{
+"name": "Cat's Talent",
+"desc": "You have proficiency in the Perception and Stealth skills."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Feline Agility",
+"desc": "Your reflexes and agility allow you to move with a burst of speed. When you move on your turn in combat, you can double your speed until the end of the turn. Once you use this trait, you can't use it again until you move 0 feet on one of your turns."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60,
+"climbEqualsSpeed": true
+},
+"tiefling": {
+"file": "Tiefling",
+"type": "Humanoid",
+"sizeText": "Medium (about 4-7 feet tall) or Small (about 3-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Darkvision",
+"desc": "You have Darkvision with a range of 60 feet."
+},
+{
+"name": "Fiendish Legacy",
+"desc": "You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy).\n[TABLE:Fiendish Legacies]Legacy;;Level 1;;Level 3;;Level 5~~Abyssal;;You have Resistance to Poison damage. You also know the Poison Spray cantrip.;;Ray of Sickness;;Hold Person~~Chthonic;;You have Resistance to Necrotic damage. You also know the Chill Touch cantrip.;;False Life;;Ray of Enfeeblement~~Infernal;;You have Resistance to Fire damage. You also know the Fire Bolt cantrip.;;Hellish Rebuke;;Darkness[/TABLE]"
+},
+{
+"name": "Otherworldly Presence",
+"desc": "You know the Thaumaturgy cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy Trait."
+}
+],
+"darkvision": 60,
+"subraces": {
+"abyssal": {
+"trait": "Level 1. You have Resistance to Poison damage. You also know the Poison Spray cantrip.\nLevel 3. Ray of Sickness\nLevel 5. Hold Person"
+},
+"chthonic": {
+"trait": "Level 1. You have Resistance to Necrotic damage. You also know the Chill Touch cantrip.\nLevel 3. False Life\nLevel 5. Ray of Enfeeblement"
+},
+"infernal": {
+"trait": "Level 1. You have Resistance to Fire damage. You also know the Fire Bolt cantrip.\nLevel 3. Hellish Rebuke\nLevel 5. Darkness"
+}
+}
+},
+"tortle_motm": {
+"file": "Tortle",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Claws",
+"desc": "You have claws that you can use to make unarmed strikes. When you hit with them, the strike deals 1d6 + your Strength modifier slashing damage, instead of the bludgeoning damage normal for an unarmed strike."
+},
+{
+"name": "Hold Breath",
+"desc": "You can hold your breath for up to 1 hour."
+},
+{
+"name": "Natural Armor",
+"desc": "Your shell provides you a base AC of 17 (your Dexterity modifier doesn't affect this number). You can't wear light, medium, or heavy armor, but if you are using a shield, you can apply the shield's bonus as normal."
+},
+{
+"name": "Nature's Intuition",
+"desc": "Thanks to your mystical connection to nature, you gain proficiency with one of the following skills of your choice: Animal Handling, Medicine, Nature, Perception, Stealth, or Survival."
+},
+{
+"name": "Shell Defense",
+"desc": "You can withdraw into your shell as an action. Until you emerge, you gain a +4 bonus to your AC, and you have advantage on Strength and Constitution saving throws. While in your shell, you are prone, your speed is 0 and can't increase, you have disadvantage on Dexterity saving throws, you can't take reactions, and the only action you can take is a bonus action to emerge from your shell."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+]
+},
+"multiverse_triton": {
+"file": "Triton",
+"type": "Humanoid",
+"sizeText": "Medium",
+"speedText": "30 feet, Swim equal to your walking speed",
+"size": "Medium",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Speed",
+"desc": "Your walking speed is 30 feet, and you have a swimming speed equal to your walking speed."
+},
+{
+"name": "Amphibious",
+"desc": "You can breathe air and water."
+},
+{
+"name": "Control Air and Water",
+"desc": "You can cast fog cloud with this trait. Starting at 3rd level, you can cast the gust of wind spell with this trait. Starting at 5th level, you can also cast the water walk spell with it. Once you cast any of these spells with this trait, you can't cast that spell with it again until you finish a long rest. You can also cast these spells using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Emissary of the Sea",
+"desc": "You can communicate simple ideas to any Beast, Elemental, or Monstrosity that has a swimming speed. It can understand your words, though you have no special ability to understand it in return."
+},
+{
+"name": "Guardian of the Depths",
+"desc": "Adapted to the frigid ocean depths, you have resistance to cold damage."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60,
+"swimEqualsSpeed": true
+},
+"warforged": {
+"file": "Warforged",
+"type": "Construct",
+"sizeText": "Medium (about 6-8 feet tall) or Small (about 3-4 feet tall), chosen when you select this species",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Construct Resilience",
+"desc": "You have Resistance to Poison damage. You also have Advantage on saving throws to avoid or end the Poisoned condition."
+},
+{
+"name": "Integrated Protection",
+"desc": "You gain a +1 bonus to your Armor Class. In addition, armor you have donned can't be removed against your will while you're alive."
+},
+{
+"name": "Sentry's Rest",
+"desc": "You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 6 hours if you spend those hours in an inactive, motionless state. During this time, you appear inert but remain conscious."
+},
+{
+"name": "Specialized Design",
+"desc": "You gain one skill proficiency and one tool proficiency of your choice."
+},
+{
+"name": "Tireless",
+"desc": "You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation."
+}
+]
+},
+"multiverse_yuan_ti": {
+"file": "Yuan-Ti",
+"type": "Humanoid",
+"sizeText": "Small or Medium",
+"speedText": "30 feet",
+"size": "Medium or Small",
+"speed": 30,
+"intro": "",
+"features": [
+{
+"name": "Size",
+"desc": "You are Medium or Small. You choose the size when you select this race."
+},
+{
+"name": "Darkvision",
+"desc": "You can see in dim light within 60 feet of you as if it were bright light and in darkness as if it were dim light. You discern colors in that darkness only as shades of gray."
+},
+{
+"name": "Magic Resistance",
+"desc": "You have advantage on saving throws against spells."
+},
+{
+"name": "Poison Resilience",
+"desc": "You have advantage on saving throws you make to avoid or end the poisoned condition on yourself. You also have resistance to poison damage."
+},
+{
+"name": "Serpentine Spellcasting",
+"desc": "You know the poison spray cantrip. You can cast animal friendship an unlimited number of times with this trait, but you can target only snakes with it. Starting at 3rd level, you can also cast suggestion with this trait. Once you cast it, you can't do so again until you finish a long rest. You can also cast it using any spell slots you have of 2nd level or higher.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for these spells when you cast them with this trait (choose when you select this race)."
+},
+{
+"name": "Languages",
+"desc": "You can speak, read, and write Common and one other language that you and your DM agree is appropriate for your character."
+}
+],
+"darkvision": 60
+}
+};
+(function () {
+  if (typeof PHB_RACES === 'undefined') return;
+  Object.entries(SPECIES_TEXT).forEach(([key, t]) => {
+    const r = PHB_RACES[key]; if (!r) return;
+    const old = {}; (r.features || []).forEach(f => { old[String(f.name || '').toLowerCase()] = f; });
+    r.features = t.features.map(f => {
+      const o = old[f.name.toLowerCase()];
+      return { name: f.name, level: o?.level ?? 1, desc: f.desc, usages: o?.usages ?? null, recovery: o?.recovery ?? null };
+    });
+    r.type = t.type; r.sizeText = t.sizeText; r.speedText = t.speedText; r.intro = t.intro || '';
+    r.size = t.size; r.speed = t.speed;
+    if ('darkvision' in t) r.darkvision = t.darkvision;
+    if (t.climbEqualsSpeed) r.climbEqualsSpeed = true;
+    if (t.swimEqualsSpeed) r.swimEqualsSpeed = true;
+    if (t.name) r.name = t.name;
+    delete r.trait;
+    r._fromSuppliedText = true;
+    Object.entries(t.subraces || {}).forEach(([sk, st]) => {
+      if (!r.subraces) r.subraces = {};
+      if (!r.subraces[sk]) r.subraces[sk] = { name: st.name || sk, trait: '', dmgres: [] };
+      r.subraces[sk].trait = st.trait;
+      if (st.name) r.subraces[sk].name = st.name;
+      if ('darkvision' in st) r.subraces[sk].darkvision = st.darkvision;
+    });
+  });
+  // Counters that disagreed with the supplied text:
+  //  - Goliath "Giant Ancestry": "...you regain all expended uses when you finish a Long Rest" (was Short Rest)
+  //  - Aasimar "Celestial Revelation": "When you reach character level 3..." (counter appeared from level 1)
+  if (typeof RACIAL_RESOURCES !== 'undefined') {
+    const fix = (race, id, fn) => { const r = (RACIAL_RESOURCES[race] || []).find(x => x.id === id); if (r) fn(r); };
+    fix('goliath', 'giant_trait', r => { r.recovery = 'long'; r.desc = 'You can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.'; });
+    fix('aasimar', 'celestial_revelation', r => { if (Array.isArray(r.maxByLevel)) { r.maxByLevel[1] = 0; r.maxByLevel[2] = 0; } });
+  }
+  Object.entries(SPECIES_NEW).forEach(([key, r]) => { if (!PHB_RACES[key]) PHB_RACES[key] = r; });
+  if (typeof RACE_SKILL_POOLS !== 'undefined' && !RACE_SKILL_POOLS.harengon) {
+    // Harengon "Leporine Senses. You have proficiency in the Perception skill."
+    RACE_SKILL_POOLS.harengon = { pool: [], fixed: ['Perception'], count: 0, name: 'Harengon' };
+  }
+  // The DM's list is the whole list: every other species stays defined (so
+  // a character who already has one keeps working and showing correctly)
+  // but is hidden from the pickers. To bring one back, add its key to the
+  // SPECIES_UNHIDE list just below.
+  if (PHB_RACES.multiverse_deep_gnome) PHB_RACES.multiverse_deep_gnome.name = 'Deep Gnome (MPMM)';   // the list calls it Deep Gnome
+  const SPECIES_UNHIDE = [];   // e.g. ['astral_elf', 'thri_kreen']
+  Object.entries(PHB_RACES).forEach(([key, r]) => { r.hidden = !(key in SPECIES_TEXT) && !(key in SPECIES_NEW) && !SPECIES_UNHIDE.includes(key); });
+  // species ability score text is not shown or used anywhere (5.5e: backgrounds grant these)
+  Object.values(PHB_RACES).forEach(r => { delete r.scorestxt; delete r.asi; delete r.asiNote; delete r.scoresTxt;
+    Object.values(r.subraces || {}).forEach(sr => { delete sr.scorestxt; }); });
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
 // PREVIEW GUARD - read-only enforcement for Party Overview sheet previews
 // While window._previewMode is set, a capture-phase guard decides every
 // click / key / form event before any handler on the sheet can see it:
@@ -68135,7 +70594,7 @@ const PV_VIEW_FNS = new Set([
   // detail / info modals
   'openSpellDetailModal', 'openMagicItemDetailModal', 'openInventoryItemDetailModal', 'openWeaponDetail', 'openArmorDetail',
   'openTreasureDetailModal', 'openToolDetailModal', 'openClassFeatureInfoModal', 'openFeatInfoModal', 'openRaceInfoModal',
-  'openBackgroundInfoModal', 'openInvocationInfoModal', 'openConditionInfoModal', 'openWeaponMasteryInfoModal',
+  'openBackgroundInfoModal', 'openCurrentRaceInfo', 'openInvocationInfoModal', 'openConditionInfoModal', 'openWeaponMasteryInfoModal',
   'openMutationDetailModal', 'openResourceDetail', 'openGlossaryBrowser', 'openGlossaryTermModal',
   // plain gear has no separate viewer: its edit window opens, with every field and button inert
   'openGearEditModal',
