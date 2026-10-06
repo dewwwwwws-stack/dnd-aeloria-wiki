@@ -6785,9 +6785,119 @@ window.adoptDmOwnedFields = adoptDmOwnedFields;
 // one open in this window, keep the in-memory copy and its SHA in step.
 function syncOpenCharAfterDmWrite(id, fields, putResult) {
   if (!currentChar || currentChar.id !== id) return;
-  Object.entries(fields || {}).forEach(([k, v]) => { if (v === undefined) delete currentChar[k]; else currentChar[k] = v; });
-  if (putResult?.content?.sha) currentCharSHA = putResult.content.sha;
+  const baseOk = _syncBase && _syncBase.id === id && _syncBase.sha === currentCharSHA;
+  Object.entries(fields || {}).forEach(([k, v]) => {
+    if (v === undefined) { delete currentChar[k]; if (baseOk) delete _syncBase.obj[k]; }
+    else { currentChar[k] = v; if (baseOk) _syncBase.obj[k] = JSON.parse(JSON.stringify(v)); }
+  });
+  if (putResult?.content?.sha) { currentCharSHA = putResult.content.sha; if (baseOk) _syncBase.sha = currentCharSHA; }
 }
+
+// ── Three-way merge of a newer file into the open sheet ──────────────────
+// The open sheet saves its WHOLE character, so any change someone else
+// wrote to the file (DM panel, another player's gift, a second tab) is lost
+// unless it is first merged into the in-memory copy. _syncBase remembers the
+// file exactly as this window last read or wrote it; comparing base / local
+// / remote tells apart "they changed it" (take theirs) from "I changed it"
+// (keep mine), field by field, for every field - not a hand-kept list.
+let _syncBase = null;   // { id, sha, obj }
+function _setSyncBase(sha, obj) {
+  if (!currentChar?.id || !sha || !obj) { return; }
+  try { _syncBase = { id: currentChar.id, sha, obj: JSON.parse(JSON.stringify(obj)) }; } catch (e) { _syncBase = null; }
+}
+// When both sides changed the same simple value: these fields follow the
+// file (DM-driven combat state and DM-owned settings); everything else
+// keeps the local edit.
+const REMOTE_PRIORITY_FIELDS = new Set(['hp_current', 'hp_max', 'hp_temp', 'exhaustion', 'death_saves', 'conditions', ...DM_OWNED_FIELDS]);
+function _m3eq(a, b) { return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b); }
+function _m3isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+function _m3ident(el) { return _m3isObj(el) ? String(el._uid || el.id || el.key || el.name || '') : ''; }
+// Lists: apply the other side's additions and removals to the local list,
+// leaving anything edited locally alone. An item they edited in place is
+// swapped where it stands rather than moved to the end.
+function _m3array(base, local, remote) {
+  const J = v => JSON.stringify(v);
+  const count = arr => { const m = new Map(); arr.forEach(x => { const k = J(x); m.set(k, (m.get(k) || 0) + 1); }); return m; };
+  const bC = count(base), rC = count(remote);
+  const removed = [], added = [];
+  bC.forEach((n, k) => { for (let i = (rC.get(k) || 0); i < n; i++) removed.push(k); });
+  const seen = new Map();
+  remote.forEach(x => { const k = J(x); const c = (seen.get(k) || 0) + 1; seen.set(k, c); if (c > (bC.get(k) || 0)) added.push(x); });
+  const out = local.slice();
+  removed.forEach(k => {
+    const i = out.findIndex(x => J(x) === k);
+    if (i < 0) return;                       // edited or already removed locally - leave it
+    const id = _m3ident(out[i]);
+    const j = id ? added.findIndex(a => _m3ident(a) === id) : -1;
+    if (j >= 0) out.splice(i, 1, added.splice(j, 1)[0]); else out.splice(i, 1);
+  });
+  added.forEach(a => { if (!out.some(x => J(x) === J(a))) out.push(a); });
+  return out;
+}
+function _m3(base, local, remote, topKey, preferLocal) {
+  if (_m3eq(remote, base)) return local;          // they didn't touch it
+  if (_m3eq(local, base)) return remote;          // only they changed it
+  if (_m3eq(local, remote)) return local;
+  if (_m3isObj(local) && _m3isObj(remote)) {
+    const b = _m3isObj(base) ? base : {};
+    const out = {};
+    new Set([...Object.keys(local), ...Object.keys(remote)]).forEach(k => {
+      const v = _m3(b[k], local[k], remote[k], topKey, preferLocal);
+      if (v !== undefined) out[k] = v;
+    });
+    return out;
+  }
+  if (Array.isArray(local) && Array.isArray(remote)) return _m3array(Array.isArray(base) ? base : [], local, remote);
+  return (!preferLocal && REMOTE_PRIORITY_FIELDS.has(topKey)) ? remote : local;
+}
+// Merges `fresh` (the newer file) into currentChar. Returns null when this
+// window has no trustworthy base for the file (callers then fall back to
+// the older field-list merge), else { changed: [top-level keys updated] }.
+function threeWayAdopt(fresh, prevSha, opts) {
+  if (!currentChar || !fresh || !_syncBase || _syncBase.id !== currentChar.id || !prevSha || _syncBase.sha !== prevSha) return null;
+  const base = _syncBase.obj, changed = [];
+  new Set([...Object.keys(base), ...Object.keys(fresh)]).forEach(k => {
+    if (k === 'id') return;
+    const before = currentChar[k];
+    const preferLocal = !!opts?.preferLocal && !DM_OWNED_FIELDS.includes(k);
+    const merged = _m3(base[k], before, fresh[k], k, preferLocal);
+    if (_m3eq(merged, before)) return;
+    if (merged === undefined) delete currentChar[k]; else currentChar[k] = merged;
+    changed.push(k);
+  });
+  return { changed };
+}
+// Bring the screen in line after a merge, with the same notices as before.
+function applyRemoteAdoptedUI(changed, notify) {
+  if (!changed?.length) return;
+  const has = (...ks) => ks.some(k => changed.includes(k));
+  const run = fn => { try { if (typeof fn === 'function') fn(); } catch (e) { console.warn('[sync] refresh step failed', e.message); } };
+  run(typeof populateMainSheet === 'function' ? populateMainSheet : null);
+  if (has('currency')) {
+    ['cp','sp','gp','pp'].forEach(k => { const el = document.getElementById('cur-' + k); if (el) el.value = currentChar.currency?.[k] || 0; });
+    run(typeof updateCurrencyTotal === 'function' ? updateCurrencyTotal : null);
+  }
+  run(typeof recalcAll === 'function' ? recalcAll : null);
+  run(typeof renderMagicItemsPanel === 'function' ? renderMagicItemsPanel : null);
+  run(typeof renderUnifiedInventory === 'function' ? renderUnifiedInventory : null);
+  run(typeof renderResourceTracker === 'function' ? renderResourceTracker : null);
+  run(typeof renderSpellSlots === 'function' ? renderSpellSlots : null);
+  run(typeof renderDeathSaves === 'function' ? renderDeathSaves : null);
+  run(typeof renderConditions === 'function' ? renderConditions : null);
+  run(typeof renderActiveEffects === 'function' ? renderActiveEffects : null);
+  run(typeof renderKnownSpells === 'function' ? renderKnownSpells : null);
+  if (has('quickPlay')) run(() => applyQuickPlayTab(false));
+  const itemKeys = ['magicItems','weapons','armorOwned','equipment','valuables','mountsVehicles'];
+  if (notify?.itemName && typeof showItemReceivedModal === 'function' && has(...itemKeys, 'currency')) showItemReceivedModal(notify);
+  else {
+    if (has(...itemKeys)) toast('Your DM updated your items', 'ok');
+    if (has('currency')) toast('Your currency was updated', 'ok');
+  }
+  if (has('hp_current','hp_max','hp_temp','death_saves')) toast('Your HP was updated', 'ok');
+  if (has('conditions','exhaustion')) toast('A condition changed', 'ok');
+  if (has('resources','spell_slots_used') && !has('hp_current','hp_max')) toast('Your resources were updated', 'ok');
+}
+window.threeWayAdopt = threeWayAdopt;
 
 let _remoteUpdateInFlight = false;
 async function handleRemoteCharUpdate(field, notify) {
@@ -6796,6 +6906,7 @@ async function handleRemoteCharUpdate(field, notify) {
   console.log('[realtime] handling remote update', { field, charId: currentChar.id, notify });
   try {
     const { content: fresh, sha } = await GH.getFile(currentChar.id + '.json');
+    const _prevSha = currentCharSHA;
     const shaChanged = sha !== currentCharSHA;
     currentCharSHA = sha;
 
@@ -6806,8 +6917,19 @@ async function handleRemoteCharUpdate(field, notify) {
     if (!shaChanged) { console.log('[realtime] no change since last sync, skipping'); return; }
 
     // The new SHA has just been adopted above, so the next save from this
-    // window will overwrite the file without any conflict - DM-owned
-    // fields must be taken across now or that save would erase them.
+    // window will overwrite the file without any conflict - everything
+    // the other side changed must be merged in now or that save erases it.
+    // Typed-but-unsaved inputs are gathered first so they count as local
+    // edits. Falls back to the older field-list merge below only when this
+    // window has no base copy of the file to compare against.
+    try { if (typeof gatherSheetData === 'function') gatherSheetData(); } catch (e) {}
+    const _tw = threeWayAdopt(fresh, _prevSha, { preferLocal: (typeof _debounceSaveTimer !== 'undefined' && !!_debounceSaveTimer) });
+    if (_tw) {
+      _setSyncBase(sha, fresh);
+      console.log('[realtime] three-way merge adopted', _tw.changed);
+      applyRemoteAdoptedUI(_tw.changed, notify);
+      return;
+    }
     adoptDmOwnedFields(fresh);
 
     // Broadened beyond just magicItems/customResources - a plain-equipment
@@ -13190,6 +13312,13 @@ function confirmGrantFreeSpell() {
 window.confirmGrantFreeSpell = confirmGrantFreeSpell;
 
 function enterApp() {
+  // Remember the file as loaded (before any on-load tidying) as the merge
+  // base - only when this is a fresh load, never over an existing base for
+  // the same file version, which may already have local edits on top.
+  if (currentChar?.id && currentCharSHA && !window._previewMode
+      && !(_syncBase && _syncBase.id === currentChar.id && _syncBase.sha === currentCharSHA)) {
+    _setSyncBase(currentCharSHA, currentChar);
+  }
   // Show DM button in topbar if DM
   const dmBtn = document.getElementById('dm-topbar-btn');
   if (dmBtn) dmBtn.style.display = isDM ? '' : 'none';
@@ -13570,6 +13699,7 @@ async function saveChar() {
     }
     const result = await GH.putFile(`${currentChar.id}.json`, currentChar, sha);
     currentCharSHA = result.content.sha;
+    _setSyncBase(currentCharSHA, currentChar);
     setSyncStatus('ok', '✓ Saved');
     broadcastHPIfChanged();
   } catch(e) {
@@ -13580,6 +13710,19 @@ async function saveChar() {
     if (e.message?.includes('409') || e.status === 409) {
       try {
         const fresh = await GH.getFile(`${currentChar.id}.json`);
+        // Preferred path: a full three-way merge against the copy of the
+        // file this window last read or wrote. Only when there is no such
+        // base does the older, narrower merge below run instead.
+        const _tw = threeWayAdopt(fresh.content, currentCharSHA, { preferLocal: false });
+        if (_tw) {
+          const result = await GH.putFile(`${currentChar.id}.json`, currentChar, fresh.sha);
+          currentCharSHA = result.content.sha;
+          _setSyncBase(currentCharSHA, currentChar);
+          setSyncStatus('ok', '✓ Saved');
+          broadcastHPIfChanged();
+          applyRemoteAdoptedUI(_tw.changed, null);
+          return;
+        }
         let mergedNewItem = false;
         let mergedHP = false;
         let mergedConditions = false;
@@ -13625,6 +13768,7 @@ async function saveChar() {
         adoptDmOwnedFields(fresh.content);
         const result = await GH.putFile(`${currentChar.id}.json`, currentChar, fresh.sha);
         currentCharSHA = result.content.sha;
+        _setSyncBase(currentCharSHA, currentChar);
         setSyncStatus('ok', '✓ Saved');
         broadcastHPIfChanged();
         // Anything merged in via this path never went through
@@ -47668,6 +47812,7 @@ async function confirmDMPINReset() {
     const newHash = await hashPIN(newPin);
     content.pinHash = newHash;
     const result = await GH.putFile(`${_dmResetCharId}.json`, content, sha);
+    try { broadcastCharUpdate(_dmResetCharId, 'full'); } catch (e) {}
 
     closeModal('dm-pin-reset-modal');
     toast(`PIN reset for ${content.charName}`, 'ok');
@@ -64953,7 +65098,8 @@ function pdfCollectCharacter() {
   D.magicItems = items.filter(mi => !isConsumable(mi)).map(mi => ({
     name: mi.customName || mi.name || mi._baseName || 'Magic item', short: rarityShort(mi.rarity), attuned: !!mi.attuned,
     line: [_pdfCap(mi.rarity), mi.type, mi.attunement ? (mi.attuned ? 'attuned' : 'requires attunement') : '', mi.attunementNoSlot ? 'no slot' : ''].filter(Boolean).join(', '),
-    text: pdfPlain((mi.desc || mi._baseDesc || '').replace(/\{\{VESSEL_AC\}\}/g, firstSc ? firstSc.dc : '').replace(/\{\{VESSEL_HP\}\}/g, '')) + (mi.notes ? '\nNotes: ' + mi.notes : ''),
+    text: pdfPlain((mi.desc || mi._baseDesc || '').replace(/\{\{VESSEL_AC\}\}/g, firstSc ? firstSc.dc : '').replace(/\{\{VESSEL_HP\}\}/g, '')) + (mi.notes ? '\nNotes: ' + mi.notes : '')
+      + (typeof spellStoringPdfText === 'function' ? spellStoringPdfText(mi) : ''),
   })).sort((a, b) => (b.attuned - a.attuned));
   D.attunedList = D.magicItems.filter(m => m.attuned).map(m => m.name);
 
@@ -66680,6 +66826,18 @@ function _qpBuild() {
     const castLv = typeof getFeatSpellFreeCastLevel === 'function' ? getFeatSpellFreeCastLevel(r, s) : (r.level ?? s.level ?? 0);
     return { key: r.key, name: s.name || r.name, level: castLv, ritualOnly: r.pipType === 'ritual-only', upcast: castLv > (s.level ?? r.level ?? 0), desc: s.desc || '', source: r.label || '', bucket, res: rr && rr.type !== 'display' ? rr : null, conc: /conc/i.test(s.duration || '') };
   });
+  // Spells stored in a Ring of Spell Storing / Vancian Helm: listed with the
+  // other spells of the same casting time, at the stored slot level, with
+  // the original caster's numbers and a Cast button (see SPELL STORING).
+  (typeof getStoredSpellEntries === 'function' ? getStoredSpellEntries() : []).forEach(e => {
+    const s = PHB_SPELL_LIST.find(x => x.key === e.s.key) || {};
+    const t = s.time || '';
+    const bucket = /\brea/i.test(t) ? 'reaction' : /bns|bonus/i.test(t) ? 'bonus' : /^1\s*a\b/i.test(t) ? 'action' : 'longer';
+    const lv = parseInt(e.s.level, 10) || s.level || 1;
+    const stat = [(e.s.dc || e.s.dc === 0) ? 'DC ' + e.s.dc : '', (e.s.atk || e.s.atk === 0) ? (e.s.atk >= 0 ? '+' : '') + e.s.atk + ' to hit' : ''].filter(Boolean).join(', ') + (e.s.caster ? ` (${e.s.caster})` : '');
+    spells.push({ key: e.s.key, name: e.s.name, level: lv, ritualOnly: false, upcast: lv > (s.level ?? lv), desc: s.desc || '', source: `${stat ? stat.trim() + ' \u00b7 ' : ''}${e.itemName}`,
+      bucket, res: null, conc: /conc/i.test(s.duration || ''), stored: { uid: e.uid, id: e.s.id, canCast: e.canCast } });
+  });
   const abs = getAbilities();
   return { c, rogue, fighter, champion, critMin, sneakDice, piercer, elvenAcc, twf, res, weapons, spells, abs,
     attacksPer: 1 + (parseInt(c._extraAttacks, 10) || 0),
@@ -66909,7 +67067,7 @@ function renderQuickPlay() {
   // spells get their own sub-section at the bottom of each card, below the
   // card's normal options (weapon attacks, class features, standard actions)
   const spellLine = s => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>`,
-    _qpE(s.desc), s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
+    _qpE(s.desc), s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
   const spellSection = bucket => {
     const list = Q.spells.filter(s => s.bucket === bucket).sort((a, b) => a.level - b.level || String(a.name).localeCompare(String(b.name)));
     if (!list.length) return '';
@@ -67545,6 +67703,333 @@ window.exportQuickPlayPdf = exportQuickPlayPdf;
     document.body.appendChild(m);
     setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
   };
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// SPELL STORING - Ring of Spell Storing / Vancian Helm
+// The item's owner records each spell cast into it (who cast it, at what
+// slot level, with what save DC and attack bonus) and casts it back out.
+// Stored spells live on the item itself (item.storedSpells), so they move
+// with it if it is given away. No dice, no writes to anyone else's file.
+// ═══════════════════════════════════════════════════════════════════════
+const SPELL_STORING_ITEMS = {
+  // up to 5 levels of spell slots in total, spells of level 1-5
+  ring_of_spell_storing: { maxLevels: 5, minSpellLevel: 1, maxSpellLevel: 5, word: 'ring' },
+  // one spell of level 1-4; a new spell replaces the stored one
+  vancian_helm:          { maxSpells: 1, replaces: true, minSpellLevel: 1, maxSpellLevel: 4, word: 'helm' },
+};
+const _ssE = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const _ssOrd = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+const _ssSign = n => (n >= 0 ? '+' : '') + n;
+
+function getSpellStoringRule(item) { return item ? (SPELL_STORING_ITEMS[item.key] || null) : null; }
+function _ssItemName(item) { return item.customName || item.name || 'Item'; }
+function _ssFind(uid) {
+  const item = (currentChar?.magicItems || []).find(m => m._uid === uid);
+  const rule = getSpellStoringRule(item);
+  return item && rule ? { item, rule } : null;
+}
+// What is stored and how much room is left.
+function getSpellStoringState(item) {
+  const rule = getSpellStoringRule(item); if (!rule) return null;
+  const stored = Array.isArray(item.storedSpells) ? item.storedSpells : [];
+  const usedLevels = stored.reduce((n, s) => n + (parseInt(s.level, 10) || 0), 0);
+  let maxStoreLevel;
+  if (rule.maxLevels) maxStoreLevel = Math.min(rule.maxSpellLevel, rule.maxLevels - usedLevels);
+  else maxStoreLevel = (rule.replaces || stored.length < (rule.maxSpells || 1)) ? rule.maxSpellLevel : 0;
+  const canCast = !(item.attunement && !item.attuned);
+  const capText = rule.maxLevels ? `${usedLevels} / ${rule.maxLevels} levels` : `${stored.length} / ${rule.maxSpells || 1} spell${(rule.maxSpells || 1) > 1 ? 's' : ''}`;
+  return { rule, stored, usedLevels, maxStoreLevel: Math.max(0, maxStoreLevel), canCast, capText };
+}
+// Every stored spell across the character's items (Spells tab, Quick Play, PDFs).
+function getStoredSpellEntries() {
+  const out = [];
+  (currentChar?.magicItems || []).forEach(item => {
+    const st = getSpellStoringState(item); if (!st) return;
+    st.stored.forEach(s => out.push({ item, uid: item._uid, itemName: _ssItemName(item), canCast: st.canCast, s }));
+  });
+  return out;
+}
+function _ssStatLine(s) {
+  const bits = [];
+  if (s.caster) bits.push('cast by ' + s.caster);
+  if (s.dc || s.dc === 0) bits.push('DC ' + s.dc);
+  if (s.atk || s.atk === 0) bits.push(_ssSign(parseInt(s.atk, 10) || 0) + ' to hit');
+  if (s.ability) bits.push(String(s.ability).toUpperCase());
+  return bits.join(' \u00b7 ');
+}
+// One line per stored spell for the full PDF's magic item write-up.
+function spellStoringPdfText(item) {
+  try {
+    const st = getSpellStoringState(item); if (!st) return '';
+    if (!st.stored.length) return `\nStored spells (${st.capText}): none`;
+    return `\nStored spells (${st.capText}): ` + st.stored.map(s => `${s.name} (level ${s.level}${_ssStatLine(s) ? '; ' + _ssStatLine(s).replace(/ \u00b7 /g, ', ') : ''})`).join('; ');
+  } catch (e) { return ''; }
+}
+
+// ── shared list markup (item card + Spells tab) ────────────────────────
+function _ssListHtml(item, opts = {}) {
+  const st = getSpellStoringState(item); if (!st) return '';
+  const uid = _ssE(item._uid);
+  const pips = st.rule.maxLevels
+    ? `<span style="letter-spacing:2px;color:var(--gold)">${'\u25a0'.repeat(Math.min(st.usedLevels, st.rule.maxLevels))}<span style="color:var(--text3)">${'\u25a1'.repeat(Math.max(0, st.rule.maxLevels - st.usedLevels))}</span></span>` : '';
+  const rows = st.stored.map(s => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <span onclick="openSpellDetailModal('${_ssE(s.key)}','${_ssE(String(s.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')" style="cursor:pointer;font-family:var(--font-body);font-size:13px;color:var(--text);text-decoration:underline dotted;text-underline-offset:3px">${_ssE(s.name)}</span>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--gold);margin-left:4px">${_ssOrd(parseInt(s.level, 10) || 1)} level</span>
+        <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);line-height:1.5">${_ssE(_ssStatLine(s))}</div>
+      </div>
+      <button class="tbtn" style="min-height:32px;${st.canCast ? 'color:var(--accent);border-color:var(--accent)' : 'opacity:.5;cursor:not-allowed'}" ${st.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${uid}','${_ssE(s.id)}')">Cast</button>
+      <button class="tbtn" style="min-height:32px;min-width:32px;color:var(--text3)" title="Remove without casting" onclick="removeStoredSpell('${uid}','${_ssE(s.id)}')">\u2715</button>
+    </div>`).join('');
+  const room = st.maxStoreLevel > 0
+    ? (st.rule.maxLevels ? `${st.rule.maxLevels - st.usedLevels} level${st.rule.maxLevels - st.usedLevels === 1 ? '' : 's'} free` : (st.stored.length && st.rule.replaces ? 'a new spell replaces the stored one' : 'empty'))
+    : 'full';
+  return `
+    <div class="ss-panel" data-ss-uid="${uid}" style="${opts.bare ? '' : 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border)'}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--font-ui);font-size:9px;font-weight:600;letter-spacing:.5px;color:var(--text3);text-transform:uppercase;margin-bottom:4px">
+        <span>${opts.title ? _ssE(opts.title) + ' \u00b7 ' : ''}Stored spells \u00b7 ${st.capText}</span>${pips}
+      </div>
+      ${rows || '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);padding:4px 0">Nothing stored.</div>'}
+      ${!st.canCast && st.stored.length ? '<div style="font-family:var(--font-ui);font-size:10px;color:var(--amber);padding-top:4px">Attune to this item to cast from it.</div>' : ''}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="tbtn" style="min-height:32px;${st.maxStoreLevel > 0 ? '' : 'opacity:.5;cursor:not-allowed'}" ${st.maxStoreLevel > 0 ? '' : 'disabled'} onclick="openStoreSpellModal('${uid}')">+ Store a spell</button>
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${room}</span>
+      </div>
+    </div>`;
+}
+
+function _ssRefresh() {
+  // item card, if it is showing one of these items
+  const open = document.querySelector('#mi-detail-body .ss-panel');
+  if (open) { const f = _ssFind(open.dataset.ssUid); if (f) open.outerHTML = _ssListHtml(f.item); else open.remove(); }
+  try { renderStoredSpellsPanel(); } catch (e) {}
+  try { if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel(); } catch (e) {}
+  try { if (typeof renderQuickPlay === 'function' && currentChar?.quickPlay) renderQuickPlay(); } catch (e) {}
+}
+
+// ── Spells tab panel ───────────────────────────────────────────────────
+function renderStoredSpellsPanel() {
+  const anchor = document.getElementById('sp-class-manage-bar');
+  let el = document.getElementById('sp-stored-spells-panel');
+  const items = (currentChar?.magicItems || []).filter(m => m._uid && getSpellStoringRule(m));
+  if (!anchor || !items.length) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'sp-stored-spells-panel';
+    el.style.cssText = 'margin:8px 0;padding:10px 12px;border:1px solid var(--border,#444);border-radius:8px;background:var(--bg2)';
+    anchor.insertAdjacentElement('afterend', el);
+  }
+  el.innerHTML = items.map((m, i) => `<div style="${i ? 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border)' : ''}">${_ssListHtml(m, { bare: true, title: _ssItemName(m) })}</div>`).join('');
+}
+window.renderStoredSpellsPanel = renderStoredSpellsPanel;
+
+// ── own slots (only used when the owner is the caster) ─────────────────
+function _ssMySlot(level) {
+  const ss = typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(currentChar) : { levels: [] };
+  const l = (ss.levels || []).find(x => x.level === level);
+  if (l && l.max - (l.used || 0) > 0) return { kind: 'slot', max: l.max, left: l.max - (l.used || 0) };
+  const w = ss.warlock;
+  if (w && w.slotLevel === level && w.max - (w.used || 0) > 0) return { kind: 'pact', max: w.max, left: w.max - (w.used || 0) };
+  return null;
+}
+function _ssSpendMySlot(level) {
+  const a = _ssMySlot(level); if (!a) return false;
+  const u = currentChar.spell_slots_used = currentChar.spell_slots_used || {};
+  for (let i = 0; i < a.max; i++) {
+    const k = a.kind === 'pact' ? `pact_slot_${i}` : `slot_${level}_${i}`;
+    if (!u[k]) { u[k] = true; break; }
+  }
+  try { if (typeof renderSpellSlots === 'function') renderSpellSlots(); } catch (e) {}
+  return true;
+}
+
+// ── "Store a spell" ────────────────────────────────────────────────────
+let _ssDraft = null;
+function openStoreSpellModal(uid) {
+  const f = _ssFind(uid); if (!f) return;
+  const st = getSpellStoringState(f.item);
+  if (st.maxStoreLevel <= 0) { toast(`${_ssItemName(f.item)} is full`, 'warn'); return; }
+  const mine = new Set((typeof buildKnownSpellRows === 'function' ? buildKnownSpellRows() : [])
+    .filter(r => r.pipType !== 'locked-level' && r.pipType !== 'subclass-locked').map(r => r.key));
+  const stats = typeof calcSpellStats === 'function' ? calcSpellStats() : {};
+  const hasCasting = !!stats.ability;
+  _ssDraft = { uid, who: (hasCasting && !isDM) ? 'me' : 'other', key: null, level: null, mineOnly: mine.size > 0, q: '', mine,
+    myDc: stats.dc ?? '', myAtk: stats.atk ?? '', myAb: stats.ability || '', spend: !isDM };
+  document.getElementById('ss-store-overlay')?.remove();
+  const ov = document.createElement('div'); ov.id = 'ss-store-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+    <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">STORE A SPELL</div>
+    <div id="ss-sub" style="color:var(--text3);margin-bottom:12px;line-height:1.5"></div>
+    <label style="display:block;margin-bottom:4px">Who cast it into the ${_ssE(st.rule.word || 'item')}?</label>
+    <div id="ss-who" style="display:flex;gap:6px;margin-bottom:12px"></div>
+    <label style="display:block;margin-bottom:4px">Spell</label>
+    <input id="ss-q" class="info-input" placeholder="Search spells..." autocomplete="off" style="width:100%;font-size:16px;margin-bottom:6px"/>
+    <label id="ss-mine-row" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;color:var(--text2)"><input type="checkbox" id="ss-mine" style="width:18px;height:18px"/> Only spells on my sheet</label>
+    <div id="ss-list" style="max-height:190px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:6px;margin-bottom:12px;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;color-scheme:dark"></div>
+    <div id="ss-detail"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="tbtn" id="ss-cancel" style="min-height:36px">Cancel</button>
+      <button class="tbtn" id="ss-go" style="min-height:36px;color:var(--accent);border-color:var(--accent)">Store</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#ss-cancel').onclick = () => ov.remove();
+  ov.querySelector('#ss-q').oninput = e => { _ssDraft.q = e.target.value; _ssRenderStoreList(); };
+  ov.querySelector('#ss-mine').onchange = e => { _ssDraft.mineOnly = e.target.checked; _ssRenderStoreList(); };
+  ov.querySelector('#ss-go').onclick = _ssConfirmStore;
+  _ssRenderStore();
+}
+window.openStoreSpellModal = openStoreSpellModal;
+
+function _ssRenderStore() {
+  const ov = document.getElementById('ss-store-overlay'); const d = _ssDraft; if (!ov || !d) return;
+  const f = _ssFind(d.uid); if (!f) { ov.remove(); return; }
+  const st = getSpellStoringState(f.item);
+  const replacing = st.rule.replaces && st.stored.length ? st.stored[0] : null;
+  ov.querySelector('#ss-sub').innerHTML = `${_ssE(_ssItemName(f.item))} \u00b7 ` + (st.rule.maxLevels
+    ? `${st.rule.maxLevels - st.usedLevels} of ${st.rule.maxLevels} levels free. A spell takes up levels equal to the slot it was cast with.`
+    : `holds one spell of level ${st.rule.minSpellLevel}-${st.rule.maxSpellLevel}.`)
+    + (replacing ? ` <span style="color:var(--amber)">Storing a new spell replaces ${_ssE(replacing.name)}.</span>` : '');
+  const pill = (id, label) => `<button class="tbtn" data-who="${id}" style="min-height:36px;flex:1;${d.who === id ? 'color:var(--accent);border-color:var(--accent)' : ''}">${label}</button>`;
+  const who = ov.querySelector('#ss-who');
+  who.innerHTML = pill('me', 'Me') + pill('other', 'Someone else');
+  who.querySelectorAll('button').forEach(b => b.onclick = () => { d.who = b.dataset.who; _ssRenderStore(); });
+  const mineRow = ov.querySelector('#ss-mine-row');
+  mineRow.style.display = (d.who === 'me' && d.mine.size) ? 'flex' : 'none';
+  ov.querySelector('#ss-mine').checked = !!d.mineOnly;
+  _ssRenderStoreList();
+}
+
+function _ssRenderStoreList() {
+  const ov = document.getElementById('ss-store-overlay'); const d = _ssDraft; if (!ov || !d) return;
+  const f = _ssFind(d.uid); if (!f) return;
+  const st = getSpellStoringState(f.item);
+  const q = d.q.trim().toLowerCase();
+  const onlyMine = d.who === 'me' && d.mineOnly && d.mine.size;
+  const list = PHB_SPELL_LIST.filter(s => s.level >= st.rule.minSpellLevel && s.level <= st.maxStoreLevel
+      && (!onlyMine || d.mine.has(s.key)) && (!q || s.name.toLowerCase().includes(q)))
+    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+  if (d.key && !list.some(s => s.key === d.key)) { d.key = null; d.level = null; }
+  const box = ov.querySelector('#ss-list');
+  box.innerHTML = list.length ? list.slice(0, 250).map(s => `<div data-ss-key="${_ssE(s.key)}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;font-size:13px;${d.key === s.key ? 'background:var(--bg3,rgba(255,255,255,.08));color:var(--accent)' : ''}"><span>${_ssE(s.name)}</span><span style="color:var(--text3);flex-shrink:0">level ${s.level}</span></div>`).join('')
+    : `<div style="padding:10px;color:var(--text3)">No spell of level ${st.rule.minSpellLevel}${st.maxStoreLevel > st.rule.minSpellLevel ? '-' + st.maxStoreLevel : ''} matches.</div>`;
+  box.querySelectorAll('[data-ss-key]').forEach(n => n.onclick = () => {
+    d.key = n.dataset.ssKey; d.level = PHB_SPELL_LIST.find(s => s.key === d.key)?.level || 1; _ssRenderStoreList();
+  });
+  _ssRenderStoreDetail(st);
+}
+
+function _ssRenderStoreDetail(st) {
+  const ov = document.getElementById('ss-store-overlay'); const d = _ssDraft; if (!ov || !d) return;
+  const det = ov.querySelector('#ss-detail'), go = ov.querySelector('#ss-go');
+  const sp = d.key ? PHB_SPELL_LIST.find(s => s.key === d.key) : null;
+  if (!sp) { det.innerHTML = '<div style="color:var(--text3)">Pick a spell above.</div>'; go.disabled = true; go.style.opacity = '.5'; return; }
+  go.disabled = false; go.style.opacity = '';
+  const levels = []; for (let l = sp.level; l <= st.maxStoreLevel; l++) levels.push(l);
+  if (!levels.includes(d.level)) d.level = levels[0];
+  const inp = 'class="info-input" style="width:100%;font-size:16px"';
+  const mySlot = d.who === 'me' ? _ssMySlot(d.level) : null;
+  det.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px">
+      <div style="grid-column:1/-1"><label style="display:block;margin-bottom:4px">Slot level used</label>
+        <select id="ss-level" ${inp}>${levels.map(l => `<option value="${l}" ${l === d.level ? 'selected' : ''}>${_ssOrd(l)} level${l > sp.level ? ' (upcast)' : ''}</option>`).join('')}</select></div>
+      ${d.who === 'other' ? `<div style="grid-column:1/-1"><label style="display:block;margin-bottom:4px">Caster's name</label><input id="ss-caster" ${inp} value="${_ssE(d.caster || '')}" placeholder="e.g. Ess" autocomplete="off"/></div>` : ''}
+      <div><label style="display:block;margin-bottom:4px">${d.who === 'me' ? 'My' : 'Their'} spell save DC</label><input id="ss-dc" type="number" inputmode="numeric" ${inp} value="${_ssE(d.who === 'me' ? d.myDc : (d.dc ?? ''))}"/></div>
+      <div><label style="display:block;margin-bottom:4px">${d.who === 'me' ? 'My' : 'Their'} spell attack bonus</label><input id="ss-atk" type="number" inputmode="numeric" ${inp} value="${_ssE(d.who === 'me' ? d.myAtk : (d.atk ?? ''))}"/></div>
+    </div>
+    ${d.who === 'me' ? `<label style="display:flex;align-items:center;gap:6px;margin-top:10px;${mySlot ? '' : 'color:var(--text3)'}"><input type="checkbox" id="ss-spend" style="width:18px;height:18px" ${mySlot && d.spend ? 'checked' : ''} ${mySlot ? '' : 'disabled'}/> ${mySlot ? `Tick off one of my ${_ssOrd(d.level)}-level ${mySlot.kind === 'pact' ? 'Pact Magic ' : ''}slots (${mySlot.left} left)` : `I have no ${_ssOrd(d.level)}-level slot left to tick off`}</label>` : ''}`;
+  det.querySelector('#ss-level').onchange = e => { _ssKeepInputs(); d.level = parseInt(e.target.value, 10); _ssRenderStoreDetail(st); };
+  const sp2 = det.querySelector('#ss-spend'); if (sp2) sp2.onchange = e => { d.spend = e.target.checked; };
+}
+function _ssKeepInputs() {
+  const ov = document.getElementById('ss-store-overlay'); const d = _ssDraft; if (!ov || !d) return;
+  const v = id => ov.querySelector(id)?.value;
+  if (d.who === 'me') { if (v('#ss-dc') !== undefined) d.myDc = v('#ss-dc'); if (v('#ss-atk') !== undefined) d.myAtk = v('#ss-atk'); }
+  else { if (v('#ss-dc') !== undefined) d.dc = v('#ss-dc'); if (v('#ss-atk') !== undefined) d.atk = v('#ss-atk'); if (v('#ss-caster') !== undefined) d.caster = v('#ss-caster'); }
+}
+
+function _ssConfirmStore() {
+  const ov = document.getElementById('ss-store-overlay'); const d = _ssDraft; if (!ov || !d) return;
+  const f = _ssFind(d.uid); if (!f) { ov.remove(); return; }
+  _ssKeepInputs();
+  const st = getSpellStoringState(f.item);
+  const sp = PHB_SPELL_LIST.find(s => s.key === d.key); if (!sp) return;
+  const level = parseInt(d.level, 10);
+  if (!(level >= sp.level && level <= st.maxStoreLevel)) { toast('That slot level no longer fits', 'warn'); _ssRenderStore(); return; }
+  const num = v => (v === '' || v === null || v === undefined || isNaN(parseInt(v, 10))) ? null : parseInt(v, 10);
+  const entry = {
+    id: 'ss_' + Math.random().toString(36).slice(2, 10), key: sp.key, name: sp.name, level,
+    caster: d.who === 'me' ? (currentChar.charName || 'Me') : String(d.caster || '').trim(),
+    dc: num(d.who === 'me' ? d.myDc : d.dc), atk: num(d.who === 'me' ? d.myAtk : d.atk),
+    ability: d.who === 'me' ? (d.myAb || '') : '',
+  };
+  if (d.who === 'other' && !entry.caster) { toast("Enter the caster's name", 'warn'); ov.querySelector('#ss-caster')?.focus(); return; }
+  let spent = false;
+  if (d.who === 'me' && ov.querySelector('#ss-spend')?.checked) spent = _ssSpendMySlot(level);
+  if (!Array.isArray(f.item.storedSpells)) f.item.storedSpells = [];
+  if (st.rule.replaces) f.item.storedSpells = [];
+  f.item.storedSpells.push(entry);
+  ov.remove(); _ssDraft = null;
+  if (typeof debouncedSave === 'function') debouncedSave();
+  _ssRefresh();
+  toast(`${sp.name} stored in ${_ssItemName(f.item)}${spent ? ` \u00b7 ${_ssOrd(level)}-level slot used` : ''}`, 'ok');
+}
+
+// ── cast / remove ──────────────────────────────────────────────────────
+function castStoredSpell(uid, id) {
+  const f = _ssFind(uid); if (!f) return;
+  const st = getSpellStoringState(f.item);
+  const s = st.stored.find(x => x.id === id); if (!s) return;
+  if (!st.canCast) { toast(`Attune to ${_ssItemName(f.item)} to cast from it`, 'warn'); return; }
+  if (!confirm(`Cast ${s.name} (${_ssOrd(s.level)} level) from ${_ssItemName(f.item)}?\n\nIt leaves the ${st.rule.word || 'item'} once cast.`)) return;
+  f.item.storedSpells = st.stored.filter(x => x.id !== id);
+  if (typeof debouncedSave === 'function') debouncedSave();
+  _ssRefresh();
+  window._ssCastNote = { key: s.key, s, itemName: _ssItemName(f.item) };
+  try { if (typeof closeModal === 'function') closeModal('magic-item-detail-modal'); } catch (e) {}
+  openSpellDetailModal(s.key, s.name);
+  toast(`${s.name} cast from ${_ssItemName(f.item)}`, 'ok');
+}
+function removeStoredSpell(uid, id) {
+  const f = _ssFind(uid); if (!f) return;
+  const s = (f.item.storedSpells || []).find(x => x.id === id); if (!s) return;
+  if (!confirm(`Remove ${s.name} from ${_ssItemName(f.item)} without casting it?`)) return;
+  f.item.storedSpells = f.item.storedSpells.filter(x => x.id !== id);
+  if (typeof debouncedSave === 'function') debouncedSave();
+  _ssRefresh();
+}
+window.castStoredSpell = castStoredSpell; window.removeStoredSpell = removeStoredSpell;
+window.getStoredSpellEntries = getStoredSpellEntries; window.getSpellStoringState = getSpellStoringState;
+window.spellStoringPdfText = spellStoringPdfText;
+
+// ── hooks into the existing sheet ──────────────────────────────────────
+(function () {
+  const wrap = (name, after) => {
+    const orig = window[name]; if (typeof orig !== 'function') return;
+    const w = function () { const r = orig.apply(this, arguments); try { after.apply(this, arguments); } catch (e) { console.warn('[spell storing]', name, e.message); } return r; };
+    window[name] = w;
+  };
+  // item card: stored-spell list under the description, for an owned item
+  wrap('openMagicItemDetailModal', function (keyOrItem) {
+    const body = document.getElementById('mi-detail-body'); if (!body) return;
+    body.querySelectorAll('.ss-panel').forEach(n => n.remove());
+    if (keyOrItem && typeof keyOrItem === 'object' && keyOrItem._uid && getSpellStoringRule(keyOrItem)
+        && (currentChar?.magicItems || []).includes(keyOrItem)) body.insertAdjacentHTML('beforeend', _ssListHtml(keyOrItem));
+  });
+  wrap('renderClassManageBar', function () { renderStoredSpellsPanel(); });
+  // spell card opened by "Cast": say where it came from and whose numbers apply
+  wrap('openSpellDetailModal', function (key) {
+    const old = document.getElementById('ss-cast-note'); if (old) old.remove();
+    const n = window._ssCastNote; window._ssCastNote = null;
+    if (!n || n.key !== key) return;
+    const body = document.getElementById('spell-detail-body'); if (!body) return;
+    const el = document.createElement('div'); el.id = 'ss-cast-note';
+    el.style.cssText = 'margin-bottom:12px;padding:8px 10px;border:1px solid var(--accent);border-radius:8px;font-family:var(--font-ui);font-size:12px;line-height:1.5';
+    el.innerHTML = `<b style="color:var(--accent);letter-spacing:1px">VIA ${_ssE(n.itemName.toUpperCase())}</b> - ${_ssOrd(n.s.level)}-level slot${_ssStatLine(n.s) ? ' \u00b7 ' + _ssE(_ssStatLine(n.s)) : ''}. It has now left the item.`;
+    body.insertBefore(el, body.firstChild);
+  });
 })();
 </script>
 </body>
