@@ -3021,6 +3021,12 @@ body.preview-readonly #mi-detail-edit-row * {
                 <option value="cha">Charisma</option>
               </select>
             </div>
+            <div id="ci-racial-resist-row" style="display:none;margin-bottom:10px">
+              <label class="field-label"><span id="ci-racial-resist-label">Resistance</span> <span style="font-weight:400;text-transform:none;color:var(--text3)">(Resistance to one damage type of your choice)</span></label>
+              <select class="info-input" id="ci-racial-resist" data-key="racialResistChoice" style="width:100%" onchange="onRacialResistChoiceChange()">
+                <option value="">- Choose -</option>
+              </select>
+            </div>
             <div style="margin-bottom:10px">
               <label class="field-label">Size <span style="font-weight:400;text-transform:none;color:var(--text3)">(affects carrying capacity - leave on Auto unless it differs from your race, e.g. a child character)</span></label>
               <select class="info-input" id="ci-size-override" data-key="sizeOverride" style="width:100%" onchange="onSizeOverrideChange()">
@@ -3697,6 +3703,7 @@ body.preview-readonly #mi-detail-edit-row * {
         </div>
         <div id="sp-casting-note" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5"></div>
         <div id="sp-racial-stats-note" style="font-family:var(--font-ui);font-size:10px;color:var(--gold);margin-top:4px;line-height:1.5;display:none"></div>
+<div id="sp-feat-stats-note" style="font-family:var(--font-ui);font-size:10px;color:var(--gold);margin-top:4px;line-height:1.5;display:none"></div>
         <div id="sp-active-effects" style="margin-top:8px;display:none"></div>
 
         <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
@@ -6753,6 +6760,35 @@ function startCatalogFallbackPolling() {
   _catalogFallbackPollTimer = setInterval(() => { loadDMItemOverrides(); }, 60000);
 }
 
+// Fields only the DM panel ever writes, straight to the character's file
+// (campaign assignment, the Hide from Login / Party View ticks, Quick Play,
+// the DM's note). An open sheet never edits these itself, so whenever it
+// learns of a newer copy of its file - a broadcast, the fallback poll, or a
+// save conflict - the file's value always wins. Without this, the open
+// sheet's next save (there is one every 60s) wrote its own stale copy back
+// and silently undid the DM's change.
+const DM_OWNED_FIELDS = ['_campaign', 'hideFromSelector', 'hideFromPartyView', 'quickPlay', '_dmNote'];
+function adoptDmOwnedFields(fresh) {
+  if (!currentChar || !fresh) return [];
+  const changed = [];
+  DM_OWNED_FIELDS.forEach(f => {
+    const has = Object.prototype.hasOwnProperty.call(fresh, f);
+    if (JSON.stringify(has ? fresh[f] : undefined) === JSON.stringify(currentChar[f])) return;
+    if (has) currentChar[f] = fresh[f]; else delete currentChar[f];
+    changed.push(f);
+  });
+  if (changed.includes('quickPlay') && typeof applyQuickPlayTab === 'function') { try { applyQuickPlayTab(false); } catch (e) {} }
+  return changed;
+}
+window.adoptDmOwnedFields = adoptDmOwnedFields;
+// After a DM-panel write to a character file: if that same character is the
+// one open in this window, keep the in-memory copy and its SHA in step.
+function syncOpenCharAfterDmWrite(id, fields, putResult) {
+  if (!currentChar || currentChar.id !== id) return;
+  Object.entries(fields || {}).forEach(([k, v]) => { if (v === undefined) delete currentChar[k]; else currentChar[k] = v; });
+  if (putResult?.content?.sha) currentCharSHA = putResult.content.sha;
+}
+
 let _remoteUpdateInFlight = false;
 async function handleRemoteCharUpdate(field, notify) {
   if (!currentChar?.id || _remoteUpdateInFlight) return;
@@ -6768,6 +6804,11 @@ async function handleRemoteCharUpdate(field, notify) {
     // toasting every 20s for no reason. A real broadcast always implies
     // something changed, so this only meaningfully gates the polling path.
     if (!shaChanged) { console.log('[realtime] no change since last sync, skipping'); return; }
+
+    // The new SHA has just been adopted above, so the next save from this
+    // window will overwrite the file without any conflict - DM-owned
+    // fields must be taken across now or that save would erase them.
+    adoptDmOwnedFields(fresh);
 
     // Broadened beyond just magicItems/customResources - a plain-equipment
     // gift (confirmGiveItem's source:'equipment' path) or a DM grant of a
@@ -8799,7 +8840,8 @@ async function dmToggleCharVisibility(id, field, checked) {
   try {
     const { content: c, sha } = await GH.getFile(`${id}.json`);
     c[field] = checked;
-    await GH.putFile(`${id}.json`, c, sha);
+    const _putRes = await GH.putFile(`${id}.json`, c, sha);
+    syncOpenCharAfterDmWrite(id, { [field]: checked }, _putRes);
     broadcastCharUpdate(id, field);
     const cached = _partyCharCache[id];
     if (cached) cached[field] = checked;
@@ -8815,7 +8857,8 @@ async function dmToggleQuickPlay(id, checked) {
   try {
     const { content: c, sha } = await GH.getFile(`${id}.json`);
     c.quickPlay = !!checked;
-    await GH.putFile(`${id}.json`, c, sha);
+    const _putRes = await GH.putFile(`${id}.json`, c, sha);
+    syncOpenCharAfterDmWrite(id, { quickPlay: !!checked }, _putRes);
     broadcastCharUpdate(id, 'quickPlay');
     const cached = _partyCharCache[id];
     if (cached) cached.quickPlay = !!checked;
@@ -9525,7 +9568,9 @@ async function dmSetCharCampaign(charId, campaignId) {
     const { content: c, sha } = await GH.getFile(charId + '.json');
     if (campaignId) c._campaign = campaignId;
     else delete c._campaign;
-    await GH.putFile(charId + '.json', c, sha);
+    const _putRes = await GH.putFile(charId + '.json', c, sha);
+    syncOpenCharAfterDmWrite(charId, { _campaign: campaignId || undefined }, _putRes);
+    broadcastCharUpdate(charId, 'campaign');
     // Update cache
     const cached = _allCharFiles.find(f => f.id === charId);
     if (cached) { if (campaignId) cached.char._campaign = campaignId; else delete cached.char._campaign; }
@@ -10291,7 +10336,8 @@ function buildSpellDetailCastContext(sp, row) {
   const isFeatSpell = row?.pipType === 'feat-spell' && sp.level > 0;
   if (isFeatSpell) {
     const lv = getFeatSpellFreeCastLevel(row, sp);
-    sources.push({ id: 'feat', label: `${row.label || 'Feat'} (free cast)`, levels: [lv], defaultLevel: lv });
+    const _fsRule = typeof getFeatSpellGrantRule === 'function' ? getFeatSpellGrantRule({ key: sp.key, featKey: row.featKey, label: row.label }) : null;
+    sources.push({ id: 'feat', label: `${row.label || 'Feat'} (${_fsRule?.costLabel || 'free cast'})`, levels: [lv], defaultLevel: lv });
   }
   const _slots = typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(currentChar) : null;
   const _hasSlotFor = !!(_slots && ((_slots.levels || []).some(l => l.max && l.level >= sp.level) || (_slots.warlock?.max && _slots.warlock.slotLevel >= sp.level)));
@@ -13575,6 +13621,8 @@ async function saveChar() {
           currentChar.conditions = fresh.content.conditions;
           mergedConditions = true;
         }
+        // DM-owned fields (campaign, visibility ticks, Quick Play, DM note)
+        adoptDmOwnedFields(fresh.content);
         const result = await GH.putFile(`${currentChar.id}.json`, currentChar, fresh.sha);
         currentCharSHA = result.content.sha;
         setSyncStatus('ok', '✓ Saved');
@@ -17772,6 +17820,17 @@ const FEAT_EXTRA_CHOICES= {
   // grants Battle Familiar using the SAME ability chosen here (no separate
   // ability picker of its own - see inheritAbilityFrom).
   "familiar friend":     { "type": "fixed_spell", "spellKey": "find_familiar",  "abilityPool": ["int","wis","cha"] },
+  // Path of the Death Knight / Path of the Lich (XUA26VO): each of these
+  // always-prepares one named spell. Death Knight spells use Charisma and
+  // are cast by spending Death Points; the two Lich feats let the player
+  // choose Int/Wis/Cha. Mechanics live in SPELL_FEATS (same keys).
+  "death knight initiate": { "type": "fixed_spell", "spellKey": "wrathful_smite", "note": "Spellcasting ability: Charisma. Death Points are tracked on the Resource tracker." },
+  "dread authority":       { "type": "fixed_spell", "spellKey": "command",        "note": "Spellcasting ability: Charisma. Death Points are tracked on the Resource tracker." },
+  "harbinger of doom":     { "type": "fixed_spell", "spellKey": "bane",           "note": "Spellcasting ability: Charisma. Death Points are tracked on the Resource tracker." },
+  "deathly presence":      { "type": "fixed_spell", "spellKey": "fear",           "note": "Spellcasting ability: Charisma. Death Points are tracked on the Resource tracker." },
+  "unholy steed":          { "type": "fixed_spell", "spellKey": "find_steed",     "note": "Spellcasting ability: Charisma. Death Points are tracked on the Resource tracker." },
+  "lich ascension":        { "type": "fixed_spell", "spellKey": "fear",        "abilityPool": ["int","wis","cha"], "note": "Free casts are tracked on the Resource tracker and follow the ability chosen here." },
+  "undead grasp":          { "type": "fixed_spell", "spellKey": "chill_touch", "abilityPool": ["int","wis","cha"], "note": "If you already know Chill Touch, the replacement cantrip of your choice is not added automatically." },
   "warlike familiar":    { "type": "fixed_spell", "spellKey": "battle_familiar", "inheritAbilityFrom": "familiar friend" },
   // Spellfire Spark: the "cast Sacred Flame as a Bonus Action, Proficiency
   // Bonus times per Long Rest" resource counter already existed in
@@ -18048,7 +18107,9 @@ const RACE_SKILL_POOLS  = {
   "human": {"pool": "any", "count": 1, "name": "Human (PHB24)"},
   "half_elf": {"pool": "any", "count": 2, "name": "Half-Elf (EFotA)"},
   "aasimar": {"pool": [], "fixed": ["Insight", "Religion"], "count": 0, "name": "Aasimar (PHB24)"},
-  "orc": {"pool": [], "fixed": ["Intimidation"], "count": 0, "name": "Orc (PHB24)"}
+  "orc": {"pool": [], "fixed": ["Intimidation"], "count": 0, "name": "Orc (PHB24)"},
+  "lupin": {"pool": ["Perception", "Stealth", "Survival"], "count": 1, "name": "Lupin (RtHW)"},
+  "reborn": {"pool": "any", "count": 1, "name": "Reborn (RtHW)"}
 };
 
 
@@ -19215,6 +19276,10 @@ const RACIAL_RESOURCES                = {
     }
   ],
   "gnome": [{"id":"speak_with_animals_racial","name":"Speak with Animals","_spellKey":"speak_with_animals","recovery":"long","minLevel":1,"maxByLevel":[0,1,1,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],"desc":"Cast Speak with Animals without a spell slot (PB uses per Long Rest)."}]
+, "dhampir": [{"id": "dhampir_vampiric_bite", "name": "Vampiric Bite (Empower)", "recovery": "long", "maxByLevel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "profBonus": true, "desc": "You can empower yourself with this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}]
+, "hexblood": [{"id": "hexblood_eerie_token", "name": "Eerie Token", "recovery": "long", "maxByLevel": [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "Once you create a token using this feature, you can't do so again until you finish a Long Rest."}, {"id": "hexblood_disguise_self", "name": "Disguise Self", "_spellKey": "disguise_self", "recovery": "long", "minLevel": 1, "maxByLevel": [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest."}, {"id": "hexblood_hex", "name": "Hex", "_spellKey": "hex", "recovery": "long", "minLevel": 1, "maxByLevel": [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest."}]
+, "lupin": [{"id": "lupin_howl", "name": "Howl", "recovery": "long", "maxByLevel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "profBonus": true, "desc": "You can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}]
+, "reborn": [{"id": "reborn_past_life", "name": "Knowledge from a Past Life", "recovery": "long", "maxByLevel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "profBonus": true, "desc": "You can do this a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."}]
 , "duskling": [{"id": "inner_magic_switch", "name": "Inner Magic (Switch Benefit)", "recovery": "long", "maxByLevel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "profBonus": true, "desc": "As a Bonus Action, switch your Inner Magic benefit (Ardor, Mobility, or Vigor). Uses = Proficiency Bonus per Long Rest."}]};
 
 // ═══════════════════════════════════════════════════════════
@@ -19832,17 +19897,17 @@ const PHB_FEATS = {
   "potent_dragonmark": {"name":"Potent Dragonmark","type":"dragonmark","prereq":"Character Level 4+, Any Dragonmark Feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase the spellcasting ability score used by your Dragonmark feat by 1, to a maximum of 20. | Dragonmark Preparation. You always have the spells on your Spells of the Mark list (if any) prepared. | Dragonmark Spellcasting. You have one extra spell slot to cast the spells granted by your Dragonmark feat. The spell slot's level is half your level (round up), to a maximum of level 5. You regain the expended slot when you finish a Short or Long Rest. You can use this spell slot to cast only a spell you have prepared because of your Dragonmark feat or the Dragonmark Preparation benefit of this feat.","asi":{},"skills":[],"source":"EFotA"},
   "boon_of_siberys": {"name":"Boon of Siberys","type":"epic","prereq":"Eberron Campaign Setting, Level 19+","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. | Aberrant Magic. Choose a level 8 or lower spell from the Sorcerer spell list or a spell from the Siberys Dragonmark Spells table (the table includes dragonmark suggestions if you'd like to associate a spell with one of the marks). You always have that spell prepared. You can cast it once without a spell slot or spell components, and you regain the ability to cast it in that way when you finish a Short or Long Rest. You can also cast this spell using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you gain this feat). | Siberys Dragonmark Spells Spell\tSuggested Dragonmark Animal Shapes\tHandling Control Weather\tStorm Demiplane\tMaking Heroes' Feast\tHospitality Maze\tWarding Mind Blank\tSentinel Plane Shift\tPassage Project Image\tShadow Regenerate\tHealing Symbol\tScribing Teleport\tFinding True Seeing\tDetection Boon of Skill PHB'24 p211 Epic Boon Feat (Prerequisite: Level 19+) You gain the following benefits. | Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. | All-Around Adept. You gain proficiency in all skills. | Expertise. Choose one skill in which you lack Expertise. You gain Expertise in that skill.","asi":{},"skills":[],"source":"EFotA"}
 ,
-  "death_knight_initiate": {"name":"Death Knight Initiate","type":"path","prereq":"Level 4 or higher and the Weapon Mastery feature","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength or Charisma by 1, to a maximum of 20. | Death Points. Your dedication to the path of the Death Knight gives you access to profane powers of undeath. Your ability to use such powers is represented by Death Points. You have a number of Death Points equal to your Proficiency Bonus. You regain all expended Death Points when you finish a Long Rest. | You can expend Death Points to use certain Path of the Death Knight benefits. This feat gives you one such benefit: Dread Strike. | Dread Strike. You always have the Wrathful Smite spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. When you expend Death Points to cast Wrathful Smite, the target has Disadvantage on Wisdom saving throws to avoid or end the spell's effect. You can also cast the spell using any spell slots you have.","asi":{},"skills":[],"source":"UA26V"},
-  "dread_authority": {"name":"Dread Authority","type":"path","prereq":"Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Constitution or Charisma by 1, to a maximum of 20. | Dread Command. You always have the Command spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. You can also cast the spell using any spell slots you have. When you expend Death Points to cast Command, Undead targeted by it have Disadvantage on the saving throw against the spell.","asi":{},"skills":[],"source":"UA26V"},
-  "harbinger_of_doom": {"name":"Harbinger of Doom","type":"path","prereq":"Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength, Constitution, or Charisma by 1, to a maximum of 20. | Ill Omen. You always have the Bane spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. You can also cast the spell using any spell slots you have. When you expend Death Points to cast Bane, affected targets subtract 1d6 from attack rolls and saving throws instead of 1d4.","asi":{},"skills":[],"source":"UA26V"},
-  "deathly_presence": {"name":"Deathly Presence","type":"path","prereq":"Level 8 or higher and the Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength, Constitution, or Charisma by 1, to a maximum of 20. | Awful Presence. You always have the Fear spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. You can also cast the spell using any spell slots you have. When you expend Death Points to cast Fear, you deal 7 (2d6) Psychic damage to each creature that fails its saving throw against the spell, in addition to the spell's normal effects.","asi":{},"skills":[],"source":"UA26V"},
-  "unholy_steed": {"name":"Unholy Steed","type":"path","prereq":"Level 8 or higher and the Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength or Constitution by 1, to a maximum of 20. | Spectral Steed. You always have the Find Steed spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. When you expend Death Points to cast Find Steed, the summoned steed is a Fiend, and targets you choose have Disadvantage on the Wisdom saving throw against its Fell Glare. You can also cast the spell using any spell slots you have.","asi":{},"skills":[],"source":"UA26V"},
-  "death_knight_ascension": {"name":"Death Knight Ascension","type":"path","prereq":"Level 12 or higher and two Path of the Death Knight feats","minLevel":null,"desc":"Your path to becoming a death knight is complete. You gain the following benefits. | Ability Score Increase. Increase your Strength or Charisma by 1, to a maximum of 20. | Undead. Your creature type is Undead. | Unholy Anatomy. You have Resistance to Necrotic and Poison damage. You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. | Hellfire Orb. As a Magic action, you can expend 1 to 5 Death Points to throw an orb of pure hellfire at a point you can see within 120 feet. Each creature in a 20-foot-radius Sphere centered on the chosen point makes a Dexterity saving throw (DC 8 plus your Charisma modifier and Proficiency Bonus). On a failed save, a target takes 2d6 Fire damage and 2d6 Necrotic damage per Death Point expended. On a successful save, the target takes half as much damage.","asi":{},"skills":[],"source":"UA26V"},
-  "lich_initiate": {"name":"Lich Initiate","type":"path","prereq":"Level 4 or higher and the Spellcasting or Pact Magic feature","minLevel":null,"desc":"You take the first steps toward lichdom, which involve creating your spirit jar, a magical vessel that anchors your soul to the world of the living in the event of your body's destruction. | You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Creating Your Spirit Jar. Choose a Tiny object of great significance to you. Roll on or choose from the Spirit Jars table to inspire this object. You spend a Long Rest anchoring your soul to this object, allowing you to consume the souls of the living to bolster your own power. You can have only one spirit jar at a time. If you create a second spirit jar, the old one is destroyed. | Spirit Jars (1d6) - 1: An acorn from a forest destroyed long ago. 2: A love letter from a deceased paramour. 3: The inkwell that you used to scribe your first spell or prayer. 4: The defaced holy symbol of a god you've denounced. 5: A bell whose toll becomes lower with each soul you collect. 6: A desiccated body part\u2014such as an eye, finger, or horn\u2014that was once part of you or someone you knew. | Spirit Jar Destruction. Your spirit jar's Armor Class equals your spell save DC, and it has a number of Hit Points equal to your spellcasting ability modifier plus your character level. If your spirit jar is destroyed, you gain 2 Exhaustion levels, and you can't use the Soul Siphon ability until you create a new one. | Soul Siphon. When you reduce a Humanoid enemy to 0 Hit Points, you can consume its soul and gain a boost of arcane energy (no action required). On your next turn, the first creature you hit with an attack takes extra Necrotic damage equal to 1d6 plus your spellcasting ability modifier. You also gain this benefit if someone else reduces a Humanoid enemy within 10 feet of you to 0 Hit Points. A soul consumed in this way can be restored only by a True Resurrection or Wish spell.","asi":{},"skills":[],"source":"UA26V"},
-  "arcane_restoration": {"name":"Arcane Restoration","type":"path","prereq":"Lich Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Essence Rejuvenation. When you use Soul Siphon to consume a soul, you can choose one or more expended spell slots to recover. The spell slots can have a combined level equal to no more than 4. Once you use this feature, you can't use it again until you finish a Short or Long Rest.","asi":{},"skills":[],"source":"UA26V"},
-  "transfer_life": {"name":"Transfer Life","type":"path","prereq":"Lich Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Soul Transference. When you use Soul Siphon to consume a soul, you can choose a creature within 60 feet of yourself to gain Temporary Hit Points equal to your Proficiency Bonus plus your spellcasting ability modifier (minimum of 1 Temporary Hit Point).","asi":{},"skills":[],"source":"UA26V"},
-  "undead_grasp": {"name":"Undead Grasp","type":"path","prereq":"Lich Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Paralyzing Touch. You know the Chill Touch cantrip. If you already know it, you learn another cantrip of your choice. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | When you deal damage with Chill Touch, you can expend a level 1+ spell slot to attempt to paralyze the target. The target takes an extra 1d10 Necrotic damage per level of the spell slot expended and must succeed on a Constitution saving throw against your spell save DC or have the Paralyzed condition until the start of your next turn.","asi":{},"skills":[],"source":"UA26V"},
-  "lich_ascension": {"name":"Lich Ascension","type":"path","prereq":"Level 12 or higher and at least two Path of the Lich feats","minLevel":null,"desc":"Your path to lichdom is complete. You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Undead. Your creature type is Undead. | Unholy Anatomy. You have Resistance to Necrotic and Poison damage. You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. | Frightening Gaze. You learn the Fear spell if you don't already know it, and you always have it prepared. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast the spell without expending a spell slot a number of times equal to your spellcasting ability modifier (minimum of once), and you regain all expended uses when you finish a Long Rest. | Rejuvenation. If you die, you re-form in 1d10 days if you have a spirit jar and aren't revived before then. You gain a new body, appearing with all your Hit Points in the nearest unoccupied space within 5 feet of your spirit jar.","asi":{},"skills":[],"source":"UA26V"},
+  "death_knight_initiate": {"name":"Death Knight Initiate","type":"path","prereq":"Level 4 or higher and the Weapon Mastery feature","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength or Charisma by 1, to a maximum of 20. | Death Points. Your dedication to the path of the Death Knight gives you access to profane powers of undeath. Your ability to use such powers is represented by Death Points. You have a number of Death Points equal to your Proficiency Bonus. You regain all expended Death Points when you finish a Long Rest. | You can expend Death Points to use certain Path of the Death Knight benefits. This feat gives you one such benefit: Dread Strike. | Dread Strike. You always have the Wrathful Smite spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. When you expend Death Points to cast Wrathful Smite, the target has Disadvantage on Wisdom saving throws to avoid or end the spell's effect. You can also cast the spell using any spell slots you have.","asi":{},"skills":[],"source":"XUA26VO","page":"9"},
+  "dread_authority": {"name":"Dread Authority","type":"path","prereq":"Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Constitution or Charisma by 1, to a maximum of 20. | Dread Command. You always have the Command spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. You can also cast the spell using any spell slots you have. When you expend Death Points to cast Command, Undead targeted by it have Disadvantage on the saving throw against the spell.","asi":{},"skills":[],"source":"XUA26VO","page":"9"},
+  "harbinger_of_doom": {"name":"Harbinger of Doom","type":"path","prereq":"Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength, Constitution, or Charisma by 1, to a maximum of 20. | Ill Omen. You always have the Bane spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. You can also cast the spell using any spell slots you have. When you expend Death Points to cast Bane, affected targets subtract 1d6 from attack rolls and saving throws instead of 1d4.","asi":{},"skills":[],"source":"XUA26VO","page":"10"},
+  "deathly_presence": {"name":"Deathly Presence","type":"path","prereq":"Level 8 or higher and the Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength, Constitution, or Charisma by 1, to a maximum of 20. | Awful Presence. You always have the Fear spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. You can also cast the spell using any spell slots you have. When you expend Death Points to cast Fear, you deal 7 (2d6) Psychic damage to each creature that fails its saving throw against the spell, in addition to the spell's normal effects.","asi":{},"skills":[],"source":"XUA26VO","page":"10"},
+  "unholy_steed": {"name":"Unholy Steed","type":"path","prereq":"Level 8 or higher and the Death Knight Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Strength or Constitution by 1, to a maximum of 20. | Spectral Steed. You always have the Find Steed spell prepared. Charisma is your spellcasting ability for this spell. You can cast it without expending a spell slot by expending 1 Death Point. When you expend Death Points to cast Find Steed, the summoned steed is a Fiend, and targets you choose have Disadvantage on the Wisdom saving throw against its Fell Glare. You can also cast the spell using any spell slots you have.","asi":{},"skills":[],"source":"XUA26VO","page":"10"},
+  "death_knight_ascension": {"name":"Death Knight Ascension","type":"path","prereq":"Level 12 or higher and two Path of the Death Knight feats","minLevel":null,"desc":"Your path to becoming a death knight is complete. You gain the following benefits. | Ability Score Increase. Increase your Strength or Charisma by 1, to a maximum of 20. | Undead. Your creature type is Undead. | Unholy Anatomy. You have Resistance to Necrotic and Poison damage. You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. | Hellfire Orb. As a Magic action, you can expend 1 to 5 Death Points to throw an orb of pure hellfire at a point you can see within 120 feet. Each creature in a 20-foot-radius Sphere centered on the chosen point makes a Dexterity saving throw (DC 8 plus your Charisma modifier and Proficiency Bonus). On a failed save, a target takes 2d6 Fire damage and 2d6 Necrotic damage per Death Point expended. On a successful save, the target takes half as much damage.","asi":{},"skills":[],"source":"XUA26VO","page":"10"},
+  "lich_initiate": {"name":"Lich Initiate","type":"path","prereq":"Level 4 or higher and the Spellcasting or Pact Magic feature","minLevel":null,"desc":"You take the first steps toward lichdom, which involve creating your spirit jar, a magical vessel that anchors your soul to the world of the living in the event of your body's destruction. | You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Creating Your Spirit Jar. Choose a Tiny object of great significance to you. Roll on or choose from the Spirit Jars table to inspire this object. You spend a Long Rest anchoring your soul to this object, allowing you to consume the souls of the living to bolster your own power. You can have only one spirit jar at a time. If you create a second spirit jar, the old one is destroyed. | Spirit Jars (1d6) - 1: An acorn from a forest destroyed long ago. 2: A love letter from a deceased paramour. 3: The inkwell that you used to scribe your first spell or prayer. 4: The defaced holy symbol of a god you've denounced. 5: A bell whose toll becomes lower with each soul you collect. 6: A desiccated body part\u2014such as an eye, finger, or horn\u2014that was once part of you or someone you knew. | Spirit Jar Destruction. Your spirit jar's Armor Class equals your spell save DC, and it has a number of Hit Points equal to your spellcasting ability modifier plus your character level. If your spirit jar is destroyed, you gain 2 Exhaustion levels, and you can't use the Soul Siphon ability until you create a new one. | Soul Siphon. When you reduce a Humanoid enemy to 0 Hit Points, you can consume its soul and gain a boost of arcane energy (no action required). On your next turn, the first creature you hit with an attack takes extra Necrotic damage equal to 1d6 plus your spellcasting ability modifier. You also gain this benefit if someone else reduces a Humanoid enemy within 10 feet of you to 0 Hit Points. A soul consumed in this way can be restored only by a True Resurrection or Wish spell.","asi":{},"skills":[],"source":"XUA26VO","page":"11"},
+  "arcane_restoration": {"name":"Arcane Restoration","type":"path","prereq":"Lich Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Essence Rejuvenation. When you use Soul Siphon to consume a soul, you can choose one or more expended spell slots to recover. The spell slots can have a combined level equal to no more than 4. Once you use this feature, you can't use it again until you finish a Short or Long Rest.","asi":{},"skills":[],"source":"XUA26VO","page":"12","usages":1,"recovery":"short rest"},
+  "transfer_life": {"name":"Transfer Life","type":"path","prereq":"Lich Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Soul Transference. When you use Soul Siphon to consume a soul, you can choose a creature within 60 feet of yourself to gain Temporary Hit Points equal to your Proficiency Bonus plus your spellcasting ability modifier (minimum of 1 Temporary Hit Point).","asi":{},"skills":[],"source":"XUA26VO","page":"12"},
+  "undead_grasp": {"name":"Undead Grasp","type":"path","prereq":"Lich Initiate feat","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Paralyzing Touch. You know the Chill Touch cantrip. If you already know it, you learn another cantrip of your choice. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | When you deal damage with Chill Touch, you can expend a level 1+ spell slot to attempt to paralyze the target. The target takes an extra 1d10 Necrotic damage per level of the spell slot expended and must succeed on a Constitution saving throw against your spell save DC or have the Paralyzed condition until the start of your next turn.","asi":{},"skills":[],"source":"XUA26VO","page":"12"},
+  "lich_ascension": {"name":"Lich Ascension","type":"path","prereq":"Level 12 or higher and at least two Path of the Lich feats","minLevel":null,"desc":"Your path to lichdom is complete. You gain the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Undead. Your creature type is Undead. | Unholy Anatomy. You have Resistance to Necrotic and Poison damage. You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. | Frightening Gaze. You learn the Fear spell if you don't already know it, and you always have it prepared. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast the spell without expending a spell slot a number of times equal to your spellcasting ability modifier (minimum of once), and you regain all expended uses when you finish a Long Rest. | Rejuvenation. If you die, you re-form in 1d10 days if you have a spirit jar and aren't revived before then. You gain a new body, appearing with all your Hit Points in the nearest unoccupied space within 5 feet of your spirit jar.","asi":{},"skills":[],"source":"XUA26VO","page":"12"},
   "atmokinesis": {"name":"Atmokinesis","type":"general","prereq":"Can't Have Another Wild Talent Feat","minLevel":null,"desc":"You gain the following benefits. | Lightning Jolt. Once per turn when you cast a spell or hit with an attack roll and deal Bludgeoning, Piercing, Slashing, or Psychic damage, you can change the damage type to Lightning damage. | Psionic Talent. You know the Shocking Grasp cantrip. You also always have the Fog Cloud spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast it using any spell slots you have of the appropriate level. When you cast these spells, they require no Verbal or Material components, and Intelligence, Wisdom, or Charisma is your spellcasting ability for them (choose when you select this feat). When you reach character level 3, you also always have the Gust of Wind spell prepared and can cast it the same way.","asi":{},"skills":[],"source":"XUA25P"},
   "biokinesis": {"name":"Biokinesis","type":"general","prereq":"Can't Have Another Wild Talent Feat","minLevel":null,"desc":"You gain the following benefits. | Bend Life Energy. When a spell you cast restores Hit Points to a creature, you can roll 1d4 and add the number rolled to the total Hit Points restored. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. | Psionic Talent. You know the Spare the Dying cantrip. You also always have the Healing Word spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast it using any spell slots you have of the appropriate level. When you cast these spells, they require no Verbal or Material components, and Intelligence, Wisdom, or Charisma is your spellcasting ability for them (choose when you select this feat). When you reach character level 3, you also always have the Arcane Vigor spell prepared and can cast it the same way.","asi":{},"skills":[],"source":"XUA25P"},
   "clairsentience": {"name":"Clairsentience","type":"general","prereq":"Can't Have Another Wild Talent Feat","minLevel":null,"desc":"You gain the following benefits. | Minor Foreknowledge. When you take the Search action, you can give yourself Advantage on any ability check made as part of that action. You can use this benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. | Psionic Talent. You know the Guidance cantrip. You also always have the Detect Evil and Good spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast it using any spell slots you have of the appropriate level. When you cast these spells, they require no Verbal or Material components, and Intelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose when you select this feat). When you reach character level 3, you also always have the See Invisibility spell prepared and can cast it the same way.","asi":{},"skills":[],"source":"XUA25P"},
@@ -20538,8 +20603,15 @@ const PHB_RACES = {
     "dmgres": ["Poison"],"name": "Yuan-Ti (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 CHA, +1 INT", "traits": "Speed 30 ft \u00b7 Darkvision 60 ft", "features": [{"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Magic Resistance", "level": 1, "desc": "Advantage on saves vs. spells and magical effects."}, {"name": "Poison Immunity", "level": 1, "desc": "Immunity to Poison damage and the Poisoned condition."}, {"name": "Serpentine Spellcasting", "level": 1, "desc": "Know Poison Spray cantrip. At 3rd level: Animal Friendship (only on snakes and reptiles) 1/Long Rest. At 5th level: Suggestion 1/Long Rest. CHA is spellcasting ability."}], "subraces": {}, "darkvision": 60, "flySpeed": 0},
   "astral_elf": {"name": "Astral elf (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 and +1 to two different abilities, or +1 to three", "traits": "Speed 30 ft \u00b7 Darkvision 60 ft", "features": [{"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Fey Ancestry", "level": 1, "desc": "Advantage on saves vs. Charmed, can't be magically put to sleep."}, {"name": "Astral Fire", "level": 1, "desc": "Know one cantrip: Dancing Lights, Light, or Sacred Flame. INT, WIS, or CHA is spellcasting ability (choose at character creation)."}, {"name": "Radiant Soul", "level": 1, "desc": "Proficiency in Perception. Once per Long Rest when you fail an ability check, you can treat it as a success."}, {"name": "Trance", "level": 1, "desc": "4-hour meditative trance instead of sleep."}, {"name": "Starlight Step", "level": 1, "desc": "As a Bonus Action, teleport up to 30 ft to an unoccupied space you can see. PB times per Long Rest."}], "subraces": {}, "darkvision": 60, "flySpeed": 0},
   "thri_kreen": {"name": "Thri-kreen (MPMM)", "source": "2014", "size": "Medium", "speed": 30, "scorestxt": "+2 and +1 to two different abilities, or +1 to three", "traits": "Speed 30 ft \u00b7 Size Small or Medium", "features": [{"name": "Chameleon Carapace", "level": 1, "desc": "While not wearing armor, your AC = 13 + DEX. Bonus Action: change color to match surroundings \u2014 Advantage on Stealth checks until you move or take an action."}, {"name": "Darkvision", "level": 1, "desc": "Darkvision 60 ft."}, {"name": "Multiple Arms", "level": 1, "desc": "Two extra arms. They can't wield weapons but can hold items, climb, and grapple. You can't use them to perform tasks that require fine motor control."}, {"name": "Secondary Arms", "level": 1, "desc": "With your secondary arms you can use an off-hand weapon, hold a shield, or stow/retrieve an item as a Bonus Action."}, {"name": "Thri-kreen Telepathy", "level": 1, "desc": "Send wordless messages to creatures within 120 ft. Only creatures with telepathy can respond."}], "subraces": {}, "naturalArmor": 13, "naturalArmorType": "dex", "darkvision": 60, "flySpeed": 0},
-  "hexblood": {"name": "Hexblood (RtHW)", "source": "RtHW", "type": "Fey", "size": "Medium or Small", "speed": 30, "vision": "Darkvision 60 ft", "darkvision": 60, "features": [{"name": "Eerie Token", "level": 1, "desc": "Bonus Action 1/Long Rest: harmlessly pull off a piece of yourself to make a token. While it exists, use a Magic action to send a telepathic message (\u226425 words) to its holder within 10 miles, or to see/hear through it for up to 1 minute (destroys token on end)."}, {"name": "Hex Magic", "level": 1, "desc": "Disguise Self and Hex are always prepared. Cast each once per Long Rest without a spell slot, or by using spell slots. Spellcasting ability: INT, WIS, or CHA (choose at character creation)."}]},
-  "lupin": {"name": "Lupin (RtHW)", "source": "RtHW", "type": "Humanoid", "size": "Medium or Small", "speed": 30, "vision": "Darkvision 60 ft", "darkvision": 60, "features": [{"name": "Feral Pounce", "level": 1, "desc": "My Unarmed Strikes deal Slashing damage instead of Bludgeoning. Once per turn when I hit with an Unarmed Strike during the Attack action, I can use both the Damage and the Shove options."}, {"name": "Howl", "level": 1, "desc": "As a Bonus Action (PB/Long Rest), chosen creatures within 15 ft make a WIS save (DC 8 + CON + PB). On failure, they have Disadvantage on attack rolls and saving throws until the start of my next turn."}, {"name": "Werewolf Instincts", "level": 1, "desc": "I gain proficiency in one of: Perception, Stealth, or Survival."}]}, "duskling": {"name": "Duskling", "speed": 30, "size": "Medium", "darkvision": 60, "dmgres": [], "languages": "Common + 1 of your choice", "trait": "Duskling\n\u2022 Creature Type: Fey.\n\u2022 Darkvision: I have Darkvision with a range of 60 feet.\n\u2022 Enhanced Jump: Add 2 feet to the distance of a running High Jump and 10 feet to the distance of a running Long Jump.\n\u2022 Inner Magic: When I finish a Long Rest, I choose one of three benefits (Ardor, Mobility, or Vigor), which lasts until I choose a different one. As a Bonus Action I can switch benefits, up to a number of times equal to my Proficiency Bonus, regaining all uses on a Long Rest. (See Notes Page)", "features": [{"name": "Fey", "level": 1, "desc": "Your creature type is Fey, not Humanoid.", "usages": null, "recovery": null}, {"name": "Darkvision", "level": 1, "desc": "You have Darkvision with a range of 60 feet.", "usages": null, "recovery": null}, {"name": "Enhanced Jump", "level": 1, "desc": "Add 2 feet to the distance you can leap with a running High Jump and 10 feet to the distance you can leap with a running Long Jump.", "usages": null, "recovery": null}, {"name": "Inner Magic", "level": 1, "desc": "You have magic inside you that you can manipulate to enhance your physical or mental attributes. When you finish a Long Rest, choose one of the following benefits, which lasts until you choose a different one: Ardor (Advantage on Charisma checks and on saves to avoid or end the Frightened condition), Mobility (Speed +10 ft, and climbing/swimming cost no extra movement), or Vigor (gain Temporary Hit Points equal to your Proficiency Bonus, and Advantage on Strength (Athletics) and Dexterity (Acrobatics) checks). As a Bonus Action, you can switch to a different benefit, a number of times equal to your Proficiency Bonus, regaining all expended uses when you finish a Long Rest.", "usages": "prof_bonus", "recovery": "long rest"}], "asiNote": "Free choice: +2/+1 to two different abilities, or +1 to three different abilities."}};
+  "dhampir": {"name": "Dhampir (RtHW)", "source": "RtHW", "page": "28", "type": "Humanoid", "size": "Medium or Small", "speed": 35, "climbEqualsSpeed": true, "vision": "Darkvision 60 ft", "darkvision": 60, "dmgres": ["Necrotic"], "flySpeed": 0, "subraces": {}, "features": [{"name": "Darkvision", "level": 1, "desc": "You have Darkvision with a range of 60 feet.", "usages": null, "recovery": null}, {"name": "Spider Climb", "level": 1, "desc": "You have a Climb Speed equal to your Speed. When you reach character level 3, you can move up, down, and across vertical surfaces and along ceilings while leaving your hands free.", "usages": null, "recovery": null}, {"name": "Trace of Undeath", "level": 1, "desc": "You have Resistance to Necrotic damage.", "usages": null, "recovery": null}, {"name": "Vampiric Bite", "level": 1, "desc": "When you use your Unarmed Strike and deal damage, you can choose to bite with your fangs. You deal Piercing damage equal to 1d4 plus your Constitution modifier instead of the normal damage of an Unarmed Strike.\nIn addition, when you deal this damage to a creature that isn't a Construct or an Undead, you can empower yourself in one of the following ways:\nDrain. You regain Hit Points equal to the Piercing damage dealt.\nStrengthen. You gain a bonus to the next ability check or attack roll you make within the next minute; the bonus is equal to the Piercing damage dealt.\nYou can empower yourself with this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "usages": "prof_bonus", "recovery": "long rest"}]},
+
+  "hexblood": {"name": "Hexblood (RtHW)", "source": "RtHW", "page": "29", "type": "Fey", "size": "Medium or Small", "speed": 30, "vision": "Darkvision 60 ft", "darkvision": 60, "dmgres": [], "flySpeed": 0, "subraces": {}, "spellAbility": "INT", "features": [{"name": "Darkvision", "level": 1, "desc": "You have Darkvision with a range of 60 feet.", "usages": null, "recovery": null}, {"name": "Eerie Token", "level": 1, "desc": "As a Bonus Action, you can create a magical token by harmlessly removing a lock of hair, detaching a nail, or using some other method. While the token exists, you gain the following benefits:\nDistant Message. As a Magic action, you can send a telepathic message of 25 words or fewer to a creature holding or carrying the token, as long as you are within 10 miles of it.\nRemote Viewing. If you are within 10 miles of the token, you can take a Magic action to extend your senses through the token for 1 minute, until you have the Incapacitated condition, or until you end this state (no action required). During this state, you can see and hear from the token as if you were located where it is. When this state ends, the token is harmlessly destroyed.\nUnless the token is destroyed early, it lasts until you finish a Long Rest. Once you create a token using this feature, you can't do so again until you finish a Long Rest.", "usages": 1, "recovery": "long rest"}, {"name": "Hex Magic", "level": 1, "desc": "You always have the Disguise Self and Hex spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select this species).", "usages": null, "recovery": null}]},
+
+  "lupin": {"name": "Lupin (RtHW)", "source": "RtHW", "page": "30", "type": "Humanoid", "size": "Medium or Small", "speed": 30, "vision": "Darkvision 60 ft", "darkvision": 60, "dmgres": [], "flySpeed": 0, "subraces": {}, "features": [{"name": "Darkvision", "level": 1, "desc": "You have Darkvision with a range of 60 feet.", "usages": null, "recovery": null}, {"name": "Feral Pounce", "level": 1, "desc": "Your Unarmed Strikes deal Slashing damage instead of Bludgeoning damage. In addition, when you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Shove options. You can use this benefit only once per turn.", "usages": null, "recovery": null}, {"name": "Howl", "level": 1, "desc": "As a Bonus Action, you let out an unearthly howl. Each creature of your choice within 15 feet of you must succeed on a Wisdom saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus) or have Disadvantage on attack rolls and saving throws until the start of your next turn.\nYou can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "usages": "prof_bonus", "recovery": "long rest"}, {"name": "Werewolf Instincts", "level": 1, "desc": "You have proficiency in the Perception, Stealth, or Survival skill.", "usages": null, "recovery": null}]},
+
+  "reborn": {"name": "Reborn (RtHW)", "source": "RtHW", "page": "31", "type": "Humanoid", "size": "Medium or Small", "speed": 30, "darkvision": 0, "dmgres": [], "flySpeed": 0, "subraces": {}, "dmgresChoice": {"label": "Strange Endurance", "options": ["Cold", "Necrotic", "Poison"]}, "features": [{"name": "Escaped Death", "level": 1, "desc": "You have Advantage on Death Saving Throws.", "usages": null, "recovery": null}, {"name": "Everlasting", "level": 1, "desc": "You don't gain Exhaustion levels from dehydration, malnutrition, or suffocation. You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in an inactive, motionless state, during which you retain consciousness.", "usages": null, "recovery": null}, {"name": "Knowledge from a Past Life", "level": 1, "desc": "You gain proficiency in one skill of your choice.\nIn addition, you can temporarily peer into the past to aid you in the present. When you fail an ability check, you can roll 1d6 and add the number rolled to the d20, potentially turning the failure into a success. You can do this a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.", "usages": "prof_bonus", "recovery": "long rest"}, {"name": "Strange Endurance", "level": 1, "desc": "You have Resistance to one of the following damage types of your choice: Cold, Necrotic, or Poison.", "usages": null, "recovery": null}]},
+
+  "duskling": {"name": "Duskling", "speed": 30, "size": "Medium", "darkvision": 60, "dmgres": [], "languages": "Common + 1 of your choice", "trait": "Duskling\n\u2022 Creature Type: Fey.\n\u2022 Darkvision: I have Darkvision with a range of 60 feet.\n\u2022 Enhanced Jump: Add 2 feet to the distance of a running High Jump and 10 feet to the distance of a running Long Jump.\n\u2022 Inner Magic: When I finish a Long Rest, I choose one of three benefits (Ardor, Mobility, or Vigor), which lasts until I choose a different one. As a Bonus Action I can switch benefits, up to a number of times equal to my Proficiency Bonus, regaining all uses on a Long Rest. (See Notes Page)", "features": [{"name": "Fey", "level": 1, "desc": "Your creature type is Fey, not Humanoid.", "usages": null, "recovery": null}, {"name": "Darkvision", "level": 1, "desc": "You have Darkvision with a range of 60 feet.", "usages": null, "recovery": null}, {"name": "Enhanced Jump", "level": 1, "desc": "Add 2 feet to the distance you can leap with a running High Jump and 10 feet to the distance you can leap with a running Long Jump.", "usages": null, "recovery": null}, {"name": "Inner Magic", "level": 1, "desc": "You have magic inside you that you can manipulate to enhance your physical or mental attributes. When you finish a Long Rest, choose one of the following benefits, which lasts until you choose a different one: Ardor (Advantage on Charisma checks and on saves to avoid or end the Frightened condition), Mobility (Speed +10 ft, and climbing/swimming cost no extra movement), or Vigor (gain Temporary Hit Points equal to your Proficiency Bonus, and Advantage on Strength (Athletics) and Dexterity (Acrobatics) checks). As a Bonus Action, you can switch to a different benefit, a number of times equal to your Proficiency Bonus, regaining all expended uses when you finish a Long Rest.", "usages": "prof_bonus", "recovery": "long rest"}], "asiNote": "Free choice: +2/+1 to two different abilities, or +1 to three different abilities."}};
 
 
 // ═══════════════════════════════════════════════════════════
@@ -25850,7 +25922,78 @@ const SPELL_FEATS = {
   'mark of sentinel':         { cantrips: 0, spells: 0, fixed: ['shield'], onceLR: true },
   'mark of shadow':           { cantrips: 0, spells: 0, fixed: ['minor_illusion', 'invisibility'], onceLR: true },
   'mark of storm':            { cantrips: 0, spells: 0, fixed: ['thunderclap', 'gust_of_wind'], onceLR: true },
+  // Path of the Death Knight (XUA26VO): one always-prepared spell each,
+  // Charisma-based, cast without a slot by spending 1 Death Point - so no
+  // per-spell free-cast counter (costResource), just the shared pool.
+  'death knight initiate':    { cantrips: 0, spells: 0, fixed: ['wrathful_smite'], ability: 'cha', costResource: 'death_points', costLabel: '1 Death Point', pathFeat: true, noPicker: true },
+  'dread authority':          { cantrips: 0, spells: 0, fixed: ['command'],        ability: 'cha', costResource: 'death_points', costLabel: '1 Death Point', pathFeat: true, noPicker: true },
+  'harbinger of doom':        { cantrips: 0, spells: 0, fixed: ['bane'],           ability: 'cha', costResource: 'death_points', costLabel: '1 Death Point', pathFeat: true, noPicker: true },
+  'deathly presence':         { cantrips: 0, spells: 0, fixed: ['fear'],           ability: 'cha', costResource: 'death_points', costLabel: '1 Death Point', pathFeat: true, noPicker: true },
+  'unholy steed':             { cantrips: 0, spells: 0, fixed: ['find_steed'],     ability: 'cha', costResource: 'death_points', costLabel: '1 Death Point', pathFeat: true, noPicker: true },
+  // Path of the Lich (XUA26VO): ability chosen with the feat (Configure).
+  // Lich Ascension's Fear has free casts = that ability's modifier (min 1)
+  // per Long Rest; Undead Grasp's Chill Touch is a cantrip (no counter).
+  'lich ascension':           { cantrips: 0, spells: 0, fixed: ['fear'],        abilityChoice: true, usesAbilityMod: true, pathFeat: true, noPicker: true },
+  'undead grasp':             { cantrips: 0, spells: 0, fixed: ['chill_touch'], abilityChoice: true, pathFeat: true, noPicker: true },
 };
+
+// ── Feat spell rules (SPELL_FEATS flags used by the path feats) ──────────
+// Which SPELL_FEATS rule granted this feat spell (matched through the feat
+// name recorded alongside the grant), or null.
+function getFeatSpellGrantRule(s) {
+  if (!currentChar || !s) return null;
+  const nm = String(currentChar.spells?.featSpellNames?.[s.featKey] || s.label || '').toLowerCase().replace(/\s*\[.*?\]/g,'').trim();
+  const rule = nm ? SPELL_FEATS[nm] : null;
+  if (!rule || !(rule.fixed || []).includes(s.key)) return null;
+  return { ...rule, featKeyName: nm };
+}
+// Spellcasting ability for a feat rule: fixed by the feat, or the player's
+// Configure choice, falling back to the class spellcasting ability.
+function getFeatSpellAbilityFor(rule) {
+  if (!rule) return null;
+  if (rule.ability) return rule.ability;
+  if (rule.abilityChoice) {
+    const dec = Object.values(currentChar?.featSlots || {}).find(d => d?.feat
+      && d.feat.toLowerCase().replace(/\s*\[.*?\]/g,'').trim() === rule.featKeyName && d.featDetail?.spellAbility);
+    if (dec) return dec.featDetail.spellAbility;
+    return (typeof getSpellAbility === 'function' && getSpellAbility()) || null;
+  }
+  return null;
+}
+// Free casts per Long Rest for a feat spell: 0 = no per-spell counter
+// (paid from a shared pool instead), otherwise 1 or the ability modifier.
+function getFeatSpellFreeCastMax(s) {
+  const rule = getFeatSpellGrantRule(s);
+  if (!rule) return 1;
+  if (rule.costResource) return 0;
+  if (rule.usesAbilityMod) {
+    const ab = getFeatSpellAbilityFor(rule);
+    return Math.max(1, ab ? abilityMod(getAbilities()[ab]) : 1);
+  }
+  return 1;
+}
+// DC / attack lines for path-feat spells whose ability differs from the
+// class spellcasting ability shown in the main Spells header.
+function getFeatSpellStatLines(classAbility) {
+  if (!currentChar || typeof getFeatGrantedSpells !== 'function') return [];
+  const byAb = {};
+  getFeatGrantedSpells().forEach(s => {
+    const rule = getFeatSpellGrantRule(s);
+    if (!rule?.pathFeat) return;
+    const ab = getFeatSpellAbilityFor(rule);
+    if (!ab || ab === classAbility) return;
+    (byAb[ab] = byAb[ab] || new Set()).add(s.name);
+  });
+  const prof = getProf(), abs = getAbilities();
+  return Object.entries(byAb).map(([ab, names]) => {
+    const mod = abilityMod(abs[ab]);
+    const atk = prof + mod - (typeof exhaustionD20Penalty === 'function' ? exhaustionD20Penalty() : 0);
+    return `Feat spells (${ab.toUpperCase()}) - ${[...names].join(', ')}: DC ${8 + prof + mod} \u00b7 ${atk >= 0 ? '+' : ''}${atk} to hit`;
+  });
+}
+window.getFeatSpellGrantRule = getFeatSpellGrantRule;
+window.getFeatSpellFreeCastMax = getFeatSpellFreeCastMax;
+window.getFeatSpellStatLines = getFeatSpellStatLines;
 
 // ═══════════════════════════════════════════════════════════
 // DERIVED STAT HELPERS
@@ -28209,10 +28352,16 @@ function calcSpeed() {
   const pantherClimb = (wildHeartAspectLv >= 6 && aspectOfWilds === 'panther') ? final : 0;
   const salmonSwim   = (wildHeartAspectLv >= 6 && aspectOfWilds === 'salmon') ? final : 0;
 
+  // Species Climb Speed equal to Speed (e.g. Dhampir's Spider Climb) -
+  // flagged on the race data as climbEqualsSpeed, computed live from
+  // `final` so it follows anything that changes walking Speed.
+  const _spdRaceData = typeof getRaceData === 'function' ? getRaceData(currentChar.race) : null;
+  const raceClimb = _spdRaceData?.climbEqualsSpeed ? final : 0;
+
   // Build all speed parts
   const parts = [];
   if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: [exLevel > 0 ? `−${penalty} exh` : '', drunkLevel >= 5 ? 'halved - Drunk' : '', unarmoredMovementBonus > 0 ? `+${unarmoredMovementBonus} Unarmored Movement` : '', fastMovementBonus > 0 ? '+10 Fast Movement' : '', rovingBonus > 0 ? '+10 Roving' : ''].filter(Boolean).map(s=>` (${s})`).join('') });
-  if (overrides.climb || superiorStride || rovingActive || glovesClimb || pantherClimb) parts.push({ label: 'Climb',  val: (superiorStride || rovingActive) ? final : (overrides.climb || glovesClimb || pantherClimb),  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : (rovingActive && !overrides.climb ? ' (Roving)' : (glovesClimb && !overrides.climb ? ' (Gloves of Swimming and Climbing)' : (pantherClimb && !overrides.climb ? ' (Panther Aspect)' : ''))) });
+  if (overrides.climb || superiorStride || rovingActive || glovesClimb || pantherClimb || raceClimb) parts.push({ label: 'Climb',  val: (superiorStride || rovingActive) ? final : (overrides.climb || glovesClimb || pantherClimb || raceClimb),  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : (rovingActive && !overrides.climb ? ' (Roving)' : (glovesClimb && !overrides.climb ? ' (Gloves of Swimming and Climbing)' : (pantherClimb && !overrides.climb ? ' (Panther Aspect)' : (raceClimb && !overrides.climb ? ' (Racial)' : '')))) });
   if (overrides.swim  || superiorStride || rovingActive || mantaRaySwim || glovesSwim || salmonSwim) parts.push({ label: 'Swim',   val: (superiorStride || rovingActive) ? final : (overrides.swim || mantaRaySwim || glovesSwim || salmonSwim),   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : (rovingActive && !overrides.swim  ? ' (Roving)' : (overrides.swim ? '' : (mantaRaySwim ? ' (Cloak of the Manta Ray)' : (glovesSwim ? ' (Gloves of Swimming and Climbing)' : (salmonSwim ? ' (Salmon Aspect)' : ''))))) });
   if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource + (canHover ? ' (hover)' : '') });
   if (overrides.burrow)parts.push({ label: 'Burrow', val: overrides.burrow, note: '' });
@@ -32212,6 +32361,15 @@ function renderSpellStats() {
     }
   }
 
+  // Path-feat spells (Death Knight: CHA; Lich: chosen ability) get their own
+  // DC/attack line when that ability isn't the class one shown above.
+  const featNoteEl = document.getElementById('sp-feat-stats-note');
+  if (featNoteEl) {
+    const featLines = typeof getFeatSpellStatLines === 'function' ? getFeatSpellStatLines(ability) : [];
+    featNoteEl.innerHTML = featLines.map(t => t.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))).join('<br>');
+    featNoteEl.style.display = featLines.length ? '' : 'none';
+  }
+
   // Spell count box - "PREPARED" for swap-on-LR, "SPELLS" for swap-on-LU
   ensureSpellData();
   const { max: prepMax, breakdown: prepBreakdown } = getPreparedMax();
@@ -35626,6 +35784,7 @@ function calcWeaponAttack(entry) {
 
   // ── Damage ───────────────────────────────────────────────
   let dmgDie, dmgCount, dmgType, dmgLineBonus = 0, extraDamageLines = [];
+  let unarmedDmgAbility = null;
   if (Array.isArray(entry.damageLines) && entry.damageLines.length) {
     const [first, ...rest] = entry.damageLines;
     if (first && first.count && first.die) {
@@ -35647,9 +35806,13 @@ function calcWeaponAttack(entry) {
     const best = allSources[srcIdx] || allSources[0];
     if (best.flat) {
       // Base unarmed: 1 + str mod (no die) - represent as 0d0 + 1 flat
-      dmgCount = 0; dmgDie = 0; dmgType = 'bludgeoning';
+      dmgCount = 0; dmgDie = 0; dmgType = best.type || 'bludgeoning';
     } else {
       dmgCount = best.count; dmgDie = best.die; dmgType = best.type;
+    }
+    // Source that swaps the damage modifier only (Dhampir Vampiric Bite: CON)
+    if (best.dmgAbility && abs[best.dmgAbility] !== undefined) {
+      unarmedDmgAbility = best.dmgAbility;
     }
     if (best.abilityOverride === 'dex_or_str') abilityKey = abilMod >= abilityMod(abs.dex) ? 'str' : 'dex';
   }
@@ -35672,8 +35835,11 @@ function calcWeaponAttack(entry) {
   // correctly key off the weapon's actual current damage type.
   if (entry.dmgTypeOverride) dmgType = entry.dmgTypeOverride;
 
-  let dmgBonus = entry.offhand ? (abilMod < 0 ? abilMod : 0) : abilMod; // off-hand: no positive mod unless TWF style, but negative mod still applies
-  if (entry.offhand && hasFightingStyle('two-weapon')) dmgBonus = abilMod;
+  // Damage modifier - normally the attack ability's, unless the unarmed
+  // source says otherwise (unarmedDmgAbility, set above).
+  const dmgAbilMod = unarmedDmgAbility ? abilityMod(abs[unarmedDmgAbility]) : abilMod;
+  let dmgBonus = entry.offhand ? (dmgAbilMod < 0 ? dmgAbilMod : 0) : dmgAbilMod; // off-hand: no positive mod unless TWF style, but negative mod still applies
+  if (entry.offhand && hasFightingStyle('two-weapon')) dmgBonus = dmgAbilMod;
   if (!entry.offhand && !isRanged && hasFightingStyle('dueling') && !isHeavy && !isTwoHanded) {
     // Dueling: +2 damage if holding one weapon in one hand (no shield check possible on sheet)
     dmgBonus += 2;
@@ -35763,6 +35929,10 @@ function getUnarmedDamage() {
     'multiverse_satyr':      { count:1, die:4, type:'bludgeoning', name:'Ram' },
     'multiverse_goliath':    { count:1, die:6, type:'bludgeoning', name:'Powerful Strike' },
     'warforged':             { count:1, die:6, type:'bludgeoning', name:'Integrated Weapon' },
+    // Dhampir (RtHW) Vampiric Bite: 1d4 + Constitution modifier Piercing
+    // instead of the normal Unarmed Strike damage. The attack roll is
+    // still a normal Unarmed Strike - only the damage modifier changes.
+    'dhampir':               { count:1, die:4, type:'piercing',    name:'Vampiric Bite', dmgAbility:'con' },
   };
   if (RACIAL_UNARMED[race]) {
     const r = RACIAL_UNARMED[race];
@@ -35778,6 +35948,12 @@ function getUnarmedDamage() {
 
   // 4. Base unarmed (PHB 2024: 1 + STR mod - no die roll)
   results.push({ count:0, die:0, type:'bludgeoning', source:'Base (1 + STR mod)', flat: true });
+
+  // Lupin (RtHW) Feral Pounce: Unarmed Strikes deal Slashing damage
+  // instead of Bludgeoning - applies to every source, including the base.
+  if (race === 'lupin') {
+    results.forEach(r => { if (r.type === 'bludgeoning') r.type = 'slashing'; });
+  }
 
   // Return best by die size (count*die), preferring highest
   results.sort((a, b) => (b.count * b.die) - (a.count * a.die));
@@ -40504,7 +40680,7 @@ function onWeaponModalKeyChange() {
       const sel = document.getElementById('wm-unarmed-source');
       if (sel) {
         sel.innerHTML = sources.map((s, i) => {
-          const label = s.flat ? `Base (1 + STR mod)` : `${s.count}d${s.die} ${s.type} - ${s.source}`;
+          const label = s.flat ? `Base (1 + STR mod${s.type && s.type !== 'bludgeoning' ? ', ' + s.type : ''})` : `${s.count}d${s.die}${s.dmgAbility ? ' + ' + s.dmgAbility.toUpperCase() + ' mod' : ''} ${s.type} - ${s.source}`;
           return `<option value="${i}">${label}</option>`;
         }).join('');
       }
@@ -51135,11 +51311,26 @@ function renderResourceTracker() {
     getFeatGrantedSpells().filter(s => s.level > 0).forEach(s => {
       const id = `feat_spell_${s.key}`.replace(/[^a-z0-9_]/g,'_');
       if (allDefs.find(d => d.id === id)) return;
+      // Path feats: Death Knight spells are paid from the Death Points
+      // pool (no counter of their own); Lich Ascension's Fear has ability-
+      // modifier uses. Everything else keeps the usual 1 per Long Rest.
+      const _fsMax = getFeatSpellFreeCastMax(s);
+      if (_fsMax <= 0) return;
       allDefs.push({
-        id, name: s.name, recovery: 'long', _max: 1,
-        desc: `Cast ${s.name} once without a spell slot. Regain this use on a Long Rest (still castable normally using an actual spell slot, unlimited).`,
+        id, name: s.name, recovery: 'long', _max: _fsMax,
+        desc: _fsMax > 1 || getFeatSpellGrantRule(s)?.usesAbilityMod
+          ? 'You can cast the spell without expending a spell slot a number of times equal to your spellcasting ability modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.'
+          : `Cast ${s.name} once without a spell slot. Regain this use on a Long Rest (still castable normally using an actual spell slot, unlimited).`,
         _spellKey: s.key,
       });
+    });
+  }
+
+  // Death Points (Death Knight Initiate): Proficiency Bonus per Long Rest.
+  if (typeof characterHasFeatNamed === 'function' && characterHasFeatNamed('Death Knight Initiate') && !allDefs.find(d => d.id === 'death_points')) {
+    allDefs.push({
+      id: 'death_points', name: 'Death Points', recovery: 'long', _max: prof,
+      desc: 'You have a number of Death Points equal to your Proficiency Bonus. You regain all expended Death Points when you finish a Long Rest.',
     });
   }
 
@@ -52844,8 +53035,15 @@ function buildAllResourceDefs() {
           && typeof characterHasFeatNamed === 'function' && characterHasFeatNamed('Greater Mark of Making')) {
         recoveryNote = 'Greater Mark of Making: cast as a 3rd-level spell. Artisan\'s Intuition also rolls 1d6 instead of 1d4.';
       }
-      add({ id, name: s.name, recovery: 'long', _max: 1, ...(recoveryNote ? { recoveryNote } : {}) });
+      const _fsMaxReset = getFeatSpellFreeCastMax(s);
+      if (_fsMaxReset <= 0) return;
+      add({ id, name: s.name, recovery: 'long', _max: _fsMaxReset, ...(recoveryNote ? { recoveryNote } : {}) });
     });
+  }
+
+  // Death Points (Death Knight Initiate) - must mirror renderResourceTracker
+  if (typeof characterHasFeatNamed === 'function' && characterHasFeatNamed('Death Knight Initiate')) {
+    add({ id: 'death_points', name: 'Death Points', recovery: 'long', _max: prof });
   }
 
   // Custom (player-added) resources
@@ -53344,6 +53542,30 @@ function applyRaceDefaults(race, subrace) {
   const baseRes  = rd.dmgres || [];
   const subRes   = srd?.dmgres || [];
   currentChar._dmgres = subRes.length ? [...new Set(subRes)] : [...new Set(baseRes)];
+
+  // Species that grant Resistance to ONE damage type of the player's
+  // choice (rd.dmgresChoice = { label, options }, e.g. Reborn's Strange
+  // Endurance). The pick is stored on currentChar.racialResistChoice and
+  // added to the race's resistances; nothing is granted until one is picked.
+  const rrRow = document.getElementById('ci-racial-resist-row');
+  const rrSel = document.getElementById('ci-racial-resist');
+  const rrOpts = rd.dmgresChoice?.options || [];
+  if (rrOpts.length) {
+    const picked = rrOpts.find(o => o.toLowerCase() === (currentChar.racialResistChoice || '').toLowerCase()) || '';
+    currentChar.racialResistChoice = picked;
+    if (picked) currentChar._dmgres = [...new Set([...currentChar._dmgres, picked])];
+    if (rrRow && rrSel) {
+      rrRow.style.display = '';
+      const lbl = document.getElementById('ci-racial-resist-label');
+      if (lbl) lbl.textContent = rd.dmgresChoice.label || 'Resistance';
+      rrSel.innerHTML = '<option value="">- Choose -</option>' + rrOpts.map(o => `<option value="${o}">${o}</option>`).join('');
+      rrSel.value = picked;
+    }
+  } else {
+    currentChar.racialResistChoice = '';
+    if (rrRow) rrRow.style.display = 'none';
+    if (rrSel) rrSel.value = '';
+  }
   syncRacialResistances();
 
   // Render the racial traits panel - after recalcAll, since that's what
@@ -53356,6 +53578,16 @@ function applyRaceDefaults(race, subrace) {
   // Explicitly force AC update since racial AC bonus may have changed
   onACChange();
 }
+
+function onRacialResistChoiceChange() {
+  if (!currentChar) return;
+  const el = document.getElementById('ci-racial-resist');
+  currentChar.racialResistChoice = el?.value || '';
+  applyRaceDefaults(currentChar.race, currentChar.subrace);
+  if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
+  debouncedSave();
+}
+window.onRacialResistChoiceChange = onRacialResistChoiceChange;
 
 // ── Render Senses box (Size + Darkvision) in the Defense panel ──
 // Used to build a whole "Racial Traits" block here too, but everything it
@@ -55810,6 +56042,12 @@ function renderFeatPicker(slot, dec, pfx = '') {
         const featSlotKey = 'feat_' + slot.id;
         const existing = currentChar.spells?.featSpells?.[featSlotKey] || [];
         const names = existing.map(k => PHB_SPELL_LIST.find(s=>s.key===k)?.name || k);
+        if (sf.noPicker) {
+          return '<div style="margin-top:6px;padding:4px 6px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)">'
+            + '<div style="font-family:var(--font-ui);font-size:9px;color:var(--amber);letter-spacing:.5px;margin-bottom:3px">✦ SPELL GRANTS</div>'
+            + '<div style="font-family:var(--font-body);font-size:11px;color:var(--text2)">' + (sf.fixed || []).map(k => PHB_SPELL_LIST.find(s=>s.key===k)?.name || k).join(', ') + '</div>'
+            + '</div>';
+        }
         return '<div style="margin-top:6px;padding:4px 6px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)">'
           + '<div style="font-family:var(--font-ui);font-size:9px;color:var(--amber);letter-spacing:.5px;margin-bottom:3px">✦ SPELL GRANTS</div>'
           + '<div style="font-family:var(--font-body);font-size:11px;color:var(--text2);margin-bottom:4px">' + (names.length ? names.join(', ') : 'No spells chosen yet') + '</div>'
@@ -56035,6 +56273,18 @@ function openFeatSpellPicker(slotId, featName, spellFeat) {
     if (!existing.length) {
       currentChar.spells.featSpells[featKey] = [...spellFeat.fixed];
     }
+  }
+
+  // Nothing to choose (the feat names its one spell): grant and stop here
+  // rather than opening a picker with zero picks.
+  if (spellFeat.noPicker && spellFeat.fixed?.length && !(spellFeat.cantrips > 0) && !(spellFeat.spells > 0)) {
+    if (typeof renderKnownSpells === 'function') renderKnownSpells();
+    if (typeof renderSpellStats === 'function') renderSpellStats();
+    if (typeof renderResourceTracker === 'function') renderResourceTracker();
+    if (typeof populateFeaturesTab === 'function') populateFeaturesTab();
+    if (typeof debouncedSave === 'function') debouncedSave();
+    toast(featName + ' grants: ' + spellFeat.fixed.map(k => PHB_SPELL_LIST.find(x => x.key === k)?.name || k).join(', '), 'ok');
+    return;
   }
 
   const effectiveClassSource = spellFeat.classSource || (spellFeat.classPick ? _featDetailState.miClassSource : null);
@@ -56730,8 +56980,10 @@ function openRaceInfoModal(raceKey) {
   if (titleEl) titleEl.textContent = race.name || raceKey;
   if (bodyEl) {
     const summaryBits = [];
+    if (race.type) summaryBits.push(`Creature Type ${race.type}`);
     if (race.size) summaryBits.push(`Size ${race.size}`);
     if (race.speed) summaryBits.push(`Speed ${race.speed} ft`);
+    if (race.climbEqualsSpeed) summaryBits.push(`Climb equal to walking speed`);
     if (race.flySpeed) summaryBits.push(`Fly ${race.flySpeed} ft`);
     if (race.darkvision) summaryBits.push(`Darkvision ${race.darkvision} ft`);
     const summaryLine = summaryBits.length
@@ -57068,6 +57320,7 @@ function renderFeatDetailBody() {
               <span style="font-family:var(--font-ui);font-size:12px;color:var(--gold)">${fixedSp?.name || extra.spellKey}</span>
               <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-left:auto">Fixed by feat</span>
             </div>
+            ${extra.note ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5">${extra.note}</div>` : ''}
           </div>
         `;
       }
@@ -60159,7 +60412,9 @@ function populateFeaturesTab() {
     const res = currentChar._dmgres || [];
     const asiText = rd.scorestxt || rd.asiNote || rd.scoresTxt || '';
     const statParts = [
+      rd.type ? `Creature Type ${rd.type}` : '',
       `Speed ${rd.speed} ft`,
+      rd.climbEqualsSpeed ? 'Climb equal to walking speed' : '',
       `Size ${rd.size}`,
       dv ? `Darkvision ${dv} ft` : '',
       res.length ? `Resist ${res.join(', ')}` : '',
@@ -60474,7 +60729,7 @@ function populateFeaturesTab() {
     const _featFk = (f.name||'').toLowerCase().replace(/\s*\[.*?\]/g,'').trim();
     const _featSf = SPELL_FEATS[_featFk];
     let _featDesc = phb?.desc || f.desc || '';
-    if (_featSf) {
+    if (_featSf && !_featSf.noPicker) {
       const _featSlotId = 'feat_slot_' + i;
       // '_featSlotId' already starts with 'feat_', so openFeatSpellPicker's
       // own prefixing rule (only add 'feat_' if not already present) stores
