@@ -3021,6 +3021,13 @@ body.preview-readonly #mi-detail-edit-row * {
                 <option value="cha">Charisma</option>
               </select>
             </div>
+            <div id="ci-creature-type-row" style="margin-bottom:10px">
+              <label class="field-label">Creature Type <span style="font-weight:400;text-transform:none;color:var(--text3)">(set by your species and feats)</span></label>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:29px">
+                <span id="ci-creature-type" class="meta-pill" style="font-size:12px;color:var(--text)">Humanoid</span>
+                <span id="ci-creature-type-src" style="font-family:var(--font-ui);font-size:10px;color:var(--text3)"></span>
+              </div>
+            </div>
             <div id="ci-racial-resist-row" style="display:none;margin-bottom:10px">
               <label class="field-label"><span id="ci-racial-resist-label">Resistance</span> <span style="font-weight:400;text-transform:none;color:var(--text3)">(Resistance to one damage type of your choice)</span></label>
               <select class="info-input" id="ci-racial-resist" data-key="racialResistChoice" style="width:100%" onchange="onRacialResistChoiceChange()">
@@ -26355,7 +26362,7 @@ function calcMulticlassHPMax(method) {
   const classes = getAllClasses();
   const total = getLevel();
   const toughBonus = currentChar._toughBonus || 0;
-  const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
+  const hpMaxAdjust = (currentChar.hpMaxAdjust || 0) - (parseInt(currentChar._magenHpReduction, 10) || 0);   // incl. Create Magen's permanent reduction
 
   if (m === 'maximum') {
     let hp = 0;
@@ -29131,7 +29138,7 @@ function calcHPMax(method) {
   const conMod = abilityMod(getAbilities().con);
   const m      = method || currentChar.hp_method || 'average';
   const toughBonus = currentChar._toughBonus || 0;
-  const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
+  const hpMaxAdjust = (currentChar.hpMaxAdjust || 0) - (parseInt(currentChar._magenHpReduction, 10) || 0);   // incl. Create Magen's permanent reduction
 
   switch (m) {
     case 'average': {
@@ -29167,7 +29174,8 @@ function hpMethodFormula(method) {
   const conStr = conMod >= 0 ? `+${conMod}` : `${conMod}`;
   const toughBonus = currentChar._toughBonus || 0;
   const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
-  const toughStr = (toughBonus ? ` + Tough(${toughBonus})` : '') + (hpMaxAdjust ? ` + Adj(${hpMaxAdjust>0?'+':''}${hpMaxAdjust})` : '');
+  const _magenRed = parseInt(currentChar._magenHpReduction, 10) || 0;
+  const toughStr = (toughBonus ? ` + Tough(${toughBonus})` : '') + (hpMaxAdjust ? ` + Adj(${hpMaxAdjust>0?'+':''}${hpMaxAdjust})` : '') + (_magenRed ? ` \u2212 Magen(${_magenRed})` : '');
 
   if (isMulticlass()) {
     const classes = getAllClasses();
@@ -31490,8 +31498,64 @@ function syncDragonmarkFeatSpells() {
   if (changed && typeof renderKnownSpells === 'function') renderKnownSpells();
 }
 
+// ── Creature Type (Character panel) ─────────────────────────────────────
+// Worked out from what the character actually has, never typed in:
+//   1. a simulacrum is a Construct;
+//   2. a feat or class/subclass feature whose own text says "Your creature
+//      type is X" (Lich Ascension, Death Knight Ascension, Full
+//      Ceremorphosis...) - these override the species;
+//   3. the species: its `type`, or a trait that says "Your creature type is X";
+//   4. otherwise Humanoid.
+const _CREATURE_TYPE_RX = /\bYour creature type is (?:an? )?([A-Z][a-z]+)/;
+let _creatureTypeFeatCache = null;
+function getCreatureTypeInfo() {
+  const c = currentChar;
+  if (!c) return { type: 'Humanoid', source: '' };
+  if (c._simulacrum) return { type: 'Construct', source: 'Simulacrum' };
+  const found = [];                       // [{type, source}] from feats / features
+  const add = (type, source) => { if (type && !found.some(f => f.type === type && f.source === source)) found.push({ type, source }); };
+  if (!_creatureTypeFeatCache) {
+    _creatureTypeFeatCache = Object.values(typeof PHB_FEATS !== 'undefined' ? PHB_FEATS : {})
+      .map(f => ({ name: f.name, m: _CREATURE_TYPE_RX.exec(f.desc || '') })).filter(x => x.m)
+      .map(x => ({ name: x.name, type: x.m[1] }));
+  }
+  if (typeof characterHasFeatNamed === 'function') {
+    _creatureTypeFeatCache.forEach(f => { if (characterHasFeatNamed(f.name)) add(f.type, f.name.replace(/\s*\[.*?\]/g, '').trim()); });
+  }
+  // class / subclass features (effective text, as shown on the Features tab)
+  (window._pdfFeatureEntries || []).forEach(e => {
+    if (!e || /^(race|species|feat)/i.test(e.sourceType || '')) return;
+    const m = _CREATURE_TYPE_RX.exec(String(e.text || e.desc || ''));
+    if (m) add(m[1], e.name);
+  });
+  if (found.length) {
+    const types = [...new Set(found.map(f => f.type))];
+    return { type: types.join(' / '), source: found.map(f => f.source).join(', ') };
+  }
+  const rd = typeof getRaceData === 'function' ? getRaceData(c.race) : null;
+  if (rd) {
+    const srd = (c.subrace && rd.subraces) ? rd.subraces[c.subrace] : null;
+    const fromText = t => { const m = _CREATURE_TYPE_RX.exec(String(t || '')); return m ? m[1] : null; };
+    let t = srd?.type || fromText(srd?.trait) || rd.type || null;
+    if (!t) (rd.features || []).some(f => (t = fromText(f.desc)));
+    if (!t) t = fromText(rd.trait);
+    if (t) return { type: t, source: (srd?.name || rd.name || '').replace(/\s*\(.*?\)\s*$/, '') };
+  }
+  return { type: 'Humanoid', source: '' };
+}
+window.getCreatureTypeInfo = getCreatureTypeInfo;
+function renderCreatureType() {
+  const el = document.getElementById('ci-creature-type'); if (!el || !currentChar) return;
+  const info = getCreatureTypeInfo();
+  el.textContent = info.type;
+  const src = document.getElementById('ci-creature-type-src');
+  if (src) src.textContent = info.source ? 'from ' + info.source : '';
+}
+window.renderCreatureType = renderCreatureType;
+
 function recalcAll() {
   if (!currentChar) return;
+  try { renderCreatureType(); } catch (e) {}
   syncMagicWeaponsToInventory(); // keep equipped magic weapons in sync with the Attacks panel
   syncMagicArmorToInventory();   // keep ac_armor_key in sync with equipped magic armor
   syncMagicAmmoToInventory();    // keep ammoBonus in sync with assigned magic ammunition
@@ -31717,6 +31781,7 @@ function populateMainSheet() {
         saveTimer = setTimeout(() => {
           if (!currentChar) return;
           if (!currentChar._textareaSizes) currentChar._textareaSizes = {};
+          if (window._previewMode) return;   // read-only preview: no bookkeeping writes
           currentChar._textareaSizes[ta.id] = Math.round(ta.getBoundingClientRect().height);
           debouncedSave();
         }, 400);
@@ -31805,6 +31870,9 @@ function deobfuscateText(stored) {
 
 function gatherSheetData() {
   if (!currentChar) return;
+  // A Party Overview preview is read-only and never saved: don't copy the
+  // on-screen inputs back into the previewed character's in-memory copy.
+  if (window._previewMode) return;
   if (window._sheetPopulatedFor !== currentChar.id) {
     // The inputs on screen belong to a different character than the one
     // about to be saved - never copy them across. Saves still write the
@@ -61078,6 +61146,7 @@ function populateFeaturesTab() {
     return !key || !_dmHidden.includes(key);
   });
   try {
+    setTimeout(() => { try { renderCreatureType(); } catch (e) {} }, 0);   // class-feature creature types need the entries below
     window._pdfFeatureEntries = nonTableEntries.map(e => {
       let k = null;
       if (!e.isHtml) {
@@ -65515,7 +65584,7 @@ function pdfFillMpmb(F, D) {
   if (D.spellGroups.length) pdfLayoutSpells(F, D, use);
 
   // ── companion pages: familiar / class companion, then every active summon ──
-  const creatures = [D.companion, D.simCreature, ...D.summons].filter(Boolean);
+  const creatures = [D.companion, D.simCreature, ...(typeof getMagenPdfCreatures === 'function' ? getMagenPdfCreatures() : []), ...D.summons].filter(Boolean);
   creatures.forEach((cr, i) => {
     if (cr.noStatBlock) { longText.push([cr.name, cr.note]); return; }
     if (i < 3) { use.add(`TPL.AScomp.${i + 1}`); pdfFillCompanion(F, `TPL.AScomp.${i + 1}.`, cr); }
@@ -66009,6 +66078,19 @@ window.isSimulacrum = isSimulacrum;
 function charKnowsSimulacrum(c = currentChar) {
   const sp = c?.spells || {};
   const has = arr => (arr || []).some(x => (typeof x === 'string' ? x : x?.key) === 'simulacrum');
+  // For the open character, go by what the Spells tab actually shows. The
+  // raw prepared / known lists can hold a leftover entry for a spell that
+  // is no longer in the spellbook (or isn't available to the class), which
+  // used to make the Create button appear for a character without the spell.
+  if (c === currentChar && typeof buildKnownSpellRows === 'function') {
+    try {
+      const shown = buildKnownSpellRows().some(r => r.key === 'simulacrum'
+        && r.pipType !== '' && r.pipType !== 'locked-level' && r.pipType !== 'subclass-locked');
+      if (shown) return true;
+      const wizard = typeof getCharSpellClasses === 'function' && getCharSpellClasses().includes('wizard');
+      return wizard && has(sp.spellbook);          // in the spellbook, even if not prepared today
+    } catch (e) { /* fall through to the stored lists */ }
+  }
   return has(sp.known) || has(sp.prepared) || has(sp.spellbook);
 }
 
@@ -67067,7 +67149,7 @@ function renderQuickPlay() {
   // spells get their own sub-section at the bottom of each card, below the
   // card's normal options (weapon attacks, class features, standard actions)
   const spellLine = s => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>`,
-    _qpE(s.desc), s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
+    _qpE(s.desc), (s.stored && window._previewMode) ? '' : s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
   const spellSection = bucket => {
     const list = Q.spells.filter(s => s.bucket === bucket).sort((a, b) => a.level - b.level || String(a.name).localeCompare(String(b.name)));
     if (!list.length) return '';
@@ -67772,6 +67854,7 @@ function spellStoringPdfText(item) {
 function _ssListHtml(item, opts = {}) {
   const st = getSpellStoringState(item); if (!st) return '';
   const uid = _ssE(item._uid);
+  const ro = !!window._previewMode;            // Party Overview preview: list only, no actions
   const pips = st.rule.maxLevels
     ? `<span style="letter-spacing:2px;color:var(--gold)">${'\u25a0'.repeat(Math.min(st.usedLevels, st.rule.maxLevels))}<span style="color:var(--text3)">${'\u25a1'.repeat(Math.max(0, st.rule.maxLevels - st.usedLevels))}</span></span>` : '';
   const rows = st.stored.map(s => `
@@ -67781,8 +67864,8 @@ function _ssListHtml(item, opts = {}) {
         <span style="font-family:var(--font-ui);font-size:10px;color:var(--gold);margin-left:4px">${_ssOrd(parseInt(s.level, 10) || 1)} level</span>
         <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);line-height:1.5">${_ssE(_ssStatLine(s))}</div>
       </div>
-      <button class="tbtn" style="min-height:32px;${st.canCast ? 'color:var(--accent);border-color:var(--accent)' : 'opacity:.5;cursor:not-allowed'}" ${st.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${uid}','${_ssE(s.id)}')">Cast</button>
-      <button class="tbtn" style="min-height:32px;min-width:32px;color:var(--text3)" title="Remove without casting" onclick="removeStoredSpell('${uid}','${_ssE(s.id)}')">\u2715</button>
+      ${ro ? '' : `<button class="tbtn" style="min-height:32px;${st.canCast ? 'color:var(--accent);border-color:var(--accent)' : 'opacity:.5;cursor:not-allowed'}" ${st.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${uid}','${_ssE(s.id)}')">Cast</button>
+      <button class="tbtn" style="min-height:32px;min-width:32px;color:var(--text3)" title="Remove without casting" onclick="removeStoredSpell('${uid}','${_ssE(s.id)}')">\u2715</button>`}
     </div>`).join('');
   const room = st.maxStoreLevel > 0
     ? (st.rule.maxLevels ? `${st.rule.maxLevels - st.usedLevels} level${st.rule.maxLevels - st.usedLevels === 1 ? '' : 's'} free` : (st.stored.length && st.rule.replaces ? 'a new spell replaces the stored one' : 'empty'))
@@ -67793,8 +67876,8 @@ function _ssListHtml(item, opts = {}) {
         <span>${opts.title ? _ssE(opts.title) + ' \u00b7 ' : ''}Stored spells \u00b7 ${st.capText}</span>${pips}
       </div>
       ${rows || '<div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);padding:4px 0">Nothing stored.</div>'}
-      ${!st.canCast && st.stored.length ? '<div style="font-family:var(--font-ui);font-size:10px;color:var(--amber);padding-top:4px">Attune to this item to cast from it.</div>' : ''}
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+      ${!ro && !st.canCast && st.stored.length ? '<div style="font-family:var(--font-ui);font-size:10px;color:var(--amber);padding-top:4px">Attune to this item to cast from it.</div>' : ''}
+      <div style="display:${ro ? 'none' : 'flex'};align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="tbtn" style="min-height:32px;${st.maxStoreLevel > 0 ? '' : 'opacity:.5;cursor:not-allowed'}" ${st.maxStoreLevel > 0 ? '' : 'disabled'} onclick="openStoreSpellModal('${uid}')">+ Store a spell</button>
         <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${room}</span>
       </div>
@@ -67848,6 +67931,7 @@ function _ssSpendMySlot(level) {
 // ── "Store a spell" ────────────────────────────────────────────────────
 let _ssDraft = null;
 function openStoreSpellModal(uid) {
+  if (window._previewMode) return;
   const f = _ssFind(uid); if (!f) return;
   const st = getSpellStoringState(f.item);
   if (st.maxStoreLevel <= 0) { toast(`${_ssItemName(f.item)} is full`, 'warn'); return; }
@@ -67952,6 +68036,7 @@ function _ssKeepInputs() {
 
 function _ssConfirmStore() {
   const ov = document.getElementById('ss-store-overlay'); const d = _ssDraft; if (!ov || !d) return;
+  if (window._previewMode) { ov.remove(); return; }
   const f = _ssFind(d.uid); if (!f) { ov.remove(); return; }
   _ssKeepInputs();
   const st = getSpellStoringState(f.item);
@@ -67979,6 +68064,7 @@ function _ssConfirmStore() {
 
 // ── cast / remove ──────────────────────────────────────────────────────
 function castStoredSpell(uid, id) {
+  if (window._previewMode) return;
   const f = _ssFind(uid); if (!f) return;
   const st = getSpellStoringState(f.item);
   const s = st.stored.find(x => x.id === id); if (!s) return;
@@ -67993,6 +68079,7 @@ function castStoredSpell(uid, id) {
   toast(`${s.name} cast from ${_ssItemName(f.item)}`, 'ok');
 }
 function removeStoredSpell(uid, id) {
+  if (window._previewMode) return;
   const f = _ssFind(uid); if (!f) return;
   const s = (f.item.storedSpells || []).find(x => x.id === id); if (!s) return;
   if (!confirm(`Remove ${s.name} from ${_ssItemName(f.item)} without casting it?`)) return;
@@ -68030,6 +68117,459 @@ window.spellStoringPdfText = spellStoringPdfText;
     el.innerHTML = `<b style="color:var(--accent);letter-spacing:1px">VIA ${_ssE(n.itemName.toUpperCase())}</b> - ${_ssOrd(n.s.level)}-level slot${_ssStatLine(n.s) ? ' \u00b7 ' + _ssE(_ssStatLine(n.s)) : ''}. It has now left the item.`;
     body.insertBefore(el, body.firstChild);
   });
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// PREVIEW GUARD - read-only enforcement for Party Overview sheet previews
+// While window._previewMode is set, a capture-phase guard decides every
+// click / key / form event before any handler on the sheet can see it:
+// only "look, don't touch" actions get through (opening detail and info
+// modals, switching tabs, closing things, expanding sections). Anything
+// not on the allow-list is dropped. The CSS below only makes the allowed
+// things hoverable; the guard is the actual enforcement, and GH.putFile
+// refuses character writes during a preview as a final backstop.
+// ═══════════════════════════════════════════════════════════════════════
+const PV_VIEW_FNS = new Set([
+  // detail / info modals
+  'openSpellDetailModal', 'openMagicItemDetailModal', 'openInventoryItemDetailModal', 'openWeaponDetail', 'openArmorDetail',
+  'openTreasureDetailModal', 'openToolDetailModal', 'openClassFeatureInfoModal', 'openFeatInfoModal', 'openRaceInfoModal',
+  'openBackgroundInfoModal', 'openInvocationInfoModal', 'openConditionInfoModal', 'openWeaponMasteryInfoModal',
+  'openMutationDetailModal', 'openResourceDetail', 'openGlossaryBrowser', 'openGlossaryTermModal',
+  // plain gear has no separate viewer: its edit window opens, with every field and button inert
+  'openGearEditModal',
+  // navigation, expanding, closing
+  'qpJump', 'qpOpenRule', 'closeModal', 'switchPage', 'jumpToFeatureByName', 'scrollToAndOpenSpellbook',
+  'toggleProfPanelExpanded', 'toggleSkilledToolsExpanded', 'toggleSpellbook', 'toggleFullClassSpellList',
+  // top bar: things that belong to the viewer, not the previewed character
+  'exitPreviewMode', 'openPartyOverview', 'toggleTheme', 'toggleThemePicker', 'doLogout', 'exportCharacterPdf',
+]);
+// form controls that only change what is being looked at
+const PV_VIEW_CONTROLS = '#spell-detail-source-select, #spell-detail-upcast-select';
+// containers that are always usable
+const PV_OPEN_AREAS = '.modal-close, #preview-banner, #page-tabs, #theme-picker-panel, #pdf-choice';
+
+function _pvCodeAllowed(code) {
+  let c = String(code || '').trim();
+  if (!c) return false;
+  if (/^if\s*\(\s*event\.target\s*===\s*this\s*\)\s*closeModal\(['"][\w-]+['"]\)\s*;?$/.test(c)) return true;
+  c = c.replace(/^return\s+/, '');
+  // every call made at statement level must be a view function
+  const calls = [...c.matchAll(/(?:^|;)\s*(?:return\s+)?([A-Za-z_$][\w$.]*)\s*\(/g)].map(m => m[1]);
+  if (!calls.length) return false;
+  return calls.every(n => n === 'event.stopPropagation' || n === 'event.preventDefault' || PV_VIEW_FNS.has(n));
+}
+function previewAllowsClick(t) {
+  if (!(t instanceof Element)) return true;
+  if (t.closest(PV_OPEN_AREAS)) return true;
+  if (t.classList.contains('modal-overlay')) return true;                 // backdrop click closes the modal
+  for (let el = t; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+    if (el.matches(PV_VIEW_CONTROLS)) return true;
+    if (el.hasAttribute('onclick')) return _pvCodeAllowed(el.getAttribute('onclick'));
+    if (el.matches('button, input, select, textarea, label, option, [contenteditable=""], [contenteditable="true"], .sp-pip')) return false;
+    if (el.dataset && el.dataset.ttClick) return _pvCodeAllowed(el.dataset.ttClick);
+    if (el.hasAttribute('data-glossary-term') || (el.dataset && el.dataset.glossaryWired)) return true;
+    if (el.matches('summary, .sp-known-row, .sp-spellbook-row, .magic-item-row')) return true;
+    if (el.tagName === 'A' && /^https?:/i.test(el.getAttribute('href') || '')) return true;
+  }
+  return false;
+}
+window.previewAllowsClick = previewAllowsClick;
+
+(function () {
+  const on = () => !!window._previewMode;
+  const stop = e => { e.stopImmediatePropagation(); e.stopPropagation(); if (e.cancelable) e.preventDefault(); };
+  const isField = t => t instanceof Element && t.matches('input, select, textarea, [contenteditable=""], [contenteditable="true"]');
+  // clicks (mouse, touch, and Enter / Space on a focused button all arrive as click)
+  ['click', 'dblclick', 'auxclick', 'contextmenu'].forEach(type => window.addEventListener(type, e => {
+    if (!on()) return;
+    if (type === 'contextmenu') { if (isField(e.target)) stop(e); return; }
+    if (!previewAllowsClick(e.target)) stop(e);
+  }, true));
+  // opening a dropdown or focusing a field with the pointer
+  ['mousedown', 'pointerdown'].forEach(type => window.addEventListener(type, e => {
+    if (!on() || !isField(e.target) || e.target.matches(PV_VIEW_CONTROLS)) return;
+    stop(e);
+  }, true));
+  // typing, pasting, dropping, changing a value
+  ['beforeinput', 'input', 'change', 'paste', 'cut', 'drop', 'dragstart', 'submit', 'reset'].forEach(type => window.addEventListener(type, e => {
+    if (!on()) return;
+    const t = e.target;
+    if (t instanceof Element && t.matches(PV_VIEW_CONTROLS)) return;
+    if (type === 'dragstart' || type === 'drop' || type === 'submit' || type === 'reset' || isField(t)) stop(e);
+  }, true));
+  window.addEventListener('keydown', e => {
+    if (!on() || !isField(e.target) || e.target.matches(PV_VIEW_CONTROLS)) return;
+    if (e.key === 'Tab' || e.key === 'Escape') return;
+    stop(e);
+  }, true);
+  // a field can still be reached with Tab: drop focus rather than leave a caret in it
+  window.addEventListener('focusin', e => {
+    if (!on() || !isField(e.target) || e.target.matches(PV_VIEW_CONTROLS)) return;
+    try { e.target.blur(); } catch (err) {}
+  }, true);
+
+  // final backstop: no character file is written while a preview is open
+  if (typeof GH !== 'undefined' && typeof GH.putFile === 'function' && !GH.putFile._pvGuard) {
+    const orig = GH.putFile;
+    GH.putFile = function (filename) {
+      if (window._previewMode && !String(filename || '').startsWith('_')) {
+        return Promise.reject(new Error('Read-only preview - nothing can be saved from here'));
+      }
+      return orig.apply(this, arguments);
+    };
+    GH.putFile._pvGuard = true;
+  }
+
+  // CSS: let the allowed view actions receive the pointer (the sheet's own
+  // preview rules switch pointer events off for everything in a page or modal)
+  const fnSel = scope => [...PV_VIEW_FNS].map(f => `body.preview-readonly ${scope} [onclick*="${f}("]`).join(',\n');
+  const css = `
+${fnSel('.page')},
+${fnSel('.modal-overlay')},
+body.preview-readonly .page [data-glossary-term], body.preview-readonly .modal-overlay [data-glossary-term],
+body.preview-readonly .page [data-tt-click*="jumpToFeatureByName("],
+body.preview-readonly .page summary, body.preview-readonly .modal-overlay summary {
+  pointer-events: auto !important; cursor: pointer !important;
+}
+/* the spell and item cards stay fully readable, but their fields don't take the pointer */
+body.preview-readonly #spell-detail-modal :is(input, textarea, select):not(#spell-detail-source-select):not(#spell-detail-upcast-select),
+body.preview-readonly #magic-item-detail-modal :is(input, textarea, select) {
+  pointer-events: none !important;
+}
+/* action buttons inside those two cards: visibly off, not just inert */
+body.preview-readonly #spell-detail-modal button:not(.modal-close),
+body.preview-readonly #magic-item-detail-modal button:not(.modal-close) {
+  opacity: .45 !important; cursor: not-allowed !important;
+}`;
+  const st = document.createElement('style'); st.id = 'preview-guard-css'; st.textContent = css;
+  document.head.appendChild(st);
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CREATE MAGEN (IDRotF) - cast the spell, pick a magen, track it
+// Player: with Create Magen on the Spells tab, "Create Magen..." spends a
+// 7th+ level slot, adds the chosen magen (stat block as supplied by the DM,
+// word for word) and lowers the caster's hit point maximum by the magen's
+// challenge rating. That reduction is permanent until the DM clears it
+// (only a Wish spell undoes it), even after the magen is gone.
+// DM: can add a magen to any character, with or without the slot / the
+// reduction, and can undo the reduction. No dice anywhere.
+// ═══════════════════════════════════════════════════════════════════════
+const MAGEN_TYPES = {
+ "demos": {
+  "key": "demos",
+  "name": "Demos Magen",
+  "source": "IDRotF",
+  "page": "300",
+  "size": "Medium",
+  "type": "Construct",
+  "alignment": "unaligned",
+  "ac": "16 (chain mail)",
+  "hpText": "51 (6d8 + 24)",
+  "hp": 51,
+  "speed": "30 ft.",
+  "scores": {
+   "str": 14,
+   "dex": 14,
+   "con": 18,
+   "int": 10,
+   "wis": 10,
+   "cha": 7
+  },
+  "damageImmunities": "poison",
+  "conditionImmunities": "charmed, exhaustion, frightened, paralyzed, poisoned",
+  "senses": "passive Perception 10",
+  "languages": "Understands the languages of its creator but can't speak",
+  "crText": "2 (XP 450; PB +2)",
+  "cr": 2,
+  "traits": [
+   "Fiery End. If the magen dies, its body disintegrates in a harmless burst of fire and smoke, leaving behind anything it was wearing or carrying.",
+   "Magic Resistance. The magen has advantage on saving throws against spells and other magical effects.",
+   "Unusual Nature. The magen doesn't require air, food, drink, or sleep."
+  ],
+  "actions": [
+   "Multiattack. The magen makes two melee attacks.",
+   "Greatsword. Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 9 (2d6 + 2) slashing damage.",
+   "Light Crossbow. Ranged Weapon Attack: +4 to hit, range 80/320 ft., one target. Hit: 6 (1d8 + 2) piercing damage."
+  ]
+ },
+ "galvan": {
+  "key": "galvan",
+  "name": "Galvan Magen",
+  "source": "IDRotF",
+  "page": "301",
+  "size": "Medium",
+  "type": "Construct",
+  "alignment": "unaligned",
+  "ac": "14",
+  "hpText": "68 (8d8 + 32)",
+  "hp": 68,
+  "speed": "30 ft., Fly 30 ft. (hover)",
+  "scores": {
+   "str": 10,
+   "dex": 18,
+   "con": 18,
+   "int": 12,
+   "wis": 10,
+   "cha": 7
+  },
+  "damageImmunities": "lightning, poison",
+  "conditionImmunities": "charmed, exhaustion, frightened, paralyzed, poisoned",
+  "senses": "passive Perception 10",
+  "languages": "Understands the languages of its creator but can't speak",
+  "crText": "3 (XP 700; PB +2)",
+  "cr": 3,
+  "traits": [
+   "Fiery End. If the magen dies, its body disintegrates in a harmless burst of fire and smoke, leaving behind anything it was wearing or carrying.",
+   "Magic Resistance. The magen has advantage on saving throws against spells and other magical effects.",
+   "Unusual Nature. The magen doesn't require air, food, drink, or sleep."
+  ],
+  "actions": [
+   "Multiattack. The magen makes two Shocking Touch attacks.",
+   "Shocking Touch. Melee Spell Attack: +6 to hit, reach 5 ft., one target (the magen has advantage on the attack roll if the target is wearing armor made of metal). Hit: 7 (1d6 + 4) lightning damage.",
+   "Static Discharge (Recharge 5–6). The magen discharges a lightning bolt in a 60-foot line that is 5 feet wide. Each creature in that line must make a DC 14 Dexterity saving throw (with disadvantage if the creature is wearing armor made of metal), taking 22 (4d10) lightning damage on a failed save, or half as much damage on a successful one."
+  ]
+ },
+ "hypnos": {
+  "key": "hypnos",
+  "name": "Hypnos Magen",
+  "source": "IDRotF",
+  "page": "301",
+  "size": "Medium",
+  "type": "Construct",
+  "alignment": "unaligned",
+  "ac": "12",
+  "hpText": "34 (4d8 + 16)",
+  "hp": 34,
+  "speed": "30 ft.",
+  "scores": {
+   "str": 10,
+   "dex": 14,
+   "con": 18,
+   "int": 14,
+   "wis": 10,
+   "cha": 7
+  },
+  "damageImmunities": "poison",
+  "conditionImmunities": "charmed, exhaustion, frightened, paralyzed, poisoned",
+  "senses": "passive Perception 10",
+  "languages": "Understands the languages of its creator but can't speak, telepathy 30 ft.",
+  "crText": "1 (XP 200; PB +2)",
+  "cr": 1,
+  "traits": [
+   "Fiery End. If the magen dies, its body disintegrates in a harmless burst of fire and smoke, leaving behind anything it was wearing or carrying.",
+   "Magic Resistance. The magen has advantage on saving throws against spells and other magical effects.",
+   "Unusual Nature. The magen doesn't require air, food, drink, or sleep."
+  ],
+  "actions": [
+   "Psychic Lash. The magen's eyes glow silver as it targets one creature that it can see within 60 feet of it. The target must succeed on a DC 12 Wisdom saving throw or take 11 (2d10) psychic damage.",
+   "Suggestion. The magen casts the suggestion spell (save DC 12), requiring no material components. The target must be a creature that the magen can communicate with telepathically. If it succeeds on its saving throw, the target is immune to this magen's suggestion spell for the next 24 hours. The magen's spellcasting ability is Intelligence."
+  ]
+ }
+};
+const MAGEN_SPELL_LEVEL = 7;
+const _mgE = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const _mgOrd = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+const _mgMod = x => { const v = Math.floor(((x ?? 10) - 10) / 2); return (v >= 0 ? '+' : '') + v; };
+const _mgBold = t => { const m = /^([^.]{2,60}?(?:\([^)]*\))?)\. /.exec(t); return m ? `<b>${_mgE(m[1])}.</b> ${_mgE(t.slice(m[0].length))}` : _mgE(t); };
+
+function charKnowsCreateMagen() {
+  const c = currentChar; if (!c) return false;
+  const sp = c.spells || {};
+  const has = arr => (arr || []).some(x => (typeof x === 'string' ? x : x?.key) === 'create_magen');
+  try {
+    // go by what the Spells tab shows, not by leftover entries in the saved lists
+    if (buildKnownSpellRows().some(r => r.key === 'create_magen' && r.pipType !== '' && r.pipType !== 'locked-level' && r.pipType !== 'subclass-locked')) return true;
+    return getCharSpellClasses().includes('wizard') && has(sp.spellbook);
+  } catch (e) { return has(sp.known) || has(sp.spellbook); }
+}
+function getMagenList() { return Array.isArray(currentChar?._magen) ? currentChar._magen : []; }
+function getMagenHpReduction() { return Math.max(0, parseInt(currentChar?._magenHpReduction, 10) || 0); }
+window.getMagenHpReduction = getMagenHpReduction;
+
+function _mgSlots() {
+  const ss = typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(currentChar) : { levels: [] };
+  return (ss.levels || []).filter(l => l.level >= MAGEN_SPELL_LEVEL && (l.max - (l.used || 0)) > 0).map(l => ({ level: l.level, left: l.max - (l.used || 0), max: l.max }));
+}
+function _mgSpendSlot(level) {
+  const l = _mgSlots().find(x => x.level === level); if (!l) throw new Error(`no ${_mgOrd(level)}-level slot left`);
+  const u = currentChar.spell_slots_used = currentChar.spell_slots_used || {};
+  for (let i = 0; i < l.max; i++) { const k = `slot_${level}_${i}`; if (!u[k]) { u[k] = true; break; } }
+  try { if (typeof renderSpellSlots === 'function') renderSpellSlots(); } catch (e) {}
+}
+// A change to the hit point maximum moves current hit points by the same
+// amount - the same convention as the sheet's own Max HP Adjustment box.
+function _mgShiftHpMax(delta) {
+  if (!delta) return;
+  const c = currentChar, maxEl = document.getElementById('hp-max'), curEl = document.getElementById('hp-current');
+  const newMax = Math.max(1, (parseInt(maxEl?.value ?? c.hp_max, 10) || 0) + delta);
+  const newCur = Math.max(0, Math.min(newMax, (parseInt(curEl?.value ?? c.hp_current, 10) || 0) + delta));
+  c.hp_max = newMax; c.hp_current = newCur;
+  if (maxEl) maxEl.value = newMax; if (curEl) curEl.value = newCur;
+  try { if (typeof clampCurrentHP === 'function') clampCurrentHP(); } catch (e) {}
+  try { if (typeof recalcAll === 'function') recalcAll(); } catch (e) {}
+}
+
+async function createMagen(typeKey, opts = {}) {
+  if (window._previewMode) return;
+  const c = currentChar, t = MAGEN_TYPES[typeKey]; if (!c || !t) return;
+  if (opts.slotLevel) _mgSpendSlot(opts.slotLevel);
+  const reduce = opts.reduceHp === false ? 0 : Math.max(1, t.cr);
+  if (!Array.isArray(c._magen)) c._magen = [];
+  c._magen.push({ id: 'mg_' + Math.random().toString(36).slice(2, 10), key: t.key, hpMax: t.hp, hpCur: t.hp, hpCost: reduce,
+    createdAt: new Date().toISOString(), addedByDM: !!isDM });
+  if (reduce) { c._magenHpReduction = getMagenHpReduction() + reduce; _mgShiftHpMax(-reduce); }
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderMagenPanel();
+  toast(`${t.name} created${reduce ? ` \u00b7 hit point maximum reduced by ${reduce}` : ''}`, 'ok');
+}
+function setMagenHP(id, v) {
+  if (window._previewMode) return;
+  const m = getMagenList().find(x => x.id === id); if (!m) return;
+  m.hpCur = Math.max(0, Math.min(m.hpMax, parseInt(v, 10) || 0));
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderMagenPanel();
+}
+function removeMagen(id) {
+  if (window._previewMode) return;
+  const c = currentChar, m = getMagenList().find(x => x.id === id); if (!m) return;
+  const t = MAGEN_TYPES[m.key] || { name: 'this magen' };
+  if (!confirm(`Remove ${t.name}?${m.hpCost ? `\n\nYour hit point maximum stays reduced by ${m.hpCost} - only a Wish spell can undo that.` : ''}`)) return;
+  c._magen = getMagenList().filter(x => x.id !== id);
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderMagenPanel();
+}
+// DM only: the reduction is undone (a Wish spell)
+function clearMagenHpReduction() {
+  if (window._previewMode || !isDM) return;
+  const n = getMagenHpReduction(); if (!n) return;
+  if (!confirm(`Undo the ${n}-point hit point maximum reduction from creating magen (a Wish spell)?`)) return;
+  currentChar._magenHpReduction = 0;
+  getMagenList().forEach(m => { m.hpCost = 0; });
+  _mgShiftHpMax(n);
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderMagenPanel();
+  toast(`Hit point maximum restored by ${n}`, 'ok');
+}
+window.createMagen = createMagen; window.setMagenHP = setMagenHP; window.removeMagen = removeMagen; window.clearMagenHpReduction = clearMagenHpReduction;
+
+// ── "Create Magen..." window ───────────────────────────────────────────
+function openCreateMagen() {
+  if (window._previewMode || !currentChar) return;
+  const dm = !!isDM, slots = _mgSlots();
+  let pick = null;
+  document.getElementById('mg-create-overlay')?.remove();
+  const ov = document.createElement('div'); ov.id = 'mg-create-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+    <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">${dm ? 'ADD MAGEN (DM)' : 'CREATE MAGEN'}</div>
+    <div style="color:var(--text3);margin-bottom:12px;line-height:1.5">The type of magen is chosen by you during the casting of the spell. When the magen appears, your hit point maximum decreases by an amount equal to the magen's challenge rating (minimum reduction of 1). Only a wish spell can undo this reduction to your hit point maximum.</div>
+    <label style="display:block;margin-bottom:6px">Type of magen</label>
+    <div id="mg-types" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+    <label style="display:block;margin-bottom:4px">Spell slot</label>
+    ${slots.length
+      ? `<select id="mg-slot" class="info-input" style="width:100%;font-size:16px;margin-bottom:6px">${dm ? '<option value="">Don\u2019t spend a slot</option>' : ''}${slots.map(s => `<option value="${s.level}">${_mgOrd(s.level)}-level slot (${s.left} of ${s.max} left)</option>`).join('')}</select>`
+      : `<div style="color:${dm ? 'var(--text3)' : 'var(--red)'};margin-bottom:6px">No 7th-level or higher spell slot left${dm ? ' - none will be spent.' : ' - it comes back after a Long Rest.'}</div>`}
+    ${dm ? `<label style="display:flex;align-items:center;gap:6px;margin:8px 0"><input type="checkbox" id="mg-reduce" checked style="width:18px;height:18px"/> Reduce this character's hit point maximum</label>` : ''}
+    <div style="color:var(--text3);margin-top:6px;line-height:1.5">The spell's material components are up to you to remove from your inventory.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="tbtn" id="mg-cancel" style="min-height:36px">Cancel</button>
+      <button class="tbtn" id="mg-go" style="min-height:36px;color:var(--accent);border-color:var(--accent);opacity:.5" disabled>${dm ? 'Add' : 'Create'}</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const go = ov.querySelector('#mg-go');
+  const draw = () => {
+    ov.querySelector('#mg-types').innerHTML = Object.values(MAGEN_TYPES).map(t => `<button class="tbtn" data-mg="${t.key}" style="text-align:left;padding:8px 10px;line-height:1.4;text-transform:none;letter-spacing:0;${pick === t.key ? 'color:var(--accent);border-color:var(--accent)' : ''}">
+        <div style="font-size:13px;font-weight:600">${_mgE(t.name)}</div>
+        <div style="font-size:10px;color:var(--text3)">CR ${t.cr} \u00b7 AC ${_mgE(t.ac)} \u00b7 HP ${_mgE(t.hpText)} \u00b7 Speed ${_mgE(t.speed)}</div>
+        <div style="font-size:10px;color:var(--amber)">Your hit point maximum: \u2212${Math.max(1, t.cr)}</div></button>`).join('');
+    ov.querySelectorAll('[data-mg]').forEach(b => b.onclick = () => { pick = b.dataset.mg; draw(); });
+    const ok = !!pick && (dm || slots.length > 0);
+    go.disabled = !ok; go.style.opacity = ok ? '' : '.5';
+  };
+  draw();
+  ov.querySelector('#mg-cancel').onclick = () => ov.remove();
+  go.onclick = async () => {
+    if (!pick) return;
+    const slotLevel = parseInt(ov.querySelector('#mg-slot')?.value, 10) || 0;
+    if (!dm && !slotLevel) return;
+    try { await createMagen(pick, { slotLevel, reduceHp: dm ? !!ov.querySelector('#mg-reduce')?.checked : true }); ov.remove(); }
+    catch (e) { toast('Create Magen failed: ' + e.message, 'error'); }
+  };
+}
+window.openCreateMagen = openCreateMagen;
+
+// ── Spells tab panel ───────────────────────────────────────────────────
+function _mgCard(m, ro) {
+  const t = MAGEN_TYPES[m.key]; if (!t) return '';
+  const dead = (m.hpCur ?? 0) <= 0;
+  const line = (label, val) => val ? `<div><span style="color:var(--text3)">${label}</span> ${_mgE(val)}</div>` : '';
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="flex:1;min-width:0"><b style="font-size:13px">${_mgE(t.name)}</b> <span style="color:var(--text3)">\u00b7 ${_mgE(t.size)} ${_mgE(t.type)}, ${_mgE(t.alignment)} \u00b7 CR ${_mgE(t.crText)}</span>${dead ? ' \u00b7 <span style="color:var(--red)">0 HP</span>' : ''}</span>
+      ${ro ? '' : `<button class="tbtn" style="min-height:32px;color:var(--red);border-color:var(--red)" onclick="removeMagen('${_mgE(m.id)}')">Remove</button>`}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;align-items:center">
+      <span>AC <b>${_mgE(t.ac)}</b></span>
+      <span>HP ${ro ? `<b>${m.hpCur}</b>` : `<input type="number" inputmode="numeric" min="0" max="${m.hpMax}" value="${m.hpCur}" onchange="setMagenHP('${_mgE(m.id)}', this.value)" class="info-input" style="width:64px;display:inline-block;font-size:16px;text-align:center">`} / ${m.hpMax} <span style="color:var(--text3)">${_mgE(t.hpText.replace(/^\d+\s*/, ''))}</span></span>
+      <span>Speed ${_mgE(t.speed)}</span>
+    </div>
+    <div style="margin-top:6px;color:var(--text3)">${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => `${a.toUpperCase()} ${t.scores[a]} (${_mgMod(t.scores[a])})`).join(' \u00b7 ')}</div>
+    <div style="margin-top:6px;color:var(--text2);line-height:1.5">
+      ${line('Damage Immunities', t.damageImmunities)}${line('Condition Immunities', t.conditionImmunities)}${line('Senses', t.senses)}${line('Languages', t.languages)}
+    </div>
+    <details open style="margin-top:6px"><summary style="cursor:pointer;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;font-size:9px;font-weight:600">Traits</summary>
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5">${t.traits.map(x => `<div style="margin-top:4px">${_mgBold(x)}</div>`).join('')}</div></details>
+    <details open style="margin-top:6px"><summary style="cursor:pointer;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;font-size:9px;font-weight:600">Actions</summary>
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);line-height:1.5">${t.actions.map(x => `<div style="margin-top:4px">${_mgBold(x)}</div>`).join('')}</div></details>
+  </div>`;
+}
+function renderMagenPanel() {
+  const anchor = document.getElementById('sp-class-manage-bar');
+  let el = document.getElementById('sp-magen-panel');
+  if (!anchor || !currentChar) { if (el) el.remove(); return; }
+  const list = getMagenList(), red = getMagenHpReduction(), ro = !!window._previewMode;
+  const knows = charKnowsCreateMagen();
+  if (!(knows || isDM || list.length || red)) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'sp-magen-panel';
+    el.style.cssText = 'margin:8px 0;padding:10px 12px;border:1px solid var(--border,#444);border-radius:8px;background:var(--bg2);font-family:var(--font-ui);font-size:11px';
+    anchor.insertAdjacentElement('afterend', el);
+  }
+  const addBtn = ro ? '' : isDM ? `<button class="tbtn" style="min-height:32px" onclick="openCreateMagen()">Add Magen (DM)...</button>`
+    : knows ? `<button class="tbtn" style="min-height:32px" onclick="openCreateMagen()">Create Magen...</button>` : '';
+  el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="font-family:var(--font-label);letter-spacing:1px">MAGEN</span>
+      <span style="color:var(--text3);flex:1">${list.length ? `${list.length} created \u00b7 they obey your commands without question` : 'No magen yet.'}</span>${addBtn}</div>
+    ${red ? `<div style="margin-top:8px;color:var(--amber);display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="flex:1">Hit point maximum reduced by <b>${red}</b> from creating magen. Only a wish spell can undo this reduction.</span>${isDM && !ro ? `<button class="tbtn" style="min-height:32px" onclick="clearMagenHpReduction()">Undo reduction (DM)</button>` : ''}</div>` : ''}
+    ${list.map(m => _mgCard(m, ro)).join('')}`;
+}
+window.renderMagenPanel = renderMagenPanel;
+
+// ── full PDF: each magen as a companion page ───────────────────────────
+function getMagenPdfCreatures() {
+  try {
+    return getMagenList().map(m => {
+      const t = MAGEN_TYPES[m.key]; if (!t) return null;
+      const attacks = [], other = [];
+      t.actions.forEach(a => {
+        const x = /^(.+?)\. (Melee|Ranged) (?:Weapon|Spell) Attack: \+(\d+) to hit, (?:reach|range) ([^,]+), (.*?)Hit: \d+ \(([^)]+)\) (\w+) damage\.?$/.exec(a);
+        if (x) attacks.push({ name: x[1], atkBonus: parseInt(x[3], 10), dmg: x[6].replace(/\s+/g, ''), dmgType: x[7], range: x[4], notes: x[5].trim().replace(/\.$/, '') });
+        else other.push(a);
+      });
+      return { name: t.name, size: t.size, type: t.type, alignment: t.alignment, cr: t.cr, ac: t.ac, hp: m.hpMax, hpCur: m.hpCur, speed: t.speed,
+        scores: t.scores, senses: t.senses, languages: t.languages, resistances: t.damageImmunities ? 'Immune: ' + t.damageImmunities : '', condImm: t.conditionImmunities,
+        traits: [...t.traits, ...other], attacks, tabLabel: 'Magen', note: `Created with Create Magen (${t.source} p${t.page}). Obeys its creator's commands without question.` };
+    }).filter(Boolean);
+  } catch (e) { return []; }
+}
+window.getMagenPdfCreatures = getMagenPdfCreatures;
+
+(function () {
+  const orig = window.renderClassManageBar;
+  if (typeof orig === 'function') window.renderClassManageBar = function () { const r = orig.apply(this, arguments); try { renderMagenPanel(); } catch (e) { console.warn('[magen]', e.message); } return r; };
 })();
 </script>
 </body>
