@@ -623,8 +623,14 @@ select:not([multiple]) {
 /* ── MAIN APP ────────────────────────────────────────────── */
 #app {
   display: none;
+  /* 100vh on phones is the height with the browser's toolbars hidden, so
+     while they are showing the bottom of the page sat underneath them and
+     could not be scrolled into view. 100dvh is the height actually visible
+     right now; the vh lines stay as a fallback for older browsers. */
   height: 100vh;
+  height: 100dvh;
   max-height: 100vh;
+  max-height: 100dvh;
   flex-direction: column;
   position: relative;
   z-index: 10;
@@ -1575,7 +1581,7 @@ body.preview-readonly #mi-detail-edit-row * {
 
   /* Modal: full screen on mobile */
   .modal-box { width: calc(100vw - 16px) !important; max-width: none !important;
-    max-height: calc(100vh - 60px) !important; margin: 8px; }
+    max-height: calc(100vh - 60px) !important; max-height: calc(100dvh - 60px) !important; margin: 8px; }
   .modal-overlay { padding: 8px; align-items: flex-start; padding-top: 30px; }
 
   /* Spell slots: allow wrapping */
@@ -1629,8 +1635,9 @@ body.preview-readonly #mi-detail-edit-row * {
 /* Touch-friendly: larger tap targets globally on touch devices */
 @media (hover: none) and (pointer: coarse) {
   #fab-save { display: flex !important; }
-  /* Push content up slightly so FAB doesn't cover last item */
-  #content { padding-bottom: 72px; }
+  /* Push content up slightly so FAB doesn't cover last item (plus the
+     phone's own bottom inset - home indicator / gesture bar) */
+  #content { padding-bottom: 72px; padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
   .tbtn { min-height: 36px; padding: 8px 12px; }
   .page-tab { min-height: 44px; display: flex; align-items: center; }
   .slot-pip { width: 22px; height: 22px; }
@@ -24195,7 +24202,7 @@ const DMG_MAGIC_ITEMS = [
 {"key": "ring_of_volleys", "name": "Ring of Volleys", "rarity": "uncommon", "type": "ring", "desc": "While wearing this ring, you can choose to summon a nocked arrow or bolt whenever you draw a bow or crossbow. The ammunition is magical. An arrow or bolt vanishes if you don't fire it right away and disappears right after it hits or misses.", "attunement": false, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "source": "Homebrew"},
 {"key":"ring_of_wind","name":"Ring of Wind","rarity":"uncommon","type":"ring","desc":"While wearing this ring, you can use it to cast the Wind Wall spell (save DC 13). Once this property is used, it can't be used again until the next dawn.\n\nWhen cast from the ring, the wall appears in a 10-foot Emanation originating from you, which is stationary. The wall is 15 feet high and 1 foot thick.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","grantedSpells":[{"spellName":"Wind Wall","fixedDC":13,"grantType":"limited","usesMax":1,"recovery":"long"}]},
 {"key":"ring_of_the_arcane_berserker","name":"Ring of the Arcane Berserker","rarity":"rare","type":"ring","desc":"This dark silver ring is decorated by a metallic skull with an amethyst gemstone embedded in its forehead. While wearing the ring, you can use an action to cast the chill touch spell (+5 to hit with ranged spell attack) from it.\n\nThis ring has 3 charges and regains 1d3 expended charges daily at dawn. While wearing it, you can cast a spell even if you're raging by expending 1 of the ring's charges as part of casting the spell. If you do, your rage does not end at the end of your turn as a result of not attacking a hostile creature. In addition, you can concentrate on spells while raging, but have disadvantage on Constitution saving throws to maintain your concentration on them when you take damage.","attunement":true,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"Homebrew","charges":{"max":3,"recovery":"dawn"},"grantedSpells":[{"spellName":"Chill Touch","grantType":"itemCharges","chargeCost":1}]},
-{"key": "ring_of_the_assassin_lord", "name": "Ring of the Assassin Lord", "rarity": "legendary", "type": "ring", "desc": "This dagger-shaped ring has been worn by famous assassins throughout history. While wearing this ring, you can deal your extra Sneak Attack damage twice, instead of once, on each of your turns. The two attacks must be made against different targets, and the Sneak Attack damage for the second attack is halved.\n\nThe inside of the ring is blank when you first attune to the ring. A small tick mark appears on the band's interior whenever you reduce a creature of challenge rating 1 or higher to 0 hit points with an attack in which you dealt Sneak Attack damage. Once the ring has 50 marks, your Dexterity ability score increases by 2, as does your maximum for that score, and the ring stops adding more marks. If another creature attunes to the ring and gains this bonus, your Dexterity ability score and maximum for that score return to normal.", "attunement": true, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "source": "Homebrew"},
+{"key": "ring_of_the_assassin_lord", "name": "Ring of the Assassin Lord", "rarity": "very rare", "type": "ring", "desc": "This dagger-shaped ring has been worn by famous assassins throughout history. While wearing this ring, you can deal your extra Sneak Attack damage twice, instead of once, on each of your turns. The two attacks must be made against different targets, and the Sneak Attack damage for the second attack is halved.", "attunement": true, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "source": "Homebrew"},
 {"key": "ring_of_the_fowl_sentinel", "name": "Ring of the Fowl Sentinel", "rarity": "common", "type": "ring", "desc": "This plain bronze ring is embossed with a rooster's head at its center. You can take a Magic action to tap the ring to the beak of a chicken or rooster that isn't Hostile toward you, causing it to have the Charmed condition for 8 hours. Until the condition ends, the target has AC 10, HP 1, a Speed of 0, a +3 bonus to Wisdom (Perception) checks, and it remains quiet. The condition ends early if the target sees another Small or larger creature it hasn't seen before. When the condition ends, the target lets out a cry, which can be heard up to 150 feet away. Only one creature can be Charmed by the ring at a time. If you take a Magic action to tap the Charmed target's beak with the ring again, the condition ends and the target doesn't let out a cry.", "attunement": false, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "source": "Homebrew"},
 {"key": "ring_of_the_mute_mage", "name": "Ring of the Mute Mage", "rarity": "uncommon", "type": "ring", "desc": "This dark silver ring looks like a tongue wrapped around your finger with an amethyst pressed into it. The Undercommon word for \"silent\" is inscribed into the ring's tongue. While wearing the ring, the same word becomes harmlessly written on your own tongue, and when you cast a spell of 3rd level or lower that requires only verbal components, you can choose to cast the spell using somatic ones instead. Any spell that requires a target to hear its verbal component gains no benefit from this property. Once this property of the ring has been used, it can't be used again until the next dawn.", "attunement": true, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "source": "Homebrew"},
 {"key": "ring_of_the_sandskimmer", "name": "Ring of the Sandskimmer", "rarity": "uncommon", "type": "ring", "desc": "This ring is made entirely of sand that ebbs and flows around your finger. The sand is magically held together by a single, perfectly smooth tiger's eye stone that spins in place as the sand brushes past it. While wearing the ring, you leave no footprints behind when you walk in sand, and you treat Difficult Terrain made of sand as if it were normal terrain.", "attunement": false, "isWeapon": false, "isArmour": false, "isAmmo": false, "effects": null, "source": "Homebrew"},
@@ -62081,11 +62088,14 @@ function jumpToFeatureByName(name) {
 
   // Then search after the tab has rendered
   setTimeout(() => {
-    const cards = document.querySelectorAll('.feat-card');
+    // The Features tab lists features as .feat-pill-item rows (name in
+    // .feat-pill-badge); the older .feat-card markup only exists on other
+    // tabs now, so searching for that alone found nothing to scroll to.
+    const cards = document.querySelectorAll('#page-features .feat-pill-item, #page-features .feat-card');
     let match = null;
     let bestScore = -1;
     for (const card of cards) {
-      const cardName = card.querySelector('.feat-card-name')?.textContent?.toLowerCase().trim();
+      const cardName = card.querySelector('.feat-pill-badge, .feat-card-name')?.textContent?.toLowerCase().trim();
       if (!cardName) continue;
       for (const cand of candidates) {
         let score = -1;
@@ -62097,6 +62107,8 @@ function jumpToFeatureByName(name) {
     }
     if (match) {
       match.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      match.style.transition = 'background .3s'; match.style.background = 'var(--accent-bg)';
+      setTimeout(() => { match.style.background = ''; }, 2000);
       match.classList.add('feat-card-highlight');
       setTimeout(() => match.classList.remove('feat-card-highlight'), 2000);
     } else {
@@ -65024,7 +65036,7 @@ function updateWildCompanionUI() {
 </script>
 
 <div class="modal-overlay hidden" id="skill-setup-modal">
-  <div class="modal-box" style="max-width:540px;max-height:92vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:540px;max-height:92vh;max-height:92dvh;overflow-y:auto">
     <div class="modal-title">
       Skill Proficiency Setup
       <span class="modal-close" onclick="closeModal('skill-setup-modal')">&#x2715;</span>
@@ -67176,7 +67188,8 @@ function _qpBuild() {
     const s = PHB_SPELL_LIST.find(x => x.key === r.key) || {};
     const t = s.time || '';
     const bucket = /\brea/i.test(t) ? 'reaction' : /bns|bonus/i.test(t) ? 'bonus' : /^1\s*a\b/i.test(t) ? 'action' : 'longer';
-    const rr = res['name:' + String(r.name || s.name).toLowerCase()];
+    // an item's own use counter (e.g. "Cloak of the Bat: Polymorph") belongs on that spell's line
+    const rr = (r._resourceId && res[r._resourceId]) || res['name:' + String(r.name || s.name).toLowerCase()];
     const castLv = typeof getFeatSpellFreeCastLevel === 'function' ? getFeatSpellFreeCastLevel(r, s) : (r.level ?? s.level ?? 0);
     return { key: r.key, name: s.name || r.name, level: castLv, baseLevel: (s.level ?? r.level ?? 0), ritualOnly: r.pipType === 'ritual-only', upcast: castLv > (s.level ?? r.level ?? 0), desc: s.desc || '', source: r.label || '', bucket, res: rr && rr.type !== 'display' ? rr : null, conc: /conc/i.test(s.duration || ''),
       stat: _qpSpellStat(r, (_qpRowOwner && typeof _qpRowOwner.get === 'function') ? (_qpRowOwner.get(r.key) || _qpRowOwner.get(r)) : null), freeOnly: (r.source === 'race' || r.source === 'feat' || r.pipType === 'feat-spell') };
@@ -67281,6 +67294,119 @@ function applyQuickPlayTab(onOpen) {
 window.applyQuickPlayTab = applyQuickPlayTab;
 
 // ── rendering ──────────────────────────────────────────────────────────
+// ── what a spell actually does, in numbers ─────────────────────────────
+// Read from the spell's own rules text: whether it is an attack roll or a
+// saving throw (and which), its damage or healing dice, and how those grow -
+// cantrips with character level, levelled spells with the slot used.
+// Returns null when the text has none of these (utility spells).
+function _qpSpellMath(sp, charLevel, castLevel) {
+  if (!sp) return null;
+  const full = String(sp.descFull || sp.desc || '').replace(/\s*\n+\s*/g, ' ');
+  const cut = full.search(/Using a Higher-Level Spell Slot|At Higher Levels|Cantrip Upgrade/i);
+  const body = cut === -1 ? full : full.slice(0, cut), tail = cut === -1 ? '' : full.slice(cut);
+  const out = { attack: null, save: null, half: false, dmg: [], heal: null, count: null };
+  const am = /\b(ranged|melee) spell attack\b/i.exec(body); if (am) out.attack = am[1].toLowerCase();
+  // only a save the spell makes someone roll - not "you have Advantage on Dexterity saving throws" (Haste)
+  const sm = /\b(?:makes?|made|succeeds? on|fails?|repeats?)\s+(?:(?:a|an|its|another|this|the)\s+)?(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) saving throw\b/i.exec(body); if (sm) out.save = sm[1].slice(0, 3).toUpperCase();
+  out.half = /half as much damage/i.test(body);
+  const seen = new Set();
+  for (const m of body.matchAll(/(\d+)d(\d+)(?:\s*\+\s*(\d+))?\s+(?:([A-Z][a-z]+)(?:\s+or\s+[A-Z][a-z]+)?\s+)?damage/g)) {
+    const k = m[2] + '|' + (m[4] || '');
+    if (seen.has(k)) continue; seen.add(k);
+    out.dmg.push({ n: parseInt(m[1], 10), die: parseInt(m[2], 10), flat: m[3] ? parseInt(m[3], 10) : 0, type: m[4] || '' });
+    if (out.dmg.length >= 3) break;
+  }
+  const hm = /regains?\s+(?:a number of\s+)?Hit Points equal to (\d+)d(\d+)(\s+plus your spellcasting ability modifier)?/i.exec(body);
+  if (hm) out.heal = { n: parseInt(hm[1], 10), die: parseInt(hm[2], 10), mod: !!hm[3] };
+  if (!sp.level) {
+    // cantrips: thresholds named in the Cantrip Upgrade text ("levels 5 (2d10), 11 (3d10), and 17 (4d10)")
+    const lv = [...tail.matchAll(/\b(\d+)\s*\(/g)].map(m => parseInt(m[1], 10)).filter(n => n > 1 && n <= 20);
+    const beams = [...tail.matchAll(/\b(two|three|four)\s+(\w+)\s+at level (\d+)/gi)];
+    const steps = (lv.length ? lv : beams.map(m => parseInt(m[3], 10))).filter(n => charLevel >= n).length;
+    if (beams.length) { const words = { two: 2, three: 3, four: 4 }; let n = 1, noun = beams[0][2];
+      beams.forEach(m => { if (charLevel >= parseInt(m[3], 10)) n = Math.max(n, words[m[1].toLowerCase()]); });
+      if (n > 1) out.count = { n, noun }; }
+    else if (steps && /damage increases by/i.test(tail)) {
+      const inc = /increases by (\d+)d(\d+)/i.exec(tail);
+      out.dmg.forEach(d => { if (!inc || parseInt(inc[2], 10) === d.die || /one die/i.test(tail)) d.n += (inc ? parseInt(inc[1], 10) : 1) * steps; });
+      if (!inc) out.dmg.forEach(d => { /* "increases by one die": handled above */ });
+    }
+  } else if (castLevel > sp.level) {
+    const extra = castLevel - sp.level;
+    const dm = /The (?:([A-Z][a-z]+) )?damage(?: of [^.]*?)? increases by (\d+)d(\d+) for each (?:spell )?slot level above/i.exec(tail);
+    if (dm) { const die = parseInt(dm[3], 10);
+      // a named type ("The Cold damage increases...") scales that one; otherwise every listed damage with that die
+      let tgts = dm[1] ? out.dmg.filter(d => d.type === dm[1] && d.die === die) : out.dmg.filter(d => d.die === die);
+      if (!tgts.length && out.dmg.length) tgts = [out.dmg[0]];
+      tgts.forEach(d => { d.n += parseInt(dm[2], 10) * extra; }); }
+    const hh = /healing increases by (\d+)d(\d+) for each (?:spell )?slot level above/i.exec(tail);
+    if (hh && out.heal) out.heal.n += parseInt(hh[1], 10) * extra;
+  }
+  if (sp.level) {
+    // "3+1/SL darts" style counts in the sheet's own summary line
+    const cm = /(\d+)\+(\d+)\/SL\s+([a-z]+)/i.exec(String(sp.desc || ''));
+    if (cm && !/d\d/.test(cm[0]) && /^(darts|rays|beams|bolts|missiles)$/i.test(cm[3])) out.count = { n: parseInt(cm[1], 10) + parseInt(cm[2], 10) * Math.max(0, castLevel - sp.level), noun: cm[3] };
+  }
+  return (out.attack || out.save || out.dmg.length || out.heal) ? out : null;
+}
+function _qpSpellMathHtml(key, castLevel) {
+  const sp = PHB_SPELL_LIST.find(x => x.key === key); if (!sp) return '';
+  const s = (window._qpData?.spells || []).find(x => x.key === key) || {};
+  const lvl = castLevel || s.level || sp.level || 0;
+  const m = _qpSpellMath(sp, (typeof getLevel === 'function' ? getLevel() : 1), lvl); if (!m) return '';
+  const st = s.stat || {}, bits = [];
+  if (m.attack) bits.push(`<b>${st.atk != null ? _qpSign(st.atk) + ' to hit' : 'spell attack'}</b>`);
+  if (m.save) bits.push(`<b>${st.dc != null ? 'DC ' + st.dc + ' ' : ''}${m.save} save</b>`);
+  const dice = d => `${d.n}d${d.die}${d.flat ? '+' + d.flat : ''}${d.type ? ' ' + d.type : ''}`;
+  if (m.dmg.length) bits.push(`<b>${m.count ? m.count.n + ' ' + _qpE(m.count.noun) + ' \u00d7 ' : ''}${m.dmg.map(dice).join(' / ')}</b> damage${m.half && m.save ? ' (half on a save)' : ''}`);
+  else if (m.count) bits.push(`<b>${m.count.n} ${_qpE(m.count.noun)}</b>`);
+  if (m.heal) { const mod = st.ab && typeof getAbilities === 'function' ? abilityMod(getAbilities()[st.ab] ?? 10) : null;
+    bits.push(`heals <b>${m.heal.n}d${m.heal.die}${m.heal.mod ? (mod != null ? (mod ? (mod > 0 ? '+' : '') + mod : '') : ' + modifier') : ''}</b>`); }
+  return bits.join(' \u00b7 ');
+}
+window._qpSpellMath = _qpSpellMath;
+
+// ── magic items on Quick Play ───────────────────────────────────────────
+// Everything here is driven by the items the character actually carries
+// (and, where an item needs attunement, is attuned to) - nothing is tied
+// to a particular character.
+function _qpActiveItems() {
+  return (currentChar?.magicItems || []).map((it, idx) => ({ it, idx, on: !(it.attunement && !it.attuned) }));
+}
+function _qpItemDesc(it) { try { return String((typeof getEffectiveItemDesc === 'function' ? getEffectiveItemDesc(it) : it.desc) || ''); } catch (e) { return String(it.desc || ''); } }
+function _qpItemName(it) { try { return typeof getItemDisplayName === 'function' ? getItemDisplayName(it) : (it.customName || it.name); } catch (e) { return it.customName || it.name; } }
+// Sentences in an active item's own text that mention a given rule (e.g.
+// "Sneak Attack"), so they can sit beside that rule on the page.
+function _qpItemSentences(rx) {
+  const out = [];
+  _qpActiveItems().filter(x => x.on).forEach(({ it, idx }) => {
+    const plain = _qpItemDesc(it).replace(/\*+/g, '').replace(/\s*\n+\s*/g, ' ');
+    const hits = plain.split(/(?<=[.!?])\s+(?=[A-Z])/).filter(s => rx.test(s));
+    if (hits.length) out.push({ name: _qpItemName(it), idx, text: hits.join(' ') });
+  });
+  return out;
+}
+// Toggleable effects the character is eligible for (Rage, an item's
+// flight...) - the same list and the same switch as the Main sheet.
+function qpToggleEffect(id) {
+  if (window._previewMode) return;
+  try { if (id === 'mutable_form' && typeof openMutableFormModal === 'function') openMutableFormModal(); else toggleActiveEffect(id); } catch (e) {}
+  setTimeout(() => { try { renderQuickPlay(); } catch (e) {} }, 60);
+}
+window.qpToggleEffect = qpToggleEffect;
+// Second Sneak Attack in a turn (an item that allows one, halved): the
+// player types what their Sneak Attack dice came to; the sheet halves it.
+function qpHalfSneak() {
+  const Q = window._qpData; const out = document.getElementById('qp-half-out'); if (!Q || !out) return;
+  const dice = parseInt(document.getElementById('qp-half-dice')?.value, 10);
+  const crit = document.getElementById('qp-half-crit')?.checked;
+  const sa = _qpSA(Q);
+  if (isNaN(dice)) { out.innerHTML = `Roll <b>${sa}d6</b>${crit ? ` (a crit: ${sa * 6} for the maxed dice, plus the ${sa}d6 you roll)` : ''} and type the total.`; return; }
+  const full = dice + (crit ? sa * 6 : 0);
+  out.innerHTML = `<span class="qp-big">${Math.floor(full / 2)}</span> <span class="qp-dim">Sneak Attack damage on the second target = half of ${full}${crit ? ` (${sa * 6} maxed + your dice ${dice})` : ''}, rounded down. Add the weapon's own damage as normal.</span>`;
+}
+window.qpHalfSneak = qpHalfSneak;
+
 // Which save DC and attack bonus a spell uses, from where it comes from:
 // the class that knows it, the species (its chosen ability), the feat (the
 // ability picked or fixed for that feat), or an item's own fixed numbers.
@@ -67319,13 +67445,23 @@ function _qpCheckExtras(Q) {
   const die = _qpHasFeat('Greater Mark of Shadow') ? '1d6' : _qpHasFeat('Mark of Shadow') ? '1d4' : '';
   if (die) { add('stealth', { dice: die, diceFrom: 'Cunning Intuition' }); add('performance', { dice: die, diceFrom: 'Cunning Intuition' }); }
   if (Q.champion) add('athletics', { adv: true, advFrom: 'Remarkable Athlete' });
+  // Advantage from magic items (e.g. Cloak of the Bat on Stealth), read from the items themselves
+  (typeof SKILLS !== 'undefined' ? SKILLS : []).forEach(sk => {
+    const src = typeof getSkillAdvantageSources === 'function' ? getSkillAdvantageSources(sk.key) : [];
+    if (src.length) add(sk.key, { adv: true, advFrom: [out.skills[sk.key]?.advFrom, ...src].filter(Boolean).join(', ') });
+  });
+  ['str', 'dex', 'con', 'int', 'wis', 'cha'].forEach(ab => {
+    const src = typeof getSaveAdvantageSources === 'function' ? getSaveAdvantageSources(ab) : [];
+    if (src.length) out.saves[ab] = { ...(out.saves[ab] || {}), adv: true, advFrom: src.join(', ') };
+  });
+  out.itemNotes = [...new Set(Object.values(out.skills).map(x => x.advFrom).filter(f => f && f !== 'Remarkable Athlete').concat(Object.values(out.saves).map(x => x.advFrom).filter(Boolean)))];
   if (Q.rogue >= 7) {
     (typeof SKILLS !== 'undefined' ? SKILLS : []).forEach(sk => {
       const p = document.getElementById('skill-prof-dot-' + sk.key)?.classList.contains('prof') || document.getElementById('skill-exp-dot-' + sk.key)?.classList.contains('expert');
       const v = parseInt((document.getElementById('skill-val-' + sk.key)?.innerText || '').replace('\u2212', '-'), 10);
       if (p && !isNaN(v)) add(sk.key, { min: 10 + v });
     });
-    out.saves.dex = { tag: 'Evasion' };
+    out.saves.dex = { ...(out.saves.dex || {}), tag: 'Evasion' };
   }
   return out;
 }
@@ -67342,10 +67478,49 @@ function qpToggleCard(slug, force) {
   if (now) shut[slug] = 1; else delete shut[slug];
   try { localStorage.setItem('qp_folded_cards', JSON.stringify(shut)); } catch (e) {}
   if (el) el.classList.toggle('qp-shut', now);
+  if (el && !now) { try { qpFillFull(el); } catch (e) {} }
 }
 window.qpToggleCard = qpToggleCard;
+// Spell text on Quick Play: the spell's full rules text (the default) or
+// the old one-line summary. Remembered on this device.
+function _qpTextMode() {
+  if (!_qp.textMode) { try { _qp.textMode = localStorage.getItem('qp_spell_text') === 'short' ? 'short' : 'full'; } catch (e) { _qp.textMode = 'full'; } }
+  return _qp.textMode;
+}
+function qpSpellTextMode(mode) {
+  _qp.textMode = mode === 'short' ? 'short' : 'full';
+  try { localStorage.setItem('qp_spell_text', _qp.textMode); } catch (e) {}
+  renderQuickPlay();
+}
+window.qpSpellTextMode = qpSpellTextMode;
+// The same pipeline the spell pop-up uses - DM text overrides, cantrip and
+// upcast numbers worked out and highlighted, glossary links, tables.
+function _qpSpellFullHtml(key, castLevel) {
+  const sp = PHB_SPELL_LIST.find(x => x.key === key); if (!sp) return '';
+  const raw = (typeof getEffectiveText === 'function') ? getEffectiveText('spell:' + sp.key, sp.descFull || sp.desc || '') : (sp.descFull || sp.desc || '');
+  let html = String(raw || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  if (!html) return '';
+  try {
+    html = sp.level === 0
+      ? (typeof highlightCantripScaling === 'function' ? highlightCantripScaling(html, sp, typeof getLevel === 'function' ? getLevel() : 1) : html)
+      : (typeof highlightSpellUpcast === 'function' ? highlightSpellUpcast(html, sp, Math.max(castLevel || 0, sp.level)) : html);
+    if (typeof highlightSpellcastingMod === 'function') html = highlightSpellcastingMod(html);
+    if (typeof linkifyGlossaryTerms === 'function') html = linkifyGlossaryTerms(html, sp.name);
+    if (typeof renderInlineFeatureTables === 'function') html = renderInlineFeatureTables(html);
+  } catch (e) {}
+  return html;
+}
+// Full text is filled in only for sections that are open (a 200-spell
+// caster would otherwise build every description up front).
+function qpFillFull(scope) {
+  (scope || document).querySelectorAll('.qp-full[data-key]:not([data-done])').forEach(el => {
+    if (el.closest('details:not([open])') || el.closest('.qp-shut')) return;
+    el.innerHTML = _qpSpellFullHtml(el.dataset.key, parseInt(el.dataset.lvl, 10) || 0); el.dataset.done = '1';
+  });
+}
+window.qpFillFull = qpFillFull;
 // Spells sub-sections remember whether they were folded away
-function qpSpellsOpen(bucket, open) { _qp.spOpen[bucket] = !!open; }
+function qpSpellsOpen(bucket, open) { _qp.spOpen[bucket] = !!open; if (open) { try { qpFillFull(document.getElementById('qp-body')); } catch (e) {} } }
 window.qpSpellsOpen = qpSpellsOpen;
 // "Cast at level" on a spell line: show what changes at that slot level,
 // using the same upcast logic as the spell pop-up.
@@ -67367,8 +67542,13 @@ function _qpUpcastHtml(key, lvl) {
 function qpUpcast(key, bucket, v) {
   const lvl = parseInt(v, 10) || 0; _qp.up[key] = lvl;
   const box = document.getElementById('qp-up-' + bucket + '-' + key); if (!box) return;
-  const h = _qpUpcastHtml(key, lvl);
+  const fullEl = document.getElementById('qp-full-' + bucket + '-' + key);
+  if (fullEl) { fullEl.dataset.lvl = String(lvl); fullEl.innerHTML = _qpSpellFullHtml(key, lvl); fullEl.dataset.done = '1'; }
+  const h = fullEl ? '' : _qpUpcastHtml(key, lvl);
   box.innerHTML = h; box.style.display = h ? '' : 'none';
+  // the numbers on the line follow the chosen slot level
+  const sm = document.getElementById('qp-sm-' + bucket + '-' + key);
+  if (sm) { const base = (window._qpData?.spells || []).find(x => x.key === key)?.level || 0; const mh = _qpSpellMathHtml(key, Math.max(lvl, base)); if (mh) { sm.innerHTML = mh; sm.style.display = ''; } }
 }
 window.qpUpcast = qpUpcast;
 
@@ -67410,8 +67590,8 @@ function renderQuickPlay() {
   const saves = SAVE.map(k => {
     const v = (document.getElementById('save-val-' + k)?.innerText || _qpSign(abilityMod(Q.abs[k]))).replace('\u2212', '-');
     const p = document.getElementById('save-dot-' + k)?.classList.contains('prof');
-    const tag = QX.saves[k]?.tag;
-    return `<span class="qp-chip${p ? ' prof' : ''}">${k.toUpperCase()} ${v}${tag ? ` <span class="qp-x">${_qpE(tag)}</span>` : ''}</span>`;
+    const tag = QX.saves[k]?.tag, sAdv = QX.saves[k]?.adv;
+    return `<span class="qp-chip${p ? ' prof' : ''}">${k.toUpperCase()} ${v}${sAdv ? ` <span class="qp-x" title="${_qpE(QX.saves[k].advFrom || '')}">Adv.</span>` : ''}${tag ? ` <span class="qp-x">${_qpE(tag)}</span>` : ''}</span>`;
   }).join('');
   const saveNotes = [Q.rogue >= 7 ? '<b>Evasion:</b> on a Dexterity save for half damage, you take none if you succeed and half if you fail.' : ''].filter(Boolean);
   const skillsBy = {};
@@ -67427,6 +67607,7 @@ function renderQuickPlay() {
   const checkNotes = [
     Q.rogue >= 7 ? '<b>Reliable Talent:</b> on a check with a skill you\'re proficient in (highlighted), a d20 roll of 9 or lower counts as 10 - so <b>min</b> is the lowest total you can get.' : '',
     Q.champion ? '<b>Remarkable Athlete:</b> Advantage on Initiative and Athletics checks (marked <b>Adv.</b>).' : '',
+    ...Object.entries(QX.skills).filter(([, x]) => x.adv && x.advFrom && x.advFrom !== 'Remarkable Athlete').map(([k, x]) => `<b>${_qpE(x.advFrom.replace(/^Remarkable Athlete, /, ''))}:</b> Advantage on ${_qpE((SKILLS.find(s => s.key === k) || {}).name || k)} checks (marked <b>Adv.</b>).`),
     _qpHasFeat('Greater Mark of Shadow') ? '<b>Cunning Intuition:</b> roll 1d6 and add it to Stealth and Performance checks (marked <b>+1d6</b>).' : _qpHasFeat('Mark of Shadow') ? '<b>Cunning Intuition:</b> roll 1d4 and add it to Stealth and Performance checks (marked <b>+1d4</b>).' : '',
   ].filter(Boolean);
 
@@ -67437,11 +67618,16 @@ function renderQuickPlay() {
   const init = (document.getElementById('disp-init')?.innerText || '').trim();
   const speedTxt = (document.getElementById('disp-speed')?.innerText || c.speed || '').toString().trim();
   const ac = calcACBreakdown();
+  const speedNote = (document.getElementById('speed-note')?.innerText || '').replace(/\s+/g, ' ').trim();
+  const fxDefs = (() => { try { return typeof getActiveEffectDefs === 'function' ? getActiveEffectDefs() : []; } catch (e) { return []; } })();
+  const fxRow = !fxDefs.length ? '' : `<div class="qp-fx"><span class="qp-dim">Effects - tap to switch on or off:</span>${fxDefs.map(([id, def]) => { const on = (() => { try { return isEffectActive(id); } catch (e) { return false; } })();
+      return `<button class="qp-fxb${on ? ' on' : ''}" ${window._previewMode ? 'disabled' : ''} onclick="qpToggleEffect('${_qpE(id)}')" title="${_qpE(def.desc || '')}">${def.icon || ''} ${_qpE(def.label || id)}${on ? ' \u2713' : ''}</button>`; }).join('')}
+      ${fxDefs.filter(([id]) => { try { return isEffectActive(id); } catch (e) { return false; } }).map(([id, def]) => def.desc ? `<div class="qp-note"><b>${_qpE(def.label)}:</b> ${_qpE(def.desc)}</div>` : '').join('')}</div>`;
   const move = `<div class="qp-stats">
       <div class="qp-stat"><div class="qp-sl">Armor Class</div><div class="qp-big">${ac.total}</div></div>
-      <div class="qp-stat"><div class="qp-sl">Speed</div><div class="qp-big">${_qpE(speedTxt)}</div><div class="qp-dim">feet per turn</div></div>
+      <div class="qp-stat"><div class="qp-sl">Speed</div><div class="qp-big">${_qpE(speedTxt)}</div><div class="qp-dim">${speedNote ? _qpE(speedNote) : 'feet per turn'}</div></div>
       <div class="qp-stat"><div class="qp-sl">Initiative</div><div class="qp-big">${_qpE(init)}</div><div class="qp-dim">${Q.champion ? 'roll with Advantage' : ''}</div></div>
-    </div>`;
+    </div>${fxRow}`;
 
   // other features & resources, sorted into Action / Bonus Action / Reaction by their own wording
   const HANDLED = new Set(['action surge', 'second wind', 'bloodthirst', 'sneak attack', 'cunning strike', 'cunning action', 'steady aim', 'uncanny dodge',
@@ -67535,9 +67721,16 @@ function renderQuickPlay() {
     const cur = _qp.up[s.key] && opts.includes(_qp.up[s.key]) ? _qp.up[s.key] : s.level;
     return `<select class="qp-upsel" title="Cast with a higher-level slot" onclick="event.stopPropagation()" onchange="qpUpcast('${_qpE(s.key)}','${bucket}',this.value)">${[...new Set([s.level, ...opts])].map(l => `<option value="${l}" ${l === cur ? 'selected' : ''}>${l === s.level ? 'level ' + l : 'cast at ' + l}</option>`).join('')}</select>`;
   };
-  const upBox = (s, bucket) => { const h = (_qp.up[s.key] > s.level) ? _qpUpcastHtml(s.key, _qp.up[s.key]) : ''; return `<div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</div>`; };
+  const upBox = (s, bucket) => {
+    if (_qpTextMode() === 'full') {   // full text: the chosen level's numbers are worked into the text itself
+      const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : s.level;
+      return `<div class="qp-full" id="qp-full-${bucket}-${_qpE(s.key)}" data-key="${_qpE(s.key)}" data-lvl="${cur}"></div><div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="display:none"></div>`;
+    }
+    const h = (_qp.up[s.key] > s.level) ? _qpUpcastHtml(s.key, _qp.up[s.key]) : ''; return `<div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</div>`; };
+  const mathLine = (s, bucket) => { const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : s.level; const h = s.stored ? '' : _qpSpellMathHtml(s.key, cur);
+    return `<span class="qp-sm" id="qp-sm-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</span>${h ? '<span class="qp-sep"> \u2014 </span>' : ''}`; };
   const spellLine = (s, bucket) => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>${upSelect(s, bucket)}`,
-    _qpE(s.desc), (s.stored && window._previewMode) ? '' : s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
+    mathLine(s, bucket) + `<span class="qp-sum"${_qpTextMode() === 'full' ? ' style="display:none"' : ''}>${_qpE(s.desc)}</span>`, (s.stored && window._previewMode) ? '' : s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
   const _slotLeft = (() => { const m = {}; try { const ss = computeSpellSlotsForChar(currentChar); (ss.levels || []).forEach(x => { if (x.max > 0) m[x.level] = `${x.max - (x.used || 0)}/${x.max} slots left`; }); } catch (e) {} return m; })();
   const spellSection = bucket => {
     const list = Q.spells.filter(s => s.bucket === bucket).sort((a, b) => a.level - b.level || String(a.name).localeCompare(String(b.name)));
@@ -67549,13 +67742,18 @@ function renderQuickPlay() {
     const fmt = g => `${g.st.dc != null ? `save DC <b>${g.st.dc}</b>` : ''}${g.st.dc != null && g.st.atk != null ? ' \u00b7 ' : ''}${g.st.atk != null ? `<b>${_qpSign(g.st.atk)}</b> to hit` : ''}${g.st.ab ? ` <span class="qp-dim">(${g.st.ab.toUpperCase()})</span>` : ''}`;
     const statLine = !gl.length ? '' : `<div class="qp-spstat">${gl.length === 1 ? `<span class="qp-chip prof">Spell ${fmt(gl[0])}</span>` : gl.map(g => `<span class="qp-chip prof">${_qpE([...g.who].join(', '))}: ${fmt(g)}</span>`).join(' ')}</div>`;
     const open = (bucket in _qp.spOpen) ? _qp.spOpen[bucket] : list.length <= 6;
-    let h = `<details class="qp-spellsec" ${open ? 'open' : ''} ontoggle="qpSpellsOpen('${bucket}', this.open)"><summary class="qp-spsub">Spells (${list.length}) <span class="qp-dim">\u00b7 tap here to fold \u00b7 tap a name for the full spell</span></summary>${statLine}`, lv = null;
+    const _tm = _qpTextMode();
+    const modeLine = `<div class="qp-spmode">Spell text: <span class="${_tm === 'full' ? 'on' : ''}" onclick="qpSpellTextMode('full')">Full</span><span class="${_tm === 'short' ? 'on' : ''}" onclick="qpSpellTextMode('short')">Short</span></div>`;
+    let h = `<details class="qp-spellsec" ${open ? 'open' : ''} ontoggle="qpSpellsOpen('${bucket}', this.open)"><summary class="qp-spsub">Spells (${list.length}) <span class="qp-dim">\u00b7 tap here to fold \u00b7 tap a name for the spell card</span></summary>${statLine}${modeLine}`, lv = null;
     list.forEach(s => { if (s.level !== lv) { lv = s.level; h += `<div class="qp-lvl qp-lvl-${Math.min(lv, 9)}"><span class="qp-lvl-n">${lv === 0 ? 'Cantrips' : 'Level ' + lv}</span><span class="qp-lvl-s">${lv === 0 ? 'at will' : (_slotLeft[lv] || '')}</span></div>`; } h += spellLine(s, bucket).replace(/<\/div>$/, upBox(s, bucket) + '</div>'); });
     return h + '</details>';
   };
 
   // 5. actions
   const sa = _qpSA(Q);
+  // what the character's own (attuned) items say about Sneak Attack
+  const saItems = Q.sneakDice ? _qpItemSentences(/Sneak Attack/i) : [];
+  const saTwice = saItems.some(x => /Sneak Attack damage twice/i.test(x.text) && /halved/i.test(x.text));
   const wRows = Q.weapons.map((w, i) => `<tr>
       <td><b class="qp-feat" onclick="openInventoryItemDetailModal(currentChar.weapons[${w.idx}], 'weapon')">${_qpE(w.name)}</b><div class="qp-dim">${_qpE(w.range)}${w.mastery ? ` \u00b7 <span class="qp-feat" onclick="openWeaponMasteryInfoModal('${_qpE(String(w.phbName).replace(/'/g, "\\'"))}')">${_qpE(w.mastery.charAt(0).toUpperCase() + w.mastery.slice(1))}</span>` : ''}</div></td>
       <td data-label="To hit"><span class="qp-num">${_qpSign(w.hit)}</span></td>
@@ -67580,7 +67778,10 @@ function renderQuickPlay() {
         <input id="qp-add-dice" type="number" min="0" class="info-input" placeholder="dice total" style="width:90px;display:inline-block" oninput="qpAddUp()">
         <div id="qp-add-out" class="qp-dim" style="margin-top:6px">Pick the weapon, tick crit if it was one, and type what your damage dice add up to.</div></div>
     </div>
-    ${Q.sneakDice ? item(`Sneak Attack <span class="qp-badge">${Q.sneakDice}d6</span>`, `Once per turn, add <b>${Q.sneakDice}d6</b> damage when you hit with a <b>Finesse or ranged</b> weapon, if <b>either</b> you have Advantage on the attack, <b>or</b> an ally is within 5 feet of the target (and you don't have Disadvantage). "Once per turn" counts other creatures' turns too, so a hit with a Reaction can also Sneak Attack.`) : ''}
+    ${Q.sneakDice ? item(`Sneak Attack <span class="qp-badge">${Q.sneakDice}d6</span>`, `Once per turn, add <b>${Q.sneakDice}d6</b> damage when you hit with a <b>Finesse or ranged</b> weapon, if <b>either</b> you have Advantage on the attack, <b>or</b> an ally is within 5 feet of the target (and you don't have Disadvantage). "Once per turn" counts other creatures' turns too, so a hit with a Reaction can also Sneak Attack.${saItems.map(x => `<div class="qp-itemnote"> <b class="qp-feat" onclick="openMagicItemDetailModal(currentChar.magicItems[${x.idx}])">${_qpE(x.name)}:</b> ${_qpE(x.text)}</div>`).join('')}`).replace(/<\/div>$/, (saTwice ? `<div class="qp-result" style="margin-top:6px"><b>Second Sneak Attack this turn (halved):</b>
+        <label class="qp-dim"><input type="checkbox" id="qp-half-crit" onchange="qpHalfSneak()"> crit</label>
+        <input id="qp-half-dice" type="number" min="0" class="info-input" placeholder="${sa}d6 total" style="width:100px;display:inline-block" oninput="qpHalfSneak()">
+        <div id="qp-half-out" class="qp-dim" style="margin-top:6px">Roll <b>${sa}d6</b> for the second target and type the total.</div></div>` : '') + '</div>') : ''}
     ${Q.rogue >= 5 ? item('Cunning Strike', `When you deal Sneak Attack damage you can give up Sneak Attack dice (before rolling) for an extra effect. Save DC <b>${Q.cunningDC}</b>.
       <ul class="qp-ul"><li><b>Poison</b> (1d6): Constitution save or Poisoned for 1 minute.</li><li><b>Trip</b> (1d6): a Large or smaller target makes a Dexterity save or falls Prone.</li><li><b>Withdraw</b> (1d6): right after the attack, move up to half your Speed without provoking Opportunity Attacks.</li>
       ${Q.strikeFear ? `<li><b>Terrify</b> (1d6): Wisdom save or Frightened for 1 minute, and <b>you have Advantage on attacks against it</b> - free Advantage for your crits. It repeats the save at the end of each of its turns.</li>` : ''}</ul>`) : ''}
@@ -67588,6 +67789,20 @@ function renderQuickPlay() {
     ${extraItems('action')}
     <div class="qp-other"><b>Other actions anyone can take:</b> Dash (move again), Disengage (move without Opportunity Attacks), Dodge (attacks against you have Disadvantage), Help, Hide, Influence, Search, Study, Utilize, Ready.</div>
     ${spellSection('action')}`);
+
+  // magic items: every one the character carries, with its full text
+  const _its = _qpActiveItems();
+  const itemLine = ({ it, idx, on }) => {
+    const meta = [it.rarity, it.type, it.attunement ? (it.attuned ? 'attuned' : 'not attuned') : '', it.equipped ? 'equipped' : ''].filter(Boolean).join(' \u00b7 ');
+    const fx = it.effects || {}; const tags = [];
+    if (fx.weaponBonus) tags.push(`+${fx.weaponBonus === 'variable' ? (it.magicBonus || 0) : fx.weaponBonus} ${it.isArmour ? 'armour' : 'weapon'}`);
+    if (fx.skillAdvantage) tags.push(`Adv. on ${fx.skillAdvantage}`);
+    (it.grantedSpells || []).filter(g => g.grantType !== 'spellbook').forEach(g => tags.push('casts ' + g.spellName));
+    let body = ''; try { body = typeof renderItemMarkdown === 'function' ? renderItemMarkdown(_qpItemDesc(it)) : _qpE(_qpItemDesc(it)); if (typeof linkifyGlossaryTerms === 'function') body = linkifyGlossaryTerms(body, _qpItemName(it)); } catch (e) { body = _qpE(_qpItemDesc(it)); }
+    return `<div class="qp-item${on ? '' : ' qp-off'}"><div class="qp-name"><span class="qp-feat" onclick="openMagicItemDetailModal(currentChar.magicItems[${idx}])">${_qpE(_qpItemName(it))}</span> <span class="qp-dim">${_qpE(meta)}</span>${tags.map(t => `<span class="qp-badge">${_qpE(t)}</span>`).join('')}</div>
+      ${on ? `<div class="qp-itemtext">${body || '<span class="qp-dim">No description.</span>'}</div>` : `<div class="qp-dim">Needs attunement - it does nothing for you until you attune to it.</div>`}</div>`;
+  };
+  const itemsCard = !_its.length ? '' : card('Magic Items', `${_its.filter(x => x.on).length} active`, _its.filter(x => x.on).map(itemLine).join('') + _its.filter(x => !x.on).map(itemLine).join(''));
 
   // 6. bonus actions
   const lights = Q.weapons.filter((w, i, a) => w.light && a.findIndex(x => x.light && (x.key || x.name) === (w.key || w.name)) === i);
@@ -67623,6 +67838,7 @@ function renderQuickPlay() {
       <a href="#" onclick="return qpJump('action')">Action</a>
       <a href="#" onclick="return qpJump('bonus-action')">Bonus</a>
       <a href="#" onclick="return qpJump('reaction')">Reaction</a>
+      ${(currentChar.magicItems || []).length ? `<a href="#" onclick="return qpJump('magic-items')">Items</a>` : ''}
       <a href="#" onclick="return qpJump('ability-checks')">Checks</a>
     </nav>
     <div class="qp-grid3">
@@ -67635,6 +67851,7 @@ function renderQuickPlay() {
     ${card('Ability Checks', '\u2605 = Expertise', `${checks}${checkNotes.map(n => `<div class="qp-note">${n}</div>`).join('')}`)}
     ${attackCard}
     <div class="qp-grid2">${bonusCard}${reactCard}</div>
+    ${itemsCard}
     ${extra.other.length || heroic ? card('Other limited abilities', '', (heroic ? item('Heroic Inspiration', 'Reroll a d20 right after rolling it.', pips(heroic)) : '') + extraItems('other')) : ''}
     ${longer.length ? card('Takes longer', 'more than one action, or ritual only', spellSection('longer')) : ''}`;
 
@@ -67656,6 +67873,7 @@ function renderQuickPlay() {
     }
   });
 
+  try { qpFillFull(body); } catch (e) {}
   // the same automatic rule / condition / spell links as the rest of the sheet
   if (typeof linkifyGlossaryTerms === 'function') {
     body.querySelectorAll('.qp-text, .qp-note, .qp-other, .qp-always').forEach(el => {
@@ -67805,6 +68023,18 @@ window.qpJump = qpJump;
   details.qp-spellsec > summary::before{content:'\\25B8';display:inline-block;margin-right:6px;transition:transform .15s}details.qp-spellsec[open] > summary::before{transform:rotate(90deg)}
   .qp-spsub{font-family:var(--font-label);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:8px 0 2px;padding:6px 0}
   .qp-spstat{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px}
+  .qp-sm{display:block;color:var(--text);font-size:13px;margin-bottom:2px}.qp-sm b{color:var(--accent)}
+  .qp-sep{display:none}.qp-sum{color:var(--text2)}
+  .qp-itemtext{font-size:13px;line-height:1.55;color:var(--text2);margin-top:2px}.qp-itemtext p{margin:0 0 6px}
+  .qp-item.qp-off{opacity:.6}
+  .qp-itemnote{margin-top:6px;padding:6px 10px;border-left:3px solid var(--accent);background:var(--bg3);border-radius:0 6px 6px 0}
+  .qp-fx{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+  .qp-fxb{min-height:32px;padding:5px 12px;border:1px solid var(--border);border-radius:16px;background:var(--bg3);color:var(--text2);font-family:var(--font-ui);font-size:12px;cursor:pointer}
+  .qp-fxb.on{border-color:var(--accent);color:var(--accent);font-weight:700}.qp-fx .qp-note{flex-basis:100%}
+  .qp-full{font-size:13px;line-height:1.55;color:var(--text2);margin-top:2px}.qp-full table{font-size:12px}
+  .qp-spmode{display:flex;align-items:center;gap:6px;font-family:var(--font-ui);font-size:11px;color:var(--text3);margin:2px 0 4px}
+  .qp-spmode span{cursor:pointer;padding:5px 10px;min-height:28px;display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:14px;color:var(--text2)}
+  .qp-spmode span.on{border-color:var(--accent);color:var(--accent);font-weight:700}
   .qp-x{color:var(--accent);font-weight:700;margin-left:2px}.qp-xm{color:var(--text3);font-size:11px;margin-left:4px}
   .qp-upsel{margin-left:6px;font-size:16px;padding:2px 4px;min-height:28px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-weight:400}
   .qp-upbox{margin-top:4px;padding:6px 10px;font-size:12px;line-height:1.45;color:var(--text2);border-left:3px solid var(--accent);background:var(--bg3);border-radius:0 6px 6px 0}
@@ -68047,7 +68277,8 @@ async function exportQuickPlayPdf() {
     stats.forEach(([lab, v]) => { rect(bx, y - 34, bw, 40); text(bx + 5, y - 2, lab, 6, F, GREY); text(bx + 5, y - 24, v, v.length > 9 ? 11 : 14, B); bx += bw + 6; });
     const hx = W - M - 164; rect(hx, y - 34, 164, 40);
     text(hx + 5, y - 2, `HIT POINTS  (max ${c.hp_max})`, 6, F, GREY); text(hx + 5, y - 14, 'Current', 6, F, GREY); text(hx + 92, y - 14, 'Temp', 6, F, GREY);
-    tfield('hp_current', hx + 5, y - 31, 80, 15, c.hp_current); tfield('hp_temp', hx + 92, y - 31, 66, 15, c.hp_temp || '');
+    // both boxes start empty: the sheet is meant to be printed and filled in by hand (the maximum is in the heading)
+    tfield('hp_current', hx + 5, y - 31, 80, 15, ''); tfield('hp_temp', hx + 92, y - 31, 66, 15, '');
     y -= 48;
     const ds = c.death_saves || c.deathSaves || {};
     text(M, y, 'DEATH SAVES   successes', 7, F, GREY); ticks(M + 90, y - 1.5, 3, ds.successes || 0, 'ds_s');
@@ -68371,7 +68602,7 @@ function openStoreSpellModal(uid) {
   document.getElementById('ss-store-overlay')?.remove();
   const ov = document.createElement('div'); ov.id = 'ss-store-overlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
-  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
     <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">STORE A SPELL</div>
     <div id="ss-sub" style="color:var(--text3);margin-bottom:12px;line-height:1.5"></div>
     <label style="display:block;margin-bottom:4px">Who cast it into the ${_ssE(st.rule.word || 'item')}?</label>
@@ -72061,6 +72292,278 @@ const SPECIES_TEXT = {
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
+// QUICK PLAY LOOK (experiment) - the Quick Play tab's visual style on every tab
+// Styling only: nothing here changes what the sheet does, what it saves or
+// how anything is laid out in the page's structure. Every rule sits under
+// body.qp-look, so the old look is one class away.
+//   - Players can switch it off themselves (palette button > Sheet style).
+//   - To make Classic the default again: change SHEET_LOOK_DEFAULT below.
+//   - To remove the experiment entirely: delete this one <script> block.
+// ═══════════════════════════════════════════════════════════════════════
+const SHEET_LOOK_DEFAULT = 'square';   // 'square' (Quick Play look, squared), 'qp' (Quick Play look, rounded) or 'classic'
+function getSheetLook() { try { const v = localStorage.getItem('sheet_look'); return ['classic', 'qp', 'square'].includes(v) ? v : SHEET_LOOK_DEFAULT; } catch (e) { return SHEET_LOOK_DEFAULT; } }
+function applySheetLook() {
+  document.body.classList.toggle('qp-look', getSheetLook() !== 'classic');
+  document.body.classList.toggle('qp-square', getSheetLook() === 'square');
+  document.querySelectorAll('#sheet-look-row [data-look]').forEach(b => b.classList.toggle('on', b.dataset.look === getSheetLook()));
+  try { if (typeof qpPinBar === 'function') qpPinBar(); } catch (e) {}
+}
+function setSheetLook(v) { try { localStorage.setItem('sheet_look', ['classic', 'qp', 'square'].includes(v) ? v : SHEET_LOOK_DEFAULT); } catch (e) {} applySheetLook();
+  try { if (typeof populateFeaturesTab === 'function' && currentChar) populateFeaturesTab(); } catch (e) {} }
+// Features tab, Quick Play look only: each class progression table folds
+// away behind a one-line summary of the character's current level, so the
+// features themselves are not pushed a screen and a half down the page.
+// Purely presentational - the table inside is the sheet's own, untouched.
+function qpLookFoldProgression() {
+  if (!document.body.classList.contains('qp-look')) return;
+  const page = document.getElementById('page-features'); if (!page) return;
+  let open = {}; try { open = JSON.parse(localStorage.getItem('qp_prog_open') || '{}') || {}; } catch (e) {}
+  page.querySelectorAll('.panel div[style="margin:8px 0"]').forEach(block => {
+    // casters' tables sit inside a sideways-scrolling wrapper, so look for the table at any depth
+    const table = block.querySelector('table'); const head = block.firstElementChild;
+    if (!table || !head || head === table || head.contains(table) || block.querySelector(':scope > details')) return;
+    const title = head.textContent.trim(); const key = title.toLowerCase();
+    // the current level's row is the one the sheet outlines
+    const cur = [...table.querySelectorAll('tr')].find(tr => /accent/.test(tr.getAttribute('style') || '') || [...tr.children].some(td => /accent/.test(td.getAttribute('style') || '') && /border|outline/.test(td.getAttribute('style') || '')));
+    const cells = cur ? [...cur.children].map(td => td.textContent.replace(/\s+/g, ' ').trim()) : [];
+    // the Features column, wherever this class's table puts it (casters have slot columns after it)
+    const fi = [...table.querySelectorAll('th')].findIndex(th => /^features$/i.test(th.textContent.trim()));
+    const feat = (cells[fi >= 0 ? fi : cells.length - 1] || '').replace(/^[-\u2014]$/, '');
+    const now = cells.length ? ('level ' + cells[0] + (feat ? ' \u00b7 ' + feat : '')) : '';
+    const det = document.createElement('details'); det.className = 'qp-prog'; det.open = !!open[key];
+    const sum = document.createElement('summary');
+    sum.innerHTML = `<span class="qp-prog-t"></span><span class="qp-prog-n"></span>`;
+    sum.querySelector('.qp-prog-t').textContent = title; sum.querySelector('.qp-prog-n').textContent = now;
+    det.appendChild(sum);
+    while (head.nextSibling) det.appendChild(head.nextSibling);
+    head.style.display = 'none'; block.appendChild(det);
+    det.addEventListener('toggle', () => { try { const o = JSON.parse(localStorage.getItem('qp_prog_open') || '{}') || {}; if (det.open) o[key] = 1; else delete o[key]; localStorage.setItem('qp_prog_open', JSON.stringify(o)); } catch (e) {} });
+  });
+}
+window.qpLookFoldProgression = qpLookFoldProgression;
+window.applySheetLook = applySheetLook; window.setSheetLook = setSheetLook;
+(function () {
+  const css = `
+/* cards */
+body.qp-look #content{font-family:var(--font-ui);font-size:13px}
+body.qp-look .panel{border-radius:var(--radius,8px);padding:12px 14px;box-shadow:none}
+body.qp-look .panel-title{font-family:var(--font-label);font-size:13px;font-weight:500;letter-spacing:.1em;color:var(--accent);border-bottom:none;padding-bottom:0;margin-bottom:10px}
+body.qp-look .panel-title .tbtn{letter-spacing:.3px}
+/* small labels, like the Quick Play stat captions */
+body.qp-look .field-label,body.qp-look .stat-label{font-family:var(--font-label);font-weight:500;text-transform:uppercase;color:var(--text3)}
+body.qp-look .field-label{margin-bottom:4px}
+/* fields: soft tiles instead of outlined boxes */
+/* a visible edge on every field: a borderless tile disappears wherever the surface behind it is the same shade (the login card, for one) */
+body.qp-look .info-input,body.qp-look .choice-select,body.qp-look .field-select{background:var(--bg3);border:1px solid var(--border2,var(--border));border-radius:var(--radius,8px);font-size:14px}
+body.qp-look .info-input:focus,body.qp-look .choice-select:focus,body.qp-look .field-select:focus{border-color:var(--accent);outline:none}
+/* buttons and pills */
+body.qp-look .tbtn{border-radius:14px}
+body.qp-look .meta-pill,body.qp-look .choice-pill{padding:3px 9px;border-radius:12px;background:var(--bg3);border:1px solid transparent;color:var(--text2);font-family:var(--font-ui);font-size:12px;text-transform:none}
+body.qp-look .choice-pill.selected,body.qp-look .choice-pill.active{color:var(--text);border-color:var(--accent)}
+/* tab strip: the Quick Play jump bar */
+body.qp-look #page-tabs{gap:6px;padding:8px 12px;align-items:center;border-bottom:none;box-shadow:0 6px 10px -8px rgba(0,0,0,.6)}
+body.qp-look .page-tab{padding:6px 12px;min-height:0;border-radius:14px;border:1px solid transparent;background:var(--bg3);color:var(--text2);font-family:var(--font-ui);font-size:12px;font-weight:400;letter-spacing:0;text-transform:none}
+body.qp-look .page-tab.active{color:var(--text);border-color:var(--accent);font-weight:700}
+/* headline numbers */
+body.qp-look .stat-badge{font-family:var(--font-title);font-size:26px !important;font-weight:700;line-height:1.1;background:none;border:none;box-shadow:none;min-width:0 !important;height:auto;padding:0}
+body.qp-look #hp-max,body.qp-look #hp-current,body.qp-look #hp-temp{font-family:var(--font-title);font-weight:700}
+/* rows: hairlines between items rather than a box round each one */
+body.qp-look .magic-item-row,body.qp-look .feat-card,body.qp-look .feat-slot-row{background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0;padding:10px 0;margin-bottom:0}
+body.qp-look .magic-item-row:last-child,body.qp-look .feat-card:last-child,body.qp-look .feat-slot-row:last-child{border-bottom:none}
+body.qp-look .sp-known-row{background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0;min-height:34px}
+body.qp-look .sp-known-row:hover,body.qp-look .magic-item-row:hover{background:var(--bg3)}
+body.qp-look .inv-row{background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0}
+body.qp-look .inv-row:hover{background:var(--bg3)}
+/* ability scores: tiles, like the Quick Play stat boxes */
+body.qp-look .ability-row{background:var(--bg3);border:none;border-radius:var(--radius,8px);margin-bottom:6px}
+/* spell levels: the same full-width bar Quick Play uses */
+body.qp-look .sp-level-group-hdr{font-family:var(--font-label);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:16px 0 6px;padding:8px 12px;background:var(--bg3);border:none;border-left:5px solid var(--accent);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+/* pop-ups */
+body.qp-look .modal-box{border-radius:var(--radius,8px)}
+body.qp-look .modal-title{font-size:13px;letter-spacing:.1em;color:var(--accent);border-bottom:1px solid var(--border)}
+/* ── Main sheet: rows, counters and pills in the Quick Play idiom ── */
+body.qp-look .main-grid,body.qp-look .main-left,body.qp-look .main-right{gap:12px}
+/* saves and skills: chips, with proficient ones outlined (as on Quick Play) */
+body.qp-look .save-row,body.qp-look .skill-row{padding:6px 10px;margin:4px 0;border:1px solid transparent;border-bottom:1px solid transparent;border-radius:12px;background:var(--bg3);font-size:13px}
+body.qp-look .save-row:has(.prof-dot.prof),body.qp-look .skill-row:has(.prof-dot.prof),body.qp-look .skill-row:has(.expert-dot.expert){border-color:var(--accent);color:var(--text)}
+body.qp-look .skill-name,body.qp-look .save-name{font-family:var(--font-ui);font-size:13px}
+body.qp-look .skill-val,body.qp-look .save-val{font-family:var(--font-title);font-size:15px;font-weight:700}
+body.qp-look .skill-ability{font-family:var(--font-label);font-size:9px;letter-spacing:.08em;color:var(--text3)}
+/* ability scores */
+body.qp-look .ability-row{padding:6px 8px}
+body.qp-look .ability-input{font-family:var(--font-title);font-weight:700;background:var(--bg2);border:1px solid var(--border2,var(--border))}
+body.qp-look .ability-mod{font-family:var(--font-title);font-size:16px;background:none;color:var(--accent)}
+body.qp-look .ability-label{font-family:var(--font-label);font-size:10px;letter-spacing:.08em;color:var(--text3)}
+/* quick stats */
+body.qp-look .qs-row{padding:7px 0}
+body.qp-look .qs-label{font-family:var(--font-ui);font-size:13px;color:var(--text2)}
+body.qp-look .qs-val{font-family:var(--font-title);font-size:15px;font-weight:700}
+/* resources: item name in bold, big count, pill badge */
+body.qp-look .resource-entry{padding:10px 0}
+body.qp-look .resource-name{font-family:var(--font-ui);font-size:14px;font-weight:700;letter-spacing:0;text-transform:none}
+body.qp-look .resource-recovery{border-radius:10px;padding:2px 8px}
+body.qp-look .resource-counter-val{font-family:var(--font-title);font-size:24px}
+body.qp-look .resource-counter-btn{border-radius:50%}
+/* attacks: one line per weapon, hairline between */
+body.qp-look .attack-row{background:transparent !important;border:none !important;border-bottom:1px solid var(--border) !important;border-radius:0 !important;padding:10px 0 !important}
+body.qp-look .attack-name{font-family:var(--font-ui);font-size:14px;font-weight:700}
+body.qp-look .attack-sub{font-size:11px;color:var(--text3)}
+body.qp-look .attack-stat{font-family:var(--font-title);font-size:15px;font-weight:700}
+body.qp-look .attack-stat-label{font-family:var(--font-label);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);font-weight:400}
+/* pills and pips */
+body.qp-look .condition-pill,body.qp-look .resist-pill{padding:4px 10px;border-radius:12px;font-family:var(--font-ui);font-size:12px}
+body.qp-look .exh-pip{width:26px;height:26px;border-radius:50%;font-size:11px}
+body.qp-look .spell-stat-box{background:var(--bg3);border:none;border-radius:var(--radius,8px)}
+body.qp-look .spell-stat-label{font-family:var(--font-label);font-size:9px;letter-spacing:.08em;color:var(--text3)}
+body.qp-look .spell-stat-val{font-family:var(--font-title);font-weight:700}
+body.qp-look .choice-label,body.qp-look .cc-summary-label{font-family:var(--font-label);font-size:10px;letter-spacing:.08em}
+/* ── Features tab ── */
+body.qp-look #page-features > div{max-width:1050px !important}
+/* level headings: the full-width bar Quick Play uses for spell levels */
+body.qp-look .feat-unified-header{margin:20px -14px 4px;padding:8px 14px;background:var(--bg3);border:none;border-left:5px solid var(--accent);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+body.qp-look .feat-unified-header:first-child{margin-top:8px;padding-top:8px}
+body.qp-look .feat-unified-level{font-family:var(--font-label);font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--accent)}
+/* each feature: a bold name and readable text, not a coloured pill */
+body.qp-look .feat-pill-item{padding:12px 0}
+body.qp-look .feat-pill-badge{padding:0;border:none;background:none;border-radius:0;font-family:var(--font-ui);font-size:15px;font-weight:700;color:var(--text);line-height:1.3}
+body.qp-look .feat-pill-source{font-family:var(--font-ui);font-size:11px;color:var(--text3)}
+body.qp-look .feat-pill-usage{background:var(--accent);color:var(--bg);border-radius:10px;padding:1px 8px;font-size:11px}
+body.qp-look .feat-pill-desc{font-family:var(--font-ui);font-size:13px;line-height:1.6;color:var(--text2);margin-top:4px;max-width:78ch}
+body.qp-look .feat-pill-desc table{font-size:12px}
+details.qp-prog > summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-family:var(--font-label);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);padding:2px 0}
+details.qp-prog > summary::-webkit-details-marker{display:none}
+details.qp-prog > summary::before{content:'\\25B8';display:inline-block;margin-right:2px;transition:transform .15s}details.qp-prog[open] > summary::before{transform:rotate(90deg)}
+details.qp-prog .qp-prog-n{font-family:var(--font-ui);font-size:12px;letter-spacing:0;text-transform:none;color:var(--text2)}
+details.qp-prog[open] > summary{margin-bottom:8px}
+/* progression tables: a quiet inset block with room to read */
+body.qp-look #page-features .panel > div[style="margin:8px 0"],body.qp-look #page-features .panel div[style="margin:8px 0"]{background:var(--bg3);border-radius:var(--radius,8px);padding:10px 14px;margin:10px 0 !important}
+body.qp-look #page-features div[style*="font-size:9px"][style*="text-transform:uppercase"]{font-family:var(--font-label) !important;font-size:12px !important;letter-spacing:.1em !important;margin-bottom:8px !important}
+body.qp-look #page-features .panel table{font-family:var(--font-ui) !important;font-size:12px !important}
+body.qp-look #page-features .panel table th{font-family:var(--font-label);font-size:9px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:4px 6px}
+body.qp-look #page-features .panel table td{padding:5px 6px;border-top:1px solid var(--border)}
+@media (max-width:820px){
+  body.qp-look .feat-unified-header{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
+  body.qp-look .feat-pill-desc{font-size:14px}
+  body.qp-look .skill-row,body.qp-look .save-row{padding:8px 10px}
+}
+/* ── DM panel ── most of it is styled inline, so these rules match on those inline styles */
+body.qp-look #page-dm > div{max-width:1200px !important}
+body.qp-look #page-dm [style*="letter-spacing:1.5px"][style*="text-transform:uppercase"]{font-family:var(--font-label) !important;font-size:13px !important;letter-spacing:.1em !important;color:var(--accent) !important}
+body.qp-look #dm-content > div:first-child{border-bottom:none !important;gap:6px !important;margin-bottom:12px !important;padding:2px 0 8px;box-shadow:0 6px 10px -8px rgba(0,0,0,.6)}
+body.qp-look .dm-tab{padding:6px 12px !important;border:1px solid transparent !important;border-radius:14px !important;background:var(--bg3) !important;color:var(--text2) !important;font-family:var(--font-ui) !important;font-size:12px !important;font-weight:400 !important;letter-spacing:0 !important;text-transform:none !important}
+body.qp-look .dm-tab[style*="color: var(--accent)"],body.qp-look .dm-tab[style*="color:var(--accent)"]{border-color:var(--accent) !important;color:var(--text) !important;font-weight:700 !important}
+body.qp-look #page-dm [id^="dm-char-card-"]{border-radius:var(--radius,8px) !important;box-shadow:none !important;padding:12px 14px !important}
+body.qp-look #page-dm [id^="dm-char-card-"] [style*="border:1px solid var(--border)"]:not([style*="border-radius:50%"]):not(input):not(select):not(textarea){background:rgba(0,0,0,.2) !important;border-color:transparent !important;border-radius:var(--radius,8px) !important}
+body.qp-look #page-dm [id^="dm-char-card-"] :is(input:not([type="checkbox"]),select,textarea){background:rgba(0,0,0,.25) !important;border:1px solid var(--border) !important;border-radius:var(--radius,8px) !important}
+body.qp-look #page-dm [id^="dm-glance-"]{border-radius:var(--radius,8px) !important;background:var(--bg3) !important;padding-top:6px !important;padding-bottom:6px !important}
+body.qp-look #dm-key-stats > *{border-radius:var(--radius,8px) !important;box-shadow:none !important}
+body.qp-look #page-dm .sp-browser-row{background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0}
+body.qp-look #page-dm .sp-browser-row:hover{background:var(--bg3)}
+body.qp-look #page-dm .spell-search-input,body.qp-look #page-dm .spell-filter-sel{background:var(--bg3);border:1px solid var(--border2,var(--border));border-radius:var(--radius,8px);font-size:14px}
+@media (max-width:820px){ body.qp-look .dm-tab{padding:8px 12px !important;font-size:13px !important} }
+/* ══ Readability ══ a floor under text size, calmer small capitals, and
+   text columns that don't run too wide. Measured before this pass: about
+   half the Main sheet's text and over two thirds of the Spells and
+   Inventory tabs' was under 11px, on phones as well as desktop. */
+/* labels and captions: 11px, with less letter-spacing so they stay compact */
+body.qp-look :is(.field-label,.stat-label,.qp-sl,.spell-stat-label,.attack-stat-label,.skill-ability,.ability-label,.cc-summary-label,.currency-sub,
+  .resource-counter-label,.slot-level-label,.slot-level-count,.feat-source-legend-item,.qp-hs,.qp-lvl-s,.qp-spsub,.feat-slot-badge,.feat-summary-pill,
+  .attune-btn,.add-row-btn,.feat-choice-btn,.resource-recovery,.sp-level-badge,.choice-label){font-size:11px;letter-spacing:.05em}
+body.qp-look .qp-table th,body.qp-look #page-features .panel table th{font-size:11px;letter-spacing:.05em}
+/* secondary text: 12px */
+body.qp-look :is(.sp-browser-school,.sp-add-btn,.sp-short-desc,.qp-dim,.feat-pill-source,.attack-sub,.feat-slot-label,.qp-xm,.qp-spmode,.feat-pill-usage,.currency-label,.choice-desc,.qs-sub){font-size:12px}
+body.qp-look .tbtn{font-size:11px}
+/* tags squeezed into rows: 10px is the smallest anything gets */
+body.qp-look :is(.sp-tag,.sp-school-abbr,.attack-type-badge,.mc-primary-label){font-size:10px}
+body.qp-look .ability-stepper button{font-size:10px}
+/* text sized inline in the page's own markup */
+body.qp-look #content :is([style*="font-size:7px"],[style*="font-size: 7px"],[style*="font-size:8px"],[style*="font-size: 8px"],[style*="font-size:9px"],[style*="font-size: 9px"],[style*="font-size:10px"],[style*="font-size: 10px"]):not(.inv-row *){font-size:11px !important}
+body.qp-look #content :is([style*="font-size:11px"],[style*="font-size: 11px"]):not(.inv-row *){font-size:12px !important}
+/* inventory rows are packed tight (badge, tick, weight, count, buttons): only lift their very smallest text, and only on wide screens */
+@media (min-width:821px){ body.qp-look .inv-row :is([style*="font-size:7px"],[style*="font-size: 7px"],[style*="font-size:8px"],[style*="font-size: 8px"]){font-size:10px !important} }
+body.qp-look .modal-box :is([style*="font-size:8px"],[style*="font-size: 8px"],[style*="font-size:9px"],[style*="font-size: 9px"],[style*="font-size:10px"],[style*="font-size: 10px"]){font-size:11px !important}
+/* body text: comfortable leading and a sensible line length */
+body.qp-look :is(.qp-text,.qp-full,.qp-itemtext,.qp-note,.feat-pill-desc,.choice-desc){line-height:1.6}
+body.qp-look :is(.qp-text,.qp-full,.qp-itemtext,.qp-note,.qp-other,.qp-upbox){max-width:82ch}
+body.qp-look #page-inventory .panel > div[style*="font-size"]{max-width:82ch}
+body.qp-look .sp-short-desc{color:var(--text2)}
+@media (max-width:820px){
+  /* phones: one step larger again */
+  body.qp-look :is(.field-label,.stat-label,.qp-sl,.spell-stat-label,.attack-stat-label,.skill-ability,.ability-label,.cc-summary-label,.currency-sub,
+    .resource-counter-label,.slot-level-label,.slot-level-count,.feat-source-legend-item,.qp-hs,.qp-lvl-s,.qp-spsub,.feat-slot-badge,.feat-summary-pill,
+    .attune-btn,.add-row-btn,.feat-choice-btn,.resource-recovery,.sp-level-badge,.choice-label){font-size:12px}
+  body.qp-look :is(.sp-browser-school,.sp-add-btn,.sp-short-desc,.qp-dim,.feat-pill-source,.attack-sub,.feat-slot-label,.qp-xm,.qp-spmode,.feat-pill-usage,.currency-label,.choice-desc,.qs-sub){font-size:13px}
+  body.qp-look :is(.sp-tag,.sp-school-abbr,.attack-type-badge,.mc-primary-label){font-size:11px}
+  body.qp-look #content :is([style*="font-size:7px"],[style*="font-size: 7px"],[style*="font-size:8px"],[style*="font-size: 8px"],[style*="font-size:9px"],[style*="font-size: 9px"],[style*="font-size:10px"],[style*="font-size: 10px"]):not(.inv-row *){font-size:12px !important}
+  body.qp-look #content :is([style*="font-size:11px"],[style*="font-size: 11px"]):not(.inv-row *){font-size:13px !important}
+}
+
+/* ══ Square variant ══ every pill, chip, card and pop-up as a crisp box.
+   One corner size everywhere, and a header band on cards and pop-ups. */
+body.qp-square{--radius:3px;--radius-lg:3px;--qsq:3px}
+/* anything that was pill- or circle-shaped */
+body.qp-square :is(.tbtn,.page-tab,.dm-tab,.meta-pill,.choice-pill,.condition-pill,.resist-pill,.resource-recovery,.resource-counter-btn,.exh-pip,.slot-pip,.sp-tag,.btn-primary,.btn-sm,
+  .save-row,.skill-row,.ability-row,.feat-pill-usage,.active-effect-btn,.theme-swatch-btn,
+  .qp-chip,.qp-badge,.qp-fxb,.qp-pip,.qp-mini,.qp-upsel,.qp-stat,.qp-result,.qp-calc,.qp-upbox,.qp-itemnote,.qp-card,.panel,.modal-box,
+  .info-input,.choice-select,.field-select,.spell-search-input,.spell-filter-sel,.stat-badge){border-radius:var(--qsq) !important}
+body.qp-square .qp-bar a,body.qp-square .qp-bar span,body.qp-square .qp-spmode span,body.qp-square #sheet-look-row button{border-radius:var(--qsq) !important}
+body.qp-square #page-dm [id^="dm-char-card-"],body.qp-square #page-dm [id^="dm-glance-"],body.qp-square #dm-key-stats > *,
+body.qp-square #page-dm [id^="dm-char-card-"] :is(input,select,textarea,div,span,button):not([style*="border-radius:50%"]){border-radius:var(--qsq) !important}
+body.qp-square #ss-store-overlay > div,body.qp-square #mg-create-overlay > div,body.qp-square #sim-create-overlay > div,body.qp-square #pdf-choice,body.qp-square #theme-picker-panel{border-radius:var(--qsq) !important}
+/* tabs: flat boxes; the open one is filled */
+body.qp-square .page-tab,body.qp-square .dm-tab{border:1px solid var(--border) !important;background:var(--bg2) !important}
+body.qp-square .page-tab.active,body.qp-square .dm-tab[style*="color: var(--accent)"],body.qp-square .dm-tab[style*="color:var(--accent)"]{background:var(--accent) !important;border-color:var(--accent) !important;color:var(--bg) !important}
+body.qp-square .qp-bar a,body.qp-square .qp-bar span{border:1px solid var(--border)}
+/* chips: thin outline so each reads as a tile */
+body.qp-square :is(.qp-chip,.save-row,.skill-row,.meta-pill,.choice-pill,.condition-pill){border:1px solid var(--border)}
+body.qp-square .qp-chip.prof,body.qp-square .save-row:has(.prof-dot.prof),body.qp-square .skill-row:has(.prof-dot.prof),body.qp-square .skill-row:has(.expert-dot.expert){border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+body.qp-square .qp-pip,body.qp-square .exh-pip,body.qp-square .slot-pip{border-radius:2px !important}
+/* cards: a header band with an accent edge, the same device as the level bars */
+body.qp-square .panel{padding:0 14px 12px}
+body.qp-square .panel-title{margin:0 -14px 12px;padding:9px 14px;background:var(--bg3);border-bottom:1px solid var(--border);border-left:4px solid var(--accent);min-height:38px}
+body.qp-square .qp-card{padding:0 14px 12px}
+body.qp-square .qp-h{margin:0 -14px 10px;padding:9px 14px;background:var(--bg3);border-bottom:1px solid var(--border);border-left:4px solid var(--accent)}
+body.qp-square .qp-card.qp-shut{padding-bottom:0}body.qp-square .qp-card.qp-shut > .qp-h{margin-bottom:0;border-bottom:none}
+body.qp-square .qp-lvl{border-left-width:4px}
+body.qp-square #page-features .panel > div[style="margin:8px 0"],body.qp-square #page-features .panel div[style="margin:8px 0"]{border:1px solid var(--border)}
+/* pop-ups: square, with the same header band and a boxed close button */
+body.qp-square .modal-box{border:1px solid var(--border2,var(--border));box-shadow:0 18px 50px rgba(0,0,0,.55)}
+body.qp-square .modal-title{margin-bottom:16px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-left:4px solid var(--accent);color:var(--text);font-size:13px;letter-spacing:.1em}
+body.qp-square .modal-close{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:var(--qsq);background:var(--bg2);flex-shrink:0}
+body.qp-square .modal-close:hover{border-color:var(--red)}
+@media (max-width:820px){
+  body.qp-square .panel{padding:0 12px 12px}body.qp-square .panel-title{margin:0 -12px 12px;padding:10px 12px}
+  body.qp-square .qp-card{padding:0 12px 12px}body.qp-square .qp-h{margin:0 -12px 10px;padding:10px 12px}
+}
+/* the Sheet style switch itself */
+#sheet-look-row{border-top:1px solid var(--border);margin-top:10px;padding-top:8px}
+#sheet-look-row .lbl{font-family:var(--font-ui);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+#sheet-look-row .opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+#sheet-look-row button{min-height:32px;padding:5px 8px;border:1px solid var(--border);border-radius:14px;background:var(--bg3);color:var(--text2);font-family:var(--font-ui);font-size:11px;cursor:pointer}
+#sheet-look-row button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
+@media (max-width:820px){
+  body.qp-look #content{font-size:14px}
+  body.qp-look .panel{padding:12px}
+  body.qp-look .page-tab{padding:8px 12px;font-size:13px}
+}`;
+  const st = document.createElement('style'); st.id = 'qp-look-css'; st.textContent = css; document.head.appendChild(st);
+  const panel = document.getElementById('theme-picker-panel');
+  if (panel && !document.getElementById('sheet-look-row')) {
+    const row = document.createElement('div'); row.id = 'sheet-look-row';
+    row.innerHTML = `<div class="lbl">Sheet style (this device)</div><div class="opts"><button data-look="square" onclick="setSheetLook('square')">Square</button><button data-look="qp" onclick="setSheetLook('qp')">Rounded</button><button data-look="classic" onclick="setSheetLook('classic')">Classic</button></div>`;
+    panel.appendChild(row);
+  }
+  // fold the progression tables whenever the Features tab is (re)built
+  const _pf = window.populateFeaturesTab;
+  if (typeof _pf === 'function' && !_pf._qpLook) {
+    const w = function () { const r = _pf.apply(this, arguments); try { qpLookFoldProgression(); } catch (e) { console.warn('[look] progression fold', e.message); } return r; };
+    w._qpLook = true; window.populateFeaturesTab = w;
+  }
+  applySheetLook();
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
 // PREVIEW GUARD - read-only enforcement for Party Overview sheet previews
 // While window._previewMode is set, a capture-phase guard decides every
 // click / key / form event before any handler on the sheet can see it:
@@ -72079,7 +72582,7 @@ const PV_VIEW_FNS = new Set([
   // plain gear has no separate viewer: its edit window opens, with every field and button inert
   'openGearEditModal',
   // navigation, expanding, closing
-  'qpJump', 'qpOpenRule', 'qpToggleCard', 'closeModal', 'switchPage', 'jumpToFeatureByName', 'scrollToAndOpenSpellbook',
+  'qpJump', 'qpOpenRule', 'qpToggleCard', 'qpSpellTextMode', 'closeModal', 'switchPage', 'jumpToFeatureByName', 'scrollToAndOpenSpellbook',
   'toggleProfPanelExpanded', 'toggleSkilledToolsExpanded', 'toggleSpellbook', 'toggleFullClassSpellList',
   // top bar: things that belong to the viewer, not the previewed character
   'exitPreviewMode', 'openPartyOverview', 'toggleTheme', 'toggleThemePicker', 'doLogout', 'exportCharacterPdf',
@@ -72403,7 +72906,7 @@ function openCreateMagen() {
   document.getElementById('mg-create-overlay')?.remove();
   const ov = document.createElement('div'); ov.id = 'mg-create-overlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
-  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
     <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">${dm ? 'ADD MAGEN (DM)' : 'CREATE MAGEN'}</div>
     <div style="color:var(--text3);margin-bottom:12px;line-height:1.5">The type of magen is chosen by you during the casting of the spell. When the magen appears, your hit point maximum decreases by an amount equal to the magen's challenge rating (minimum reduction of 1). Only a wish spell can undo this reduction to your hit point maximum.</div>
     <label style="display:block;margin-bottom:6px">Type of magen</label>
