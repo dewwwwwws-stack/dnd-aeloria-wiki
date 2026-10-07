@@ -26390,7 +26390,7 @@ function calcMulticlassHPMax(method) {
   const plan = currentChar.levelPlan || {};
   const classes = getAllClasses();
   const total = getLevel();
-  const toughBonus = currentChar._toughBonus || 0;
+  const toughBonus = (currentChar._toughBonus || 0) + getSpeciesHpBonus();   // incl. species per-level HP (Dwarven Toughness)
   const hpMaxAdjust = (currentChar.hpMaxAdjust || 0) - (parseInt(currentChar._magenHpReduction, 10) || 0);   // incl. Create Magen's permanent reduction
 
   if (m === 'maximum') {
@@ -28318,11 +28318,17 @@ function recalcQuickStats() {
   const joatBonus  = (!alertBonus && typeof hasJackOfAllTrades === 'function' && hasJackOfAllTrades())
     ? Math.floor(prof / 2) : 0;
   const classInitBonus = getClassInitiativeBonus(abs, prof);
-  const initBonus  = (alertBonus || joatBonus) + classInitBonus.total;
+  // Species trait that adds Proficiency Bonus to initiative (Harengon's
+  // Hare-Trigger). It is the same bonus Alert gives, so the two don't stack
+  // into double proficiency.
+  const _initRace = (typeof getRaceData === 'function') ? getRaceData(currentChar.race) : null;
+  const speciesInit = (!alertBonus && _initRace?.initProf) ? prof : 0;
+  const initBonus  = (alertBonus || speciesInit || joatBonus) + classInitBonus.total;
   const initVal = dexMod + initBonus - exPen;
   const initStr = (initVal >= 0 ? '+' : '') + initVal;
   const initParts = [`DEX ${dexMod >= 0 ? '+' : ''}${dexMod}`];
   if (alertBonus) initParts.push(`Alert +${alertBonus}`);
+  else if (speciesInit) initParts.push(`Hare-Trigger +${speciesInit}`);
   else if (joatBonus) initParts.push(`JoAT +${joatBonus}`);
   classInitBonus.parts.forEach(p => initParts.push(p));
   if (exPen > 0) initParts.push(`Exh \u2212${exPen}`);
@@ -28368,10 +28374,12 @@ function recalcQuickStats() {
   const el_pp_f = document.getElementById('qs-pp-formula');
   if (el_pp_f) { el_pp_f.textContent = passiveFormula('perception'); el_pp_f.style.color = exPen > 0 ? 'var(--exh-colour)' : 'var(--text3)'; }
 
-  // Carry capacity = STR * 15
-  const carry = abs.str * 15;
+  // Carry capacity = STR x the size multiplier (15 for Small/Medium), the
+  // same table the Inventory tab uses, so the two can't disagree.
+  const _carryMult = (typeof getCarryMultiplierFor === 'function' ? getCarryMultiplierFor(currentChar)?.carry : 0) || 15;
+  const carry = abs.str * _carryMult;
   const el_carry = document.getElementById('qs-carry');
-  if (el_carry) { el_carry.textContent = carry + ' lb'; el_carry.title = `STR ${abs.str} × 15 = ${carry} lb`; }
+  if (el_carry) { el_carry.textContent = carry + ' lb'; el_carry.title = `STR ${abs.str} × ${_carryMult} = ${carry} lb`; }
 
   // Extra attacks
   const extraAtk = parseInt(currentChar?._extraAttacks) || 0;
@@ -29168,7 +29176,7 @@ function calcHPMax(method) {
   const hd     = getHitDie();
   const conMod = abilityMod(getAbilities().con);
   const m      = method || currentChar.hp_method || 'average';
-  const toughBonus = currentChar._toughBonus || 0;
+  const toughBonus = (currentChar._toughBonus || 0) + getSpeciesHpBonus();   // incl. species per-level HP (Dwarven Toughness)
   const hpMaxAdjust = (currentChar.hpMaxAdjust || 0) - (parseInt(currentChar._magenHpReduction, 10) || 0);   // incl. Create Magen's permanent reduction
 
   switch (m) {
@@ -29198,6 +29206,14 @@ function calcHPMax(method) {
   }
 }
 
+// Species traits that raise the hit point maximum each level
+// (Dwarf: "increases by 1, and it increases by 1 again whenever you gain a level").
+function getSpeciesHpBonus() {
+  const rd = (typeof getRaceData === 'function' && currentChar) ? getRaceData(currentChar.race) : null;
+  return rd?.hpPerLevel ? rd.hpPerLevel * getLevel() : 0;
+}
+window.getSpeciesHpBonus = getSpeciesHpBonus;
+
 function hpMethodFormula(method) {
   if (!currentChar) return '';
   const level  = getLevel();
@@ -29206,7 +29222,8 @@ function hpMethodFormula(method) {
   const toughBonus = currentChar._toughBonus || 0;
   const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
   const _magenRed = parseInt(currentChar._magenHpReduction, 10) || 0;
-  const toughStr = (toughBonus ? ` + Tough(${toughBonus})` : '') + (hpMaxAdjust ? ` + Adj(${hpMaxAdjust>0?'+':''}${hpMaxAdjust})` : '') + (_magenRed ? ` \u2212 Magen(${_magenRed})` : '');
+  const _speciesHp = getSpeciesHpBonus();
+  const toughStr = (toughBonus ? ` + Tough(${toughBonus})` : '') + (_speciesHp ? ` + Species(${_speciesHp})` : '') + (hpMaxAdjust ? ` + Adj(${hpMaxAdjust>0?'+':''}${hpMaxAdjust})` : '') + (_magenRed ? ` \u2212 Magen(${_magenRed})` : '');
 
   if (isMulticlass()) {
     const classes = getAllClasses();
@@ -36164,16 +36181,13 @@ function getUnarmedDamage() {
   const race = currentChar?.race?.toLowerCase() || '';
   const RACIAL_UNARMED = {
     'multiverse_aarakocra':  { count:1, die:6, type:'slashing',    name:'Talons' },
-    'multiverse_lizardfolk': { count:1, die:6, type:'piercing',    name:'Bite' },
+    'multiverse_lizardfolk': { count:1, die:6, type:'slashing',    name:'Bite' },
     'multiverse_centaur':    { count:1, die:6, type:'bludgeoning', name:'Hooves' },
     'multiverse_minotaur':   { count:1, die:6, type:'piercing',    name:'Horns' },
-    'multiverse_kobold':     { count:1, die:4, type:'slashing',    name:'Claws' },
     'tabaxi_motm':           { count:1, die:6, type:'slashing',    name:'Claws' },
     'tortle_motm':           { count:1, die:6, type:'slashing',    name:'Claws' },
-    'multiverse_bugbear':    { count:1, die:6, type:'bludgeoning', name:'Powerful Fists' },
-    'multiverse_satyr':      { count:1, die:4, type:'bludgeoning', name:'Ram' },
+    'multiverse_satyr':      { count:1, die:6, type:'bludgeoning', name:'Ram' },
     'multiverse_goliath':    { count:1, die:6, type:'bludgeoning', name:'Powerful Strike' },
-    'warforged':             { count:1, die:6, type:'bludgeoning', name:'Integrated Weapon' },
     // Dhampir (RtHW) Vampiric Bite: 1d4 + Constitution modifier Piercing
     // instead of the normal Unarmed Strike damage. The attack roll is
     // still a normal Unarmed Strike - only the damage modifier changes.
@@ -36182,6 +36196,12 @@ function getUnarmedDamage() {
   if (RACIAL_UNARMED[race]) {
     const r = RACIAL_UNARMED[race];
     results.push({ ...r, source:`${r.name} (Racial)` });
+  }
+  // Shifter (Longtooth): "...you can deal Piercing damage equal to 1d6 plus
+  // your Strength modifier" - only while shifted, so it is offered as a
+  // choice in the source picker rather than applied all the time.
+  if (race === 'shifter' && (currentChar?.subrace || '').toLowerCase() === 'longtooth') {
+    results.push({ count:1, die:6, type:'piercing', name:'Longtooth', source:'Longtooth fangs (while shifted)' });
   }
 
   // 3. Feat: Tavern Brawler
@@ -42405,7 +42425,15 @@ function onCurrentSizeOverrideChange() {
 window.onCurrentSizeOverrideChange = onCurrentSizeOverrideChange;
 
 function getCarryMultiplierFor(char) {
-  return CARRY_CAPACITY_TABLE[getCreatureSizeFor(char)];
+  let size = getCreatureSizeFor(char);
+  // Powerful Build / Equine Build / Arachnid Build: "You count as one size
+  // larger when determining your carrying capacity..."
+  const rd = (typeof getRaceData === 'function' && char) ? getRaceData(char.race) : null;
+  if (rd?.carrySizeUp) {
+    const order = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'];
+    size = order[Math.min(order.length - 1, order.indexOf(size) + 1)] || size;
+  }
+  return CARRY_CAPACITY_TABLE[size];
 }
 
 // STR × size-based multiplier - same formula recalcQuickStats uses for the
@@ -51535,8 +51563,9 @@ function renderResourceTracker() {
       );
       if (alreadyTracked) return;
       const id = `racial_spell_${race}_${s.key}`.replace(/[^a-z0-9_]/g,'_');
-      // minLevel=1 levelled spells recover on Short Rest; minLevel>=3 on Long Rest
-      const recovery = (s.minLevel <= 1) ? 'short' : 'long';
+      // Every species text gives these back on a Long Rest (the old rule
+      // here sent level-1 spells to Short Rest, which no text supports).
+      const recovery = s.recovery || 'long';
       allDefs.push({
         id,
         name:     s.name,
@@ -68777,6 +68806,1276 @@ const SPECIES_NEW = {
 "_fromSuppliedText": true
 }
 };
+// What each listed species automates, written from its text above:
+// counters (uses and recovery checked against the trait's own sentence by
+// mech_gen.py), the spells it grants and at which character level, skill
+// proficiencies, stated damage resistances, and a few flags. This REPLACES
+// whatever the sheet had for these species, some of which was left over
+// from older versions of the same species and no longer matched the text.
+const SPECIES_MECH = {
+"aasimar": {
+"dmgres": [
+"Necrotic",
+"Radiant"
+],
+"spellAbility": "CHA",
+"spells": [
+{
+"key": "light",
+"cantrip": true,
+"minLevel": 1
+}
+],
+"res": [
+{
+"id": "aasimar_healing_hands",
+"name": "Healing Hands",
+"feature": "Healing Hands",
+"recovery": "long",
+"profBonus": false,
+"max": 1,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "Once you use this trait, you can't use it again until you finish a Long Rest."
+},
+{
+"id": "aasimar_celestial_revelation",
+"name": "Celestial Revelation",
+"feature": "Celestial Revelation",
+"recovery": "long",
+"profBonus": false,
+"max": 1,
+"minLevel": 3,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "Once you transform, you can't do so again until you finish a Long Rest."
+}
+]
+},
+"dragonborn": {
+"res": [
+{
+"id": "dragonborn_breath_weapon",
+"name": "Breath Weapon",
+"feature": "Breath Weapon",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this Breath Weapon a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+},
+{
+"id": "dragonborn_draconic_flight",
+"name": "Draconic Flight",
+"feature": "Draconic Flight",
+"recovery": "long",
+"profBonus": false,
+"max": 1,
+"minLevel": 5,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "Once you use this trait, you can't use it again until you finish a Long Rest."
+}
+]
+},
+"dwarf": {
+"dmgres": [
+"Poison"
+],
+"hpPerLevel": 1,
+"res": [
+{
+"id": "dwarf_stonecunning",
+"name": "Stonecunning",
+"feature": "Stonecunning",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this Bonus Action a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+}
+]
+},
+"elf": {
+"skills": {
+"pool": [
+"Insight",
+"Perception",
+"Survival"
+],
+"count": 1
+},
+"spellAbility": "INT",
+"sub": {
+"dark": {
+"spells": [
+{
+"key": "dancing_lights",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "faerie_fire",
+"minLevel": 3
+},
+{
+"key": "darkness",
+"minLevel": 5
+}
+]
+},
+"high": {
+"spells": [
+{
+"key": "prestidigitation",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "detect_magic",
+"minLevel": 3
+},
+{
+"key": "misty_step",
+"minLevel": 5
+}
+]
+},
+"wood": {
+"spells": [
+{
+"key": "druidcraft",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "longstrider",
+"minLevel": 3
+},
+{
+"key": "pass_without_trace",
+"minLevel": 5
+}
+]
+}
+},
+"res": []
+},
+"gnome": {
+"spellAbility": "INT",
+"sub": {
+"forest": {
+"spells": [
+{
+"key": "minor_illusion",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "speak_with_animals",
+"minLevel": 1
+}
+]
+},
+"rock": {
+"spells": [
+{
+"key": "mending",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "prestidigitation",
+"cantrip": true,
+"minLevel": 1
+}
+]
+}
+},
+"res": [
+{
+"id": "gnome_gnomish_lineage",
+"name": "Speak with Animals",
+"feature": "Gnomish Lineage",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": "forest",
+"was": "Speak with Animals",
+"_spellKey": "speak_with_animals",
+"desc": "You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+}
+]
+},
+"goliath": {
+"carrySizeUp": true,
+"sub": {
+"cloud": {
+"dmgres": []
+},
+"fire": {
+"dmgres": []
+},
+"frost": {
+"dmgres": []
+},
+"hill": {
+"dmgres": []
+},
+"stone": {
+"dmgres": []
+},
+"storm": {
+"dmgres": []
+}
+},
+"res": [
+{
+"id": "goliath_giant_ancestry",
+"name": "Giant Ancestry",
+"feature": "Giant Ancestry",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": "Giant Ancestry Trait",
+"_spellKey": null,
+"desc": "Choose one of the following benefits—a supernatural boon from your ancestry; you can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest: Cloud's Jaunt (Cloud Giant)."
+},
+{
+"id": "goliath_large_form",
+"name": "Large Form",
+"feature": "Large Form",
+"recovery": "long",
+"profBonus": false,
+"max": 1,
+"minLevel": 5,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "Once you use this trait, you can't use it again until you finish a Long Rest."
+}
+]
+},
+"halfling": {
+"res": []
+},
+"human": {
+"skills": {
+"pool": "any",
+"count": 1
+},
+"res": []
+},
+"orc": {
+"res": [
+{
+"id": "orc_adrenaline_rush",
+"name": "Adrenaline Rush",
+"feature": "Adrenaline Rush",
+"recovery": "short",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Short or Long Rest."
+},
+{
+"id": "orc_relentless_endurance",
+"name": "Relentless Endurance",
+"feature": "Relentless Endurance",
+"recovery": "long",
+"profBonus": false,
+"max": 1,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "Once you use this trait, you can't do so again until you finish a Long Rest."
+}
+]
+},
+"tiefling": {
+"dmgres": [],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "thaumaturgy",
+"cantrip": true,
+"minLevel": 1
+}
+],
+"sub": {
+"abyssal": {
+"dmgres": [
+"Poison"
+],
+"spells": [
+{
+"key": "poison_spray",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "ray_of_sickness",
+"minLevel": 3
+},
+{
+"key": "hold_person",
+"minLevel": 5
+}
+]
+},
+"chthonic": {
+"dmgres": [
+"Necrotic"
+],
+"spells": [
+{
+"key": "chill_touch",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "false_life",
+"minLevel": 3
+},
+{
+"key": "ray_of_enfeeblement",
+"minLevel": 5
+}
+]
+},
+"infernal": {
+"dmgres": [
+"Fire"
+],
+"spells": [
+{
+"key": "fire_bolt",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "hellish_rebuke",
+"minLevel": 3
+},
+{
+"key": "darkness",
+"minLevel": 5
+}
+]
+}
+},
+"res": []
+},
+"boggart": {
+"res": [
+{
+"id": "boggart_fury_of_the_small",
+"name": "Fury of the Small",
+"feature": "Fury of the Small",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, regaining all expended uses when you finish a long rest, and you can use it no more than once per turn."
+}
+]
+},
+"elf_lfl": {
+"skills": {
+"pool": [
+"Insight",
+"Perception",
+"Survival"
+],
+"count": 1
+},
+"spellAbility": "INT",
+"sub": {
+"lorwyn": {
+"spells": [
+{
+"key": "thorn_whip",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "command",
+"minLevel": 3
+},
+{
+"key": "silence",
+"minLevel": 5
+}
+]
+},
+"shadowmoor": {
+"spells": [
+{
+"key": "starry_wisp",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "heroism",
+"minLevel": 3
+},
+{
+"key": "gentle_repose",
+"minLevel": 5
+}
+]
+}
+},
+"res": []
+},
+"faerie": {
+"spellAbility": "INT",
+"spells": [
+{
+"key": "druidcraft",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "faerie_fire",
+"minLevel": 3
+},
+{
+"key": "enlarge_reduce",
+"minLevel": 5
+}
+],
+"res": []
+},
+"flamekin": {
+"dmgres": [
+"Fire"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "produce_flame",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "burning_hands",
+"minLevel": 3
+},
+{
+"key": "flame_blade",
+"minLevel": 5
+}
+],
+"res": []
+},
+"lorwyn_changeling": {
+"skills": {
+"pool": [
+"Deception",
+"Performance"
+],
+"count": 1
+},
+"res": []
+},
+"rimekin": {
+"dmgres": [
+"Cold"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "ray_of_frost",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "ice_knife",
+"minLevel": 3
+},
+{
+"key": "flame_blade",
+"minLevel": 5
+}
+],
+"res": []
+},
+"changeling": {
+"skills": {
+"pool": [
+"Deception",
+"Insight",
+"Intimidation",
+"Performance",
+"Persuasion"
+],
+"count": 2
+},
+"res": []
+},
+"kalashtar": {
+"dmgres": [
+"Psychic"
+],
+"skills": {
+"pool": "any",
+"count": 1
+},
+"res": []
+},
+"half_elf": {
+"skills": {
+"pool": "any",
+"count": 1
+},
+"spellAbility": "INT",
+"spells": [
+{
+"key": "friends",
+"cantrip": true,
+"minLevel": 1
+}
+],
+"res": []
+},
+"shifter": {
+"skills": {
+"pool": [
+"Acrobatics",
+"Athletics",
+"Intimidation",
+"Survival"
+],
+"count": 1
+},
+"res": [
+{
+"id": "shifter_shifting",
+"name": "Shifting",
+"feature": "Shifting",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can shift a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+}
+]
+},
+"warforged": {
+"dmgres": [
+"Poison"
+],
+"acBonus": 1,
+"skills": {
+"pool": "any",
+"count": 1
+},
+"res": []
+},
+"dhampir": {
+"dmgres": [
+"Necrotic"
+],
+"keepRes": true
+},
+"hexblood": {
+"spellAbility": "INT",
+"keepRes": true,
+"keepSpells": true
+},
+"lupin": {
+"skills": {
+"pool": [
+"Perception",
+"Stealth",
+"Survival"
+],
+"count": 1
+},
+"keepRes": true
+},
+"reborn": {
+"skills": {
+"pool": "any",
+"count": 1
+},
+"keepRes": true
+},
+"duskling": {
+"keepRes": true
+},
+"multiverse_aarakocra": {
+"spellAbility": "INT",
+"spells": [
+{
+"key": "gust_of_wind",
+"minLevel": 3
+}
+],
+"res": []
+},
+"multiverse_bugbear": {
+"carrySizeUp": true,
+"skills": {
+"pool": [],
+"fixed": [
+"Stealth"
+],
+"count": 0
+},
+"res": []
+},
+"multiverse_centaur": {
+"carrySizeUp": true,
+"skills": {
+"pool": [
+"Animal Handling",
+"Medicine",
+"Nature",
+"Survival"
+],
+"count": 1
+},
+"res": []
+},
+"multiverse_deep_gnome": {
+"spellAbility": "INT",
+"spells": [
+{
+"key": "disguise_self",
+"minLevel": 3
+},
+{
+"key": "nondetection",
+"minLevel": 5
+}
+],
+"res": [
+{
+"id": "multiverse_deep_gnome_svirfneblin_camouflage",
+"name": "Svirfneblin Camouflage",
+"feature": "Svirfneblin Camouflage",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_duergar": {
+"dmgres": [
+"Poison"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "enlarge_reduce",
+"minLevel": 3
+},
+{
+"key": "invisibility",
+"minLevel": 5
+}
+],
+"res": []
+},
+"multiverse_eladrin": {
+"skills": {
+"pool": [],
+"fixed": [
+"Perception"
+],
+"count": 0
+},
+"res": [
+{
+"id": "multiverse_eladrin_fey_step",
+"name": "Fey Step",
+"feature": "Fey Step",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_firbolg": {
+"carrySizeUp": true,
+"spellAbility": "INT",
+"spells": [
+{
+"key": "detect_magic",
+"minLevel": 1
+},
+{
+"key": "disguise_self",
+"minLevel": 1
+}
+],
+"res": [
+{
+"id": "multiverse_firbolg_hidden_step",
+"name": "Hidden Step",
+"feature": "Hidden Step",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_air_genasi": {
+"dmgres": [
+"Lightning"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "shocking_grasp",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "feather_fall",
+"minLevel": 3
+},
+{
+"key": "levitate",
+"minLevel": 5
+}
+],
+"res": []
+},
+"multiverse_earth_genasi": {
+"dmgres": [],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "blade_ward",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "pass_without_trace",
+"minLevel": 5
+}
+],
+"res": [
+{
+"id": "multiverse_earth_genasi_merge_with_stone",
+"name": "Merge with Stone",
+"feature": "Merge with Stone",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can cast it as normal, and you can also cast it as a bonus action a number of times equal to your proficiency bonus, regaining all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_fire_genasi": {
+"dmgres": [
+"Fire"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "produce_flame",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "burning_hands",
+"minLevel": 3
+},
+{
+"key": "flame_blade",
+"minLevel": 5
+}
+],
+"res": []
+},
+"multiverse_water_genasi": {
+"dmgres": [
+"Acid"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "acid_splash",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "create_or_destroy_water",
+"minLevel": 3
+},
+{
+"key": "water_walk",
+"minLevel": 5
+}
+],
+"res": []
+},
+"multiverse_githyanki": {
+"dmgres": [
+"Psychic"
+],
+"skills": {
+"pool": "any",
+"count": 1
+},
+"spellAbility": "INT",
+"spells": [
+{
+"key": "mage_hand",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "jump",
+"minLevel": 3
+},
+{
+"key": "misty_step",
+"minLevel": 5
+}
+],
+"res": []
+},
+"multiverse_githzerai": {
+"dmgres": [
+"Psychic"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "mage_hand",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "shield",
+"minLevel": 3
+},
+{
+"key": "detect_thoughts",
+"minLevel": 5
+}
+],
+"res": []
+},
+"multiverse_goblin": {
+"res": [
+{
+"id": "multiverse_goblin_fury_of_the_small",
+"name": "Fury of the Small",
+"feature": "Fury of the Small",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, regaining all expended uses when you finish a long rest, and you can use it no more than once per turn."
+}
+]
+},
+"multiverse_hobgoblin": {
+"res": [
+{
+"id": "multiverse_hobgoblin_fey_gift",
+"name": "Fey Gift",
+"feature": "Fey Gift",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait to take the Help action as a bonus action, and you can do so a number of times equal to your proficiency bonus."
+},
+{
+"id": "multiverse_hobgoblin_fortune_from_the_many",
+"name": "Fortune from the Many",
+"feature": "Fortune from the Many",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_kenku": {
+"skills": {
+"pool": "any",
+"count": 2
+},
+"res": [
+{
+"id": "multiverse_kenku_kenku_recall",
+"name": "Kenku Recall",
+"feature": "Kenku Recall",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can give yourself advantage in this way a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_kobold": {
+"res": [
+{
+"id": "multiverse_kobold_draconic_cry",
+"name": "Draconic Cry",
+"feature": "Draconic Cry",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_lizardfolk": {
+"skills": {
+"pool": [
+"Animal Handling",
+"Medicine",
+"Nature",
+"Perception",
+"Stealth",
+"Survival"
+],
+"count": 2
+},
+"res": [
+{
+"id": "multiverse_lizardfolk_hungry_jaws",
+"name": "Hungry Jaws",
+"feature": "Hungry Jaws",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"multiverse_minotaur": {
+"res": []
+},
+"multiverse_satyr": {
+"skills": {
+"pool": [],
+"fixed": [
+"Performance",
+"Persuasion"
+],
+"count": 0
+},
+"res": []
+},
+"multiverse_sea_elf": {
+"dmgres": [
+"Cold"
+],
+"skills": {
+"pool": [],
+"fixed": [
+"Perception"
+],
+"count": 0
+},
+"res": []
+},
+"multiverse_shadar_kai": {
+"dmgres": [
+"Necrotic"
+],
+"skills": {
+"pool": [],
+"fixed": [
+"Perception"
+],
+"count": 0
+},
+"res": [
+{
+"id": "multiverse_shadar_kai_blessing_of_the_raven_queen",
+"name": "Blessing of the Raven Queen",
+"feature": "Blessing of the Raven Queen",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use this trait a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"tabaxi_motm": {
+"skills": {
+"pool": [],
+"fixed": [
+"Perception",
+"Stealth"
+],
+"count": 0
+},
+"res": []
+},
+"tortle_motm": {
+"skills": {
+"pool": [
+"Animal Handling",
+"Medicine",
+"Nature",
+"Perception",
+"Stealth",
+"Survival"
+],
+"count": 1
+},
+"res": []
+},
+"multiverse_triton": {
+"dmgres": [
+"Cold"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "fog_cloud",
+"minLevel": 1
+},
+{
+"key": "gust_of_wind",
+"minLevel": 3
+},
+{
+"key": "water_walk",
+"minLevel": 5
+}
+],
+"res": []
+},
+"multiverse_yuan_ti": {
+"dmgres": [
+"Poison"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "poison_spray",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "animal_friendship",
+"minLevel": 1,
+"noResource": true
+},
+{
+"key": "suggestion",
+"minLevel": 3
+}
+],
+"res": []
+},
+"deep_imaskari": {
+"dmgres": [
+"Radiant"
+],
+"res": [
+{
+"id": "deep_imaskari_aura_of_unlight",
+"name": "Aura of Unlight",
+"feature": "Aura of Unlight",
+"recovery": "long",
+"profBonus": false,
+"max": 1,
+"minLevel": 3,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "Choose one of the options below each time you create the aura; the aura lasts for 1 minute or until you end it (no action required), and once you create this aura, you can't do so again until you finish a Long Rest: Abjuring Unlight."
+}
+]
+},
+"drider": {
+"carrySizeUp": true,
+"spellAbility": "INT",
+"spells": [
+{
+"key": "dancing_lights",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "faerie_fire",
+"minLevel": 3
+},
+{
+"key": "web",
+"minLevel": 5
+}
+],
+"res": []
+},
+"fairy": {
+"spellAbility": "INT",
+"spells": [
+{
+"key": "druidcraft",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "faerie_fire",
+"minLevel": 3
+},
+{
+"key": "enlarge_reduce",
+"minLevel": 5
+}
+],
+"res": []
+},
+"harengon": {
+"skills": {
+"pool": [],
+"fixed": [
+"Perception"
+],
+"count": 0
+},
+"initProf": true,
+"res": [
+{
+"id": "harengon_rabbit_hop",
+"name": "Rabbit Hop",
+"feature": "Rabbit Hop",
+"recovery": "long",
+"profBonus": true,
+"max": 0,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "You can use it a number of times equal to your proficiency bonus, and you regain all expended uses when you finish a long rest."
+}
+]
+},
+"illithidkin": {
+"dmgres": [
+"Psychic"
+],
+"spellAbility": "INT",
+"spells": [
+{
+"key": "mage_hand",
+"cantrip": true,
+"minLevel": 1
+},
+{
+"key": "command",
+"minLevel": 3
+},
+{
+"key": "levitate",
+"minLevel": 5
+}
+],
+"res": []
+},
+"kithkin": {
+"res": []
+},
+"kuo_toa": {
+"spells": [
+{
+"key": "find_familiar",
+"minLevel": 1
+}
+],
+"res": []
+},
+"myconid": {
+"res": [
+{
+"id": "myconid_rapport_spores",
+"name": "Rapport Spores",
+"feature": "Rapport Spores",
+"recovery": "long",
+"profBonus": false,
+"max": 1,
+"minLevel": 1,
+"subraceReq": null,
+"was": null,
+"_spellKey": null,
+"desc": "Once you use this trait, you can't do so again until you finish a Long Rest."
+}
+]
+}
+};
 const SPECIES_TEXT = {
 "multiverse_aarakocra": {
 "file": "Aarakocra",
@@ -70554,19 +71853,7 @@ const SPECIES_TEXT = {
       if ('darkvision' in st) r.subraces[sk].darkvision = st.darkvision;
     });
   });
-  // Counters that disagreed with the supplied text:
-  //  - Goliath "Giant Ancestry": "...you regain all expended uses when you finish a Long Rest" (was Short Rest)
-  //  - Aasimar "Celestial Revelation": "When you reach character level 3..." (counter appeared from level 1)
-  if (typeof RACIAL_RESOURCES !== 'undefined') {
-    const fix = (race, id, fn) => { const r = (RACIAL_RESOURCES[race] || []).find(x => x.id === id); if (r) fn(r); };
-    fix('goliath', 'giant_trait', r => { r.recovery = 'long'; r.desc = 'You can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.'; });
-    fix('aasimar', 'celestial_revelation', r => { if (Array.isArray(r.maxByLevel)) { r.maxByLevel[1] = 0; r.maxByLevel[2] = 0; } });
-  }
   Object.entries(SPECIES_NEW).forEach(([key, r]) => { if (!PHB_RACES[key]) PHB_RACES[key] = r; });
-  if (typeof RACE_SKILL_POOLS !== 'undefined' && !RACE_SKILL_POOLS.harengon) {
-    // Harengon "Leporine Senses. You have proficiency in the Perception skill."
-    RACE_SKILL_POOLS.harengon = { pool: [], fixed: ['Perception'], count: 0, name: 'Harengon' };
-  }
   // The DM's list is the whole list: every other species stays defined (so
   // a character who already has one keeps working and showing correctly)
   // but is hidden from the pickers. To bring one back, add its key to the
@@ -70574,6 +71861,49 @@ const SPECIES_TEXT = {
   if (PHB_RACES.multiverse_deep_gnome) PHB_RACES.multiverse_deep_gnome.name = 'Deep Gnome (MPMM)';   // the list calls it Deep Gnome
   const SPECIES_UNHIDE = [];   // e.g. ['astral_elf', 'thri_kreen']
   Object.entries(PHB_RACES).forEach(([key, r]) => { r.hidden = !(key in SPECIES_TEXT) && !(key in SPECIES_NEW) && !SPECIES_UNHIDE.includes(key); });
+  // Dwarf has no lineages in the supplied text; the old "Mountain Dwarf" option goes.
+  if (PHB_RACES.dwarf?.subraces) delete PHB_RACES.dwarf.subraces.mountain;
+  // ── mechanics from the text ──
+  (function () {
+    const lc = v => String(v || '').toLowerCase();
+    const arr = (n, min) => Array.from({ length: 21 }, (_, i) => (i >= (min || 1) ? n : 0));
+    const pretty = k => k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const spellEntry = sp => {
+      const hit = (typeof PHB_SPELL_LIST !== 'undefined') ? PHB_SPELL_LIST.find(x => x.key === sp.key) : null;
+      return { key: sp.key, name: hit ? hit.name : pretty(sp.key), minLevel: sp.minLevel || 1,
+        ...(sp.cantrip ? { cantrip: true } : {}), ...(sp.noResource ? { noResource: true } : {}) };
+    };
+    Object.entries(SPECIES_MECH).forEach(([key, mech]) => {
+      const r = PHB_RACES[key]; if (!r) return;
+      if ('dmgres' in mech) r.dmgres = mech.dmgres.slice();
+      if (mech.spellAbility) r.spellAbility = mech.spellAbility; else delete r.spellAbility;
+      ['carrySizeUp', 'hpPerLevel', 'initProf', 'acBonus'].forEach(f => { if (f in mech) r[f] = mech[f]; });
+      if (typeof RACE_SKILL_POOLS !== 'undefined') {
+        if (mech.skills) RACE_SKILL_POOLS[key] = { ...mech.skills, name: r.name }; else delete RACE_SKILL_POOLS[key];
+      }
+      if (typeof RACIAL_BONUS_SPELLS !== 'undefined' && !mech.keepSpells) {
+        RACIAL_BONUS_SPELLS[key] = (mech.spells || []).map(spellEntry);
+        Object.keys(r.subraces || {}).forEach(sk => { RACIAL_BONUS_SPELLS[key + '/' + sk] = ((mech.sub || {})[sk]?.spells || []).map(spellEntry); });
+      }
+      Object.entries(mech.sub || {}).forEach(([sk, sm]) => {
+        const sr = r.subraces?.[sk]; if (!sr) return;
+        if ('dmgres' in sm) sr.dmgres = sm.dmgres.slice();
+        if (mech.spellAbility) sr.spellAbility = mech.spellAbility;
+      });
+      if ('res' in mech && typeof RACIAL_RESOURCES !== 'undefined') {
+        const old = RACIAL_RESOURCES[key] || [];
+        RACIAL_RESOURCES[key] = mech.res.map(x => {
+          // keep the old counter's id where it is the same counter, so marked uses carry over
+          const prev = old.find(o => [x.name, x.was, x.feature].filter(Boolean).map(lc).includes(lc(o.name)));
+          const f = (r.features || []).find(ft => ft.name === x.feature);
+          if (f && !x.subraceReq) { f.usages = x.profBonus ? 'prof_bonus' : x.max; f.recovery = x.recovery === 'short' ? 'short rest' : 'long rest'; if (x.minLevel > 1) f.level = x.minLevel; }
+          return { id: prev ? prev.id : x.id, name: x.name, recovery: x.recovery, maxByLevel: arr(x.profBonus ? 0 : x.max, x.minLevel),
+            ...(x.profBonus ? { profBonus: true } : {}), minLevel: x.minLevel || 1,
+            ...(x.subraceReq ? { subraceReq: x.subraceReq } : {}), ...(x._spellKey ? { _spellKey: x._spellKey } : {}), desc: x.desc };
+        });
+      }
+    });
+  })();
   // species ability score text is not shown or used anywhere (5.5e: backgrounds grant these)
   Object.values(PHB_RACES).forEach(r => { delete r.scorestxt; delete r.asi; delete r.asiNote; delete r.scoresTxt;
     Object.values(r.subraces || {}).forEach(sr => { delete sr.scorestxt; }); });
