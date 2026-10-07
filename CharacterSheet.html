@@ -67130,7 +67130,7 @@ window.renderWishStressBanner = renderWishStressBanner;
 // ═══════════════════════════════════════════════════════════════════════
 const _qpE = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const _qpSign = n => (n >= 0 ? '+' : '') + n;
-let _qp = { sneak: true, cunning: 0 };
+let _qp = { sneak: true, cunning: 0, spOpen: {}, up: {} };
 
 function _qpLevelOf(cls) { return (currentChar?.classes || []).filter(c => String(c.class).toLowerCase() === cls).reduce((n, c) => n + (c.levels?.length || 0), 0); }
 function _qpSub(cls) { return ((currentChar?.classes || []).find(c => String(c.class).toLowerCase() === cls)?.subclass || '').toLowerCase(); }
@@ -67170,13 +67170,16 @@ function _qpBuild() {
       finesseOrRanged: !!(a.isFinesse || a.isRanged), piercing: /piercing/i.test(a.dmgType || '') };
   }).filter(w => { const sig = [w.name, w.hit, w.count, w.die, w.mod].join('|'); if (seenW.has(sig)) return false; seenW.add(sig); return true; });
   const rows = (typeof buildKnownSpellRows === 'function' ? buildKnownSpellRows() : []).filter(r => r.pipType !== 'locked-level' && r.pipType !== 'subclass-locked' && r.pipType !== '');   // not yet available at this level
+  let _qpRowOwner = {};
+  try { _qpRowOwner = (typeof resolveSpellRowClasses === 'function' ? resolveSpellRowClasses(rows) : {}) || {}; } catch (e) {}
   const spells = rows.map(r => {
     const s = PHB_SPELL_LIST.find(x => x.key === r.key) || {};
     const t = s.time || '';
     const bucket = /\brea/i.test(t) ? 'reaction' : /bns|bonus/i.test(t) ? 'bonus' : /^1\s*a\b/i.test(t) ? 'action' : 'longer';
     const rr = res['name:' + String(r.name || s.name).toLowerCase()];
     const castLv = typeof getFeatSpellFreeCastLevel === 'function' ? getFeatSpellFreeCastLevel(r, s) : (r.level ?? s.level ?? 0);
-    return { key: r.key, name: s.name || r.name, level: castLv, ritualOnly: r.pipType === 'ritual-only', upcast: castLv > (s.level ?? r.level ?? 0), desc: s.desc || '', source: r.label || '', bucket, res: rr && rr.type !== 'display' ? rr : null, conc: /conc/i.test(s.duration || '') };
+    return { key: r.key, name: s.name || r.name, level: castLv, baseLevel: (s.level ?? r.level ?? 0), ritualOnly: r.pipType === 'ritual-only', upcast: castLv > (s.level ?? r.level ?? 0), desc: s.desc || '', source: r.label || '', bucket, res: rr && rr.type !== 'display' ? rr : null, conc: /conc/i.test(s.duration || ''),
+      stat: _qpSpellStat(r, (_qpRowOwner && typeof _qpRowOwner.get === 'function') ? (_qpRowOwner.get(r.key) || _qpRowOwner.get(r)) : null), freeOnly: (r.source === 'race' || r.source === 'feat' || r.pipType === 'feat-spell') };
   });
   // Spells stored in a Ring of Spell Storing / Vancian Helm: listed with the
   // other spells of the same casting time, at the stored slot level, with
@@ -67187,7 +67190,7 @@ function _qpBuild() {
     const bucket = /\brea/i.test(t) ? 'reaction' : /bns|bonus/i.test(t) ? 'bonus' : /^1\s*a\b/i.test(t) ? 'action' : 'longer';
     const lv = parseInt(e.s.level, 10) || s.level || 1;
     const stat = [(e.s.dc || e.s.dc === 0) ? 'DC ' + e.s.dc : '', (e.s.atk || e.s.atk === 0) ? (e.s.atk >= 0 ? '+' : '') + e.s.atk + ' to hit' : ''].filter(Boolean).join(', ') + (e.s.caster ? ` (${e.s.caster})` : '');
-    spells.push({ key: e.s.key, name: e.s.name, level: lv, ritualOnly: false, upcast: lv > (s.level ?? lv), desc: s.desc || '', source: `${stat ? stat.trim() + ' \u00b7 ' : ''}${e.itemName}`,
+    spells.push({ stat: (e.s.dc || e.s.dc === 0) ? { dc: e.s.dc, atk: e.s.atk, ab: e.s.ability || '', who: e.s.caster || 'stored' } : null, baseLevel: s.level ?? lv, key: e.s.key, name: e.s.name, level: lv, ritualOnly: false, upcast: lv > (s.level ?? lv), desc: s.desc || '', source: `${stat ? stat.trim() + ' \u00b7 ' : ''}${e.itemName}`,
       bucket, res: null, conc: /conc/i.test(s.duration || ''), stored: { uid: e.uid, id: e.s.id, canCast: e.canCast } });
   });
   const abs = getAbilities();
@@ -67278,6 +67281,97 @@ function applyQuickPlayTab(onOpen) {
 window.applyQuickPlayTab = applyQuickPlayTab;
 
 // ── rendering ──────────────────────────────────────────────────────────
+// Which save DC and attack bonus a spell uses, from where it comes from:
+// the class that knows it, the species (its chosen ability), the feat (the
+// ability picked or fixed for that feat), or an item's own fixed numbers.
+function _qpSpellStat(r, ownerCls) {
+  try {
+    const abs = getAbilities(), prof = getProf();
+    const mk = (ab, who) => { if (!ab) return null; ab = String(ab).toLowerCase(); const m = abilityMod(abs[ab] ?? 10);
+      return { ab, who, dc: 8 + prof + m + ((typeof getSpellDCBonus === 'function' && getSpellDCBonus()) || 0), atk: prof + m + ((typeof getSpellAtkBonus === 'function' && getSpellAtkBonus()) || 0) }; };
+    if (r.fixedDC || r.fixedAtk) return { ab: '', who: r.label || 'Item', dc: r.fixedDC ?? null, atk: r.fixedAtk ?? null };
+    const classes = typeof getAllSpellcastingClasses === 'function' ? getAllSpellcastingClasses() : [];
+    if (r.source === 'race') { const rs = typeof calcRacialSpellStats === 'function' ? calcRacialSpellStats() : null; return rs?.ability ? mk(rs.ability, 'Racial') : null; }
+    if (r.source === 'feat' || r.pipType === 'feat-spell') {
+      let ab = null;
+      const rule = typeof getFeatSpellGrantRule === 'function' ? getFeatSpellGrantRule({ key: r.key, featKey: r.featKey, label: r.label }) : null;
+      if (rule && typeof getFeatSpellAbilityFor === 'function') ab = getFeatSpellAbilityFor(rule);
+      if (!ab) { const slot = String(r.featKey || '').replace(/^feat_/, ''); ab = currentChar.featSlots?.[r.featKey]?.featDetail?.spellAbility || currentChar.featSlots?.[slot]?.featDetail?.spellAbility; }
+      if (!ab && typeof SPELL_FEATS !== 'undefined') ab = SPELL_FEATS[String(r.label || '').toLowerCase()]?.ability || null;
+      if (!ab) ab = (typeof calcSpellStats === 'function' && calcSpellStats().ability) || null;
+      return mk(ab, r.label || 'Feat');
+    }
+    // class and subclass spells: the owning class's own spellcasting ability
+    let cls = ownerCls || null;
+    if (!cls && r.subclass) cls = (getAllClasses().find(e => (e.subclass || '').toLowerCase() === String(r.subclass).toLowerCase())?.class || '').toLowerCase() || null;
+    const c1 = classes.find(x => x.cls === cls) || (classes.length === 1 ? classes[0] : null);
+    if (c1) return mk(c1.ability, c1.cls.charAt(0).toUpperCase() + c1.cls.slice(1));
+    const main = typeof calcSpellStats === 'function' ? calcSpellStats() : null;
+    return main?.ability ? mk(main.ability, r.label || 'Spells') : null;
+  } catch (e) { return null; }
+}
+// Skills and saves: the extras that ride on a particular line rather than
+// living in a footnote - a bonus die, Advantage, a guaranteed minimum.
+// Shared with the Quick Play PDF so the two always agree.
+function _qpCheckExtras(Q) {
+  const out = { skills: {}, saves: {} };
+  const add = (key, o) => { out.skills[key] = { ...(out.skills[key] || {}), ...o }; };
+  const die = _qpHasFeat('Greater Mark of Shadow') ? '1d6' : _qpHasFeat('Mark of Shadow') ? '1d4' : '';
+  if (die) { add('stealth', { dice: die, diceFrom: 'Cunning Intuition' }); add('performance', { dice: die, diceFrom: 'Cunning Intuition' }); }
+  if (Q.champion) add('athletics', { adv: true, advFrom: 'Remarkable Athlete' });
+  if (Q.rogue >= 7) {
+    (typeof SKILLS !== 'undefined' ? SKILLS : []).forEach(sk => {
+      const p = document.getElementById('skill-prof-dot-' + sk.key)?.classList.contains('prof') || document.getElementById('skill-exp-dot-' + sk.key)?.classList.contains('expert');
+      const v = parseInt((document.getElementById('skill-val-' + sk.key)?.innerText || '').replace('\u2212', '-'), 10);
+      if (p && !isNaN(v)) add(sk.key, { min: 10 + v });
+    });
+    out.saves.dex = { tag: 'Evasion' };
+  }
+  return out;
+}
+window._qpCheckExtras = _qpCheckExtras;
+// Folded cards are remembered on this device (not on the character), so
+// each player keeps their own layout.
+function _qpShut() {
+  if (!_qp.shut) { try { _qp.shut = JSON.parse(localStorage.getItem('qp_folded_cards') || '{}') || {}; } catch (e) { _qp.shut = {}; } }
+  return _qp.shut;
+}
+function qpToggleCard(slug, force) {
+  const shut = _qpShut(); const el = document.getElementById('qp-c-' + slug);
+  const now = force === undefined ? !shut[slug] : !!force;
+  if (now) shut[slug] = 1; else delete shut[slug];
+  try { localStorage.setItem('qp_folded_cards', JSON.stringify(shut)); } catch (e) {}
+  if (el) el.classList.toggle('qp-shut', now);
+}
+window.qpToggleCard = qpToggleCard;
+// Spells sub-sections remember whether they were folded away
+function qpSpellsOpen(bucket, open) { _qp.spOpen[bucket] = !!open; }
+window.qpSpellsOpen = qpSpellsOpen;
+// "Cast at level" on a spell line: show what changes at that slot level,
+// using the same upcast logic as the spell pop-up.
+function _qpUpcastHtml(key, lvl) {
+  const sp = PHB_SPELL_LIST.find(x => x.key === key); if (!sp || !(lvl > sp.level)) return '';
+  const raw = String(sp.descFull || sp.desc || '');
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  let html = esc(raw);
+  try { if (typeof highlightSpellUpcast === 'function') html = highlightSpellUpcast(html, sp, lvl); } catch (e) {}
+  const cut = html.search(/Using a Higher-Level Spell Slot|At Higher Levels/i);
+  const before = cut === -1 ? html : html.slice(0, cut), after = cut === -1 ? '' : html.slice(cut);
+  // the sentence(s) whose numbers changed at this level
+  const hits = before.replace(/\s*\n+\s*/g, ' ').split(/(?<=[.!?])\s+(?=[A-Z<])/).filter(x => /<span style="color:var\(--accent\)/.test(x));
+  const rule = after.replace(/<[^>]+>/g, '').replace(/\s*\n+\s*/g, ' ').replace(/^(Using a Higher-Level Spell Slot|At Higher Levels)\.?\s*/i, '').trim();
+  const ord = n => n + (['th', 'st', 'nd', 'rd'][n % 10 > 3 || (n % 100 > 10 && n % 100 < 14) ? 0 : n % 10]);
+  if (hits.length) return `<b>With a ${ord(lvl)}-level slot:</b> ${hits.join(' ')}`;
+  return rule ? `<b>With a ${ord(lvl)}-level slot:</b> ${rule}` : '';
+}
+function qpUpcast(key, bucket, v) {
+  const lvl = parseInt(v, 10) || 0; _qp.up[key] = lvl;
+  const box = document.getElementById('qp-up-' + bucket + '-' + key); if (!box) return;
+  const h = _qpUpcastHtml(key, lvl);
+  box.innerHTML = h; box.style.display = h ? '' : 'none';
+}
+window.qpUpcast = qpUpcast;
+
 // Race (and subrace) in the header, clickable to see what it gives
 function _qpRaceLink(c) {
   const r = c && c.race && typeof PHB_RACES !== 'undefined' ? PHB_RACES[c.race] : null; if (!r) return '';
@@ -67292,7 +67386,9 @@ function renderQuickPlay() {
   try { Q = window._qpData = _qpBuild(); }
   catch (e) { body.innerHTML = `<div style="padding:16px;color:var(--red)">Couldn't build Quick Play: ${_qpE(e.message)}</div>`; console.warn(e); return; }
   const c = Q.c;
-  const card = (title, sub, inner) => `<div class="qp-card" id="qp-c-${String(title).toLowerCase().replace(/[^a-z]+/g, '-')}"><div class="qp-h">${title}${sub ? `<span class="qp-hs">${sub}</span>` : ''}</div>${inner}</div>`;
+  // every card folds from its heading
+  const card = (title, sub, inner) => { const slug = String(title).toLowerCase().replace(/[^a-z]+/g, '-'); const shut = !!_qpShut()[slug];
+    return `<div class="qp-card${shut ? ' qp-shut' : ''}" id="qp-c-${slug}"><div class="qp-h" onclick="qpToggleCard('${slug}')" title="Tap to fold or unfold"><span class="qp-ht">${title}</span>${sub ? `<span class="qp-hs">${sub}</span>` : ''}</div><div class="qp-cb">${inner}</div></div>`; };
   const pips = r => {
     if (!r) return '';
     const left = Math.max(0, r.max - (r.used || 0));
@@ -67309,11 +67405,13 @@ function renderQuickPlay() {
 
   // 1-2. saves & checks
   const SAVE = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+  const QX = _qpCheckExtras(Q);
   const ABN = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
   const saves = SAVE.map(k => {
     const v = (document.getElementById('save-val-' + k)?.innerText || _qpSign(abilityMod(Q.abs[k]))).replace('\u2212', '-');
     const p = document.getElementById('save-dot-' + k)?.classList.contains('prof');
-    return `<span class="qp-chip${p ? ' prof' : ''}">${k.toUpperCase()} ${v}</span>`;
+    const tag = QX.saves[k]?.tag;
+    return `<span class="qp-chip${p ? ' prof' : ''}">${k.toUpperCase()} ${v}${tag ? ` <span class="qp-x">${_qpE(tag)}</span>` : ''}</span>`;
   }).join('');
   const saveNotes = [Q.rogue >= 7 ? '<b>Evasion:</b> on a Dexterity save for half damage, you take none if you succeed and half if you fail.' : ''].filter(Boolean);
   const skillsBy = {};
@@ -67321,13 +67419,15 @@ function renderQuickPlay() {
     const v = (document.getElementById('skill-val-' + sk.key)?.innerText || '').replace('\u2212', '-');
     const p = document.getElementById('skill-prof-dot-' + sk.key)?.classList.contains('prof');
     const x = document.getElementById('skill-exp-dot-' + sk.key)?.classList.contains('expert');
-    (skillsBy[sk.ability] = skillsBy[sk.ability] || []).push(`<span class="qp-chip${p || x ? ' prof' : ''}">${_qpE(sk.name)} ${v}${x ? ' \u2605' : ''}</span>`);
+    const ex = QX.skills[sk.key] || {};
+    const extras = (ex.dice ? ` <span class="qp-x" title="${_qpE(ex.diceFrom || '')}">+${ex.dice}</span>` : '') + (ex.adv ? ` <span class="qp-x" title="${_qpE(ex.advFrom || '')}">Adv.</span>` : '') + (ex.min ? ` <span class="qp-xm" title="Reliable Talent">min ${ex.min}</span>` : '');
+    (skillsBy[sk.ability] = skillsBy[sk.ability] || []).push(`<span class="qp-chip${p || x ? ' prof' : ''}">${_qpE(sk.name)} ${v}${x ? ' \u2605' : ''}${extras}</span>`);
   });
   const checks = SAVE.map(k => `<div class="qp-checkrow"><span class="qp-chip qp-ab">${ABN[k]} ${_qpSign(abilityMod(Q.abs[k]))}</span>${(skillsBy[k] || []).join('')}</div>`).join('');
   const checkNotes = [
-    Q.rogue >= 7 ? '<b>Reliable Talent:</b> on a check with a skill you\'re proficient in (highlighted), a d20 roll of 9 or lower counts as 10.' : '',
-    Q.champion ? '<b>Remarkable Athlete:</b> Advantage on Initiative and Athletics checks.' : '',
-    _qpHasFeat('Greater Mark of Shadow') ? '<b>Cunning Intuition:</b> add 1d6 to Stealth and Performance checks.' : _qpHasFeat('Mark of Shadow') ? '<b>Cunning Intuition:</b> add 1d4 to Stealth and Performance checks.' : '',
+    Q.rogue >= 7 ? '<b>Reliable Talent:</b> on a check with a skill you\'re proficient in (highlighted), a d20 roll of 9 or lower counts as 10 - so <b>min</b> is the lowest total you can get.' : '',
+    Q.champion ? '<b>Remarkable Athlete:</b> Advantage on Initiative and Athletics checks (marked <b>Adv.</b>).' : '',
+    _qpHasFeat('Greater Mark of Shadow') ? '<b>Cunning Intuition:</b> roll 1d6 and add it to Stealth and Performance checks (marked <b>+1d6</b>).' : _qpHasFeat('Mark of Shadow') ? '<b>Cunning Intuition:</b> roll 1d4 and add it to Stealth and Performance checks (marked <b>+1d4</b>).' : '',
   ].filter(Boolean);
 
   // 3-4. HP, movement, AC
@@ -67425,14 +67525,33 @@ function renderQuickPlay() {
 
   // spells get their own sub-section at the bottom of each card, below the
   // card's normal options (weapon attacks, class features, standard actions)
-  const spellLine = s => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>`,
+  const _slotLevels = (() => { try { const ss = computeSpellSlotsForChar(currentChar); const l = (ss.levels || []).filter(x => x.max > 0).map(x => x.level); if (ss.warlock?.max && ss.warlock.slotLevel) l.push(ss.warlock.slotLevel); return [...new Set(l)].sort((a, b) => a - b); } catch (e) { return []; } })();
+  const upSelect = (s, bucket) => {
+    if (!s.level || s.stored || s.ritualOnly || window._previewMode) return '';
+    // only spells whose own text says a higher-level slot changes something
+    const _full = PHB_SPELL_LIST.find(x => x.key === s.key); if (!/Using a Higher-Level Spell Slot|At Higher Levels/i.test(String(_full?.descFull || _full?.desc || ''))) return '';
+    const opts = _slotLevels.filter(l => l >= s.level);
+    if (!opts.some(l => l > s.level)) return '';
+    const cur = _qp.up[s.key] && opts.includes(_qp.up[s.key]) ? _qp.up[s.key] : s.level;
+    return `<select class="qp-upsel" title="Cast with a higher-level slot" onclick="event.stopPropagation()" onchange="qpUpcast('${_qpE(s.key)}','${bucket}',this.value)">${[...new Set([s.level, ...opts])].map(l => `<option value="${l}" ${l === cur ? 'selected' : ''}>${l === s.level ? 'level ' + l : 'cast at ' + l}</option>`).join('')}</select>`;
+  };
+  const upBox = (s, bucket) => { const h = (_qp.up[s.key] > s.level) ? _qpUpcastHtml(s.key, _qp.up[s.key]) : ''; return `<div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</div>`; };
+  const spellLine = (s, bucket) => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>${upSelect(s, bucket)}`,
     _qpE(s.desc), (s.stored && window._previewMode) ? '' : s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
+  const _slotLeft = (() => { const m = {}; try { const ss = computeSpellSlotsForChar(currentChar); (ss.levels || []).forEach(x => { if (x.max > 0) m[x.level] = `${x.max - (x.used || 0)}/${x.max} slots left`; }); } catch (e) {} return m; })();
   const spellSection = bucket => {
     const list = Q.spells.filter(s => s.bucket === bucket).sort((a, b) => a.level - b.level || String(a.name).localeCompare(String(b.name)));
     if (!list.length) return '';
-    let h = '<div class="qp-spellsec"><div class="qp-spsub">Spells <span class="qp-dim">\u00b7 tap a name for the full spell</span></div>', lv = null;
-    list.forEach(s => { if (s.level !== lv) { lv = s.level; h += `<div class="qp-lvl">${lv === 0 ? 'Cantrips' : 'Level ' + lv}</div>`; } h += spellLine(s); });
-    return h + '</div>';
+    // save DC / attack bonus: one line if every spell here uses the same numbers, else one per source
+    const groups = {};
+    list.forEach(s => { if (!s.stat || (s.stat.dc == null && s.stat.atk == null)) return; const k = `${s.stat.dc}|${s.stat.atk}|${s.stat.ab}`; (groups[k] = groups[k] || { st: s.stat, who: new Set() }).who.add(s.stat.who || s.source || 'Spells'); });
+    const gl = Object.values(groups);
+    const fmt = g => `${g.st.dc != null ? `save DC <b>${g.st.dc}</b>` : ''}${g.st.dc != null && g.st.atk != null ? ' \u00b7 ' : ''}${g.st.atk != null ? `<b>${_qpSign(g.st.atk)}</b> to hit` : ''}${g.st.ab ? ` <span class="qp-dim">(${g.st.ab.toUpperCase()})</span>` : ''}`;
+    const statLine = !gl.length ? '' : `<div class="qp-spstat">${gl.length === 1 ? `<span class="qp-chip prof">Spell ${fmt(gl[0])}</span>` : gl.map(g => `<span class="qp-chip prof">${_qpE([...g.who].join(', '))}: ${fmt(g)}</span>`).join(' ')}</div>`;
+    const open = (bucket in _qp.spOpen) ? _qp.spOpen[bucket] : list.length <= 6;
+    let h = `<details class="qp-spellsec" ${open ? 'open' : ''} ontoggle="qpSpellsOpen('${bucket}', this.open)"><summary class="qp-spsub">Spells (${list.length}) <span class="qp-dim">\u00b7 tap here to fold \u00b7 tap a name for the full spell</span></summary>${statLine}`, lv = null;
+    list.forEach(s => { if (s.level !== lv) { lv = s.level; h += `<div class="qp-lvl qp-lvl-${Math.min(lv, 9)}"><span class="qp-lvl-n">${lv === 0 ? 'Cantrips' : 'Level ' + lv}</span><span class="qp-lvl-s">${lv === 0 ? 'at will' : (_slotLeft[lv] || '')}</span></div>`; } h += spellLine(s, bucket).replace(/<\/div>$/, upBox(s, bucket) + '</div>'); });
+    return h + '</details>';
   };
 
   // 5. actions
@@ -67448,7 +67567,7 @@ function renderQuickPlay() {
   const nickOK = lightsAll.length >= 2 && Q.weapons.some(w => w.mastery === 'nick' && w.light);
   const attackCard = card('Action', 'one each turn', `
     ${item('Attack', `${Q.weapons.length ? '' : 'You have no weapons equipped - an Unarmed Strike still works. '}Make <b>${Q.attacksPer === 1 ? 'one attack' : ['', '', 'two attacks', 'three attacks', 'four attacks'][Q.attacksPer] || Q.attacksPer + ' attacks'}</b>${Q.attacksPer > 1 ? ' (Extra Attack)' : ''} with ${Q.weapons.length ? (Q.attacksPer > 1 ? 'the weapons below' : 'a weapon below') : 'it'}${nickOK ? ', plus a free extra attack if you use the Nick trick (see Bonus Actions)' : ''}. Roll a d20 and add the to-hit number; if it equals or beats the target's AC, you hit.
-      <br>You score a <b>critical hit</b> on a d20 roll of <b>${Q.critMin === 20 ? '20' : Q.critMin + ' or 20'}</b>${Q.critMin < 20 ? ' (Improved Critical)' : ''}.
+      <br>You score a <b>critical hit</b> on a d20 roll of <b>${Q.critMin === 20 ? '20' : Q.critMin + ' or 20'}</b>${Q.critMin < 20 ? ' (Improved Critical)' : ''}.${Q.champion ? ' <b>Remarkable Athlete:</b> immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks.' : ''}
       ${Q.elvenAcc ? `<br>With <b>Advantage</b> you roll two d20s; thanks to <b>Elven Accuracy</b> you can reroll one of them once (reroll the lower one if neither is a crit). That's about a <b>${Math.round(critPct * 100)}%</b> crit chance per attack.` : ''}`)}
     <div class="qp-calc">
       ${Q.sneakDice ? `<label class="qp-dim"><input type="checkbox" ${_qp.sneak ? 'checked' : ''} onchange="qpSetSneak(this.checked)"> include Sneak Attack (${sa}d6)</label>
@@ -67500,6 +67619,7 @@ function renderQuickPlay() {
       <a href="#" onclick="return qpJump('hit-points')" class="qp-bar-hp">HP <b>${c.hp_current ?? 0}</b>/${c.hp_max}${c.hp_temp ? ` <span class="qp-temp">+${c.hp_temp}</span>` : ''}</a>
       <span class="qp-bar-ac">AC <b>${calcACBreakdown().total}</b></span>
       ${slotRows.length ? `<a href="#" onclick="return qpJump('spell-slots')">Slots</a>` : ''}
+      ${stored ? `<a href="#" onclick="return qpJump('stored-dice')">Dice</a>` : ''}
       <a href="#" onclick="return qpJump('action')">Action</a>
       <a href="#" onclick="return qpJump('bonus-action')">Bonus</a>
       <a href="#" onclick="return qpJump('reaction')">Reaction</a>
@@ -67511,10 +67631,10 @@ function renderQuickPlay() {
       ${card('Saving Throws', '', `<div class="qp-chips">${saves}</div>${saveNotes.map(n => `<div class="qp-note">${n}</div>`).join('')}`)}
     </div>
     ${slotRows.length ? card('Spell Slots', 'tap a dot to use one', `${casterLine}<div class="qp-slotgrid">${slotRows.join('')}</div>`) : ''}
+    ${stored ? card('Stored dice', '', stored) : ''}
     ${card('Ability Checks', '\u2605 = Expertise', `${checks}${checkNotes.map(n => `<div class="qp-note">${n}</div>`).join('')}`)}
     ${attackCard}
     <div class="qp-grid2">${bonusCard}${reactCard}</div>
-    ${stored ? card('Stored dice', '', stored) : ''}
     ${extra.other.length || heroic ? card('Other limited abilities', '', (heroic ? item('Heroic Inspiration', 'Reroll a d20 right after rolling it.', pips(heroic)) : '') + extraItems('other')) : ''}
     ${longer.length ? card('Takes longer', 'more than one action, or ritual only', spellSection('longer')) : ''}`;
 
@@ -67612,6 +67732,7 @@ window.qpPinBar = qpPinBar;
 window.addEventListener('resize', () => { try { qpPinBar(); } catch (e) {} });
 function qpJump(id) {
   const el = document.getElementById('qp-c-' + id); if (!el) return false;
+  if (el.classList.contains('qp-shut')) qpToggleCard(id, false);      // jumping to a folded card opens it
   const bar = document.querySelector('#qp-body .qp-bar');
   let sc = el.parentElement;                                  // nearest scrolling container
   while (sc && sc !== document.body && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight > sc.clientHeight)) sc = sc.parentElement;
@@ -67671,8 +67792,22 @@ window.qpJump = qpJump;
   .qp-mini{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:0 6px;cursor:pointer;font:inherit;font-size:11px}
   .qp-slotgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));column-gap:24px}
   .qp-spellsec{margin-top:10px;padding-top:4px;border-top:2px solid var(--border)}
-  .qp-lvl{font-family:var(--font-label);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:8px 0 0}
-  .qp-spsub{font-family:var(--font-label);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:8px 0 2px}
+  .qp-lvl{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-family:var(--font-label);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:18px -14px 6px;padding:8px 14px;background:var(--bg3);border-left:5px solid var(--accent);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .qp-spstat + .qp-lvl, summary + .qp-lvl{margin-top:8px}
+  .qp-h{cursor:pointer;user-select:none}
+  .qp-ht::before{content:'\\25BE';display:inline-block;width:1.1em;transition:transform .15s}
+  .qp-card.qp-shut .qp-ht::before{transform:rotate(-90deg)}
+  .qp-card.qp-shut > .qp-cb{display:none}.qp-card.qp-shut > .qp-h{margin-bottom:0}
+  .qp-lvl-n{font-size:13px;font-weight:700}.qp-lvl-s{font-size:10px;color:var(--text3);letter-spacing:.04em}
+  .qp-lvl-0{border-left-color:var(--text3)}.qp-lvl-0 .qp-lvl-n{color:var(--text2)}
+  .qp-lvl ~ .qp-item{margin-left:8px}
+  details.qp-spellsec > summary{cursor:pointer;list-style:none}details.qp-spellsec > summary::-webkit-details-marker{display:none}
+  details.qp-spellsec > summary::before{content:'\\25B8';display:inline-block;margin-right:6px;transition:transform .15s}details.qp-spellsec[open] > summary::before{transform:rotate(90deg)}
+  .qp-spsub{font-family:var(--font-label);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:8px 0 2px;padding:6px 0}
+  .qp-spstat{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px}
+  .qp-x{color:var(--accent);font-weight:700;margin-left:2px}.qp-xm{color:var(--text3);font-size:11px;margin-left:4px}
+  .qp-upsel{margin-left:6px;font-size:16px;padding:2px 4px;min-height:28px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-weight:400}
+  .qp-upbox{margin-top:4px;padding:6px 10px;font-size:12px;line-height:1.45;color:var(--text2);border-left:3px solid var(--accent);background:var(--bg3);border-radius:0 6px 6px 0}
   .qp-slotrow{display:grid;grid-template-columns:110px 1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}.qp-slotrow:last-child{border-bottom:none}
   .qp-pips{display:inline-flex;gap:3px;flex-wrap:wrap;align-items:center}.qp-pip{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--accent);background:transparent;cursor:pointer;padding:0}.qp-pip.on{background:var(--accent)}
   .qp-other{font-size:12px;color:var(--text2);margin-top:8px;line-height:1.5}
@@ -67683,6 +67818,7 @@ window.qpJump = qpJump;
   @media (max-width:600px){
     #qp-body{font-size:14px;gap:10px}
     .qp-card{padding:12px}
+    .qp-lvl{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
     .qp-top{flex-direction:column;align-items:flex-start;gap:4px}
     .qp-who{font-size:20px}
     .qp-text{font-size:14px;line-height:1.55}
@@ -67778,7 +67914,8 @@ function _qppCard(id) {
   if (sec) {
     let lv = '';
     [...sec.children].forEach(ch => {
-      if (ch.classList.contains('qp-lvl')) lv = ch.textContent.trim();
+      if (ch.classList.contains('qp-lvl')) lv = (ch.querySelector('.qp-lvl-n')?.textContent || ch.textContent).trim();
+      else if (ch.classList.contains('qp-spstat')) out.spellStat = _qppText(ch);
       else if (ch.classList.contains('qp-item')) { const s = readItem(ch); s.level = lv; out.spells.push(s); }
     });
   }
@@ -67857,9 +67994,11 @@ async function exportQuickPlayPdf() {
       lines.forEach(ln => { ensure(9.4); text(M, y, ln, 7.5); y -= 9.4; });
       y -= 4;
     };
-    const spellLines = (spells, base) => {
+    const spellLines = (spells, base, stat) => {
       if (!spells.length) return;
-      ensure(24); text(M, y, 'SPELLS', 7, B, GREY); y -= 11;
+      ensure(24); const _sx = M + text(M, y, 'SPELLS', 7, B, GREY) + 8;
+      if (stat) text(_sx, y, stat, 7, F, GREY);
+      y -= 11;
       const descX = M + 235, descW = W - M - descX;
       spells.forEach(s => {
         const dl = wrap(s.text, 7.2, descW);
@@ -67943,10 +68082,14 @@ async function exportQuickPlayPdf() {
     section('Saving throws & ability checks', 'filled dot = proficient   two dots = expertise');
     const AB = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
     const sw = (W - 2 * M - 5 * 5) / 6; let sx = M;
+    const QX = (typeof _qpCheckExtras === 'function' && window._qpData) ? _qpCheckExtras(window._qpData) : { skills: {}, saves: {} };
     AB.forEach(k => {
       const v = (document.getElementById('save-val-' + k)?.innerText || '').replace('\u2212', '-');
       const p = document.getElementById('save-dot-' + k)?.classList.contains('prof');
-      rect(sx, y - 12, sw, 18, p ? ACC : LIGHT); text(sx + 5, y - 6, `${k.toUpperCase()} save`, 7, F, GREY); textR(sx + sw - 5, y - 6, v, 9, B); sx += sw + 5;
+      const tag = QX.saves[k]?.tag;
+      rect(sx, y - 12, sw, 18, p ? ACC : LIGHT); text(sx + 5, y - 6, `${k.toUpperCase()} save`, 7, F, GREY);
+      if (tag) text(sx + 5, y - 11.5, tag, 5.2, B, ACC);
+      textR(sx + sw - 5, y - 6, v, 9, B); sx += sw + 5;
     });
     y -= 26;
     const SK = (typeof SKILLS !== 'undefined' ? SKILLS : []);
@@ -67959,7 +68102,14 @@ async function exportQuickPlayPdf() {
       page.drawCircle({ x: x + 3, y: yy + 2.6, size: 2.4, borderColor: p || ex ? BLACK : GREY, borderWidth: .6, color: p || ex ? BLACK : undefined });
       if (ex) page.drawCircle({ x: x + 9, y: yy + 2.6, size: 2.4, borderColor: BLACK, borderWidth: .6, color: BLACK });
       text(x + (ex ? 15 : 9), yy, sk.name, 7.5, p || ex ? B : F, p || ex ? BLACK : GREY);
-      textR(x + colw - 14, yy, v, 7.5, p || ex ? B : F, p || ex ? BLACK : GREY);
+      // value, then anything that rides on this skill: a bonus die, Advantage, Reliable Talent's minimum
+      const xr = QX.skills[sk.key] || {};
+      const extra = [xr.dice ? '+' + xr.dice : '', xr.adv ? 'Adv.' : ''].filter(Boolean).join(' ');
+      const minT = xr.min ? 'min ' + xr.min : '';
+      let rx = x + colw - 14;
+      if (minT) { textR(rx, yy, minT, 5.8, F, GREY); rx -= F.widthOfTextAtSize(minT, 5.8) + 4; }
+      if (extra) { textR(rx, yy, extra, 7.5, B, ACC); rx -= B.widthOfTextAtSize(extra, 7.5) + 3; }
+      textR(rx, yy, v, 7.5, p || ex ? B : F, p || ex ? BLACK : GREY);
     });
     y -= rows * 11 + 2;
     const notes = [...document.querySelectorAll('#qp-c-saving-throws .qp-note, #qp-c-ability-checks .qp-note')].map(_qppText).filter(Boolean).join('   ');
@@ -67999,7 +68149,7 @@ async function exportQuickPlayPdf() {
       }
       act.items.filter(i => i.name !== 'Attack').forEach(i => item(i, 'act'));
       if (act.other) { para(M, y, act.other, W - 2 * M, 7, F, GREY); y -= 4; }
-      spellLines(act.spells, 'sp');
+      spellLines(act.spells, 'sp', act.spellStat);
     }
 
     // ── back: bonus action, reaction, the rest ──
@@ -68011,7 +68161,7 @@ async function exportQuickPlayPdf() {
       if (!cd.items.length && !cd.spells.length) return;
       section(title, sub);
       cd.items.filter(i => !/^heroic inspiration$/i.test(i.name)).forEach(i => item(i, id));   // already in the header
-      spellLines(cd.spells, id + '_sp');
+      spellLines(cd.spells, id + '_sp', cd.spellStat);
       y -= 6;
     });
     // stored dice (Portent / Diviner's dice): boxes to write the rolls in
@@ -71929,7 +72079,7 @@ const PV_VIEW_FNS = new Set([
   // plain gear has no separate viewer: its edit window opens, with every field and button inert
   'openGearEditModal',
   // navigation, expanding, closing
-  'qpJump', 'qpOpenRule', 'closeModal', 'switchPage', 'jumpToFeatureByName', 'scrollToAndOpenSpellbook',
+  'qpJump', 'qpOpenRule', 'qpToggleCard', 'closeModal', 'switchPage', 'jumpToFeatureByName', 'scrollToAndOpenSpellbook',
   'toggleProfPanelExpanded', 'toggleSkilledToolsExpanded', 'toggleSpellbook', 'toggleFullClassSpellList',
   // top bar: things that belong to the viewer, not the previewed character
   'exitPreviewMode', 'openPartyOverview', 'toggleTheme', 'toggleThemePicker', 'doLogout', 'exportCharacterPdf',
