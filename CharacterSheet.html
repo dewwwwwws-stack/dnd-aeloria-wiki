@@ -3008,8 +3008,8 @@ body.preview-readonly #mi-detail-edit-row * {
           <div class="panel">
             <div class="panel-title">Character</div>
             <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:10px">
-              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:40%;max-width:170px">
-                <div id="char-token-preview" style="width:100%;aspect-ratio:1;border-radius:14px;border:2px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:40%;max-width:200px">
+                <div id="char-token-preview" style="width:100%;aspect-ratio:1;border-radius:14px;border:3px solid var(--accent);box-shadow:0 0 0 3px var(--bg2),0 0 0 4px var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
                   <span style="font-size:clamp(24px, calc(15vw / var(--zoom, 1)), 56px);color:var(--text3)">⚔</span>
                 </div>
                 <input type="file" id="ci-token-file" accept="image/*" style="display:none" onchange="handleTokenFileUpload(this.files[0])"/>
@@ -8051,7 +8051,7 @@ function buildDMInventoryHTML(c, charId) {
     <div style="font-family:var(--font-ui);font-size:8px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);margin-top:4px">${group.label}</div>
     ${group.rows.map(r => `
       <div style="display:flex;align-items:center;gap:6px;padding:2px 0">
-        ${itemThumbImg(r.imgKey, 14)}
+        ${itemThumbImg(r.imgKey, 24)}
         <span style="font-family:var(--font-ui);font-size:7px;font-weight:700;color:${r.color};border:1px solid ${r.color};border-radius:3px;padding:0 3px;flex-shrink:0">${r.badge}</span>
         <span style="font-family:var(--font-ui);font-size:9px;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}${r.sub?` <span style="color:var(--text3)">· ${r.sub}</span>`:''}</span>
         ${r.weight ? `<span style="font-family:var(--font-ui);font-size:8px;color:var(--text3);flex-shrink:0">${r.weight}</span>` : ''}
@@ -35212,6 +35212,7 @@ function renderKnownSpells() {
       });
     }
 
+    row.dataset.spKey = sp.key;   // used by the Full spell text switch
     body.appendChild(row);
   });
 }
@@ -41769,7 +41770,7 @@ function renderUnifiedInventory() {
     <div class="inv-row" data-kind="${r.kind}" data-idx="${r.rowIdx}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:var(--radius);cursor:${r.onClick ? 'pointer' : 'default'}"
       onclick="${r.onClick}" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background='rgba(255,255,255,.02)'">
       <span onpointerdown="startInventoryDrag(event,'${r.kind}',${r.rowIdx})" onclick="event.stopPropagation()" style="cursor:grab;color:var(--text3);font-size:14px;flex-shrink:0;padding:0 2px;touch-action:none" title="Drag to reorder">⠿</span>
-      ${itemThumbImg(r.itemImgKey, 22)}
+      ${itemThumbImg(r.itemImgKey, 30)}
       <span style="font-family:var(--font-ui);font-size:8px;font-weight:700;color:${r.badgeColor};border:1px solid ${r.badgeColor};border-radius:3px;padding:1px 4px;flex-shrink:0;letter-spacing:.3px">${r.badge}</span>
       ${r.equipToggle ? `<input type="checkbox" ${r.equipped?'checked':''} onclick="event.stopPropagation()" onchange="${r.equipToggle}" title="${r.equipLabel}" style="accent-color:${r.badgeColor};flex-shrink:0;cursor:pointer"/>` : ''}
       <div class="inv-row-name" style="flex:1;min-width:0;overflow:hidden">
@@ -43195,7 +43196,7 @@ function itemImageUrl(key) {
 function itemThumbImg(key, sizePx) {
   if (!key) return '';
   const s = sizePx || 22;
-  return `<img src="${itemImageUrl(key)}" loading="lazy" style="width:${s}px;height:${s}px;object-fit:contain;border-radius:3px;background:var(--bg2);flex-shrink:0" onerror="console.error('[item-art] thumb failed to load:', this.src, new Date().toISOString());this.style.display='none'" alt=""/>`;
+  return `<img class="item-thumb" src="${itemImageUrl(key)}" loading="lazy" style="width:${s}px;height:${s}px;object-fit:contain;border-radius:4px;background:var(--bg3);border:1px solid var(--border);padding:2px;box-sizing:border-box;flex-shrink:0" onerror="console.error('[item-art] thumb failed to load:', this.src, new Date().toISOString());this.style.display='none'" alt=""/>`;
 }
 
 // The "outside the modal, to the left, big" item-art treatment shared by
@@ -43855,7 +43856,7 @@ function renderMagicItemsPanel() {
 
       row.innerHTML = `
         <div style="display:flex;align-items:flex-start;gap:8px">
-          ${itemThumbImg(item.key, 40)}
+          ${itemThumbImg(item.key, 48)}
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span style="font-family:var(--font-body);font-size:13px;color:var(--text);font-weight:500">${getItemDisplayName(item)}</span>
@@ -63342,10 +63343,7 @@ async function renderPartyOverview() {
         Object.keys(coinTotals).forEach(k => { coinTotals[k] += Number(cur[k]) || 0; });
       });
       const coinPip = (label, val, color) => `
-        <div style="display:flex;flex-direction:column;align-items:center;min-width:52px;padding:6px 10px;background:var(--bg3);border-radius:var(--radius)">
-          <span style="font-family:var(--font-ui);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:${color}">${label}</span>
-          <span style="font-family:var(--font-title);font-size:14px;color:var(--text);font-weight:700;margin-top:1px">${val.toLocaleString('en-US')}</span>
-        </div>`;
+        <div class="qp-stat po-coin"><div class="po-coin-l" style="color:${color}">${label}</div><div class="po-coin-v">${val.toLocaleString('en-US')}</div></div>`;
       const coinsHTML = coinPip('PP', coinTotals.pp, '#c0d0e0') + coinPip('GP', coinTotals.gp, 'var(--coin-gold)')
         + coinPip('SP', coinTotals.sp, '#b8b8b8') + coinPip('CP', coinTotals.cp, '#b5651d');
 
@@ -63364,7 +63362,7 @@ async function renderPartyOverview() {
       });
       const fmtGp = n => (Math.round(n*100)/100).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' gp';
       const totalsLineHTML = `
-        <div style="display:flex;gap:14px;font-family:var(--font-ui);font-size:10px;color:var(--text3)">
+        <div class="po-totals">
           <span>Valuables <strong style="color:var(--text2)">${fmtGp(valuablesGpTotal)}</strong></span>
           <span>Total <strong style="color:var(--coin-gold)">${fmtGp(currencyGpTotal + valuablesGpTotal)}</strong></span>
         </div>`;
@@ -63392,16 +63390,16 @@ async function renderPartyOverview() {
         const poSection = (title, count, rowsHTML) => {
           if (!count) return '';
           return `
-            <details class="po-details" style="margin-top:6px" onclick="event.stopPropagation()">
-              <summary style="cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;display:flex;align-items:center;gap:5px;user-select:none">
+            <details class="po-details" onclick="event.stopPropagation()">
+              <summary class="po-sum">
                 <span class="po-arrow">▶</span> ${title} <span style="color:var(--text2)">(${count})</span>
               </summary>
               <div style="padding-left:15px;margin-top:2px">${rowsHTML}</div>
             </details>`;
         };
         const poRow = (name, sub, color, onclick, imgKey) => `
-          <div style="padding:5px 0;border-top:1px solid var(--border);${onclick ? 'cursor:pointer' : ''}display:flex;align-items:center;gap:6px" ${onclick ? `onclick="event.stopPropagation();${onclick}"` : ''}>
-            ${itemThumbImg(imgKey, 18)}
+          <div style="padding:5px 0;border-top:1px solid var(--border);${onclick ? 'cursor:pointer;' : ''}display:flex;align-items:center;gap:8px" ${onclick ? `onclick="event.stopPropagation();${onclick}"` : ''}>
+            ${itemThumbImg(imgKey, 36)}
             <div style="flex:1;min-width:0;font-family:var(--font-ui);font-size:11px;font-weight:600;color:${color||'var(--text)'};${onclick ? "text-decoration:underline;text-decoration-color:transparent" : ''}" ${onclick ? `onmouseover="this.style.textDecorationColor='currentColor'" onmouseout="this.style.textDecorationColor='transparent'"` : ''}>${name}${sub ? ` <span style="font-size:9px;font-weight:400;color:var(--text3)">${sub}</span>` : ''}</div>
           </div>`;
 
@@ -63460,40 +63458,35 @@ async function renderPartyOverview() {
         ].join('');
 
         return `
-          <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;${deceased ? 'opacity:.5;filter:grayscale(60%)' : downed ? 'opacity:.6' : ''};display:flex;gap:16px;cursor:pointer;position:relative" onclick="previewCharacterSheet('${id}')" title="Click to view ${(c.charName||'this character').replace(/"/g,'&quot;')}'s full sheet (read-only)">
-            ${isDM ? `<span onclick="event.stopPropagation();toggleCharacterDeceased('${id}',${deceased})" title="${deceased ? 'Mark as alive' : 'Mark as dead'}" style="position:absolute;top:8px;right:8px;font-size:14px;cursor:pointer;opacity:${deceased ? '1' : '.35'};z-index:1">☠</span>` : ''}
-            <div style="width:88px;height:88px;border-radius:50%;border:3px solid var(--border);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center;${c.tokenUrl ? `background-image:url('${c.tokenUrl.replace(/'/g,'%27')}')` : ''}">
-              ${c.tokenUrl ? '' : '<span style="font-size:34px;color:var(--text3)">⚔</span>'}
+          <div class="qp-card po-card${deceased ? ' po-dead' : downed ? ' po-down' : ''}" onclick="previewCharacterSheet('${id}')" title="Click to view ${(c.charName||'this character').replace(/"/g,'&quot;')}'s full sheet (read-only)">
+            <div class="qp-h po-ch">
+              <span class="po-name">${c.charName || 'Unnamed'}${deceased ? ' <span class="po-flag">☠ Dead</span>' : downed ? ' <span class="po-flag po-flag-down">Downed</span>' : ''}</span>
+              <span class="po-hp" style="color:${hpCol}">${hpCur}<span>/${hpMax}</span>${isDM ? `<span class="po-skull" onclick="event.stopPropagation();toggleCharacterDeceased('${id}',${deceased})" title="${deceased ? 'Mark as alive' : 'Mark as dead'}" style="opacity:${deceased ? '1' : '.4'}">☠</span>` : ''}</span>
             </div>
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-                <span style="font-family:var(--font-title);font-size:18px;font-weight:700;color:var(--text)">${c.charName || 'Unnamed'}${deceased ? ' <span style="color:var(--text3);font-size:12px">- ☠ Dead</span>' : downed ? ' <span style="color:var(--red);font-size:12px">- Downed</span>' : ''}</span>
-                <span style="font-family:var(--font-ui);font-size:13px;color:${hpCol};font-weight:700">${hpCur}<span style="color:var(--text3);font-weight:400">/${hpMax}</span></span>
+            <div class="po-top">
+              <div class="po-token" style="${c.tokenUrl ? `background-image:url('${c.tokenUrl.replace(/'/g,'%27')}')` : ''}">${c.tokenUrl ? '' : '<span>⚔</span>'}</div>
+              <div style="flex:1;min-width:0">
+                <div class="po-cls">${cls}${level ? ` · Lvl ${level}` : ''}${sub}</div>
+                <div class="po-bar"><div style="width:${hpPct}%;background:${hpCol}"></div></div>
+                ${conditions ? `<div class="po-conds">${conditions}</div>` : ''}
               </div>
-              <div style="font-family:var(--font-ui);font-size:11px;color:var(--text3);margin-top:2px">${cls}${level ? ` · Lvl ${level}` : ''}${sub}</div>
-              <div style="height:6px;border-radius:3px;background:var(--bg3);margin-top:8px;overflow:hidden">
-                <div style="height:100%;width:${hpPct}%;background:${hpCol}"></div>
-              </div>
-              ${conditions ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">${conditions}</div>` : ''}
-              ${inventorySectionsHTML}
             </div>
+            ${inventorySectionsHTML ? `<div class="po-inv">${inventorySectionsHTML}</div>` : ''}
           </div>
         `;
       }).join('');
 
       return `
-        <div style="margin-bottom:24px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-            ${group.color ? `<div style="width:9px;height:9px;border-radius:50%;background:${group.color};flex-shrink:0"></div>` : ''}
-            <span style="font-family:var(--font-ui);font-size:12px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:${group.color || 'var(--text3)'};max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${group.name.replace(/"/g,'&quot;')}">${group.name}</span>
-            <span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">${group.chars.length} · HP ${groupHPCur}/${groupHPMax} (${groupPct}%)</span>
-            <div style="display:flex;gap:6px;margin-left:auto">${coinsHTML}</div>
+        <section class="qp-card po-group" ${group.color ? `style="--po-col:${group.color}"` : ''}>
+          <div class="qp-h po-gh">
+            <span class="po-gname" title="${group.name.replace(/"/g,'&quot;')}">${group.color ? '<i class="po-dot"></i>' : ''}${group.name}</span>
+            <span class="qp-dim">${group.chars.length} · HP ${groupHPCur}/${groupHPMax} (${groupPct}%)</span>
           </div>
-          <div style="display:flex;justify-content:flex-end;margin-bottom:10px">${totalsLineHTML}</div>
+          <div class="po-money"><div class="po-coins">${coinsHTML}</div>${totalsLineHTML}</div>
           <div class="party-overview-grid">
             ${cardsHTML}
           </div>
-        </div>
+        </section>
       `;
     }).join('');
   } catch(e) {
@@ -67520,6 +67513,15 @@ function qpSpellTextMode(mode) {
   renderQuickPlay();
 }
 window.qpSpellTextMode = qpSpellTextMode;
+// Rest buttons at the top of Quick Play - the same rest functions the Main
+// sheet's buttons call, then Quick Play is redrawn with the new numbers.
+function qpRest(kind) {
+  if (window._previewMode) return;
+  const fn = { short: 'doShortRest', long: 'doLongRest', dusk: 'doDuskReset', dawn: 'doDawnReset' }[kind];
+  try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.warn('qpRest', e); }
+  setTimeout(() => { try { if (document.getElementById('page-quickplay')?.classList.contains('active')) renderQuickPlay(); } catch (e) {} }, 60);
+}
+window.qpRest = qpRest;
 // The same pipeline the spell pop-up uses - DM text overrides, cantrip and
 // upcast numbers worked out and highlighted, glossary links, tables.
 function _qpSpellFullHtml(key, castLevel) {
@@ -67856,7 +67858,12 @@ function renderQuickPlay() {
 
   body.innerHTML = `
     <div class="qp-top"><div class="qp-whobox">${(c.tokenUrl || '').trim() ? `<div class="qp-token" style="background-image:url('${_qpE(String(c.tokenUrl).trim().replace(/'/g, '%27'))}')" role="img" aria-label="${_qpE(c.charName || '')}"></div>` : ''}<div><div class="qp-who">${_qpE(c.charName || '')}</div><div class="qp-dim">${_qpE((c.classes || []).map(x => `${x.class.charAt(0).toUpperCase() + x.class.slice(1)} ${x.levels?.length || 0}${x.subclass ? ' (' + x.subclass + ')' : ''}`).join(' / '))}${_qpRaceLink(c)}</div></div>
-      </div><div class="qp-dim">The full sheet is still on the other tabs.</div></div>
+      </div><div class="qp-restbox"><div class="qp-rest">
+        <button class="tbtn" style="border-color:var(--action-short-rest);color:var(--action-short-rest)" onclick="qpRest('short')" ${window._previewMode ? 'disabled' : ''}>☽ Short Rest</button>
+        <button class="tbtn" style="border-color:var(--action-long-rest);color:var(--action-long-rest)" onclick="qpRest('long')" ${window._previewMode ? 'disabled' : ''}>★ Long Rest</button>
+        <button class="tbtn" style="border-color:var(--action-dusk);color:var(--action-dusk)" onclick="qpRest('dusk')" title="Restore Dusk-recovery resources" ${window._previewMode ? 'disabled' : ''}>Dusk</button>
+        <button class="tbtn" style="border-color:var(--action-dawn);color:var(--action-dawn)" onclick="qpRest('dawn')" title="Restore Dawn-recovery resources" ${window._previewMode ? 'disabled' : ''}>Dawn</button>
+      </div><div class="qp-dim">The full sheet is still on the other tabs.</div></div></div>
     <nav class="qp-bar" aria-label="Quick Play sections">
       <a href="#" onclick="return qpJump('hit-points')" class="qp-bar-hp">HP <b>${c.hp_current ?? 0}</b>/${c.hp_max}${c.hp_temp ? ` <span class="qp-temp">+${c.hp_temp}</span>` : ''}</a>
       <span class="qp-bar-ac">AC <b>${calcACBreakdown().total}</b></span>
@@ -68008,11 +68015,15 @@ window.qpJump = qpJump;
   /* One column, top to bottom, at every window width. The wrappers stay
      invisible to layout so the cards stack in their original order. */
   .qp-cols,.qp-side,.qp-main,.qp-mainA,.qp-mainB{display:contents}
+  .qp-restbox{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .qp-rest{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+  .qp-rest .tbtn{min-height:32px;padding:4px 10px;font-size:11px}
+  @container sheet (max-width:600px){ .qp-restbox{align-items:stretch;width:100%} .qp-rest{justify-content:stretch} .qp-rest .tbtn{flex:1 1 40%} }
   .qp-top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
   .qp-who{font-family:var(--font-title);font-size:22px;font-weight:700}
   .qp-whobox{display:flex;align-items:center;gap:14px}
-  .qp-token{width:72px;height:72px;border-radius:50%;border:2px solid var(--accent);background-color:var(--bg3);background-size:cover;background-position:center;flex-shrink:0}
-  @container sheet (max-width:520px) {.qp-token{width:56px;height:56px}}
+  .qp-token{width:112px;height:112px;border-radius:50%;border:3px solid var(--accent);box-shadow:0 0 0 3px var(--bg2),0 0 0 4px var(--border);background-color:var(--bg3);background-size:cover;background-position:center;flex-shrink:0}
+  @container sheet (max-width:520px) {.qp-token{width:84px;height:84px}}
   .qp-grid3{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:12px}.qp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @container sheet (max-width:820px) {.qp-grid3,.qp-grid2{grid-template-columns:1fr}}
 
@@ -72785,6 +72796,7 @@ body { container: sheet / inline-size; }
 .feat-row-top { flex-wrap: wrap; row-gap: 4px; }
 /* glossary links inside filled badges take the badge's text colour (they were accent-on-accent) */
 .feat-pill-usage span { color: inherit !important; }
+@container sheet (max-width: 600px) { .inv-row .item-thumb { width: 24px !important; height: 24px !important; padding: 1px !important; } }
 .feat-row-top > div:first-child { min-width: 140px; }
 #companion-blocks { grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)) !important; }
 @container sheet (max-width: 700px) { .tab-grid-2col { grid-template-columns: minmax(0,1fr); } }
@@ -72827,6 +72839,109 @@ body { container: sheet / inline-size; }
     panel.insertBefore(row, panel.firstChild);
   }
   apply();
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// SPELLS TAB FULL TEXT
+// The Quick Play "Spell text: Full / Short" switch, on the Spells tab's
+// spell list. Full shows each spell's complete rules text under its row
+// (same text pipeline as the spell pop-up and Quick Play). Remembered on
+// this device ('sp_spell_text'); Short (the one-line summary) is the default.
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  const KEY = 'sp_spell_text';
+  const st = document.createElement('style');
+  st.textContent = `
+#sp-text-mode{display:flex;align-items:center;gap:4px;margin:2px 0 8px;font-family:var(--font-ui);font-size:11px;color:var(--text3)}
+#sp-text-mode span.opt{cursor:pointer;padding:3px 10px;border:1px solid var(--border);border-radius:var(--radius,6px);color:var(--text2);min-height:24px;display:inline-flex;align-items:center}
+#sp-text-mode span.opt.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+#sp-known-body.sp-full .sp-short-desc{visibility:hidden}
+.sp-full-text{padding:2px 10px 12px 70px;margin-bottom:4px;border-bottom:1px solid var(--border);font-family:var(--font-body,var(--font-ui));font-size:13px;line-height:1.55;color:var(--text2)}
+.sp-full-text table{font-size:12px}
+@container sheet (max-width: 820px){ .sp-full-text{padding-left:12px} }`;
+  document.head.appendChild(st);
+  const mode = () => { try { return localStorage.getItem(KEY) === 'full' ? 'full' : 'short'; } catch (e) { return 'short'; } };
+  function fullHtml(key) {
+    if (typeof _qpSpellFullHtml === 'function') return _qpSpellFullHtml(key, 0);
+    const sp = (typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []).find(x => x.key === key);
+    return sp ? String(sp.descFull || sp.desc || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])).replace(/\n/g, '<br>') : '';
+  }
+  function decorate() {
+    const body = document.getElementById('sp-known-body'); if (!body) return;
+    const m = mode();
+    let bar = document.getElementById('sp-text-mode');
+    if (!bar) {
+      bar = document.createElement('div'); bar.id = 'sp-text-mode';
+      body.parentNode.insertBefore(bar, body);
+    }
+    bar.innerHTML = `Spell text: <span class="opt ${m === 'full' ? 'on' : ''}" onclick="spSpellTextMode('full')">Full</span><span class="opt ${m === 'short' ? 'on' : ''}" onclick="spSpellTextMode('short')">Short</span>`;
+    body.querySelectorAll('.sp-full-text').forEach(e => e.remove());
+    body.classList.toggle('sp-full', m === 'full');
+    if (m !== 'full') return;
+    body.querySelectorAll('[data-sp-key]').forEach(row => {
+      const html = fullHtml(row.dataset.spKey); if (!html) return;
+      const d = document.createElement('div'); d.className = 'sp-full-text'; d.innerHTML = html;
+      row.after(d);
+    });
+  }
+  window.spSpellTextMode = function (m) { try { localStorage.setItem(KEY, m === 'full' ? 'full' : 'short'); } catch (e) {} decorate(); };
+  const orig = window.renderKnownSpells;
+  if (typeof orig === 'function') {
+    renderKnownSpells = window.renderKnownSpells = function () { const r = orig.apply(this, arguments); try { decorate(); } catch (e) {} return r; };
+  }
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// PARTY VIEW LOOK
+// Party Overview drawn with the Quick Play card style: each party is a card
+// with a header band (party colour on the left edge), coin tiles, and a
+// card per character with its own header band (name + HP).
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  const st = document.createElement('style');
+  st.textContent = `
+#party-overview-body{display:flex;flex-direction:column;gap:16px}
+.po-group{--po-col:var(--accent)}
+.po-group > .po-gh{cursor:default;border-left-color:var(--po-col)!important}
+.po-gname{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--po-col)}
+.po-dot{width:10px;height:10px;border-radius:50%;background:var(--po-col);flex-shrink:0;display:inline-block}
+.po-money{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 12px}
+.po-coins{display:flex;gap:6px;flex-wrap:wrap}
+.po-coin{min-width:64px;padding:6px 10px}
+.po-coin-l{font-family:var(--font-label);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.po-coin-v{font-family:var(--font-title);font-size:16px;font-weight:700;color:var(--text);margin-top:1px}
+.po-totals{display:flex;gap:16px;font-family:var(--font-ui);font-size:12px;color:var(--text3)}
+.po-totals strong{color:var(--text2)}
+.po-totals span:last-child strong{color:var(--coin-gold)}
+.party-overview-grid{gap:12px}
+.po-card{cursor:pointer;position:relative;display:flex;flex-direction:column;min-width:0;transition:border-color .15s}
+.po-card:hover{border-color:var(--accent)}
+.po-card.po-down{opacity:.7}
+.po-card.po-dead{opacity:.5;filter:grayscale(60%)}
+.po-ch{margin-bottom:10px}
+.po-name{font-family:var(--font-title);font-size:17px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.po-flag{font-family:var(--font-ui);font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.po-flag-down{color:var(--red)}
+.po-hp{font-family:var(--font-title);font-size:17px;font-weight:700;white-space:nowrap;letter-spacing:0;display:flex;align-items:baseline;gap:2px}
+.po-hp > span:first-child{color:var(--text3);font-weight:400;font-size:13px}
+.po-skull{margin-left:8px;font-size:15px;cursor:pointer;color:var(--text2)}
+.po-top{display:flex;gap:12px;align-items:center}
+.po-token{width:84px;height:84px;border-radius:50%;border:3px solid var(--accent);box-shadow:0 0 0 2px var(--bg2),0 0 0 3px var(--border);background:var(--bg3) center/cover no-repeat;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.po-token span{font-size:32px;color:var(--text3)}
+.po-cls{font-family:var(--font-ui);font-size:13px;color:var(--text2)}
+.po-bar{height:8px;border-radius:4px;background:var(--bg3);margin-top:8px;overflow:hidden}
+.po-bar > div{height:100%}
+.po-conds{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.po-inv{margin-top:10px;border-top:1px solid var(--border);padding-top:4px}
+.po-details{margin-top:4px}
+.po-sum{cursor:pointer;font-family:var(--font-label);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);display:flex;align-items:center;gap:6px;user-select:none;padding:6px 0;list-style:none}
+.po-sum::-webkit-details-marker{display:none}
+.po-sum .po-arrow{font-size:9px;color:var(--accent)}
+.po-details > div{padding-left:15px!important}
+@container sheet (max-width:600px){ .po-gh{flex-wrap:wrap} .po-gname{white-space:normal} .po-money{flex-direction:column;align-items:stretch} .po-coins{display:grid;grid-template-columns:repeat(4,1fr)} .po-coin{min-width:0} .po-totals{justify-content:flex-end} }`;
+  document.head.appendChild(st);
 })();
 </script>
 <script>
