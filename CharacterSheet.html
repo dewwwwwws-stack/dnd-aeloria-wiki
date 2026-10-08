@@ -9028,7 +9028,7 @@ async function dmToggleQuickPlay(id, checked) {
 window.dmToggleQuickPlay = dmToggleQuickPlay;
 
 // Lets the DM set a character's token directly, for players who haven't
-// set their own. Reuses the exact same resize step and tokens/{id}.jpg
+// set their own. Reuses the exact same resize step and tokens/{id}.webp
 // path as the player-side upload (updateCharToken's sibling), so a token
 // set from either side is completely interchangeable - same file, same
 // URL scheme, whichever side uploads just overwrites the same slot.
@@ -9039,8 +9039,9 @@ async function dmHandleTokenFileUpload(id, file) {
 
   toast('Uploading token…', 'ok');
   try {
-    const base64 = await resizeImageToBase64(file);
-    const path = `tokens/${id}.jpg`;
+    // WebP keeps transparency (JPEG turned transparent corners black)
+    const base64 = await resizeImageToWebpBase64(file, 300);
+    const path = `tokens/${id}.webp`;
     const existingSha = await GH.getFileShaAtPath(path);
     const result = await GH.putBinaryFile(path, base64, existingSha);
     const url = result?.content?.download_url;
@@ -31719,14 +31720,32 @@ function resizeImageToBase64(file, maxDim = 300, quality = 0.85) {
 
 // Same resize approach as resizeImageToBase64 above, but encodes to WebP
 // instead of JPEG - kept as a separate function rather than adding a
-// format param to the existing one, since tokens (tokens/{id}.jpg) and
-// item art (item-images/{key}.webp) are two different, unrelated naming
-// conventions and this keeps each caller's intent explicit. Falls back
+// format param to the existing one. Used for tokens (tokens/{id}.webp -
+// tokens were JPEG until they lost transparency; older tokens/{id}.jpg
+// files still work, since each character stores its own tokenUrl), item
+// art (item-images/{key}.webp) and summon pictures. Falls back
 // to whatever canvas.toDataURL actually returns if a browser doesn't
 // support WebP encoding (very old browsers only) - the caller doesn't
 // need to handle that specially since the bytes are still a valid image,
 // just not actually WebP; worth knowing about but not worth adding
 // complexity for as of writing.
+// pdf-lib can embed only PNG and JPEG. Tokens are WebP now (for transparency),
+// so anything else is redrawn on a canvas and embedded as PNG, keeping alpha.
+async function pdfEmbedAnyImage(doc, bytes) {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return doc.embedPng(bytes);
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8) return doc.embedJpg(bytes);
+  const url = URL.createObjectURL(new Blob([bytes]));
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('could not read image')); i.src = url; });
+    const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cv.getContext('2d').drawImage(img, 0, 0);
+    const b64 = cv.toDataURL('image/png').split(',')[1], bin = atob(b64), out = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) out[k] = bin.charCodeAt(k);
+    return doc.embedPng(out);
+  } finally { URL.revokeObjectURL(url); }
+}
+window.pdfEmbedAnyImage = pdfEmbedAnyImage;
+
 function resizeImageToWebpBase64(file, maxDim = 400, quality = 0.85) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -31762,8 +31781,9 @@ async function handleTokenFileUpload(file) {
 
   setStatus('Uploading…', 'var(--text3)');
   try {
-    const base64 = await resizeImageToBase64(file);
-    const path = `tokens/${currentChar.id}.jpg`;
+    // WebP keeps transparency (JPEG turned transparent corners black)
+    const base64 = await resizeImageToWebpBase64(file, 300);
+    const path = `tokens/${currentChar.id}.webp`;
     const existingSha = await GH.getFileShaAtPath(path);
     const result = await GH.putBinaryFile(path, base64, existingSha);
     const url = result?.content?.download_url;
@@ -66219,7 +66239,7 @@ async function exportCharacterPdf() {
         const r = await fetch(D.portraitUrl, { signal: ctl.signal }); clearTimeout(tm);
         if (r.ok) {
           const b = new Uint8Array(await r.arrayBuffer());
-          D.portraitImg = (b[0] === 0x89 && b[1] === 0x50) ? await doc.embedPng(b) : await doc.embedJpg(b);
+          D.portraitImg = await pdfEmbedAnyImage(doc, b);
         }
       } catch (e) { D.warnings.push('portrait: ' + e.message); }
     }
@@ -68269,7 +68289,7 @@ async function exportQuickPlayPdf() {
     if (c.tokenUrl) {
       try {
         const r = await fetch(c.tokenUrl); const bytes = new Uint8Array(await r.arrayBuffer());
-        const img = (bytes[0] === 0x89 && bytes[1] === 0x50) ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+        const img = await (window.pdfEmbedAnyImage ? pdfEmbedAnyImage(doc, bytes) : doc.embedJpg(bytes));
         const k = 0.5523 * 24, op = L;
         page.pushOperators(op.pushGraphicsState(), op.moveTo(cx + 24, cy), op.appendBezierCurve(cx + 24, cy + k, cx + k, cy + 24, cx, cy + 24),
           op.appendBezierCurve(cx - k, cy + 24, cx - 24, cy + k, cx - 24, cy), op.appendBezierCurve(cx - 24, cy - k, cx - k, cy - 24, cx, cy - 24),
