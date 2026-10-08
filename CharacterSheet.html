@@ -376,7 +376,7 @@ body {
   -webkit-font-smoothing: antialiased;
   transition: background .2s, color .2s;
   overflow-x: hidden;
-  max-width: 100vw;
+  max-width: calc(100vw / var(--zoom, 1));
 }
 input, select, textarea, button { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; }
@@ -442,7 +442,7 @@ select:not([multiple]) {
 .login-wrap {
   position: relative;
   width: 400px;
-  max-width: calc(100vw - 32px);
+  max-width: calc(calc(100vw / var(--zoom, 1)) - 32px);
 }
 
 .login-ornament { display: none; }
@@ -454,7 +454,7 @@ select:not([multiple]) {
   padding: 40px 36px 32px;
   box-shadow: var(--shadow-lg);
 }
-@media (max-width: 480px) {
+@container sheet (max-width: 480px) {
   .login-box { padding: 28px 20px 24px; }
   .login-title { font-size: 16px; }
   .login-sub { font-size: 10px; }
@@ -631,14 +631,14 @@ select:not([multiple]) {
 /* ── MAIN APP ────────────────────────────────────────────── */
 #app {
   display: none;
-  /* 100vh on phones is the height with the browser's toolbars hidden, so
+  /* calc(100vh / var(--zoom, 1)) on phones is the height with the browser's toolbars hidden, so
      while they are showing the bottom of the page sat underneath them and
-     could not be scrolled into view. 100dvh is the height actually visible
+     could not be scrolled into view. calc(100dvh / var(--zoom, 1)) is the height actually visible
      right now; the vh lines stay as a fallback for older browsers. */
-  height: 100vh;
-  height: 100dvh;
-  max-height: 100vh;
-  max-height: 100dvh;
+  height: calc(100vh / var(--zoom, 1));
+  height: calc(100dvh / var(--zoom, 1));
+  max-height: calc(100vh / var(--zoom, 1));
+  max-height: calc(100dvh / var(--zoom, 1));
   flex-direction: column;
   position: relative;
   z-index: 10;
@@ -740,7 +740,7 @@ select:not([multiple]) {
   scrollbar-width: none;
 }
 #page-tabs::-webkit-scrollbar { display: none; }
-@media (max-width: 640px) {
+@container sheet (max-width: 640px) {
   #page-tabs::after {
     content: '';
     position: sticky;
@@ -883,10 +883,10 @@ body.preview-readonly #mi-detail-edit-row * {
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
-@media (max-width: 1100px) {
+@container sheet (max-width: 1100px) {
   .party-overview-grid { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 640px) {
+@container sheet (max-width: 640px) {
   .party-overview-grid { grid-template-columns: 1fr; }
 }
 
@@ -1032,7 +1032,7 @@ body.preview-readonly #mi-detail-edit-row * {
   grid-row: 1;
   justify-self: center;
 }
-@media (max-width: 1250px) {
+@container sheet (max-width: 1250px) {
   /* Side-by-side needs roughly 20 (overlay padding) + 280 (image) + 16
      (gap) + up to 600 (the largest modal, mi-detail-modal) + 16 (gap) +
      280 (mirror column) + 20 (overlay padding) ≈ 1232px to avoid
@@ -1061,17 +1061,17 @@ body.preview-readonly #mi-detail-edit-row * {
   }
   /* Stacking (not side-by-side) starts here, so the image no longer
      needs to leave room for the modal beside it - give it more visual
-     presence than the desktop side-by-side cap (38vw) would. */
-  .item-detail-img-outside img { max-width: 60vw !important; }
+     presence than the desktop side-by-side cap (calc(38vw / var(--zoom, 1))) would. */
+  .item-detail-img-outside img { max-width: calc(60vw / var(--zoom, 1)) !important; }
 }
 .item-detail-img-outside {
   flex-shrink: 0;
 }
 .item-detail-img-outside img {
   width: 280px;
-  max-width: 38vw;
+  max-width: calc(38vw / var(--zoom, 1));
   height: 280px;
-  max-height: 70vh;
+  max-height: calc(70vh / var(--zoom, 1));
   object-fit: contain;
   border-radius: 10px;
   background: var(--bg2);
@@ -1501,25 +1501,25 @@ body.preview-readonly #mi-detail-edit-row * {
 }
 .main-left, .main-mid, .main-right { display: flex; flex-direction: column; }
 
-@media (max-width: 1100px) {
+@container sheet (max-width: 1100px) {
   .main-grid { grid-template-columns: 170px 1fr 220px; }
 }
-@media (max-width: 860px) {
+@container sheet (max-width: 860px) {
   .main-grid { grid-template-columns: 1fr 1fr; }
   .main-left { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .main-right { grid-column: 1 / -1; }
 }
-@media (max-width: 560px) {
+@container sheet (max-width: 560px) {
   .main-grid { grid-template-columns: 1fr; }
   .main-left { grid-column: 1; grid-template-columns: 1fr; }
 }
-@media (max-width: 560px) {
+@container sheet (max-width: 560px) {
   .main-grid { grid-template-columns: 1fr; }
   .main-left { grid-column: 1; grid-template-columns: 1fr; }
 }
 
 /* ── MOBILE-FIRST IMPROVEMENTS ──────────────────────────── */
-@media (max-width: 640px) {
+@container sheet (max-width: 640px) {
   /* HP/AC/Init stat boxes: bigger numbers */
   .stat-box-val { font-size: 26px !important; }
   .hp-input { font-size: 26px !important; }
@@ -1588,8 +1588,8 @@ body.preview-readonly #mi-detail-edit-row * {
   #hp-current, #hp-max, #hp-temp { font-size: 24px; }
 
   /* Modal: full screen on mobile */
-  .modal-box { width: calc(100vw - 16px) !important; max-width: none !important;
-    max-height: calc(100vh - 60px) !important; max-height: calc(100dvh - 60px) !important; margin: 8px; }
+  .modal-box { width: calc(calc(100vw / var(--zoom, 1)) - 16px) !important; max-width: none !important;
+    max-height: calc(calc(100vh / var(--zoom, 1)) - 60px) !important; max-height: calc(calc(100dvh / var(--zoom, 1)) - 60px) !important; margin: 8px; }
   .modal-overlay { padding: 8px; align-items: flex-start; padding-top: 30px; }
 
   /* Spell slots: allow wrapping */
@@ -1617,14 +1617,14 @@ body.preview-readonly #mi-detail-edit-row * {
   .spells-layout > div:first-child { position: static !important; }
 }
 
-@media (max-width: 500px) {
+@container sheet (max-width: 500px) {
   /* Skills: single column */
   #skills-block { columns: 1; }
   /* Spell stat boxes: 2x2 grid */
   .spell-stats-row { grid-template-columns: 1fr 1fr !important; }
 }
 
-@media (max-width: 400px) {
+@container sheet (max-width: 400px) {
   /* Extra-small phones */
   .page-tab { padding: 10px 9px; font-size: 10px; }
   #topbar { gap: 4px; }
@@ -1634,7 +1634,7 @@ body.preview-readonly #mi-detail-edit-row * {
 }
 
 /* Topbar button label toggling */
-@media (max-width: 480px) {
+@container sheet (max-width: 480px) {
   .btn-label-full { display: none !important; }
   .btn-label-short { display: inline !important; }
   #theme-toggle-btn { min-width: 32px; padding: 5px 8px; }
@@ -2002,7 +2002,7 @@ body.preview-readonly #mi-detail-edit-row * {
   gap: 12px;
   align-items: start;
 }
-@media (max-width: 700px) {
+@container sheet (max-width: 700px) {
   .tab-grid-2col { grid-template-columns: 1fr; }
 }
 .two-col-grid {
@@ -2010,7 +2010,7 @@ body.preview-readonly #mi-detail-edit-row * {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
-@media (max-width: 500px) {
+@container sheet (max-width: 500px) {
   .two-col-grid { grid-template-columns: 1fr; }
 }
 
@@ -2023,7 +2023,7 @@ body.preview-readonly #mi-detail-edit-row * {
    the conflict before flex-wrap ever kicks in. Forcing the name onto
    its own full-width line makes the split predictable instead of
    depending on exactly how much room the controls happen to leave. */
-@media (max-width: 480px) {
+@container sheet (max-width: 480px) {
   .inv-row { flex-wrap: wrap; row-gap: 4px; }
   .inv-row-name { flex-basis: 100%; order: 1; }
   .inv-row > *:not(.inv-row-name) { order: 2; }
@@ -2041,7 +2041,7 @@ body.preview-readonly #mi-detail-edit-row * {
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
-@media (max-width: 500px) {
+@container sheet (max-width: 500px) {
   .currency-grid { grid-template-columns: repeat(2, 1fr); }
 }
 .currency-cell {
@@ -2209,7 +2209,7 @@ body.preview-readonly #mi-detail-edit-row * {
 .spells-right > div > .panel,
 .spells-right > div > div > .panel { flex: 1; }
 .spells-left, .spells-right { display: flex; flex-direction: column; }
-@media (max-width: 780px) {
+@container sheet (max-width: 780px) {
   .spells-layout { grid-template-columns: 1fr; }
   .spells-layout > div:first-child { position: static !important; }
 }
@@ -2742,7 +2742,7 @@ body.preview-readonly #mi-detail-edit-row * {
 /* ── DM PANEL ─────────────────────────────────────────── */
 .dm-tab { transition: color .15s; flex-shrink: 0; }
 .dm-tab:hover { color: var(--text) !important; }
-@media (max-width:600px){#page-dm > div{padding:12px 10px;}.dm-tab{padding:7px 10px!important;font-size:10px!important;}}
+@container sheet (max-width:600px) {#page-dm > div{padding:12px 10px;}.dm-tab{padding:7px 10px!important;font-size:10px!important;}}
 
 /* ── HOVER TOOLTIP ──────────────────────────────────────── */
 #cs-tooltip {
@@ -2852,7 +2852,7 @@ body.preview-readonly #mi-detail-edit-row * {
           <div id="theme-picker-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
           <div style="border-top:1px solid var(--border);margin:10px 0 8px;padding-top:8px">
             <button class="theme-swatch-btn" id="custom-theme-toggle-btn" onclick="toggleCustomThemeEditor()" style="width:100%;justify-content:center">
-              <span>🎨 Custom\u2026</span>
+              <span>🎨 Custom…</span>
             </button>
             <div id="custom-theme-editor" class="hidden" style="margin-top:8px"></div>
           </div>
@@ -3010,7 +3010,7 @@ body.preview-readonly #mi-detail-edit-row * {
             <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:10px">
               <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:40%;max-width:170px">
                 <div id="char-token-preview" style="width:100%;aspect-ratio:1;border-radius:14px;border:2px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;overflow:hidden;background-size:cover;background-position:center">
-                  <span style="font-size:clamp(24px, 15vw, 56px);color:var(--text3)">⚔</span>
+                  <span style="font-size:clamp(24px, calc(15vw / var(--zoom, 1)), 56px);color:var(--text3)">⚔</span>
                 </div>
                 <input type="file" id="ci-token-file" accept="image/*" style="display:none" onchange="handleTokenFileUpload(this.files[0])"/>
                 <button class="tbtn" style="font-size:9px;padding:4px 8px;width:100%" onclick="document.getElementById('ci-token-file').click()">📤 Upload</button>
@@ -3180,7 +3180,7 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
 
           <div id="resist-edit-modal" class="modal-overlay hidden">
-            <div class="modal-box" style="max-width:520px;max-height:85vh;overflow-y:auto">
+            <div class="modal-box" style="max-width:520px;max-height:calc(85vh / var(--zoom, 1));overflow-y:auto">
               <div class="modal-title">Resistances &amp; Immunities <button class="tbtn" style="float:right" onclick="closeModal('resist-edit-modal')">✕ Close</button></div>
               <div style="font-family:var(--font-ui);font-size:9px;color:var(--text3);margin:8px 0">Click a damage type to cycle: none → Resistant → Immune → Vulnerable</div>
               <div id="resist-grid"></div>
@@ -4173,7 +4173,7 @@ body.preview-readonly #mi-detail-edit-row * {
         </div>
 
         <div id="dm-items-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
-        <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 320px);overflow-y:auto"></div>
+        <div id="dm-items-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(calc(96vh / var(--zoom, 1)) - 320px);overflow-y:auto"></div>
       </div>
 
       <!-- Feats & Features Tab - DM catalog editor for feats, class
@@ -4214,7 +4214,7 @@ body.preview-readonly #mi-detail-edit-row * {
           </select>
         </div>
         <div id="dm-feats-count" style="font-family:var(--font-ui);font-size:10px;color:var(--text3);margin-bottom:6px"></div>
-        <div id="dm-feats-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(96vh - 280px);overflow-y:auto"></div>
+        <div id="dm-feats-list" style="display:flex;flex-direction:column;gap:4px;max-height:calc(calc(96vh / var(--zoom, 1)) - 280px);overflow-y:auto"></div>
       </div>
 
       <div id="dm-pane-admin" style="display:none">
@@ -4410,7 +4410,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="custom-background-modal">
-  <div class="modal-box" style="max-width:480px;max-height:85vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:480px;max-height:calc(85vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       🛠 Custom Background Builder
       <span class="modal-close" onclick="closeModal('custom-background-modal')">✕</span>
@@ -4532,7 +4532,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="asi-modal">
-  <div class="modal-box" style="max-width:560px;max-height:90vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:560px;max-height:calc(90vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       Ability Score Setup
       <span class="modal-close" onclick="closeModal('asi-modal')">&#x2715;</span>
@@ -4649,7 +4649,7 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <!-- ── WEAPON MASTERY MODAL ──────────────────────────────── -->
 <div class="modal-overlay hidden" id="weapon-mastery-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:660px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:660px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:10px">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0" id="wm-modal-title">Weapon Mastery</div>
@@ -4677,7 +4677,7 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <!-- ── LEVEL UP SPELL MODAL ──────────────────────────────── -->
 <div class="modal-overlay hidden" id="levelup-spell-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:640px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:640px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:10px">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Spells</div>
@@ -4718,7 +4718,7 @@ body.preview-readonly #mi-detail-edit-row * {
 <!-- ── MAGE ARMOR CONFIRM MODAL ──────────────────────────── -->
 <!-- ── ELDRITCH INVOCATIONS MODAL ───────────────────────── -->
 <div class="modal-overlay hidden" id="invocations-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:680px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Eldritch Invocations</div>
@@ -4731,7 +4731,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="disciplines-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:680px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Psionic Disciplines</div>
@@ -4744,7 +4744,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="arcane-shot-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:680px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Arcane Shot Options</div>
@@ -4757,7 +4757,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="replicate-magic-item-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:680px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Replicate Magic Item - Arcane Plans</div>
@@ -4773,7 +4773,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="mutable-form-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:600px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Mutable Form</div>
@@ -4786,7 +4786,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="starry-form-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:600px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Starry Form</div>
@@ -4799,7 +4799,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="arcane-recovery-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:480px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Arcane Recovery</div>
@@ -4812,7 +4812,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="font-of-magic-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:560px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div>
         <div class="modal-title" style="border:none;padding:0;margin:0">Font of Magic</div>
@@ -4825,7 +4825,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="add-resource-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:460px;max-height:85vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:460px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div class="modal-title" id="add-resource-title" style="border:none;padding:0;margin:0">Add Custom Resource</div>
       <button class="tbtn" style="margin-left:auto" onclick="closeModal('add-resource-modal')">✕ Close</button>
@@ -4905,7 +4905,7 @@ body.preview-readonly #mi-detail-edit-row * {
 
 
 <div class="modal-overlay hidden" id="background-search-modal">
-  <div class="modal-box" style="max-width:640px;max-height:80vh;display:flex;flex-direction:column">
+  <div class="modal-box" style="max-width:640px;max-height:calc(80vh / var(--zoom, 1));display:flex;flex-direction:column">
     <div class="modal-title">
       Choose a Background
       <span class="modal-close" onclick="closeModal('background-search-modal')">&#x2715;</span>
@@ -4928,7 +4928,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="vestige-domain-preview-modal">
-  <div class="modal-box" style="max-width:700px;max-height:80vh;display:flex;flex-direction:column">
+  <div class="modal-box" style="max-width:700px;max-height:calc(80vh / var(--zoom, 1));display:flex;flex-direction:column">
     <div class="modal-title">
       Vestige Domain Spells
       <span class="modal-close" onclick="closeModal('vestige-domain-preview-modal')">&#x2715;</span>
@@ -4981,7 +4981,7 @@ body.preview-readonly #mi-detail-edit-row * {
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-family:var(--font-ui);font-size:10px;color:var(--text3)">
       Type the table's real content directly into the cells below - the top row is the header. Nothing needs to be edited by hand afterward.
     </div>
-    <div id="it-grid-wrap" style="max-height:50vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
+    <div id="it-grid-wrap" style="max-height:calc(50vh / var(--zoom, 1));overflow:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
       <table id="it-grid" style="border-collapse:collapse;width:100%"></table>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -5157,7 +5157,7 @@ body.preview-readonly #mi-detail-edit-row * {
           <select id="spell-detail-upcast-select" class="info-input" style="width:auto;min-width:70px" onchange="onSpellDetailLevelChange(this.value)"></select>
           <div id="spell-detail-source-note" style="display:none;flex-basis:100%;font-family:var(--font-ui);font-size:10px;color:var(--gold);letter-spacing:.3px"></div>
         </div>
-        <div id="spell-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:60vh;overflow-y:auto;padding-right:4px"></div>
+        <div id="spell-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:calc(60vh / var(--zoom, 1));overflow-y:auto;padding-right:4px"></div>
       </div>
     </div>
   </div>
@@ -5187,7 +5187,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="condition-info-modal">
-  <div class="modal-box" style="max-width:520px;max-height:80vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(80vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="condition-info-title"></span>
       <span class="modal-close" onclick="closeModal('condition-info-modal')">✕</span>
@@ -5198,7 +5198,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="glossary-term-modal">
-  <div class="modal-box" style="max-width:520px;max-height:80vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(80vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="glossary-term-title"></span>
       <span class="modal-close" onclick="closeModal('glossary-term-modal')">✕</span>
@@ -5209,7 +5209,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="glossary-browser-modal">
-  <div class="modal-box" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column">
+  <div class="modal-box" style="max-width:560px;max-height:calc(85vh / var(--zoom, 1));display:flex;flex-direction:column">
     <div class="modal-title">
       Rules Glossary
       <span class="modal-close" onclick="closeModal('glossary-browser-modal')">✕</span>
@@ -5220,7 +5220,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="contamination-info-modal">
-  <div class="modal-box" style="max-width:560px;max-height:85vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:560px;max-height:calc(85vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       Contamination
       <span class="modal-close" onclick="closeModal('contamination-info-modal')">✕</span>
@@ -5273,7 +5273,7 @@ body.preview-readonly #mi-detail-edit-row * {
 
 <!-- ── Grant Free Spell Modal ────────────────────────────── -->
 <div class="modal-overlay hidden" id="grant-free-spell-modal">
-  <div class="modal-box" style="max-width:420px;max-height:85vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:420px;max-height:calc(85vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       ✦ Grant Free Spell
       <span class="modal-close" onclick="closeModal('grant-free-spell-modal')">✕</span>
@@ -5296,7 +5296,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="custom-spell-modal">
-  <div class="modal-box" style="max-width:520px;max-height:90vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(90vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       ✦ Add Custom Spell
       <span class="modal-close" onclick="closeModal('custom-spell-modal')">✕</span>
@@ -5378,7 +5378,7 @@ body.preview-readonly #mi-detail-edit-row * {
     <div id="mi-detail-content-wrap" class="item-detail-content-wrap">
       <div id="mi-detail-meta" style="font-family:var(--font-ui);letter-spacing:.3px;margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
       <div id="mi-detail-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
-      <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
+      <div id="mi-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:calc(50vh / var(--zoom, 1));overflow-y:auto;padding-right:4px"></div>
       <div id="mi-detail-contents" style="display:none"></div>
       <div id="mi-detail-spellbook-grants" style="display:none"></div>
       <div id="mi-detail-notes" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-body);font-size:12px;color:var(--text2);font-style:italic"></div>
@@ -5398,7 +5398,7 @@ body.preview-readonly #mi-detail-edit-row * {
     </div>
     <div id="td-detail-content-wrap" class="item-detail-content-wrap">
       <div id="td-detail-meta" style="font-family:var(--font-ui);font-size:11px;color:var(--text3);letter-spacing:.3px;margin-bottom:12px"></div>
-      <div id="td-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:50vh;overflow-y:auto;padding-right:4px"></div>
+      <div id="td-detail-body" style="font-family:var(--font-body);font-size:14px;color:var(--text);line-height:1.65;max-height:calc(50vh / var(--zoom, 1));overflow-y:auto;padding-right:4px"></div>
     </div>
   </div>
 </div>
@@ -5427,7 +5427,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="feat-detail-modal">
-  <div class="modal-box" style="max-width:500px;max-height:90vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:500px;max-height:calc(90vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="feat-detail-title">Feat Options</span>
       <span class="modal-close" onclick="closeModal('feat-detail-modal')">&#x2715;</span>
@@ -5443,7 +5443,7 @@ body.preview-readonly #mi-detail-edit-row * {
      feat-detail-modal on purpose: that one is a feat-choice/config modal with
      its own Apply button, not a description view. -->
 <div class="modal-overlay hidden" id="feat-info-modal">
-  <div class="modal-box" style="max-width:480px;max-height:80vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:480px;max-height:calc(80vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="feat-info-title">Feat</span>
       <span class="modal-close" onclick="closeModal('feat-info-modal')">&#x2715;</span>
@@ -5459,7 +5459,7 @@ body.preview-readonly #mi-detail-edit-row * {
      for reading about it. -->
 <div class="modal-overlay hidden item-detail-overlay" id="weapon-detail-modal">
   <div id="weapon-detail-img" class="item-detail-img-outside"></div>
-  <div class="modal-box" style="max-width:520px;max-height:80vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(80vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="weapon-detail-title">Weapon</span>
       <span class="modal-close" onclick="closeModal('weapon-detail-modal')">&#x2715;</span>
@@ -5478,7 +5478,7 @@ body.preview-readonly #mi-detail-edit-row * {
      reading about it. -->
 <div class="modal-overlay hidden item-detail-overlay" id="armor-detail-modal">
   <div id="armor-detail-img" class="item-detail-img-outside"></div>
-  <div class="modal-box" style="max-width:520px;max-height:80vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(80vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="armor-detail-title">Armor</span>
       <span class="modal-close" onclick="closeModal('armor-detail-modal')">&#x2715;</span>
@@ -5497,7 +5497,7 @@ body.preview-readonly #mi-detail-edit-row * {
      stored as custom resources) there's no separate feature entry to jump
      to, but a pencil button on the row itself opens the real edit form. -->
 <div class="modal-overlay hidden" id="resource-detail-modal">
-  <div class="modal-box" style="max-width:480px;max-height:80vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:480px;max-height:calc(80vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="resource-detail-title">Resource</span>
       <span class="modal-close" onclick="closeModal('resource-detail-modal')">&#x2715;</span>
@@ -5512,7 +5512,7 @@ body.preview-readonly #mi-detail-edit-row * {
 <div class="modal-overlay hidden" id="magical-secrets-modal">
 
 <div class="modal-overlay hidden" id="spellbook-setup-modal">
-  <div class="modal-box" style="max-width:900px;max-height:90vh;display:flex;flex-direction:column">
+  <div class="modal-box" style="max-width:900px;max-height:calc(90vh / var(--zoom, 1));display:flex;flex-direction:column">
     <div class="modal-title">
       Spellbook Setup
       <span class="modal-close" onclick="closeModal('spellbook-setup-modal')">✕</span>
@@ -5526,7 +5526,7 @@ body.preview-readonly #mi-detail-edit-row * {
     <button class="tbtn primary" style="width:100%;margin-top:12px" onclick="applySpellbookSetup()">Add Selected Spells to Spellbook</button>
   </div>
 </div>
-  <div class="modal-box" style="max-width:520px;max-height:88vh;display:flex;flex-direction:column">
+  <div class="modal-box" style="max-width:520px;max-height:calc(88vh / var(--zoom, 1));display:flex;flex-direction:column">
     <div class="modal-title">
       <span id="ms-modal-title">Magical Secrets</span>
       <span class="modal-close" onclick="closeModal('magical-secrets-modal')">&#x2715;</span>
@@ -5556,7 +5556,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="mi-edit-modal">
-  <div class="modal-box" style="max-width:520px;max-height:88vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(88vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="mi-edit-title">Magic Item</span>
       <span class="modal-close" onclick="closeModal('mi-edit-modal')">&#x2715;</span>
@@ -5629,7 +5629,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="scroll-spell-picker-modal">
-  <div class="modal-box" style="max-width:520px;max-height:85vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(85vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       Choose Scroll Spell
       <span class="modal-close" onclick="closeModal('scroll-spell-picker-modal')">&#x2715;</span>
@@ -5656,7 +5656,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="custom-item-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:520px;max-height:88vh;display:flex;flex-direction:column;padding:0">
+  <div class="modal-box" style="max-width:520px;max-height:calc(88vh / var(--zoom, 1));display:flex;flex-direction:column;padding:0">
     <div style="padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
       <div class="modal-title" id="ci-modal-title" style="border:none;padding:0;margin:0">Add Custom Magic Item</div>
       <button class="tbtn" style="margin-left:auto" onclick="closeModal('custom-item-modal')">✕ Close</button>
@@ -5910,7 +5910,7 @@ body.preview-readonly #mi-detail-edit-row * {
      getEffectiveText()/openTextOverrideModal(). DM-only; lets the DM paste
      in exact rulebook wording without editing the source file. -->
 <div class="modal-overlay hidden" id="text-override-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:600px;display:flex;flex-direction:column;max-height:85vh">
+  <div class="modal-box" style="max-width:600px;display:flex;flex-direction:column;max-height:calc(85vh / var(--zoom, 1))">
     <div class="modal-header" style="flex-shrink:0">
       <span class="modal-title" id="tov-modal-title">Edit Text</span>
       <button class="modal-close" onclick="closeModal('text-override-modal')">×</button>
@@ -5941,7 +5941,7 @@ body.preview-readonly #mi-detail-edit-row * {
      "spellbook" frequency options omitted, since there's no per-feat
      charge pool or spellbook concept the way an item has. -->
 <div class="modal-overlay hidden" id="feat-grants-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:600px;display:flex;flex-direction:column;max-height:85vh">
+  <div class="modal-box" style="max-width:600px;display:flex;flex-direction:column;max-height:calc(85vh / var(--zoom, 1))">
     <div class="modal-header" style="flex-shrink:0">
       <span class="modal-title" id="fg-modal-title">Configure Grants</span>
       <button class="modal-close" onclick="closeModal('feat-grants-modal')">×</button>
@@ -6061,7 +6061,7 @@ body.preview-readonly #mi-detail-edit-row * {
      Vehicles live in their own catalogs too, so this one stays focused on
      everything else. -->
 <div class="modal-overlay hidden" id="gear-browser-modal" style="background:rgba(0,0,0,.6);backdrop-filter:blur(3px)">
-  <div class="modal-box" style="max-width:600px;display:flex;flex-direction:column;max-height:85vh">
+  <div class="modal-box" style="max-width:600px;display:flex;flex-direction:column;max-height:calc(85vh / var(--zoom, 1))">
     <div class="modal-header" style="flex-shrink:0">
       <span class="modal-title" id="gear-browser-title">Add Gear</span>
       <button class="modal-close" onclick="closeModal('gear-browser-modal')">×</button>
@@ -6083,7 +6083,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="weapon-edit-modal">
-  <div class="modal-box" style="max-width:480px;max-height:90vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:480px;max-height:calc(90vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span id="weapon-modal-title">Add Weapon</span>
       <span class="modal-close" onclick="closeModal('weapon-edit-modal')">&#x2715;</span>
@@ -6204,7 +6204,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="circle-magic-modal">
-  <div class="modal-box" style="max-width:760px;max-height:82vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:760px;max-height:calc(82vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       <span>Circle Casting</span>
       <span class="modal-close" onclick="closeModal('circle-magic-modal')">&#x2715;</span>
@@ -6417,7 +6417,7 @@ body.preview-readonly #mi-detail-edit-row * {
 </div>
 
 <div class="modal-overlay hidden" id="level-plan-modal">
-  <div class="modal-box" style="max-width:520px;max-height:85vh;overflow-y:auto">
+  <div class="modal-box" style="max-width:520px;max-height:calc(85vh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">Level Plan
       <span class="modal-close" onclick="closeModal('level-plan-modal')">&#x2715;</span>
     </div>
@@ -50151,11 +50151,11 @@ function showFeatPickerList(slotId) {
     // positioning escapes that clipping regardless of which container
     // this picker is rendered inside.
     if (wrap) {
-      const rect = wrap.getBoundingClientRect();
+      const rect = wrap.getBoundingClientRect(), _z = (window.sheetZoom ? sheetZoom() : 1);
       list.style.position = 'fixed';
-      list.style.top = rect.bottom + 'px';
-      list.style.left = rect.left + 'px';
-      list.style.width = rect.width + 'px';
+      list.style.top = rect.bottom / _z + 'px';
+      list.style.left = rect.left / _z + 'px';
+      list.style.width = rect.width / _z + 'px';
     }
     list.style.display = 'block';
     window._featPickerListVisible[slotId] = true;
@@ -55438,11 +55438,11 @@ function showFeatListPicker(i) {
   const wrap = document.getElementById('fl-wrap-' + i);
   if (list) {
     if (wrap) {
-      const rect = wrap.getBoundingClientRect();
+      const rect = wrap.getBoundingClientRect(), _z = (window.sheetZoom ? sheetZoom() : 1);
       list.style.position = 'fixed';
-      list.style.top = rect.bottom + 'px';
-      list.style.left = rect.left + 'px';
-      list.style.width = rect.width + 'px';
+      list.style.top = rect.bottom / _z + 'px';
+      list.style.left = rect.left / _z + 'px';
+      list.style.width = rect.width / _z + 'px';
     }
     list.style.display = 'block';
   }
@@ -60219,7 +60219,8 @@ function _initTooltip() {
   function positionTip(x, y) {
     tip.style.left = '0'; tip.style.top = '0';
     const w = tip.offsetWidth || 320, h = tip.offsetHeight || 120;
-    const vw = window.innerWidth, vh = window.innerHeight;
+    const _z = (window.sheetZoom ? sheetZoom() : 1); x /= _z; y /= _z;
+    const vw = window.innerWidth / _z, vh = window.innerHeight / _z;
     let lx = x + 16, ly = y + 14;
     if (lx + w > vw - 8) lx = x - w - 8;
     if (ly + h > vh - 8) ly = y - h - 8;
@@ -63620,7 +63621,7 @@ document.addEventListener('click', (e) => {
 function initMobileAdaptations() {
   // Responsive tab labels: swap to data-short on narrow screens
   function updateTabLabels() {
-    const narrow = window.innerWidth <= 500;
+    const narrow = window.innerWidth / (window.sheetZoom ? sheetZoom() : 1) <= 500;
     document.querySelectorAll('.page-tab[data-short]').forEach(tab => {
       const full  = tab.dataset.full  || tab.textContent.trim();
       const short = tab.dataset.short || full;
@@ -65044,7 +65045,7 @@ function updateWildCompanionUI() {
 </script>
 
 <div class="modal-overlay hidden" id="skill-setup-modal">
-  <div class="modal-box" style="max-width:540px;max-height:92vh;max-height:92dvh;overflow-y:auto">
+  <div class="modal-box" style="max-width:540px;max-height:calc(92vh / var(--zoom, 1));max-height:calc(92dvh / var(--zoom, 1));overflow-y:auto">
     <div class="modal-title">
       Skill Proficiency Setup
       <span class="modal-close" onclick="closeModal('skill-setup-modal')">&#x2715;</span>
@@ -65092,7 +65093,7 @@ function updateWildCompanionUI() {
 </div>
 
 <div class="modal-overlay hidden" id="quick-start-modal">
-  <div class="modal-box" style="max-width:640px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;padding-bottom:0">
+  <div class="modal-box" style="max-width:640px;max-height:calc(90vh / var(--zoom, 1));display:flex;flex-direction:column;overflow:hidden;padding-bottom:0">
     <div class="modal-title">
       Quick Start
       <span class="modal-close" onclick="skipQuickStart()" title="Skip - finish this later on the main sheet">&#x2715;</span>
@@ -66306,7 +66307,7 @@ function pdfDownload(bytes, filename) {
     bar.setAttribute('role', 'status');
     bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;display:flex;align-items:center;gap:12px;' +
       'padding:10px 14px;background:var(--bg2,#1d1a26);color:var(--text,#ddd);border:1px solid var(--accent,#a875e8);border-radius:8px;' +
-      'box-shadow:0 6px 24px rgba(0,0,0,.45);font-family:var(--font-ui,sans-serif);font-size:12px;max-width:calc(100vw - 32px)';
+      'box-shadow:0 6px 24px rgba(0,0,0,.45);font-family:var(--font-ui,sans-serif);font-size:12px;max-width:calc(calc(100vw / var(--zoom, 1)) - 32px)';
     bar.innerHTML = '<span>A newer version of the character sheet is available.</span>' +
       '<button id="update-banner-btn" class="tbtn" style="border-color:var(--accent,#a875e8);color:var(--accent,#a875e8);white-space:nowrap">Reload now</button>' +
       '<span title="Dismiss" style="cursor:pointer;color:var(--text3,#888);font-size:14px;padding:0 2px">\u2715</span>';
@@ -66629,7 +66630,7 @@ async function openDMSimulacrum() {
   const ov = document.createElement('div');
   ov.id = 'sim-create-overlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
-  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;padding:18px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:520px;width:100%;max-height:calc(90vh / var(--zoom, 1));overflow-y:auto;padding:18px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
     <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">ADD SIMULACRUM (DM)</div>
     <div style="color:var(--text3);margin-bottom:10px">Controlled by ${c.charName}. Half HP maximum, a Construct, no equipment.</div>
     <label style="display:block;margin-bottom:4px">A copy of...</label>
@@ -67957,7 +67958,7 @@ function qpPinBar() {
   bar.style.top = (-pad) + 'px';
   // wide layout: the stats column sticks just under the bar and scrolls by itself if it is taller than the window
   const side = document.querySelector('#qp-body .qp-side');
-  if (side) { const h = bar.offsetHeight || 46; side.style.top = (h + 8 - pad) + 'px'; const room = (sc && sc !== document.body ? sc.clientHeight : window.innerHeight) - h - 20; side.style.maxHeight = Math.max(240, room) + 'px'; }
+  if (side) { const h = bar.offsetHeight || 46; side.style.top = (h + 8 - pad) + 'px'; const room = (sc && sc !== document.body ? sc.clientHeight : window.innerHeight / (window.sheetZoom ? sheetZoom() : 1)) - h - 20; side.style.maxHeight = Math.max(240, room) + 'px'; }
 }
 window.qpPinBar = qpPinBar;
 window.addEventListener('resize', () => { try { qpPinBar(); } catch (e) {} });
@@ -67989,13 +67990,13 @@ window.qpJump = qpJump;
      Wide: stats down the left in a column that stays in view, actions on
      the right. Very wide: the right-hand side splits in two as well. */
   .qp-cols,.qp-side,.qp-main,.qp-mainA,.qp-mainB{display:contents}
-  @media (min-width:1180px){
+  @container sheet (min-width:1180px) {
     .qp-cols{display:grid;grid-template-columns:minmax(360px,27%) minmax(0,1fr);gap:12px;align-items:start}
     .qp-side,.qp-main,.qp-mainA,.qp-mainB{display:flex;flex-direction:column;gap:12px;min-width:0}
     .qp-side{position:sticky;top:56px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding-right:2px}
     .qp-side .qp-grid3{grid-template-columns:1fr}
   }
-  @media (min-width:1700px){
+  @container sheet (min-width:1700px) {
     .qp-cols{grid-template-columns:minmax(380px,23%) minmax(0,1fr)}
     .qp-main{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;align-items:start}
     .qp-mainB .qp-grid2{grid-template-columns:1fr}
@@ -68004,9 +68005,9 @@ window.qpJump = qpJump;
   .qp-who{font-family:var(--font-title);font-size:22px;font-weight:700}
   .qp-whobox{display:flex;align-items:center;gap:14px}
   .qp-token{width:72px;height:72px;border-radius:50%;border:2px solid var(--accent);background-color:var(--bg3);background-size:cover;background-position:center;flex-shrink:0}
-  @media (max-width:520px){.qp-token{width:56px;height:56px}}
+  @container sheet (max-width:520px) {.qp-token{width:56px;height:56px}}
   .qp-grid3{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:12px}.qp-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  @media (max-width:820px){.qp-grid3,.qp-grid2{grid-template-columns:1fr}}
+  @container sheet (max-width:820px) {.qp-grid3,.qp-grid2{grid-template-columns:1fr}}
 
   .qp-card{border:1px solid var(--border);border-radius:var(--radius,8px);background:var(--bg2);padding:12px 14px}
   .qp-h{font-family:var(--font-label);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -68074,7 +68075,7 @@ window.qpJump = qpJump;
   .qp-spell{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}.qp-spell:hover{color:var(--accent)}
   .qp-always{font-size:11px;color:var(--text3);padding:4px 0}
   /* ── phones ── */
-  @media (max-width:600px){
+  @container sheet (max-width:600px) {
     #qp-body{font-size:14px;gap:10px}
     .qp-card{padding:12px}
     .qp-lvl{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
@@ -68464,7 +68465,7 @@ window.exportQuickPlayPdf = exportQuickPlayPdf;
     const btn = document.getElementById('pdf-export-btn');
     const r = btn ? btn.getBoundingClientRect() : { left: 20, bottom: 60 };
     const m = document.createElement('div'); m.id = 'pdf-choice';
-    m.style.cssText = `position:fixed;z-index:10000;top:${r.bottom + 6}px;left:${Math.max(8, Math.min(r.left, window.innerWidth - 230))}px;width:220px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px;display:flex;flex-direction:column;gap:4px`;
+    m.style.cssText = `position:fixed;z-index:10000;top:${r.bottom / (window.sheetZoom ? sheetZoom() : 1) + 6}px;left:${Math.max(8, Math.min(r.left, window.innerWidth - 230 * (window.sheetZoom ? sheetZoom() : 1)) / (window.sheetZoom ? sheetZoom() : 1))}px;width:220px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px;display:flex;flex-direction:column;gap:4px`;
     const opt = (label, sub, fn) => { const b = document.createElement('button'); b.className = 'tbtn'; b.style.cssText = 'text-align:left;padding:8px 10px;line-height:1.3';
       b.innerHTML = `${label}<div style="font-size:9px;color:var(--text3);text-transform:none;letter-spacing:0">${sub}</div>`; b.onclick = () => { m.remove(); fn(); }; return b; };
     m.appendChild(opt('Quick Play sheet', 'A4, white, 2 pages, fillable', exportQuickPlayPdf));
@@ -68631,7 +68632,7 @@ function openStoreSpellModal(uid) {
   document.getElementById('ss-store-overlay')?.remove();
   const ov = document.createElement('div'); ov.id = 'ss-store-overlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
-  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:calc(92vh / var(--zoom, 1));max-height:calc(92dvh / var(--zoom, 1));overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
     <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">STORE A SPELL</div>
     <div id="ss-sub" style="color:var(--text3);margin-bottom:12px;line-height:1.5"></div>
     <label style="display:block;margin-bottom:4px">Who cast it into the ${_ssE(st.rule.word || 'item')}?</label>
@@ -72491,7 +72492,7 @@ body.qp-look .sp-known-row{grid-template-columns:16px 44px minmax(0,1fr) minmax(
 body.qp-look .sp-level-badge{min-width:44px;line-height:1.2}
 body.qp-look .sp-name{font-family:var(--font-ui);font-size:14px;font-weight:700;padding-left:2px}
 body.qp-look .sp-spellbook-row{font-weight:700;font-size:13px}
-@media (max-width:820px){
+@container sheet (max-width:820px) {
   /* phones: the one-line summary had about 70px and the name about 40px - drop the summary (tap the row for the full spell) and give the name the room */
   body.qp-look .sp-known-row{grid-template-columns:14px 42px minmax(0,1fr) auto auto auto;gap:0 6px;padding-left:2px;padding-right:2px}
   body.qp-look .sp-known-row .sp-short-desc{display:none}
@@ -72566,7 +72567,7 @@ body.qp-look #page-features div[style*="font-size:9px"][style*="text-transform:u
 body.qp-look #page-features .panel table{font-family:var(--font-ui) !important;font-size:12px !important}
 body.qp-look #page-features .panel table th{font-family:var(--font-label);font-size:9px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);padding:4px 6px}
 body.qp-look #page-features .panel table td{padding:5px 6px;border-top:1px solid var(--border)}
-@media (max-width:820px){
+@container sheet (max-width:820px) {
   body.qp-look .feat-unified-header{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
   body.qp-look .feat-pill-desc{font-size:14px}
   body.qp-look .skill-row,body.qp-look .save-row{padding:8px 10px}
@@ -72585,7 +72586,7 @@ body.qp-look #dm-key-stats > *{border-radius:var(--radius,8px) !important;box-sh
 body.qp-look #page-dm .sp-browser-row{background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0}
 body.qp-look #page-dm .sp-browser-row:hover{background:var(--bg3)}
 body.qp-look #page-dm .spell-search-input,body.qp-look #page-dm .spell-filter-sel{background:var(--bg3);border:1px solid var(--border2,var(--border));border-radius:var(--radius,8px);font-size:14px}
-@media (max-width:820px){ body.qp-look .dm-tab{padding:8px 12px !important;font-size:13px !important} }
+@container sheet (max-width:820px) { body.qp-look .dm-tab{padding:8px 12px !important;font-size:13px !important} }
 /* ══ Readability ══ a floor under text size, calmer small capitals, and
    text columns that don't run too wide. Measured before this pass: about
    half the Main sheet's text and over two thirds of the Spells and
@@ -72605,14 +72606,14 @@ body.qp-look .ability-stepper button{font-size:10px}
 body.qp-look #content :is([style*="font-size:7px"],[style*="font-size: 7px"],[style*="font-size:8px"],[style*="font-size: 8px"],[style*="font-size:9px"],[style*="font-size: 9px"],[style*="font-size:10px"],[style*="font-size: 10px"]):not(.inv-row *){font-size:11px !important}
 body.qp-look #content :is([style*="font-size:11px"],[style*="font-size: 11px"]):not(.inv-row *){font-size:12px !important}
 /* inventory rows are packed tight (badge, tick, weight, count, buttons): only lift their very smallest text, and only on wide screens */
-@media (min-width:821px){ body.qp-look .inv-row :is([style*="font-size:7px"],[style*="font-size: 7px"],[style*="font-size:8px"],[style*="font-size: 8px"]){font-size:10px !important} }
+@container sheet (min-width:821px) { body.qp-look .inv-row :is([style*="font-size:7px"],[style*="font-size: 7px"],[style*="font-size:8px"],[style*="font-size: 8px"]){font-size:10px !important} }
 body.qp-look .modal-box :is([style*="font-size:8px"],[style*="font-size: 8px"],[style*="font-size:9px"],[style*="font-size: 9px"],[style*="font-size:10px"],[style*="font-size: 10px"]){font-size:11px !important}
 /* body text: comfortable leading and a sensible line length */
 body.qp-look :is(.qp-text,.qp-full,.qp-itemtext,.qp-note,.feat-pill-desc,.choice-desc){line-height:1.6}
 body.qp-look :is(.qp-text,.qp-full,.qp-itemtext,.qp-note,.qp-other,.qp-upbox){max-width:82ch}
 body.qp-look #page-inventory .panel > div[style*="font-size"]{max-width:82ch}
 body.qp-look .sp-short-desc{color:var(--text2)}
-@media (max-width:820px){
+@container sheet (max-width:820px) {
   /* phones: one step larger again */
   body.qp-look :is(.field-label,.stat-label,.qp-sl,.spell-stat-label,.attack-stat-label,.skill-ability,.ability-label,.cc-summary-label,.currency-sub,
     .resource-counter-label,.slot-level-label,.slot-level-count,.feat-source-legend-item,.qp-hs,.qp-lvl-s,.qp-spsub,.feat-slot-badge,.feat-summary-pill,
@@ -72656,7 +72657,7 @@ body.qp-square .modal-box{border:1px solid var(--border2,var(--border));box-shad
 body.qp-square .modal-title{margin-bottom:16px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-left:4px solid var(--accent);color:var(--text);font-size:13px;letter-spacing:.1em}
 body.qp-square .modal-close{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:var(--qsq);background:var(--bg2);flex-shrink:0}
 body.qp-square .modal-close:hover{border-color:var(--red)}
-@media (max-width:820px){
+@container sheet (max-width:820px) {
   body.qp-square .panel{padding:0 12px 12px}body.qp-square .panel-title{margin:0 -12px 12px;padding:10px 12px}
   body.qp-square .qp-card{padding:0 12px 12px}body.qp-square .qp-h{margin:0 -12px 10px;padding:10px 12px}
 }
@@ -72666,7 +72667,7 @@ body.qp-square .modal-close:hover{border-color:var(--red)}
 #sheet-look-row .opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 #sheet-look-row button{min-height:32px;padding:5px 8px;border:1px solid var(--border);border-radius:14px;background:var(--bg3);color:var(--text2);font-family:var(--font-ui);font-size:11px;cursor:pointer}
 #sheet-look-row button.on{border-color:var(--accent);color:var(--accent);font-weight:700}
-@media (max-width:820px){
+@container sheet (max-width:820px) {
   body.qp-look #content{font-size:14px}
   body.qp-look .panel{padding:12px}
   body.qp-look .page-tab{padding:8px 12px;font-size:13px}
@@ -72753,6 +72754,70 @@ html #sync-status.error { color: var(--red); }
   };
   wrap('enterApp', true);
   wrap('switchPage'); wrap('exitDMPanel'); wrap('exitPartyOverview');
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// SHEET ZOOM
+// A per-device size setting (localStorage 'sheet_zoom'), in the palette menu.
+// Scales the whole sheet like browser zoom. Viewport units in the sheet's
+// CSS are written as calc(Nvh / var(--zoom, 1)) so they stay screen-sized,
+// and code that places things from screen coordinates divides by sheetZoom().
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  const KEY = 'sheet_zoom', STEPS = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75], MIN_W = 360;
+  const root = document.documentElement;
+  const st = document.createElement('style');
+  st.textContent = `html { zoom: var(--zoom, 1); }
+body { container: sheet / inline-size; }
+/* narrow-window gaps that zooming in makes easy to reach */
+.tab-grid-2col { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+.tab-grid-2col > * { min-width: 0; }
+.spell-stats-row { grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
+.main-grid > *, .spells-layout > * { min-width: 0; }
+.feat-row-top { flex-wrap: wrap; row-gap: 4px; }
+.feat-row-top > div:first-child { min-width: 140px; }
+#companion-blocks { grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)) !important; }
+@container sheet (max-width: 700px) { .tab-grid-2col { grid-template-columns: minmax(0,1fr); } }
+#sheet-zoom-row { display:flex; align-items:center; gap:6px; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--border); font-family:var(--font-ui); font-size:11px; color:var(--text2); }
+#sheet-zoom-row button { min-width:34px; min-height:32px; font-size:14px; }
+#sheet-zoom-row #sheet-zoom-val { min-width:44px; text-align:center; font-weight:700; color:var(--text); }`;
+  document.head.appendChild(st);
+  let want = 1, cur = 1;
+  try { const v = parseFloat(localStorage.getItem(KEY)); if (v >= 0.5 && v <= 2) want = v; } catch (e) {}
+  // never let the sheet get narrower (in its own units) than the smallest phone layout
+  const cap = () => Math.max(1, Math.floor((window.innerWidth / MIN_W) * 100) / 100);
+  window.sheetZoom = () => cur;
+  function apply() {
+    const z = Math.min(want, want > 1 ? cap() : want);
+    if (z !== cur || !root.style.getPropertyValue('--zoom')) {
+      cur = z; root.style.setProperty('--zoom', String(z));
+      try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+    }
+    const v = document.getElementById('sheet-zoom-val');
+    if (v) { v.textContent = Math.round(cur * 100) + '%'; v.title = cur < want ? 'Limited to ' + Math.round(cur * 100) + '% on a screen this narrow' : ''; }
+  }
+  window.setSheetZoom = function (z) { want = Math.max(STEPS[0], Math.min(STEPS[STEPS.length - 1], z)); try { localStorage.setItem(KEY, String(want)); } catch (e) {} apply(); };
+  window.stepSheetZoom = function (dir) {
+    const base = cur, i = STEPS.findIndex(s => s >= base - 0.001);
+    const at = i < 0 ? STEPS.length - 1 : i;
+    const next = dir > 0 ? STEPS.find(s => s > base + 0.001) : [...STEPS].reverse().find(s => s < base - 0.001);
+    if (next == null) return;
+    if (dir > 0 && cur < want) return;           // already at this screen's limit
+    window.setSheetZoom(next);
+  };
+  let t; window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(apply, 120); });
+  const panel = document.getElementById('theme-picker-panel');
+  if (panel && !document.getElementById('sheet-zoom-row')) {
+    const row = document.createElement('div'); row.id = 'sheet-zoom-row';
+    row.innerHTML = `<span style="flex:1;text-transform:uppercase;letter-spacing:.5px;font-size:10px">Size</span>
+      <button class="tbtn" onclick="stepSheetZoom(-1)" title="Smaller" aria-label="Smaller">&minus;</button>
+      <span id="sheet-zoom-val">100%</span>
+      <button class="tbtn" onclick="stepSheetZoom(1)" title="Larger" aria-label="Larger">+</button>
+      <button class="tbtn" onclick="setSheetZoom(1)" title="Back to 100%" style="font-size:10px">Reset</button>`;
+    panel.insertBefore(row, panel.firstChild);
+  }
+  apply();
 })();
 </script>
 <script>
@@ -73099,7 +73164,7 @@ function openCreateMagen() {
   document.getElementById('mg-create-overlay')?.remove();
   const ov = document.createElement('div'); ov.id = 'mg-create-overlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
-  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:92vh;max-height:92dvh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:460px;width:100%;max-height:calc(92vh / var(--zoom, 1));max-height:calc(92dvh / var(--zoom, 1));overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
     <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">${dm ? 'ADD MAGEN (DM)' : 'CREATE MAGEN'}</div>
     <div style="color:var(--text3);margin-bottom:12px;line-height:1.5">The type of magen is chosen by you during the casting of the spell. When the magen appears, your hit point maximum decreases by an amount equal to the magen's challenge rating (minimum reduction of 1). Only a wish spell can undo this reduction to your hit point maximum.</div>
     <label style="display:block;margin-bottom:6px">Type of magen</label>
