@@ -67625,7 +67625,7 @@ function renderQuickPlay() {
   const init = (document.getElementById('disp-init')?.innerText || '').trim();
   const speedTxt = (document.getElementById('disp-speed')?.innerText || c.speed || '').toString().trim();
   const ac = calcACBreakdown();
-  const speedNote = (document.getElementById('speed-note')?.innerText || '').replace(/\s+/g, ' ').trim();
+  const speedNote = (() => { const n = document.getElementById('speed-note'); if (!n) return ''; const parts = n.children.length ? [...n.children].map(x => x.textContent) : [n.textContent]; return parts.map(t => (t || '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(' \u00b7 '); })();
   const fxDefs = (() => { try { return typeof getActiveEffectDefs === 'function' ? getActiveEffectDefs() : []; } catch (e) { return []; } })();
   const fxRow = !fxDefs.length ? '' : `<div class="qp-fx"><span class="qp-dim">Effects - tap to switch on or off:</span>${fxDefs.map(([id, def]) => { const on = (() => { try { return isEffectActive(id); } catch (e) { return false; } })();
       return `<button class="qp-fxb${on ? ' on' : ''}" ${window._previewMode ? 'disabled' : ''} onclick="qpToggleEffect('${_qpE(id)}')" title="${_qpE(def.desc || '')}">${def.icon || ''} ${_qpE(def.label || id)}${on ? ' \u2713' : ''}</button>`; }).join('')}
@@ -67985,22 +67985,9 @@ window.qpJump = qpJump;
   .qp-bar a:active{background:var(--accent);color:var(--bg)}
   .qp-bar-hp,.qp-bar-ac{color:var(--text)!important;border:1px solid var(--accent)}
   #qp-body{font-family:var(--font-ui);font-size:13px;color:var(--text);max-width:none;margin:0 auto;display:flex;flex-direction:column;gap:12px}
-  /* Layout by window width. Narrow (phones, tablets, small windows): the
-     wrappers vanish and every card stacks in one column, exactly as before.
-     Wide: stats down the left in a column that stays in view, actions on
-     the right. Very wide: the right-hand side splits in two as well. */
+  /* One column, top to bottom, at every window width. The wrappers stay
+     invisible to layout so the cards stack in their original order. */
   .qp-cols,.qp-side,.qp-main,.qp-mainA,.qp-mainB{display:contents}
-  @container sheet (min-width:1180px) {
-    .qp-cols{display:grid;grid-template-columns:minmax(360px,27%) minmax(0,1fr);gap:12px;align-items:start}
-    .qp-side,.qp-main,.qp-mainA,.qp-mainB{display:flex;flex-direction:column;gap:12px;min-width:0}
-    .qp-side{position:sticky;top:56px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2,#666) transparent;padding-right:2px}
-    .qp-side .qp-grid3{grid-template-columns:1fr}
-  }
-  @container sheet (min-width:1700px) {
-    .qp-cols{grid-template-columns:minmax(380px,23%) minmax(0,1fr)}
-    .qp-main{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;align-items:start}
-    .qp-mainB .qp-grid2{grid-template-columns:1fr}
-  }
   .qp-top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
   .qp-who{font-family:var(--font-title);font-size:22px;font-weight:700}
   .qp-whobox{display:flex;align-items:center;gap:14px}
