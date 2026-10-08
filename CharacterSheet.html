@@ -66376,9 +66376,7 @@ function charKnowsSimulacrum(c = currentChar) {
     try {
       const shown = buildKnownSpellRows().some(r => r.key === 'simulacrum'
         && r.pipType !== '' && r.pipType !== 'locked-level' && r.pipType !== 'subclass-locked');
-      if (shown) return true;
-      const wizard = typeof getCharSpellClasses === 'function' && getCharSpellClasses().includes('wizard');
-      return wizard && has(sp.spellbook);          // in the spellbook, even if not prepared today
+      return shown;          // prepared (or always-prepared / known) today - a spellbook entry alone doesn't count
     } catch (e) { /* fall through to the stored lists */ }
   }
   return has(sp.known) || has(sp.prepared) || has(sp.spellbook);
@@ -66768,7 +66766,7 @@ function renderSimulacrumPanel() {
   const anchor = document.getElementById('sp-class-manage-bar');
   if (!anchor || !currentChar) return;
   let el = document.getElementById('sp-simulacrum-panel');
-  const show = !isSimulacrum() && (isDM || charKnowsSimulacrum() || currentChar._simulacrumId || currentChar._simulacrumCreature);
+  const show = !isSimulacrum() && (charKnowsSimulacrum() || currentChar._simulacrumId || currentChar._simulacrumCreature);
   if (!show) { if (el) el.remove(); return; }
   if (!el) {
     el = document.createElement('div'); el.id = 'sp-simulacrum-panel';
@@ -72691,6 +72689,74 @@ body.qp-square .modal-close:hover{border-color:var(--red)}
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
+// TOPBAR THEME + DM PANEL THEME
+// 1. The top bar follows the active theme (it used to be fixed dark/purple).
+// 2. The DM panel has its own theme, kept on this device (localStorage
+//    'dm_panel_theme'). It never takes on, or writes to, a character's theme.
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  const st = document.createElement('style');
+  st.textContent = `
+html #topbar { background: var(--bg2); border-bottom: 1px solid var(--border); }
+html .topbar-title { color: var(--accent); }
+html .topbar-sep { background: var(--border2, var(--border)); }
+html #char-summary { color: var(--text2); }
+html #char-summary strong { color: var(--text); }
+html #char-summary .sum-sep { color: var(--text3); }
+html #topbar .tbtn { color: var(--text2); border-color: var(--border2, var(--border)); }
+html #topbar .tbtn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+html #sync-status.syncing { color: var(--text3); }
+html #sync-status.ok { color: var(--accent); background: var(--accent-bg); }
+html #sync-status.error { color: var(--red); }
+`;
+  document.head.appendChild(st);
+
+  const KEY = 'dm_panel_theme';
+  const origFull = window.applyThemeFull, origCustom = window.applyCustomTheme;
+  if (typeof origFull !== 'function') return;
+  let loading = 0, inDm = false, priorAttr = null;
+  const onDm = () => !!document.getElementById('page-dm')?.classList.contains('active');
+  const getDm = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } };
+  const setDm = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} };
+  // apply a theme to the page only - the open character is left untouched and unsaved
+  function applyRaw(pref) {
+    const c = currentChar; currentChar = null;
+    try { if (pref && pref.seeds && typeof origCustom === 'function') origCustom(pref.seeds); else origFull((pref && pref.key) || 'default-dark'); }
+    catch (e) {} finally { currentChar = c; }
+  }
+  function applyCharTheme() {
+    const c = currentChar;
+    if (c && c.themePreference === 'custom' && c.customThemeSeeds) applyRaw({ seeds: c.customThemeSeeds });
+    else if (c && c.themePreference) applyRaw({ key: c.themePreference });
+    else if (c) applyRaw({ key: 'default-dark' });
+    else if (priorAttr) { try { clearCustomThemeInlineOverrides(); } catch (e) {} document.documentElement.setAttribute('data-theme', priorAttr); }
+  }
+  function sync() {
+    const now = onDm();
+    if (now) { if (!inDm) priorAttr = document.documentElement.getAttribute('data-theme'); inDm = true; applyRaw(getDm()); }
+    else if (inDm) { inDm = false; applyCharTheme(); }
+  }
+  window._dmThemeSync = sync;
+
+  applyThemeFull = window.applyThemeFull = function (key) {
+    if (onDm()) { if (!loading) { setDm({ key }); applyRaw({ key }); } return; }
+    return origFull.apply(this, arguments);
+  };
+  if (typeof origCustom === 'function') applyCustomTheme = window.applyCustomTheme = function (seeds) {
+    if (onDm()) { if (!loading) { setDm({ seeds }); applyRaw({ seeds }); } return; }
+    return origCustom.apply(this, arguments);
+  };
+  const wrap = (name, pre) => {
+    const o = window[name]; if (typeof o !== 'function') return;
+    const w = function () { if (pre) loading++; try { return o.apply(this, arguments); } finally { if (pre) loading--; sync(); } };
+    window[name] = w; try { (0, eval)(name + ' = window.' + name); } catch (e) {}
+  };
+  wrap('enterApp', true);
+  wrap('switchPage'); wrap('exitDMPanel'); wrap('exitPartyOverview');
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
 // PREVIEW GUARD - read-only enforcement for Party Overview sheet previews
 // While window._previewMode is set, a capture-phase guard decides every
 // click / key / form event before any handler on the sheet can see it:
@@ -72952,7 +73018,7 @@ function charKnowsCreateMagen() {
   try {
     // go by what the Spells tab shows, not by leftover entries in the saved lists
     if (buildKnownSpellRows().some(r => r.key === 'create_magen' && r.pipType !== '' && r.pipType !== 'locked-level' && r.pipType !== 'subclass-locked')) return true;
-    return getCharSpellClasses().includes('wizard') && has(sp.spellbook);
+    return false;   // prepared today only - a spellbook entry alone doesn't count
   } catch (e) { return has(sp.known) || has(sp.spellbook); }
 }
 function getMagenList() { return Array.isArray(currentChar?._magen) ? currentChar._magen : []; }
@@ -73099,7 +73165,7 @@ function renderMagenPanel() {
   let el = document.getElementById('sp-magen-panel');
   if (!anchor || !currentChar) { if (el) el.remove(); return; }
   const ro = !!window._previewMode, h = _mgHeaderBits(ro);
-  if (!(h.knows || isDM || h.list.length || h.red)) { if (el) el.remove(); return; }
+  if (!(h.knows || h.list.length || h.red)) { if (el) el.remove(); return; }
   if (!el) {
     el = document.createElement('div'); el.id = 'sp-magen-panel';
     el.style.cssText = 'margin:8px 0;padding:10px 12px;border:1px solid var(--border,#444);border-radius:8px;background:var(--bg2);font-family:var(--font-ui);font-size:11px';
