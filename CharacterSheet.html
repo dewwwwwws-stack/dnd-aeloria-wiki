@@ -47534,7 +47534,7 @@ async function confirmGrantItem() {
       if (_grantItemType === 'magic' && grantedIdx !== null) {
         const grantedItem = c.magicItems[grantedIdx];
         const fx = grantedItem.effects || {};
-        const needsBonusPick = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable' || !!grantedItem.tiers || !!grantedItem.resistanceOptions || (grantedItem.type||'').toLowerCase() === 'scroll';
+        const needsBonusPick = fx.weaponBonus === 'variable' || fx.spellAtkBonus === 'variable' || fx.spellDCBonus === 'variable' || fx.otherBonus === 'variable' || !!grantedItem.tiers || !!grantedItem.resistanceOptions || ((grantedItem.type||'').toLowerCase() === 'scroll' && !grantedItem.scrollSpellKey);
         if (needsBonusPick) {
           setTimeout(() => dmOpenItemEdit(charId, c.charName || charId, grantedIdx), 150);
         }
@@ -67226,6 +67226,14 @@ function _qpBuild() {
     spells.push({ stat: (e.s.dc || e.s.dc === 0) ? { dc: e.s.dc, atk: e.s.atk, ab: e.s.ability || '', who: e.s.caster || 'stored' } : null, baseLevel: s.level ?? lv, key: e.s.key, name: e.s.name, level: lv, ritualOnly: false, upcast: lv > (s.level ?? lv), desc: s.desc || '', source: `${stat ? stat.trim() + ' \u00b7 ' : ''}${e.itemName}`,
       bucket, res: null, conc: /conc/i.test(s.duration || ''), stored: { uid: e.uid, id: e.s.id, canCast: e.canCast } });
   });
+  // Spell Scrolls: listed with the other spells of the same casting time, at
+  // the scroll's level, with the scroll's own numbers and a Read button.
+  (typeof getScrollEntries === 'function' ? getScrollEntries() : []).forEach(i => {
+    const t = i.spell.time || '';
+    const bucket = /\brea/i.test(t) ? 'reaction' : /bns|bonus/i.test(t) ? 'bonus' : /^1\s*a\b/i.test(t) ? 'action' : 'longer';
+    spells.push({ stat: i.dc != null ? { dc: i.dc, atk: i.atk, ab: '', who: 'Spell Scroll' } : null, baseLevel: i.spell.level, key: i.spell.key, name: i.spell.name, level: i.level, ritualOnly: false,
+      upcast: i.level > i.spell.level, desc: i.spell.desc || '', source: 'Spell Scroll' + (i.qty > 1 ? ' \u00d7' + i.qty : ''), bucket, res: null, conc: /conc/i.test(i.spell.duration || ''), scroll: { uid: i.item._uid } });
+  });
   const abs = getAbilities();
   return { c, rogue, fighter, champion, critMin, sneakDice, piercer, elvenAcc, twf, res, weapons, spells, abs,
     attacksPer: 1 + (parseInt(c._extraAttacks, 10) || 0),
@@ -67683,18 +67691,25 @@ function renderQuickPlay() {
   };
   const bucketFor = text => ['bonus', 'reaction', 'action'].find(b => STRICT[b].test(text)) || null;
   const usedRes = new Set(['action_surge', 'second_wind', 'scfeat_rogue_scion_of_the_three_bloodthirst']);
+  const _resTexts = [];
+  const _resDefs = (() => { const m = {}; try { (buildAllResourceDefs() || []).forEach(d => { if (d?.id) m[d.id] = d; }); } catch (e) {} return m; })();
   Q.spells.forEach(s => { if (s.res) usedRes.add(s.res.id); });
   (window._pdfResourceRows || []).filter(r => r.max > 0 && r.type !== 'display' && !usedRes.has(r.id) && !/heroic inspiration/i.test(r.name)).forEach(r => {
     if (shownNames.has(String(r.name).toLowerCase())) return;
-    const txt = featureText(r.name) || r.desc || '';
+    // a counter for one chosen option (e.g. "Giant Ancestry: Fire's Burn") goes by its own text, not the whole feature's
+    const rd = _resDefs[r.id] || {}, own = rd.subraceReq && rd.desc ? rd.desc : '';
+    const txt = own || featureText(r.name) || r.desc || '';
     const b = bucketFor(txt) || 'other';
     extra[b].push({ name: r.name, text: sentenceFor(txt, b === 'other' ? null : b), res: r });
+    if (own.length > 40) _resTexts.push(own);
     shownNames.add(String(r.name).toLowerCase()); shownNames.add(String(r.name).toLowerCase().replace(/\s*\(.*\)$/, ''));
+    if (own && /:/.test(r.name)) shownNames.add(String(r.name).split(':')[0].trim().toLowerCase());
   });
   (window._pdfFeatureEntries || []).filter(f => ['Class', 'Subclass', 'Race', 'Feat', 'Background Feat'].includes(f.sourceType)).forEach(f => {
     const n = String(f.name).toLowerCase();
     if (HANDLED.has(n) || SKIP_FEATURE.test(f.name) || shownNames.has(n)) return;
     const txt = typeof pdfPlain === 'function' ? pdfPlain(f.text) : String(f.text || '');
+    if (_resTexts.some(t => txt.includes(t))) return;   // already listed with its counter
     const b = bucketFor(txt); if (!b) return;
     extra[b].push({ name: f.name, text: sentenceFor(txt, b), res: null });
     shownNames.add(n);
@@ -67742,7 +67757,7 @@ function renderQuickPlay() {
   // card's normal options (weapon attacks, class features, standard actions)
   const _slotLevels = (() => { try { const ss = computeSpellSlotsForChar(currentChar); const l = (ss.levels || []).filter(x => x.max > 0).map(x => x.level); if (ss.warlock?.max && ss.warlock.slotLevel) l.push(ss.warlock.slotLevel); return [...new Set(l)].sort((a, b) => a - b); } catch (e) { return []; } })();
   const upSelect = (s, bucket) => {
-    if (!s.level || s.stored || s.ritualOnly || window._previewMode) return '';
+    if (!s.level || s.stored || s.scroll || s.ritualOnly || window._previewMode) return '';
     // only spells whose own text says a higher-level slot changes something
     const _full = PHB_SPELL_LIST.find(x => x.key === s.key); if (!/Using a Higher-Level Spell Slot|At Higher Levels/i.test(String(_full?.descFull || _full?.desc || ''))) return '';
     const opts = _slotLevels.filter(l => l >= s.level);
@@ -67756,10 +67771,10 @@ function renderQuickPlay() {
       return `<div class="qp-full" id="qp-full-${bucket}-${_qpE(s.key)}" data-key="${_qpE(s.key)}" data-lvl="${cur}"></div><div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="display:none"></div>`;
     }
     const h = (_qp.up[s.key] > s.level) ? _qpUpcastHtml(s.key, _qp.up[s.key]) : ''; return `<div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</div>`; };
-  const mathLine = (s, bucket) => { const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : s.level; const h = s.stored ? '' : _qpSpellMathHtml(s.key, cur);
+  const mathLine = (s, bucket) => { const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : s.level; const h = (s.stored || s.scroll) ? '' : _qpSpellMathHtml(s.key, cur);
     return `<span class="qp-sm" id="qp-sm-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</span>${h ? '<span class="qp-sep"> \u2014 </span>' : ''}`; };
   const spellLine = (s, bucket) => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>${upSelect(s, bucket)}`,
-    mathLine(s, bucket) + `<span class="qp-sum"${_qpTextMode() === 'full' ? ' style="display:none"' : ''}>${_qpE(s.desc)}</span>`, (s.stored && window._previewMode) ? '' : s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
+    mathLine(s, bucket) + `<span class="qp-sum"${_qpTextMode() === 'full' ? ' style="display:none"' : ''}>${_qpE(s.desc)}</span>`, ((s.stored || s.scroll) && window._previewMode) ? '' : s.scroll ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" title="Use up the scroll and cast its spell" onclick="readSpellScroll('${_qpE(s.scroll.uid)}')">Read</button>` : s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
   const _slotLeft = (() => { const m = {}; try { const ss = computeSpellSlotsForChar(currentChar); (ss.levels || []).forEach(x => { if (x.max > 0) m[x.level] = `${x.max - (x.used || 0)}/${x.max} slots left`; }); } catch (e) {} return m; })();
   const spellSection = bucket => {
     const list = Q.spells.filter(s => s.bucket === bucket).sort((a, b) => a.level - b.level || String(a.name).localeCompare(String(b.name)));
@@ -72942,6 +72957,450 @@ body { container: sheet / inline-size; }
 .po-details > div{padding-left:15px!important}
 @container sheet (max-width:600px){ .po-gh{flex-wrap:wrap} .po-gname{white-space:normal} .po-money{flex-direction:column;align-items:stretch} .po-coins{display:grid;grid-template-columns:repeat(4,1fr)} .po-coin{min-width:0} .po-totals{justify-content:flex-end} }`;
   document.head.appendChild(st);
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// SPELL SCROLLS
+// A Spell Scroll holds one spell (item.scrollSpellKey / scrollSpellLevel)
+// and is named after it ("Spell Scroll of Fireball (3rd Level)"). This adds:
+//  - a "which spell is on this scroll?" picker, opened when a scroll is added
+//    and from the item's Choose Spell button
+//  - the scroll's own save DC / attack bonus / ability-check DC, read from
+//    the DMG'24 Spell Scroll (Level N) catalog text for that level
+//  - Read the scroll: the scroll is used up (quantity -1) and the spell card
+//    opens with the scroll's numbers - on the item card, a Spells tab panel
+//    and in Quick Play next to the other spells with that casting time.
+// ═══════════════════════════════════════════════════════════════════════
+const _scE = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const _scOrd = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+const _scJs = v => _scE(String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+
+function isSpellScroll(item) {
+  if (!item || (item.type || '').toLowerCase() !== 'scroll') return false;
+  return item.key === 'spell_scroll' || /^spell_scroll_(cantrip|level_\d)$/.test(item.key || '') || !!item.scrollSpellKey;
+}
+// DMG'24 "Spell Scroll (Level 3)" etc. can only hold a spell of that level
+function scrollFixedLevel(item) {
+  const k = item?.key || '';
+  if (k === 'spell_scroll_cantrip') return 0;
+  const m = /^spell_scroll_level_(\d)$/.exec(k); return m ? parseInt(m[1], 10) : null;
+}
+// The scroll's numbers for a given level, from that level's catalog text
+function scrollNumbers(level) {
+  const cat = typeof getEffectiveMagicItemsCatalog === 'function' ? getEffectiveMagicItemsCatalog() : [];
+  const def = cat.find(d => d.key === (level === 0 ? 'spell_scroll_cantrip' : 'spell_scroll_level_' + level));
+  const t = String(def?.desc || '');
+  const m = /spell save DC is (\d+), and the attack bonus is \+(\d+)/i.exec(t);
+  const c = /make a DC (\d+) ability check/i.exec(t);
+  return { dc: m ? +m[1] : null, atk: m ? +m[2] : null, checkDc: c ? +c[1] : null };
+}
+function _scMaxSlotLevel() {
+  try {
+    const ss = computeSpellSlotsForChar(currentChar);
+    let mx = Math.max(0, ...(ss.levels || []).filter(l => l.max > 0).map(l => l.level));
+    if (ss.warlock?.max && ss.warlock.slotLevel) mx = Math.max(mx, ss.warlock.slotLevel);
+    return mx;
+  } catch (e) { return 0; }
+}
+function _scOnMyList(sp) {
+  try { const mine = getCharSpellClasses(); return !mine.length ? false : (sp.classes || []).some(c => mine.includes(String(c).toLowerCase())); } catch (e) { return null; }
+}
+// Everything the sheet needs to show about a scroll's spell
+function getScrollInfo(item) {
+  if (!isSpellScroll(item) || !item.scrollSpellKey) return null;
+  const spell = PHB_SPELL_LIST.find(s => s.key === item.scrollSpellKey); if (!spell) return null;
+  const level = item.scrollSpellLevel ?? spell.level;
+  const n = scrollNumbers(level);
+  const onList = _scOnMyList(spell);
+  const tooHigh = level > 0 && level > _scMaxSlotLevel();
+  return { item, spell, level, ...n, onList, tooHigh, qty: Math.max(1, parseInt(item.quantity, 10) || 1) };
+}
+window.isSpellScroll = isSpellScroll; window.getScrollInfo = getScrollInfo; window.scrollNumbers = scrollNumbers;
+function getScrollEntries() {
+  return (currentChar?.magicItems || []).filter(m => m._uid).map(getScrollInfo).filter(Boolean);
+}
+window.getScrollEntries = getScrollEntries;
+function _scStat(i) {
+  return [i.dc != null ? 'save DC ' + i.dc : '', i.atk != null ? '+' + i.atk + ' to hit' : ''].filter(Boolean).join(' · ');
+}
+function _scTime(t) {
+  t = String(t || '').trim();
+  return /^1\s*a\b/i.test(t) ? 'Action' : /^1\s*(bns|bonus)/i.test(t) ? 'Bonus Action' : /^1\s*rea/i.test(t) ? 'Reaction' : t;
+}
+function _scLvLabel(l) { return l === 0 ? 'cantrip' : _scOrd(l) + ' level'; }
+
+// ── picker ─────────────────────────────────────────────────────────────
+// mode 'save': writes straight to the owned item; mode 'pending': feeds the
+// item Edit form's choice (saved with that form's Save button)
+let _scDraft = null;
+function _scClassesOf(c) {
+  return [...new Set((c?.classes || []).map(x => String(x.class || '').toLowerCase()).filter(Boolean))];
+}
+function openScrollScribe(uid, mode = 'save', opts = {}) {
+  if (window._previewMode) return;
+  const item = mode === 'grant' ? { key: opts.key, name: opts.name, type: 'scroll' }
+    : mode === 'pending' ? (typeof _miEditFormItem !== 'undefined' ? _miEditFormItem : null) : (currentChar?.magicItems || []).find(m => m._uid === uid);
+  if (!item) return;
+  // whose class lists the spell is checked against: the character it is for
+  let who = null, classes;
+  const dmTarget = mode === 'pending' && typeof _invModalDMTarget !== 'undefined' && _invModalDMTarget ? _invModalDMTarget : null;
+  if (mode === 'grant') { who = opts.targetName || 'their'; classes = opts.classes || []; }
+  else if (dmTarget) {
+    const f = (typeof _allCharFiles !== 'undefined' ? _allCharFiles : []).find(x => x.id === dmTarget.charId);
+    who = dmTarget.charName || 'their'; classes = _scClassesOf(f?.char || (typeof _partyCharCache !== 'undefined' ? _partyCharCache[dmTarget.charId] : null));
+  } else { try { classes = getCharSpellClasses(); } catch (e) { classes = []; } }
+  const fixed = scrollFixedLevel(item);
+  const curKey = mode === 'pending' ? (typeof _miPendingScrollSpellKey !== 'undefined' ? _miPendingScrollSpellKey : null) : item.scrollSpellKey;
+  const curLv = mode === 'pending' ? (typeof _miPendingScrollSpellLevel !== 'undefined' ? _miPendingScrollSpellLevel : null) : item.scrollSpellLevel;
+  const casts = classes.length > 0 && PHB_SPELL_LIST.some(s => (s.classes || []).some(c => classes.includes(String(c).toLowerCase())));
+  _scDraft = { item, mode, opts, who, classes, fixed, key: curKey || null, level: curLv ?? null, q: '', lvF: fixed != null ? String(fixed) : '', mineOnly: casts && (!isDM || !!who) };
+  document.getElementById('sc-overlay')?.remove();
+  const ov = document.createElement('div'); ov.id = 'sc-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:480px;width:100%;max-height:calc(92vh / var(--zoom, 1));max-height:calc(92dvh / var(--zoom, 1));overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:12px">
+    <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:4px">WHICH SPELL IS ON THIS SCROLL?</div>
+    <div id="sc-sub" style="color:var(--text3);margin-bottom:12px;line-height:1.5"></div>
+    <input id="sc-q" class="info-input" placeholder="Search spells..." autocomplete="off" style="width:100%;font-size:16px;margin-bottom:6px"/>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <label id="sc-mine-row" style="display:${casts ? 'flex' : 'none'};align-items:center;gap:6px;color:var(--text2)"><input type="checkbox" id="sc-mine" style="width:18px;height:18px"/> Only spells on ${who ? _scE(who) + '’s' : 'my'} class lists</label>
+      <select id="sc-lvf" class="info-input" style="margin-left:auto;font-size:14px;padding:4px 8px;${fixed != null ? 'display:none' : ''}"><option value="">Any level</option><option value="0">Cantrips</option>${[1,2,3,4,5,6,7,8,9].map(l => `<option value="${l}">Level ${l}</option>`).join('')}</select>
+    </div>
+    <div id="sc-list" style="max-height:200px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:6px;margin-bottom:12px;scrollbar-width:thin"></div>
+    <div id="sc-detail"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="tbtn" id="sc-cancel" style="min-height:36px">${mode === 'save' && !item.scrollSpellKey ? 'Later' : 'Cancel'}</button>${mode === 'grant' ? '<button class="tbtn" id="sc-blank" style="min-height:36px" title="Grant it without a spell - the player picks">No spell</button>' : ''}
+      <button class="tbtn" id="sc-go" style="min-height:36px;color:var(--accent);border-color:var(--accent)">${mode === 'grant' ? 'Grant' : 'Save'}</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#sc-cancel').onclick = () => ov.remove();
+  ov.querySelector('#sc-q').oninput = e => { _scDraft.q = e.target.value; _scRenderList(); };
+  ov.querySelector('#sc-mine').checked = _scDraft.mineOnly;
+  ov.querySelector('#sc-mine').onchange = e => { _scDraft.mineOnly = e.target.checked; _scRenderList(); };
+  ov.querySelector('#sc-lvf').value = _scDraft.lvF;
+  ov.querySelector('#sc-lvf').onchange = e => { _scDraft.lvF = e.target.value; _scRenderList(); };
+  ov.querySelector('#sc-go').onclick = _scConfirm;
+  const blank = ov.querySelector('#sc-blank'); if (blank) blank.onclick = () => { ov.remove(); _scDraft = null; opts.onPick && opts.onPick(null, null); };
+  ov.querySelector('#sc-sub').textContent = fixed != null
+    ? `${item.customName || item.name || 'Spell Scroll'} holds one ${fixed === 0 ? 'cantrip' : 'level ' + fixed + ' spell'}.`
+    : 'Pick the spell written on it. The scroll is then named after the spell, and its level sets the rarity, save DC and attack bonus.';
+  _scRenderList();
+  setTimeout(() => ov.querySelector('#sc-q')?.focus(), 50);
+}
+window.openScrollScribe = openScrollScribe;
+
+function _scRenderList() {
+  const ov = document.getElementById('sc-overlay'), d = _scDraft; if (!ov || !d) return;
+  const q = d.q.trim().toLowerCase();
+  const mine = d.classes || [];
+  const list = PHB_SPELL_LIST.filter(s => (d.fixed == null || s.level === d.fixed)
+      && (d.lvF === '' || String(s.level) === d.lvF)
+      && (!d.mineOnly || !mine.length || (s.classes || []).some(c => mine.includes(String(c).toLowerCase())))
+      && (!q || s.name.toLowerCase().includes(q)))
+    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+  const box = ov.querySelector('#sc-list');
+  box.innerHTML = list.length ? list.slice(0, 700).map(s => `<div data-sc-key="${_scE(s.key)}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px;font-size:13px;${d.key === s.key ? 'background:var(--bg3);color:var(--accent)' : ''}"><span>${_scE(s.name)}</span><span style="color:var(--text3);flex-shrink:0">${s.level === 0 ? 'cantrip' : 'level ' + s.level} · ${_scE(s.school || '')}</span></div>`).join('')
+    : '<div style="padding:10px;color:var(--text3)">No spell matches.</div>';
+  box.querySelectorAll('[data-sc-key]').forEach(n => n.onclick = () => {
+    d.key = n.dataset.scKey; const sp = PHB_SPELL_LIST.find(s => s.key === d.key);
+    d.level = d.fixed != null ? d.fixed : sp.level; _scRenderList();
+  });
+  _scRenderDetail();
+}
+function _scRenderDetail() {
+  const ov = document.getElementById('sc-overlay'), d = _scDraft; if (!ov || !d) return;
+  const det = ov.querySelector('#sc-detail'), go = ov.querySelector('#sc-go');
+  const sp = d.key ? PHB_SPELL_LIST.find(s => s.key === d.key) : null;
+  if (!sp) { det.innerHTML = '<div style="color:var(--text3)">Pick a spell above.</div>'; go.disabled = true; go.style.opacity = '.5'; return; }
+  go.disabled = false; go.style.opacity = '';
+  if (d.fixed != null) d.level = d.fixed;
+  if (d.level == null || d.level < sp.level) d.level = sp.level;
+  const levels = []; if (d.fixed == null && sp.level > 0) for (let l = sp.level; l <= 9; l++) levels.push(l);
+  const n = scrollNumbers(d.level);
+  const rar = d.level <= 1 ? 'common' : d.level <= 3 ? 'uncommon' : d.level <= 5 ? 'rare' : d.level <= 8 ? 'very rare' : 'legendary';
+  const onList = d.who ? (d.classes.length ? (sp.classes || []).some(c => d.classes.includes(String(c).toLowerCase())) : false) : _scOnMyList(sp);
+  const tooHigh = !d.who && d.level > 0 && d.level > _scMaxSlotLevel();
+  const nm = `Spell Scroll of ${sp.name} (${d.level === 0 ? 'Cantrip' : _scOrd(d.level) + ' Level'})`;
+  det.innerHTML = `
+    ${levels.length > 1 ? `<label style="display:block;margin-bottom:4px">Scroll level</label>
+      <select id="sc-level" class="info-input" style="width:100%;font-size:16px;margin-bottom:10px">${levels.map(l => `<option value="${l}" ${l === d.level ? 'selected' : ''}>${_scOrd(l)} level${l > sp.level ? ' (cast at a higher level)' : ''}</option>`).join('')}</select>` : ''}
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);line-height:1.6">
+      <div style="font-size:14px;font-weight:700;color:${(typeof RARITY_COLOURS !== 'undefined' && RARITY_COLOURS[rar]) || 'var(--text)'}">${_scE(nm)}</div>
+      <div style="color:var(--text2)">${_scE(rar)}${n.dc != null ? ` · save DC <b>${n.dc}</b> · <b>+${n.atk}</b> to hit` : ''}</div>
+      ${onList === false ? `<div style="color:var(--amber)">Not on ${d.who ? _scE(d.who) + '’s' : 'your'} class spell lists - ${d.who ? 'they' : 'you'} can’t read it without a feature that allows it.</div>` : ''}
+      ${onList !== false && tooHigh && n.checkDc ? `<div style="color:var(--amber)">Higher than you can cast: reading it needs a DC ${n.checkDc} spellcasting ability check.</div>` : ''}
+    </div>`;
+  const sel = det.querySelector('#sc-level'); if (sel) sel.onchange = e => { d.level = parseInt(e.target.value, 10); _scRenderDetail(); };
+}
+function _scConfirm() {
+  const ov = document.getElementById('sc-overlay'), d = _scDraft; if (!ov || !d || !d.key) return;
+  const sp = PHB_SPELL_LIST.find(s => s.key === d.key); if (!sp) return;
+  const level = d.fixed != null ? d.fixed : Math.max(sp.level, d.level ?? sp.level);
+  if (d.mode === 'grant') { ov.remove(); _scDraft = null; d.opts.onPick && d.opts.onPick(sp.key, level); return; }
+  if (d.mode === 'pending') {
+    try { selectScrollSpell(sp.key); setScrollLevel(level); _miPendingScrollSpellLevel = level; refreshScrollRowDisplay(); } catch (e) {}
+    try { if (typeof onMagicItemBonusChange === 'function') { const it = _miEditFormItem; const was = [it.scrollSpellKey, it.scrollSpellLevel]; it.scrollSpellKey = sp.key; it.scrollSpellLevel = level; onMagicItemBonusChange(); it.scrollSpellKey = was[0]; it.scrollSpellLevel = was[1]; } } catch (e) {}
+    ov.remove(); _scDraft = null; return;
+  }
+  const item = d.item;
+  item.scrollSpellKey = sp.key; item.scrollSpellLevel = level;
+  if (scrollFixedLevel(item) != null) item._baseName = 'Spell Scroll';
+  try { if (typeof refreshVariableItemText === 'function') refreshVariableItemText(item); } catch (e) {}
+  ov.remove(); _scDraft = null;
+  try { closeModal('mi-edit-modal'); } catch (e) {}
+  if (typeof debouncedSave === 'function') debouncedSave();
+  _scRefresh();
+  toast(`${getItemDisplayName(item)} ready`, 'ok');
+}
+
+// ── read (use) a scroll ────────────────────────────────────────────────
+function readSpellScroll(uid) {
+  if (window._previewMode) return;
+  const idx = (currentChar?.magicItems || []).findIndex(m => m._uid === uid); if (idx < 0) return;
+  const item = currentChar.magicItems[idx], i = getScrollInfo(item); if (!i) { openScrollScribe(uid); return; }
+  const lines = [`Read ${getItemDisplayName(item)}?`, '', 'Once the spell is cast, the scroll crumbles to dust.'];
+  if (i.onList === false) lines.push('', 'This spell isn’t on your class spell lists, so the scroll is unintelligible to you (unless a feature lets you use it).');
+  else if (i.tooHigh && i.checkDc) lines.push('', `It’s higher than you can normally cast: make a DC ${i.checkDc} ability check using your spellcasting ability. On a failed check, the spell disappears from the scroll with no other effect.`);
+  if (!confirm(lines.join('\n'))) return;
+  if (i.qty > 1) item.quantity = i.qty - 1;
+  else if (typeof removeMagicItem === 'function') removeMagicItem(idx);
+  else currentChar.magicItems.splice(idx, 1);
+  if (typeof debouncedSave === 'function') debouncedSave();
+  _scRefresh();
+  window._scCastNote = { key: i.spell.key, i };
+  try { closeModal('magic-item-detail-modal'); } catch (e) {}
+  openSpellDetailModal(i.spell.key, i.spell.name);
+  toast(i.qty > 1 ? `${i.spell.name} read from a scroll · ${i.qty - 1} left` : `${i.spell.name} read from the scroll · it crumbles to dust`, 'ok');
+}
+window.readSpellScroll = readSpellScroll;
+
+// ── wizards: copy the scroll's spell into the spellbook ────────────────
+// Wizard "Copying a Spell into the Book": a level 1+ Wizard spell of a level
+// you can prepare; 2 hours and 50 GP per spell level. Spell Scroll text: an
+// Intelligence (Arcana) check (DC by spell level), and whether it succeeds or
+// fails, the scroll is destroyed. The check is rolled at the table.
+function scrollCopyInfo(i) {
+  if (!i || window._previewMode) return null;
+  let wiz = false; try { wiz = getCharSpellClasses().includes('wizard'); } catch (e) {}
+  if (!wiz) return null;
+  const sp = i.spell;
+  if (!(sp.level >= 1) || !(sp.classes || []).map(c => String(c).toLowerCase()).includes('wizard')) return null;
+  const book = currentChar?.spells?.spellbook || [];
+  if (book.some(b => (typeof b === 'string' ? b : b?.key) === sp.key)) return { inBook: true };
+  const cat = getEffectiveMagicItemsCatalog().find(d => d.key === 'spell_scroll_level_' + sp.level);
+  const m = /copier must succeed on a DC (\d+) Intelligence \(Arcana\)/i.exec(String(cat?.desc || ''));
+  return { inBook: false, canPrepare: sp.level <= _scMaxSlotLevel(), dc: m ? +m[1] : null, hours: 2 * sp.level, gp: 50 * sp.level };
+}
+window.scrollCopyInfo = scrollCopyInfo;
+function _scConsume(item) {
+  const idx = (currentChar?.magicItems || []).indexOf(item); if (idx < 0) return;
+  const q = Math.max(1, parseInt(item.quantity, 10) || 1);
+  if (q > 1) item.quantity = q - 1;
+  else if (typeof removeMagicItem === 'function') removeMagicItem(idx);
+  else currentChar.magicItems.splice(idx, 1);
+}
+function _scGold() {
+  const el = document.getElementById('cur-gp');
+  const v = parseInt(el?.value ?? currentChar?.currency?.gp, 10);
+  return isNaN(v) ? 0 : v;
+}
+function openScrollCopy(uid) {
+  if (window._previewMode) return;
+  const item = (currentChar?.magicItems || []).find(m => m._uid === uid);
+  const i = getScrollInfo(item), ci = scrollCopyInfo(i); if (!ci || ci.inBook) return;
+  if (!ci.canPrepare) { toast(`You can't prepare ${_scOrd(i.spell.level)}-level spells yet, so you can't copy it`, 'warn'); return; }
+  const gold = _scGold();
+  document.getElementById('sc-copy-overlay')?.remove();
+  const ov = document.createElement('div'); ov.id = 'sc-copy-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px';
+  ov.innerHTML = `<div style="background:var(--bg2,#1d1a26);border:1px solid var(--border,#444);border-radius:10px;max-width:440px;width:100%;max-height:calc(92dvh / var(--zoom, 1));overflow-y:auto;padding:16px;color:var(--text,#ddd);font-family:var(--font-ui,sans-serif);font-size:13px;line-height:1.55">
+    <div style="font-family:var(--font-label);letter-spacing:1px;font-size:13px;margin-bottom:8px">COPY INTO YOUR SPELLBOOK</div>
+    <div style="margin-bottom:10px"><b>${_scE(i.spell.name)}</b> <span style="color:var(--text3)">· level ${i.spell.level} Wizard spell</span></div>
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);margin-bottom:10px">
+      <div>Transcription: <b>${ci.hours} hours</b> and <b>${ci.gp} GP</b>.</div>
+      ${ci.dc ? `<div>Then make a <b>DC ${ci.dc} Intelligence (Arcana)</b> check - roll it at the table.</div>` : ''}
+      <div style="color:var(--amber)">Whether the check succeeds or fails, the Spell Scroll is destroyed.</div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;color:${gold >= ci.gp ? 'var(--text2)' : 'var(--amber)'}"><input type="checkbox" id="sc-copy-pay" style="width:18px;height:18px" ${gold >= ci.gp ? 'checked' : ''}/> Take ${ci.gp} GP from my coins (you have ${gold} GP)</label>
+    <div style="color:var(--text3);margin-bottom:8px">How did the check go?</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="tbtn" id="sc-copy-ok" style="min-height:40px;flex:1;color:var(--accent);border-color:var(--accent)">Succeeded - copy it</button>
+      <button class="tbtn" id="sc-copy-fail" style="min-height:40px;flex:1;color:var(--red);border-color:var(--red)">Failed - scroll lost</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="tbtn" id="sc-copy-cancel" style="min-height:36px">Not now</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#sc-copy-cancel').onclick = () => ov.remove();
+  const finish = ok => {
+    const pay = ov.querySelector('#sc-copy-pay')?.checked;
+    ov.remove();
+    if (pay) {
+      const cur = currentChar.currency = currentChar.currency || {};
+      const left = _scGold() - ci.gp; cur.gp = left;
+      const el = document.getElementById('cur-gp'); if (el) el.value = left;
+      try { if (typeof updateHoldingsSummary === 'function') updateHoldingsSummary(); } catch (e) {}
+    }
+    if (ok) { try { addSpellToSpellbook(i.spell.key); } catch (e) {} }
+    _scConsume(item);
+    if (typeof debouncedSave === 'function') debouncedSave();
+    try { closeModal('magic-item-detail-modal'); } catch (e) {}
+    _scRefresh();
+    try { if (typeof renderSpellbookList === 'function') renderSpellbookList(); if (typeof renderKnownSpells === 'function') renderKnownSpells(); } catch (e) {}
+    toast(ok ? `${i.spell.name} copied into your spellbook${pay ? ` · ${ci.gp} GP spent` : ''} · the scroll is destroyed`
+             : `The copy failed - the scroll is destroyed${pay ? ` · ${ci.gp} GP spent` : ''}`, ok ? 'ok' : 'warn');
+  };
+  ov.querySelector('#sc-copy-ok').onclick = () => finish(true);
+  ov.querySelector('#sc-copy-fail').onclick = () => finish(false);
+}
+window.openScrollCopy = openScrollCopy;
+
+// ── shared markup ──────────────────────────────────────────────────────
+function _scRowHtml(i, opts = {}) {
+  const ro = !!window._previewMode, uid = _scJs(i.item._uid);
+  const warn = i.onList === false ? '<div style="font-size:10px;color:var(--amber)">Not on your class spell lists</div>'
+    : (i.tooHigh && i.checkDc ? `<div style="font-size:10px;color:var(--amber)">Higher than you can cast · DC ${i.checkDc} check to read</div>` : '');
+  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;${opts.first ? '' : 'border-top:1px solid var(--border)'}">
+    <div style="flex:1;min-width:0;font-family:var(--font-ui)">
+      <span onclick="openSpellDetailModal('${_scJs(i.spell.key)}','${_scJs(i.spell.name)}')" style="cursor:pointer;font-family:var(--font-body);font-size:13px;color:var(--text);text-decoration:underline dotted;text-underline-offset:3px">${_scE(i.spell.name)}</span>
+      <span style="font-size:10px;color:var(--gold);margin-left:4px">${_scLvLabel(i.level)}${i.qty > 1 ? ' · ×' + i.qty : ''}</span>
+      <div style="font-size:10px;color:var(--text3);line-height:1.5">${_scE(_scStat(i))}${i.spell.time ? ' · ' + _scE(_scTime(i.spell.time)) : ''}</div>${warn}
+    </div>
+    ${ro ? '' : (() => { const ci = scrollCopyInfo(i); return ci && !ci.inBook ? `<button class="tbtn" style="min-height:32px;${ci.canPrepare ? '' : 'opacity:.5'}" title="${ci.canPrepare ? 'Copy this spell into your spellbook' : 'You can\u2019t prepare spells of this level yet'}" onclick="openScrollCopy('${uid}')">Copy to book</button>` : ci && ci.inBook ? '<span style="font-family:var(--font-ui);font-size:10px;color:var(--text3)">in your spellbook</span>' : ''; })()}
+    ${ro ? '' : `<button class="tbtn" style="min-height:32px;color:var(--accent);border-color:var(--accent)" onclick="readSpellScroll('${uid}')">Read</button>`}
+  </div>`;
+}
+function _scRefresh() {
+  try { if (typeof renderMagicItemsPanel === 'function') renderMagicItemsPanel(); } catch (e) {}
+  try { renderScrollsSpellPanel(); } catch (e) {}
+  try { if (typeof renderQuickPlay === 'function' && document.getElementById('page-quickplay')?.classList.contains('active')) renderQuickPlay(); } catch (e) {}
+}
+// Spells tab: one panel listing every scroll the character carries
+function renderScrollsSpellPanel() {
+  const anchor = document.getElementById('sp-class-manage-bar');
+  let el = document.getElementById('sp-scrolls-panel');
+  const list = currentChar ? getScrollEntries() : [];
+  if (!anchor || !list.length) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'sp-scrolls-panel';
+    el.style.cssText = 'margin:8px 0;padding:10px 12px;border:1px solid var(--border,#444);border-radius:8px;background:var(--bg2)';
+    anchor.insertAdjacentElement('afterend', el);
+  }
+  list.sort((a, b) => a.level - b.level || a.spell.name.localeCompare(b.spell.name));
+  el.innerHTML = `<div style="font-family:var(--font-label);letter-spacing:1px;font-size:11px;margin-bottom:4px">SPELL SCROLLS <span style="color:var(--text3);letter-spacing:0;font-family:var(--font-ui)">· the scroll's own save DC and attack bonus · used up when read</span></div>`
+    + list.map((i, n) => _scRowHtml(i, { first: n === 0 })).join('');
+}
+window.renderScrollsSpellPanel = renderScrollsSpellPanel;
+
+// ── hooks ──────────────────────────────────────────────────────────────
+(function () {
+  const wrapAfter = (name, after) => {
+    const orig = window[name]; if (typeof orig !== 'function') return;
+    window[name] = function () { const r = orig.apply(this, arguments); try { after.apply(this, arguments); } catch (e) { console.warn('[spell scrolls]', name, e.message); } return r; };
+  };
+  // A new scroll without a spell, or the detail card of one: open the picker instead
+  const origDetail = window.openMagicItemDetailModal;
+  if (typeof origDetail === 'function') {
+    window.openMagicItemDetailModal = function (keyOrItem) {
+      const it = keyOrItem && typeof keyOrItem === 'object' ? keyOrItem : null;
+      if (it && it._uid && isSpellScroll(it) && !it.scrollSpellKey && !window._previewMode && (currentChar?.magicItems || []).includes(it)) { openScrollScribe(it._uid); return; }
+      const r = origDetail.apply(this, arguments);
+      try {
+        const body = document.getElementById('mi-detail-body');
+        body?.querySelectorAll('.sc-panel').forEach(n => n.remove());
+        const i = it && it._uid && (currentChar?.magicItems || []).includes(it) ? getScrollInfo(it) : null;
+        if (body && i) body.insertAdjacentHTML('afterbegin', `<div class="sc-panel" style="margin-bottom:12px;padding:8px 12px;border:1px solid var(--accent);border-radius:8px">${_scRowHtml(i, { first: true })}${window._previewMode ? '' : `<div style="margin-top:4px"><span onclick="openScrollScribe('${_scJs(it._uid)}')" style="cursor:pointer;font-family:var(--font-ui);font-size:11px;color:var(--text3);text-decoration:underline dotted">Change the spell</span></div>`}</div>`);
+      } catch (e) {}
+      return r;
+    };
+  }
+  // straight after adding a scroll: the picker, not the generic edit form
+  const origEdit = window.openMagicItemEdit;
+  if (typeof origEdit === 'function') {
+    window.openMagicItemEdit = function (idx) {
+      const it = currentChar?.magicItems?.[idx];
+      if (it && isSpellScroll(it) && !it.scrollSpellKey && !window._previewMode) { openScrollScribe(it._uid); return; }
+      return origEdit.apply(this, arguments);
+    };
+    try { openMagicItemEdit = window.openMagicItemEdit; } catch (e) {}
+  }
+  // the edit form's own Choose Spell button
+  if (typeof window.openScrollSpellPicker === 'function') {
+    window.openScrollSpellPicker = function () { openScrollScribe(null, 'pending'); };
+  }
+  wrapAfter('renderClassManageBar', function () { renderScrollsSpellPanel(); });
+  // "Spell Scroll (Level 2)" + Misty Step is named "Spell Scroll of Misty Step (2nd Level)"
+  const origRefresh = window.refreshVariableItemText;
+  if (typeof origRefresh === 'function') {
+    window.refreshVariableItemText = function (item) {
+      try { if (item && item.scrollSpellKey && scrollFixedLevel(item) != null) item._baseName = 'Spell Scroll'; } catch (e) {}
+      return origRefresh.apply(this, arguments);
+    };
+    try { refreshVariableItemText = window.refreshVariableItemText; } catch (e) {}
+  }
+  // DM grant: pick the scroll's spell first, then grant the finished scroll
+  const origGrant = window.confirmGrantItem, origAdd = window.addMagicItemToCharacter;
+  if (typeof origGrant === 'function' && typeof origAdd === 'function') {
+    window.addMagicItemToCharacter = function (char, key) {
+      const r = origAdd.apply(this, arguments);
+      const ch = window._scGrantChoice;
+      if (ch && r?.added && r.item && ch.key === key) {
+        window._scGrantChoice = null;
+        r.item.scrollSpellKey = ch.spell; r.item.scrollSpellLevel = ch.level;
+        try { refreshVariableItemText(r.item); } catch (e) {}
+      }
+      return r;
+    };
+    try { addMagicItemToCharacter = window.addMagicItemToCharacter; } catch (e) {}
+    window.confirmGrantItem = function () {
+      const def = (typeof _grantItemType !== 'undefined' && _grantItemType === 'magic') ? getEffectiveMagicItemsCatalog().find(i => i.key === _grantItemKey) : null;
+      const charId = document.getElementById('grant-item-target')?.value;
+      if (!def || !isSpellScroll(def) || !charId || window._scGrantChoice) return origGrant.apply(this, arguments);
+      const f = (typeof _allCharFiles !== 'undefined' ? _allCharFiles : []).find(x => x.id === charId);
+      const self = this, args = arguments;
+      openScrollScribe(null, 'grant', { key: def.key, name: def.name, targetName: f?.char?.charName || charId, classes: _scClassesOf(f?.char),
+        onPick: (spell, level) => {
+          window._scGrantChoice = spell ? { key: def.key, spell, level } : null;
+          Promise.resolve(origGrant.apply(self, args)).finally(() => { window._scGrantChoice = null; });
+        } });
+    };
+    try { confirmGrantItem = window.confirmGrantItem; } catch (e) {}
+  }
+  // spell card opened by Read: where it came from and whose numbers apply
+  wrapAfter('openSpellDetailModal', function (key) {
+    document.getElementById('sc-cast-note')?.remove();
+    const n = window._scCastNote; window._scCastNote = null;
+    if (!n || n.key !== key) return;
+    const body = document.getElementById('spell-detail-body'); if (!body) return;
+    const el = document.createElement('div'); el.id = 'sc-cast-note';
+    el.style.cssText = 'margin-bottom:12px;padding:8px 10px;border:1px solid var(--accent);border-radius:8px;font-family:var(--font-ui);font-size:12px;line-height:1.5';
+    el.innerHTML = `<b style="color:var(--accent);letter-spacing:1px">VIA SPELL SCROLL</b> - ${_scLvLabel(n.i.level)}${_scStat(n.i) ? ' · ' + _scE(_scStat(n.i)) + ' (the scroll’s numbers)' : ''}. No Material components. The scroll has crumbled to dust.`;
+    body.insertBefore(el, body.firstChild);
+  });
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// GOLIATH GIANT ANCESTRY COUNTER
+// One Giant Ancestry counter per chosen ancestry (subrace), named after the
+// boon and carrying only that boon's text (1:1 from the species list), so
+// Quick Play files it by its own wording: Cloud's Jaunt under Bonus Action,
+// Stone's Endurance / Storm's Thunder under Reaction, the on-hit ones under
+// other limited abilities. Same id as before, so used counts carry over.
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  if (typeof RACIAL_RESOURCES === 'undefined' || !Array.isArray(RACIAL_RESOURCES.goliath)) return;
+  const BOONS = {
+    cloud: ["Cloud's Jaunt", 'As a Bonus Action, you magically teleport up to 30 feet to an unoccupied space you can see.'],
+    fire:  ["Fire's Burn", 'When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target.'],
+    frost: ["Frost's Chill", 'When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn.'],
+    hill:  ["Hill's Tumble", 'When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition.'],
+    stone: ["Stone's Endurance", 'When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.'],
+    storm: ["Storm's Thunder", 'When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature.'],
+  };
+  const list = RACIAL_RESOURCES.goliath;
+  const i = list.findIndex(r => r.id === 'giant_trait'); if (i < 0) return;
+  const base = list[i];
+  const per = Object.entries(BOONS).map(([sub, [nm, txt]]) => ({ ...base, name: `Giant Ancestry: ${nm}`, desc: txt, subraceReq: sub }));
+  list.splice(i, 1, ...per);
 })();
 </script>
 <script>
