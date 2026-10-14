@@ -12500,7 +12500,7 @@ const SCHOOL_ABBREV = {"Evocation": "Ev", "Conjuration": "Co", "Divination": "Di
   const STYLES = ["skilled","novice","chaotic","psionic","natural","scriptural","calligraphic","dancing","constellation","pulse"];
   const STYLE_LABELS = {skilled:"Skilled", novice:"Novice", chaotic:"Chaotic", psionic:"Psionic", natural:"Natural", scriptural:"Scriptural", calligraphic:"Calligraphic", dancing:"Dancing", constellation:"Constellation", pulse:"Pulse"};
 
-  return { render, FORMATS, FORMAT_LABELS, STYLES, STYLE_LABELS };
+  return { render, generateNotation, FORMATS, FORMAT_LABELS, STYLES, STYLE_LABELS };
 })();
 
 function openSpellDetailModal(key, name, ctx) {
@@ -73446,6 +73446,7 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
   }
 
   function applySpells(list) {
+    window._sharedSpellKeys = new Set(list.map(sp => sp.key));
     PHB_SPELL_LIST.splice(0, PHB_SPELL_LIST.length, ...list);
     try { _spellDatalistPopulated = false; } catch (e) { /* not defined in this build */ }
     if (typeof injectCustomSpellsIntoCatalog === 'function') injectCustomSpellsIntoCatalog();
@@ -73476,6 +73477,152 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
     window.enterApp = function () {
       const r = _enterApp.apply(this, arguments);
       window.spellListReady.then(() => { if (typeof injectCustomSpellsIntoCatalog === 'function') injectCustomSpellsIntoCatalog(); });
+      return r;
+    };
+  }
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// PUBLISH CUSTOM SPELLS - a spell made with the Custom Spell button is added
+// to the shared spell list (spells/spells.json on the data branch, see
+// SPELL LIST FILE) as well as to the character, so every character can
+// pick it and the Obsidian sync plugin makes a note and glyph for it.
+// Happens on its own: right after the spell is saved, and again whenever a
+// character is opened, for any of its custom spells the list doesn't have
+// yet (older custom spells, or a save made while offline).
+// - The spell's glyph notation is frozen when it is published, so the
+//   glyph never changes afterwards and the vault draws the same one.
+// - A key already in the list is never overwritten: the list's copy wins,
+//   so the DM can edit a published spell in spells.json.
+// - Nothing is published from a Party Overview preview.
+// - Writes are retried when another sheet saved the list at the same time.
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  const PATH = 'spells/spells.json';
+  let _queue = Promise.resolve();
+
+  function b64ToText(b64) { return decodeURIComponent(escape(atob(String(b64 || '').replace(/\n/g, '')))); }
+  function textToB64(text) { return btoa(unescape(encodeURIComponent(text))); }
+
+  // The list and its blob sha. Files over 1 MB come back from the Contents
+  // API without their content, so those are read again as raw.
+  async function readList() {
+    let meta;
+    try {
+      meta = await GH.req('GET', `contents/${PATH}?ref=${encodeURIComponent(GH.branch)}`);
+    } catch (e) {
+      // No list on GitHub: never start one here, or a file holding only
+      // custom spells would replace the whole spell list on every sheet.
+      if (e.status === 404) throw new Error(`${PATH} is not on GitHub`);
+      throw e;
+    }
+    let text = meta.content ? b64ToText(meta.content) : '';
+    if (!text) {
+      const res = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${PATH}?ref=${encodeURIComponent(GH.branch)}`, {
+        cache: 'no-store', headers: { Authorization: `token ${await GH.pat()}`, Accept: 'application/vnd.github.raw+json' }
+      });
+      if (!res.ok) throw new Error(`GitHub ${res.status}`);
+      text = await res.text();
+    }
+    const json = JSON.parse(text);
+    if (!json || !Array.isArray(json.spells) || !json.spells.length) throw new Error(`${PATH} has no spell list`);
+    return { sha: meta.sha, json };
+  }
+
+  function entryFor(sp) {
+    const e = JSON.parse(JSON.stringify(sp));
+    if (!e.notation && typeof SpellGlyph !== 'undefined' && typeof SpellGlyph.generateNotation === 'function') {
+      try { e.notation = SpellGlyph.generateNotation(sp) || undefined; } catch (err) { /* left without one; drawn on the fly */ }
+    }
+    if (!e.source) e.source = 'Custom';
+    return e;
+  }
+
+  function validEntry(sp) {
+    return sp && typeof sp.key === 'string' && sp.key && typeof sp.name === 'string' && sp.name
+      && typeof sp.level === 'number' && sp.level >= 0 && sp.level <= 9;
+  }
+
+  async function publishNow(spells) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { sha, json } = await readList();
+      const have = new Set(json.spells.map(s => s && s.key));
+      const add = spells.filter(sp => validEntry(sp) && !have.has(sp.key)).map(entryFor);
+      if (!add.length) { if (window._sharedSpellKeys) spells.forEach(sp => sp && window._sharedSpellKeys.add(sp.key)); return []; }
+      json.format = json.format || 1;
+      json.spells = json.spells.concat(add);
+      const body = {
+        message: add.length === 1 ? `Add custom spell ${add[0].name}` : `Add ${add.length} custom spells`,
+        content: textToB64(JSON.stringify(json, null, 1)),
+        branch: GH.branch
+      };
+      if (sha) body.sha = sha;
+      try {
+        await GH.req('PUT', `contents/${PATH}`, body);
+      } catch (e) {
+        if (e.status === 409 || e.status === 422) { await new Promise(r => setTimeout(r, 600 + Math.random() * 900)); continue; }
+        throw e;
+      }
+      // The sheet's own copy gets the same frozen notation, so its glyph
+      // matches the vault's from now on.
+      if (window._sharedSpellKeys) for (const a of add) window._sharedSpellKeys.add(a.key);
+      for (const a of add) {
+        for (const sp of [...spells, ...PHB_SPELL_LIST]) if (sp && sp.key === a.key && !sp.notation && a.notation) sp.notation = a.notation;
+      }
+      return add;
+    }
+    throw new Error('the spell list kept changing while saving');
+  }
+
+  // One publish at a time from this page.
+  function publish(spells, opts) {
+    opts = opts || {};
+    const run = _queue.then(async () => {
+      if (window._previewMode || !spells || !spells.length) return [];
+      try {
+        const added = await publishNow(spells);
+        if (added.length && opts.notify && typeof toast === 'function') {
+          toast(added.length === 1 ? `"${added[0].name}" added to the shared spell list.` : `${added.length} custom spells added to the shared spell list.`, 'ok');
+        }
+        if (added.length) console.info('[custom spells] published', added.map(s => s.key));
+        return added;
+      } catch (e) {
+        console.warn('[custom spells] could not add to the shared spell list:', e.message);
+        if (opts.notify && typeof toast === 'function') toast('Saved to this character. Adding it to the shared spell list failed - it will be tried again next time this character is opened.', 'warn');
+        return [];
+      }
+    });
+    _queue = run.catch(() => {});
+    return run;
+  }
+  window.publishCustomSpells = publish;
+
+  const _saveCustomSpell = window.saveCustomSpell;
+  if (typeof _saveCustomSpell === 'function') {
+    window.saveCustomSpell = function () {
+      const before = (currentChar && currentChar.customSpells || []).length;
+      const r = _saveCustomSpell.apply(this, arguments);
+      const list = (currentChar && currentChar.customSpells) || [];
+      if (list.length > before) publish(list.slice(before), { notify: true });
+      return r;
+    };
+  }
+
+  const _enterApp = window.enterApp;
+  if (typeof _enterApp === 'function') {
+    window.enterApp = function () {
+      const r = _enterApp.apply(this, arguments);
+      const char = currentChar;
+      const ready = window.spellListReady || Promise.resolve();
+      ready.then(() => {
+        if (!char || char !== currentChar || window._previewMode) return;
+        // Only the ones the list (as loaded) doesn't have, so opening a
+        // character costs nothing once its spells are published.
+        const known = window._sharedSpellKeys;
+        const missing = (char.customSpells || []).filter(sp => !(known && known.has(sp.key)));
+        if (missing.length) publish(missing);
+      });
       return r;
     };
   }
