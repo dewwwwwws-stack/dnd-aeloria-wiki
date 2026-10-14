@@ -73405,6 +73405,84 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
+// SPELL LIST FILE - the spell catalog lives in spells/spells.json on the
+// data branch, so other tools (the Obsidian sync plugin) read the same
+// spells as the sheet. Shape: { "format": 1, "spells": [ ...entries ] },
+// each entry exactly as in PHB_SPELL_LIST. On load the file is fetched and
+// its entries replace PHB_SPELL_LIST's contents in place (the array object
+// stays the same, so every lookup keeps working). The list compiled into
+// this page stays as the fallback for when the file can't be read; if the
+// file is changed, the compiled list goes stale but nothing breaks.
+// Spell keys must never change: character saves and the "spell:<key>" DM
+// text overrides refer to them.
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  const SPELL_FILE = 'spells/spells.json';
+  window._spellListSource = 'compiled';
+
+  function validSpells(json) {
+    const list = json && Array.isArray(json.spells) ? json.spells : null;
+    if (!list || !list.length) return null;
+    const keys = new Set();
+    for (const sp of list) {
+      if (!sp || typeof sp.key !== 'string' || !sp.key || typeof sp.name !== 'string' || !sp.name) return null;
+      if (typeof sp.level !== 'number' || sp.level < 0 || sp.level > 9) return null;
+      if (keys.has(sp.key)) return null;
+      keys.add(sp.key);
+    }
+    return list;
+  }
+
+  async function fetchSpellFile() {
+    const owner = (typeof GH !== 'undefined' && GH.owner) || 'dewwwwwws-stack';
+    const repo = (typeof GH !== 'undefined' && GH.repo) || 'dnd-aeloria-wiki';
+    const branch = (typeof GH !== 'undefined' && GH.branch) || 'data';
+    // The Contents API, not raw.githubusercontent.com: the raw CDN can serve
+    // a copy minutes old. The repo is public, so no token is needed.
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${SPELL_FILE}?ref=${encodeURIComponent(branch)}`;
+    const res = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/vnd.github.raw+json' } });
+    if (!res.ok) throw new Error(`GitHub ${res.status}`);
+    return res.json();
+  }
+
+  function applySpells(list) {
+    PHB_SPELL_LIST.splice(0, PHB_SPELL_LIST.length, ...list);
+    try { _spellDatalistPopulated = false; } catch (e) { /* not defined in this build */ }
+    if (typeof injectCustomSpellsIntoCatalog === 'function') injectCustomSpellsIntoCatalog();
+    if (typeof currentChar !== 'undefined' && currentChar) {
+      for (const fn of ['renderKnownSpells', 'renderSpellBrowser']) {
+        try { if (typeof window[fn] === 'function') window[fn](); } catch (e) { console.warn('[spell list] redraw', fn, e); }
+      }
+    }
+  }
+
+  window.spellListReady = (async () => {
+    try {
+      const list = validSpells(await fetchSpellFile());
+      if (!list) throw new Error('the file has no valid spell list');
+      applySpells(list);
+      window._spellListSource = 'file';
+      console.info(`[spell list] ${list.length} spells from ${SPELL_FILE}`);
+    } catch (e) {
+      console.warn(`[spell list] using the list built into the page (${e.message})`);
+    }
+    return window._spellListSource;
+  })();
+
+  // A character's own custom spells are merged in after the file has replaced
+  // the list, so entering the app before the fetch finishes loses nothing.
+  const _enterApp = window.enterApp;
+  if (typeof _enterApp === 'function') {
+    window.enterApp = function () {
+      const r = _enterApp.apply(this, arguments);
+      window.spellListReady.then(() => { if (typeof injectCustomSpellsIntoCatalog === 'function') injectCustomSpellsIntoCatalog(); });
+      return r;
+    };
+  }
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
 // PREVIEW GUARD - read-only enforcement for Party Overview sheet previews
 // While window._previewMode is set, a capture-phase guard decides every
 // click / key / form event before any handler on the sheet can see it:
