@@ -3030,7 +3030,7 @@ body.preview-readonly #mi-detail-edit-row * {
             </div>
             <div id="ci-racial-spell-ability-row" style="display:none;margin-bottom:10px">
               <label class="field-label">Racial Spellcasting Ability <span style="font-weight:400;text-transform:none;color:var(--text3)">(chosen once, when you select this lineage - used for the DC/attack of spells granted by this racial trait)</span></label>
-              <select class="info-input" id="ci-racial-spell-ability" data-key="racialSpellAbility" style="width:100%" onchange="recalcAll()">
+              <select class="info-input" id="ci-racial-spell-ability" data-key="racialSpellAbility" style="width:100%" onchange="if (currentChar) currentChar.racialSpellAbility = this.value; recalcAll(); if (typeof debouncedSave === 'function') debouncedSave()">
                 <option value="int">Intelligence</option>
                 <option value="wis">Wisdom</option>
                 <option value="cha">Charisma</option>
@@ -4890,13 +4890,11 @@ body.preview-readonly #mi-detail-edit-row * {
   <div class="modal-box" style="max-width:320px;text-align:center">
     <div style="font-size:28px;margin-bottom:8px">🛡</div>
     <div class="modal-title" style="justify-content:center;border:none;padding-bottom:4px">Cast Mage Armor?</div>
-    <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);margin:8px 0 20px;line-height:1.5">
-      Consumes a <strong style="color:var(--accent)">1st-level spell slot</strong>.<br>
+    <div style="font-family:var(--font-body);font-size:13px;color:var(--text2);margin:8px 0 14px;line-height:1.5">
       AC becomes <strong style="color:var(--accent)">13 + DEX</strong> for 8 hours.
     </div>
-    <div style="display:flex;gap:10px;justify-content:center">
-      <button class="tbtn" style="background:var(--accent);color:#000;font-weight:700;min-width:90px"
-        onclick="confirmMageArmor()">Cast</button>
+    <div id="mage-armor-options" style="display:flex;flex-direction:column;gap:8px;align-items:stretch"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:12px">
       <button class="tbtn" style="min-width:90px"
         onclick="cancelMageArmor()">Cancel</button>
     </div>
@@ -7521,6 +7519,15 @@ function closeModal(id) {
   // wizard back to its Feats step - without this, the player lands with no modal
   // visible at all and the Quick Start flow looks like it silently ended.
   if (id === 'feat-detail-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'feats') {
+    openModal('quick-start-modal');
+    renderQuickStartStep();
+  }
+  // Skilled (and other skill-choosing feats) opens the Skill Proficiency
+  // Setup on top of the wizard's Feats step, which closes the wizard -
+  // bring it back the same way, or the player is left with no wizard and
+  // no Resume button.
+  if (id === 'skill-setup-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'feats'
+      && document.getElementById('quick-start-modal')?.classList.contains('hidden')) {
     openModal('quick-start-modal');
     renderQuickStartStep();
   }
@@ -10405,7 +10412,8 @@ let _spellDetailCtx = null;
 // with a 'slot' source, so they keep defaulting to their own base level.
 function getDefaultSlotCastLevel(sp) {
   if (!sp) return 0;
-  const isWarlockSpell = (sp.classes || []).some(c => (c || '').toLowerCase() === 'warlock');
+  const isWarlockSpell = (sp.classes || []).some(c => (c || '').toLowerCase() === 'warlock')
+    || (typeof getSubclassBonusSpells === 'function' && getSubclassBonusSpells().some(x => x.key === sp.key && (getAllClasses().find(e => e.subclass === x.subclass)?.class || '').toLowerCase() === 'warlock'));
   const charIsWarlock = currentChar && (currentChar.classes?.length
     ? currentChar.classes.some(c => (c.class || '').toLowerCase() === 'warlock')
     : (currentChar.class || '').toLowerCase() === 'warlock');
@@ -10416,6 +10424,24 @@ function getDefaultSlotCastLevel(sp) {
   return sp.level || 0;
 }
 window.getDefaultSlotCastLevel = getDefaultSlotCastLevel;
+
+// The level a known/prepared spell row is cast at when it uses a spell
+// slot: a Warlock's Pact Magic slots are all one level, so a Warlock spell
+// is cast at that level. Rows that don't use a slot (rituals from the Book
+// of Shadows, invocation, species, feat and item castings, cantrips) keep
+// their own level. Returns 0 when nothing changes.
+function getPactCastLevel(row, sp) {
+  if (!row || !sp || !sp.level) return 0;
+  if (['ritual-only', 'feat-spell', 'item-spell', 'subclass-locked', 'locked-level'].includes(row.pipType)) return 0;
+  if (['invocation', 'race', 'feat', 'item', 'pact_tome_ritual'].includes(row.source)) return 0;
+  let owner = null;
+  try { const m = typeof resolveSpellRowClasses === 'function' ? resolveSpellRowClasses([row]) : null; owner = m && m.get ? (m.get(row.key) || m.get(row)) : null; } catch (e) {}
+  if (row.source === 'subclass') owner = (getAllClasses().find(e => (e.subclass || '').toLowerCase() === String(row.subclass || row.label || '').replace(/\s*\(.*\)$/, '').toLowerCase())?.class || owner || '').toLowerCase();
+  if (owner && String(owner).toLowerCase() !== 'warlock') return 0;
+  const lv = getDefaultSlotCastLevel(sp);
+  return lv > sp.level ? lv : 0;
+}
+window.getPactCastLevel = getPactCastLevel;
 
 // Lowest level an item casts a granted spell at, and the highest it can
 // reach by spending extra charges. Missing fields mean the rules default:
@@ -15873,7 +15899,7 @@ const PHB_CLASS_RESOURCES     = {
     }
   ],
   "artificer": [{"id":"flash_of_genius","name":"Flash of Genius","maxFormula":"Math.max(1,int_mod)","recovery":"long rest","minLevel":7},{"id":"replicated_items","name":"Replicated Items","featureName":"Replicate Magic Item","maxFormula":"level>=18?6:level>=14?5:level>=10?4:level>=6?3:2","recovery":"long rest","minLevel":2}],
-  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","featureName":"Psionic Power","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","dieFormula":"level<5?'4d6':level<9?'6d8':level<13?'8d'+( level<11?'8':'10'):level<17?'10d10':'12d12'","recovery":"short rest"},{"id":"psionic_restoration","name":"Psionic Restoration","type":"activate-recovery","recoveryAction":"restorePsionicDice","desc":"Meditate for 1 minute. At the end of it, regain all expended Psionic Energy Dice. Once you use this feature, you can't do so again until you finish a Long Rest.","_max":1,"recovery":"long rest","minLevel":5}]
+  "psion": [{"id":"psionic_energy_dice","name":"Psionic Energy Dice","featureName":"Psionic Power","maxFormula":"level<5?4:level<9?6:level<13?8:level<17?10:12","dieFormula":"level<5?'4d6':level<9?'6d8':level<13?'8d'+( level<11?'8':'10'):level<17?'10d10':'12d12'","recovery":"long rest","partialShortRest":true},{"id":"psionic_restoration","name":"Psionic Restoration","type":"activate-recovery","recoveryAction":"restorePsionicDice","desc":"Meditate for 1 minute. At the end of it, regain all expended Psionic Energy Dice. Once you use this feature, you can't do so again until you finish a Long Rest.","_max":1,"recovery":"long rest","minLevel":5}]
 };
 const PHB_SUBCLASS_RESOURCES = {
   "barbarian/berserker": [
@@ -29073,6 +29099,7 @@ function onMageArmorToggle(checked) {
     renderActiveEffects();
     renderACMethods();
     autoSave();
+    _mageArmorRefresh();
     return;
   }
 
@@ -29083,27 +29110,13 @@ function onMageArmorToggle(checked) {
   if (isAtWill) {
     // At-will: no slot needed, no confirmation
     _doActivateMageArmor(false);
+    _mageArmorRefresh();
     return;
   }
 
-  // Feat-granted (Magic Initiate, or anything else that works the same
-  // way): cast once free without a slot, tracked as the feat_spell_*
-  // resource the tracker auto-generates - only fall through to spending
-  // an actual spell slot once that free use is already spent.
-  if (typeof getFeatGrantedSpells === 'function' && getFeatGrantedSpells().some(s => s.key === 'mage_armor')) {
-    if (!currentChar.resources) currentChar.resources = {};
-    const resId = 'feat_spell_mage_armor';
-    const used = parseInt(currentChar.resources[resId]) || 0;
-    if (used < 1) {
-      currentChar.resources[resId] = used + 1;
-      _doActivateMageArmor(false);
-      if (typeof renderResourceTracker === 'function') renderResourceTracker();
-      return;
-    }
-    // Free use already spent this Long Rest - fall through to the normal
-    // slot-consuming flow below, since the spell can still be cast
-    // normally with an actual slot.
-  }
+  // Free castings (Magic Initiate and other feats, species spells): offered
+  // as a choice alongside a spell slot, never used up without asking.
+  const free = _mageArmorFreeCasts();
 
   // Verify a slot is available before showing modal
   ensureSpellData();
@@ -29115,26 +29128,75 @@ function onMageArmorToggle(checked) {
   const total1 = (currentChar.spell_slot_overrides?.['override_1'] !== undefined)
     ? currentChar.spell_slot_overrides['override_1']
     : (slots[0] || 0);
-  const hasFreeSlot = Array.from({length: total1}, (_, i) => i)
-    .some(i => !currentChar.spell_slots_used[`slot_1_${i}`]);
+  const slotsLeft = Array.from({length: total1}, (_, i) => i)
+    .filter(i => !currentChar.spell_slots_used[`slot_1_${i}`]).length;
 
-  if (!hasFreeSlot) {
-    toast('No 1st-level slots remaining to cast Mage Armor', 'warn');
+  if (!slotsLeft && !free.length) {
+    toast('No free casting or 1st-level slot left to cast Mage Armor', 'warn');
     const chk = document.getElementById('ci-mage-armor');
     if (chk) chk.checked = false;
+    _mageArmorRefresh();
     return;
   }
 
   // Revert checkbox until confirmed
   const chk = document.getElementById('ci-mage-armor');
   if (chk) chk.checked = false;
+  const opts = document.getElementById('mage-armor-options');
+  if (opts) {
+    const esc = v => String(v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    opts.innerHTML = free.map(f => `<button class="tbtn" style="background:var(--accent);color:var(--on-accent,#000);font-weight:700;justify-content:center"
+        onclick="confirmMageArmor('free','${esc(f.id)}')">Free casting: ${esc(f.source)} <span style="font-weight:400">(${f.left} left)</span></button>`).join('')
+      + (slotsLeft ? `<button class="tbtn" style="${free.length ? '' : 'background:var(--accent);color:var(--on-accent,#000);font-weight:700;'}justify-content:center"
+        onclick="confirmMageArmor('slot')">Use a 1st-level spell slot <span style="font-weight:400">(${slotsLeft} left)</span></button>` : '');
+  }
   openModal('mage-armor-confirm-modal');
 }
 window.onMageArmorToggle = onMageArmorToggle;
 
-function confirmMageArmor() {
+// Uses of Mage Armor without a spell slot that are left: the feat_spell_ /
+// racial_spell_ counters the resource tracker builds for granted spells.
+function _mageArmorFreeCasts() {
+  const out = [];
+  try {
+    if (typeof renderResourceTracker === 'function') renderResourceTracker();
+    const res = currentChar.resources || {};
+    (buildAllResourceDefs() || []).forEach(def => {
+      if (!/^(feat_spell|racial_spell_.*)_mage_armor$/.test(def.id || '') && def.id !== 'feat_spell_mage_armor') return;
+      const row = (window._pdfResourceRows || []).find(r => r.id === def.id);
+      const max = row ? row.max : 1, used = parseInt(res[def.id]) || 0;
+      if (max - used <= 0) return;
+      let source = 'Species';
+      if (def.id.startsWith('feat_spell')) {
+        const fs = currentChar.spells?.featSpells || {}, names = currentChar.spells?.featSpellNames || {};
+        const k = Object.keys(fs).find(k => (fs[k] || []).includes('mage_armor'));
+        source = (k && names[k]) || 'Feat';
+      } else {
+        const rd = typeof getRaceData === 'function' ? getRaceData(currentChar.race) : null;
+        if (rd?.name) source = rd.name.replace(/\s*\([^)]*\)\s*$/, '');
+      }
+      out.push({ id: def.id, source, left: max - used });
+    });
+  } catch (e) { console.warn('[mage armor] free castings', e); }
+  return out;
+}
+
+// Quick Play shows the Mage Armor button too: redraw it once the choice is made
+function _mageArmorRefresh() {
+  try { if (document.getElementById('page-quickplay')?.classList.contains('active') && typeof renderQuickPlay === 'function') renderQuickPlay(); } catch (e) {}
+}
+
+function confirmMageArmor(kind, resId) {
   closeModal('mage-armor-confirm-modal');
-  _doActivateMageArmor(true);
+  if (kind === 'free' && resId) {
+    if (!currentChar.resources) currentChar.resources = {};
+    currentChar.resources[resId] = (parseInt(currentChar.resources[resId]) || 0) + 1;
+    _doActivateMageArmor(false);
+    if (typeof renderResourceTracker === 'function') renderResourceTracker();
+  } else {
+    _doActivateMageArmor(true);
+  }
+  _mageArmorRefresh();
 }
 window.confirmMageArmor = confirmMageArmor;
 
@@ -29142,6 +29204,7 @@ function cancelMageArmor() {
   closeModal('mage-armor-confirm-modal');
   const chk = document.getElementById('ci-mage-armor');
   if (chk) chk.checked = false;
+  _mageArmorRefresh();
 }
 window.cancelMageArmor = cancelMageArmor;
 
@@ -32579,9 +32642,29 @@ function getSpellAbility() {
   return CLASS_SPELL_ABILITY[cls] || null;
 }
 
+// A subclass of a class with no Spellcasting feature that grants a spell
+// names the ability for it in its own text - Warrior of Shadow's Shadowy
+// Figments: "Wisdom is your spellcasting ability for this spell."
+function getSubclassSpellAbility() {
+  if (!currentChar || typeof getAllClasses !== 'function') return null;
+  const AB = { intelligence: 'int', wisdom: 'wis', charisma: 'cha' };
+  for (const e of getAllClasses()) {
+    const key = e.subclass && typeof getSubclassKey === 'function' ? getSubclassKey(e.class, e.subclass) : null;
+    const lv = getClassLevelCount((e.class || '').toLowerCase().trim()) || 0;
+    for (const f of (key && PHB_SUBCLASSES[key]?.features) || []) {
+      if ((f.level || 0) > lv) continue;
+      const m = /\b(Intelligence|Wisdom|Charisma) is your spellcasting ability\b/i.exec(f.desc || '');
+      if (m) return AB[m[1].toLowerCase()];
+    }
+  }
+  return null;
+}
+window.getSubclassSpellAbility = getSubclassSpellAbility;
+
 function calcSpellStats() {
   if (!currentChar) return { ability:null, dc:0, atk:0, prepLimit:null };
   let ability   = getSpellAbility();
+  if (!ability) ability = getSubclassSpellAbility();
   const abs     = getAbilities();
   const prof    = getProf();
   const level   = getLevel();
@@ -34216,11 +34299,57 @@ function getSubclassBonusSpells() {
   getAllClasses().forEach(entry => {
     const cls = entry.class?.toLowerCase();
     const sub = entry.subclass || '';
-    if (!sub || entry.levels?.length < 3) return;
+    if (!sub) return;
     const subKey = getSubclassKey(cls, sub);
     // PHB_SUBCLASSES may use compound key 'class/subkey' OR plain 'subkey'
     const subData = (subKey ? PHB_SUBCLASSES[subKey] : null)
                  || (subKey ? PHB_SUBCLASSES[subKey.split('/')[1]] : null);
+    // The Genie (a 1st-level patron): its Genie Expanded Spells - the shared
+    // spell plus the one for the chosen genie kind at each spell level - are
+    // listed like any other subclass's always-prepared spells, each one
+    // available from the Warlock level that can cast its spell level
+    // (1st: 1, 2nd: 3, 3rd: 5, 4th: 7, 5th: 9) and shown locked until then.
+    if (subData?.genieExpandedSpells) {
+      const charLv = entry.levels?.length ?? 0;
+      const chosen = (currentChar.class_choices?.genie_kind || '').toLowerCase();
+      const kind = ['dao', 'djinni', 'efreeti', 'marid'].find(k => chosen.includes(k)) || null;
+      Object.entries(subData.genieExpandedSpells).forEach(([lvlStr, row]) => {
+        const spLevel = parseInt(lvlStr, 10) || 1;
+        [row?.shared, kind ? row?.[kind] : null].filter(Boolean).forEach(nm => {
+          const phb = PHB_SPELL_LIST.find(s => s.name.toLowerCase() === String(nm).toLowerCase())
+                   || PHB_SPELL_LIST.find(s => s.key === String(nm).toLowerCase().replace(/[^a-z0-9]+/g, '_'));
+          if (!phb) return;
+          const minClassLv = spLevel * 2 - 1;
+          result.push({ key: phb.key, name: phb.name, level: phb.level, source: 'subclass', subclass: sub,
+                        minClassLevel: minClassLv, available: charLv >= minClassLv });
+        });
+      });
+      return;
+    }
+    // Other 1st-level patrons with an "Expanded Spell List" (The Undying,
+    // The Fathomless): the same treatment, read from the feature's own
+    // "| 1st Level. spell, spell | 2nd Level. ..." text.
+    const _exp = cls === 'warlock' && (subData?.features || []).find(f => f.level === 1 && /^expanded spell list$/i.test(f.name || ''));
+    if (_exp) {
+      const charLv = entry.levels?.length ?? 0;
+      const seen = new Set();
+      for (const m of String(_exp.desc || '').matchAll(/\|\s*(\d)(?:st|nd|rd|th) Level\.\s*([^|]+)/g)) {
+        const spLevel = parseInt(m[1], 10);
+        m[2].split(',').map(x => x.replace(/\([^)]*\)/g, '').trim()).filter(Boolean).forEach(nm => {
+          const lc = nm.toLowerCase();
+          const phb = PHB_SPELL_LIST.find(s => s.name.toLowerCase() === lc)
+                   || PHB_SPELL_LIST.find(s => s.key === lc.replace(/[^a-z0-9]+/g, '_'))
+                   || PHB_SPELL_LIST.find(s => s.key === lc.replace(/^\w+'s\s+/, '').replace(/[^a-z0-9]+/g, '_'));
+          if (!phb || seen.has(phb.key)) return;
+          seen.add(phb.key);
+          const minClassLv = spLevel * 2 - 1;
+          result.push({ key: phb.key, name: phb.name, level: phb.level, source: 'subclass', subclass: sub,
+                        minClassLevel: minClassLv, available: charLv >= minClassLv });
+        });
+      }
+      return;
+    }
+    if (entry.levels?.length < 3) return;
     if (!subData?.bonusSpells?.length && !subData?.bonusSpellsByChoice) return;
     const clsData   = PHB_CLASSES[cls];
     const castType  = clsData?.spellcasting?.type || 'full';
@@ -51203,7 +51332,7 @@ function applyChoiceEffects() {
   currentChar._autoExpert.forEach(k => { delete currentChar.skill_expert[k]; });
   currentChar._autoExpert = [];
 
-  const expertChoiceIds = ['expertise_1','expertise_2','expertise_rogue_1','expertise_rogue_2','scholar_expertise'];
+  const expertChoiceIds = ['expertise_1','expertise_2','expertise_rogue_1','expertise_rogue_2','scholar_expertise','ranger_expertise_1','ranger_expertise_2'];
   for (const eid of expertChoiceIds) {
     const selected = choices[eid];
     if (!Array.isArray(selected)) continue;
@@ -51216,6 +51345,26 @@ function applyChoiceEffects() {
       }
     }
   }
+
+  // ── Saving throw proficiency from a subclass feature ─────
+  // Gloom Stalker's Iron Mind (Ranger 7): "You gain proficiency in Wisdom
+  // saving throws. If you already have this proficiency, you instead gain
+  // proficiency in Intelligence or Charisma saving throws (your choice)."
+  // Only the Wisdom case is automatic; the either/or case is left to the
+  // save's own proficiency toggle.
+  if (!currentChar.save_profs) currentChar.save_profs = {};
+  (currentChar._autoSubclassSaves || []).forEach(k => {
+    if (!(currentChar._classSaves || []).includes(k)) delete currentChar.save_profs[k];
+  });
+  currentChar._autoSubclassSaves = [];
+  try {
+    const _gloom = (typeof getAllClasses === 'function' ? getAllClasses() : []).some(e =>
+      (e.class || '').toLowerCase().trim() === 'ranger' && /gloom stalker/i.test(e.subclass || ''));
+    if (_gloom && (getClassLevelCount('ranger') || 0) >= 7 && !currentChar.save_profs.wis) {
+      currentChar.save_profs.wis = true;
+      currentChar._autoSubclassSaves.push('wis');
+    }
+  } catch (e) {}
 
 
   // ── Skill profs from Divine Order Thaumaturge ────────────
@@ -51899,7 +52048,7 @@ function renderResourceTracker() {
   try {   // what the tracker shows, for the PDF export's Limited Features block
     window._pdfResourceRows = visibleDefs.map(def => {
       const eff = def._resClass ? getClassLevelCount(def._resClass) : level;
-      return { id: def.id, name: def.name, max: getResourceMax(def, eff, prof), recovery: def.recovery, type: def.type,
+      return { id: def.id, name: def.name, max: getResourceMax(def, eff, prof), recovery: def.recovery, partial: !!def.partialShortRest, type: def.type,
         used: def.linkedField ? (parseInt(currentChar[def.linkedField]) || 0) : (parseInt(currentChar.resources[def.id]) || 0) };
     });
   } catch (err) { window._pdfResourceRows = null; }
@@ -54549,7 +54698,8 @@ function lookupBackgroundEquipmentItem(name) {
   if (gear) return { type: 'gear', key: gear.key || null, weight: gear.weight || '', desc: gear.desc || '' };
   const weapon = PHB_WEAPONS.find(w => nameMatches(w.name));
   if (weapon) return { type: 'weapon', key: weapon.key, weight: weapon.weight || '', desc: weapon.type ? `${weapon.type}${weapon.list ? ' · ' + weapon.list : ''}` : '' };
-  const armour = PHB_ARMOUR.find(a => nameMatches(a.name));
+  const armour = PHB_ARMOUR.find(a => nameMatches(a.name))
+    || (/\s+armou?r$/i.test(baseName) ? PHB_ARMOUR.find(a => a.name.toLowerCase() === lower.replace(/\s+armou?r$/, '')) : null);
   if (armour) return { type: 'armor', key: armour.key, weight: armour.weight || '', desc: armour.type || (armour.baseAC ? `AC ${armour.baseAC}` : '') };
   return null;
 }
@@ -54586,6 +54736,14 @@ function _pushResolvedStartingEquipment(cleanName, resolvedQty, catalogMatch, fl
       weight: catalogMatch.weight || null, notes: null, worn: false,
       [flagKey]: true,
     });
+    // Starting armour goes on when nothing of its kind (body armour, or a
+    // shield) is worn yet, so a new character's AC counts it straight away.
+    const _isShield = (PHB_ARMOUR.find(a => a.key === catalogMatch.key)?.type === 'shield');
+    const _sameKindWorn = currentChar.armorOwned.some(a => a.worn && ((PHB_ARMOUR.find(x => x.key === a.key)?.type === 'shield') === _isShield));
+    if (!_sameKindWorn && typeof applyArmorWornState === 'function') {
+      applyArmorWornState(currentChar.armorOwned.length - 1);
+      if (typeof recalcAll === 'function') { try { recalcAll(); } catch (e) {} }
+    }
     return;
   }
   if (!currentChar.equipment) currentChar.equipment = [];
@@ -54604,7 +54762,15 @@ function _removeResolvedStartingEquipment(cleanName, resolvedQty, flagKey) {
   const wIdx = (currentChar.weapons || []).findIndex(w => w[flagKey] && w.name === cleanName && w.qty === resolvedQty);
   if (wIdx !== -1) { currentChar.weapons.splice(wIdx, 1); return; }
   const aIdx = (currentChar.armorOwned || []).findIndex(a => a[flagKey] && a.name === cleanName);
-  if (aIdx !== -1) { currentChar.armorOwned.splice(aIdx, 1); return; }
+  if (aIdx !== -1) {
+    const a = currentChar.armorOwned[aIdx];
+    if (a.worn) {
+      if (PHB_ARMOUR.find(x => x.key === a.key)?.type === 'shield') currentChar.shield = false;
+      else if (currentChar.ac_armor_key === a.key) currentChar.ac_armor_key = '';
+    }
+    currentChar.armorOwned.splice(aIdx, 1);
+    return;
+  }
   const eIdx = (currentChar.equipment || []).findIndex(e => e[flagKey] && e.name === cleanName && e.qty === resolvedQty);
   if (eIdx !== -1) currentChar.equipment.splice(eIdx, 1);
 }
@@ -56636,10 +56802,11 @@ function openFeatSpellPicker(slotId, featName, spellFeat) {
     // Override the apply button to continue to pass 2
     const _origApply = applyMagicalSecrets;
     window._featSpellApplyOverride = function() {
-      // Store cantrips
-      ensureSpellData();
-      if (!currentChar.spells.featSpells) currentChar.spells.featSpells = {};
-      currentChar.spells.featSpells[featKey + '_cantrips'] = [..._msDraft];
+      // Keep the cantrips in this closure until pass 2 is saved. They used
+      // to sit in a 'feat_<slot>_cantrips' key, but ensureSpellData() -
+      // which runs as soon as pass 2 opens - deletes every such key as a
+      // left-over temp key, so the cantrips were lost.
+      const pickedCantrips = [..._msDraft];
       closeModal('magical-secrets-modal');
       // Now open spell picker
       const levelFilter = spellFeat.spellLevel
@@ -56658,7 +56825,7 @@ function openFeatSpellPicker(slotId, featName, spellFeat) {
       window._featSpellApplyOverride = function() {
         ensureSpellData();
         if (!currentChar.spells.featSpells) currentChar.spells.featSpells = {};
-        const cantrips = currentChar.spells.featSpells[featKey + '_cantrips'] || [];
+        const cantrips = pickedCantrips;
         currentChar.spells.featSpells[featKey] = [...cantrips, ..._msDraft];
         // Clean up temp keys
         delete currentChar.spells.featSpells[featKey + '_cantrips'];
@@ -58302,7 +58469,7 @@ function renderSkillSetupBody() {
       const chosenRace = _skillSetupState.raceSkill || '';
       html += `
         <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-          <div class="choice-label">${race.charAt(0).toUpperCase()+race.slice(1)} Skill - choose ${racePools.count}</div>
+          <div class="choice-label">${((typeof getRaceData === 'function' && getRaceData(race)?.name) || (race.charAt(0).toUpperCase()+race.slice(1))).replace(/\s*\([^)]*\)\s*$/, '')} Skill - choose ${racePools.count}</div>
           <select class="choice-select" onchange="_skillSetupState.raceSkill=this.value">
             <option value="">- Choose skill -</option>
             ${pool.map(sk=>`<option value="${sk}" ${chosenRace===sk?'selected':''}>${sk}</option>`).join('')}
@@ -62969,6 +63136,9 @@ function quickStartNext() {
     if (!player) { toast('Player name is required.', 'info'); return; }
     currentChar.charName = name;
     currentChar.playerName = player;
+    // the Name box on the Main sheet is copied back into the character on
+    // every save, so it has to show the new name too or the save undoes it
+    const _nameEl = document.getElementById('ci-name'); if (_nameEl) _nameEl.value = name;
     updateCharSummary();
     debouncedSave();
   } else if (stepId === 'level') {
@@ -67162,6 +67332,10 @@ window.renderWishStressBanner = renderWishStressBanner;
 // ═══════════════════════════════════════════════════════════════════════
 const _qpE = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const _qpSign = n => (n >= 0 ? '+' : '') + n;
+// "back on a Short Rest" etc. for a counter; some get only one use back on a Short Rest
+const _qpRecText = r => { const rec = String(r?.recovery || '').toLowerCase();
+  return r?.partial && /long/.test(rec) ? ' \u00b7 one back on a Short Rest, all on a Long Rest'
+    : /short/.test(rec) ? ' \u00b7 back on a Short Rest' : /long/.test(rec) ? ' \u00b7 back on a Long Rest' : ''; };
 let _qp = { sneak: true, cunning: 0, spOpen: {}, up: {} };
 
 function _qpLevelOf(cls) { return (currentChar?.classes || []).filter(c => String(c.class).toLowerCase() === cls).reduce((n, c) => n + (c.levels?.length || 0), 0); }
@@ -67212,7 +67386,14 @@ function _qpBuild() {
     const rr = (r._resourceId && res[r._resourceId]) || res['name:' + String(r.name || s.name).toLowerCase()];
     const castLv = typeof getFeatSpellFreeCastLevel === 'function' ? getFeatSpellFreeCastLevel(r, s) : (r.level ?? s.level ?? 0);
     return { key: r.key, name: s.name || r.name, level: castLv, baseLevel: (s.level ?? r.level ?? 0), ritualOnly: r.pipType === 'ritual-only', upcast: castLv > (s.level ?? r.level ?? 0), desc: s.desc || '', source: r.label || '', bucket, res: rr && rr.type !== 'display' ? rr : null, conc: /conc/i.test(s.duration || ''),
-      stat: _qpSpellStat(r, (_qpRowOwner && typeof _qpRowOwner.get === 'function') ? (_qpRowOwner.get(r.key) || _qpRowOwner.get(r)) : null), freeOnly: (r.source === 'race' || r.source === 'feat' || r.pipType === 'feat-spell') };
+      stat: _qpSpellStat(r, (_qpRowOwner && typeof _qpRowOwner.get === 'function') ? (_qpRowOwner.get(r.key) || _qpRowOwner.get(r)) : null), freeOnly: (r.source === 'race' || r.source === 'feat' || r.pipType === 'feat-spell'),
+      pact: (castLv === (s.level ?? 0) && typeof getPactCastLevel === 'function') ? getPactCastLevel(r, s) : 0 };
+  });
+  spells.forEach(sp => {
+    if (!sp.source) return;
+    const ft = _qpFeature(sp.source) || ((window._pdfFeatureEntries || []).find(f => String(f.name).toLowerCase().startsWith(String(sp.source).toLowerCase()))?.text || '');
+    const m = /\bexpend (\d+|one|two|three) ([A-Za-z ]+?) to cast (?:the )?([A-Z][A-Za-z' ]+?) spell/i.exec(typeof pdfPlain === 'function' ? pdfPlain(ft) : ft);
+    if (m && m[3].toLowerCase() === String(sp.name).toLowerCase()) sp.source += ` \u00b7 costs ${m[1]} ${m[2]}`;
   });
   // Spells stored in a Ring of Spell Storing / Vancian Helm: listed with the
   // other spells of the same casting time, at the stored slot level, with
@@ -67235,7 +67416,13 @@ function _qpBuild() {
       upcast: i.level > i.spell.level, desc: i.spell.desc || '', source: 'Spell Scroll' + (i.qty > 1 ? ' \u00d7' + i.qty : ''), bucket, res: null, conc: /conc/i.test(i.spell.duration || ''), scroll: { uid: i.item._uid } });
   });
   const abs = getAbilities();
-  return { c, rogue, fighter, champion, critMin, sneakDice, piercer, elvenAcc, twf, res, weapons, spells, abs,
+  // Evasion: Rogue 7, Monk 7, or any feature of that name the character has
+  const evasion = rogue >= 7 || (window._pdfFeatureEntries || []).some(f => String(f.name).toLowerCase() === 'evasion');
+  // Thirsting Blade is the only source of a second attack: it works with the pact weapon only
+  let pactOnlyExtra = false;
+  try { pactOnlyExtra = !(window._pdfFeatureEntries || []).some(f => /^extra attack$/i.test(f.name))
+    && (typeof parseInvocations === 'function' ? parseInvocations() : []).some(e => e.name === 'Thirsting Blade'); } catch (e) {}
+  return { c, rogue, fighter, champion, critMin, sneakDice, piercer, elvenAcc, twf, res, weapons, spells, abs, evasion, pactOnlyExtra,
     attacksPer: 1 + (parseInt(c._extraAttacks, 10) || 0),
     slots: typeof computeSpellSlotsForChar === 'function' ? computeSpellSlotsForChar(c) : { levels: [] },
     prof: getProf(), cunningDC: 8 + getProf() + abilityMod(abs.dex), strikeFear: rogue >= 9 && /scion/.test(_qpSub('rogue')) };
@@ -67354,6 +67541,12 @@ function _qpSpellMath(sp, charLevel, castLevel) {
     if (beams.length) { const words = { two: 2, three: 3, four: 4 }; let n = 1, noun = beams[0][2];
       beams.forEach(m => { if (charLevel >= parseInt(m[3], 10)) n = Math.max(n, words[m[1].toLowerCase()]); });
       if (n > 1) out.count = { n, noun }; }
+    else if (/die increases to \d+d\d+ at level \d+/i.test(tail)) {
+      // "The extra damage die increases to 1d8 at level 5, 1d10 at level 11, and 1d12 at level 17" (Hunter's Mark, house rule)
+      let best = null;
+      for (const m of tail.matchAll(/(\d+)d(\d+) at level (\d+)/gi)) if (charLevel >= parseInt(m[3], 10)) best = m;
+      if (best && out.dmg[0]) { out.dmg[0].n = parseInt(best[1], 10); out.dmg[0].die = parseInt(best[2], 10); }
+    }
     else if (steps && /damage increases by/i.test(tail)) {
       const inc = /increases by (\d+)d(\d+)/i.exec(tail);
       out.dmg.forEach(d => { if (!inc || parseInt(inc[2], 10) === d.die || /one die/i.test(tail)) d.n += (inc ? parseInt(inc[1], 10) : 1) * steps; });
@@ -67383,11 +67576,21 @@ function _qpSpellMathHtml(key, castLevel) {
   const lvl = castLevel || s.level || sp.level || 0;
   const m = _qpSpellMath(sp, (typeof getLevel === 'function' ? getLevel() : 1), lvl); if (!m) return '';
   const st = s.stat || {}, bits = [];
+  // Warlock invocations that change a chosen cantrip (Agonizing Blast: + CHA to its damage; Repelling Blast: push)
+  let _push = '';
+  if (!sp.level && typeof parseInvocations === 'function') {
+    try {
+      const inv = parseInvocations().filter(e => e.cantrip === key);
+      if (inv.some(e => e.name === 'Agonizing Blast')) { const cha = abilityMod(getAbilities().cha ?? 10); m.dmg.forEach(d => { d.flat += cha; }); }
+      if (inv.some(e => e.name === 'Repelling Blast')) _push = 'push up to 10 ft';
+    } catch (e) {}
+  }
   if (m.attack) bits.push(`<b>${st.atk != null ? _qpSign(st.atk) + ' to hit' : 'spell attack'}</b>`);
   if (m.save) bits.push(`<b>${st.dc != null ? 'DC ' + st.dc + ' ' : ''}${m.save} save</b>`);
-  const dice = d => `${d.n}d${d.die}${d.flat ? '+' + d.flat : ''}${d.type ? ' ' + d.type : ''}`;
+  const dice = d => `${d.n}d${d.die}${d.flat ? _qpSign(d.flat) : ''}${d.type ? ' ' + d.type : ''}`;
   if (m.dmg.length) bits.push(`<b>${m.count ? m.count.n + ' ' + _qpE(m.count.noun) + ' \u00d7 ' : ''}${m.dmg.map(dice).join(' / ')}</b> damage${m.half && m.save ? ' (half on a save)' : ''}`);
   else if (m.count) bits.push(`<b>${m.count.n} ${_qpE(m.count.noun)}</b>`);
+  if (_push) bits.push(_push);
   if (m.heal) { const mod = st.ab && typeof getAbilities === 'function' ? abilityMod(getAbilities()[st.ab] ?? 10) : null;
     bits.push(`heals <b>${m.heal.n}d${m.heal.die}${m.heal.mod ? (mod != null ? (mod ? (mod > 0 ? '+' : '') + mod : '') : ' + modifier') : ''}</b>`); }
   return bits.join(' \u00b7 ');
@@ -67489,8 +67692,8 @@ function _qpCheckExtras(Q) {
       const v = parseInt((document.getElementById('skill-val-' + sk.key)?.innerText || '').replace('\u2212', '-'), 10);
       if (p && !isNaN(v)) add(sk.key, { min: 10 + v });
     });
-    out.saves.dex = { ...(out.saves.dex || {}), tag: 'Evasion' };
   }
+  if (Q.evasion) out.saves.dex = { ...(out.saves.dex || {}), tag: 'Evasion' };
   return out;
 }
 window._qpCheckExtras = _qpCheckExtras;
@@ -67532,10 +67735,29 @@ function qpRest(kind) {
 window.qpRest = qpRest;
 // The same pipeline the spell pop-up uses - DM text overrides, cantrip and
 // upcast numbers worked out and highlighted, glossary links, tables.
+// A paragraph's own heading ("Cantrip Upgrade.", "Sound.", "Using a
+// Higher-Level Spell Slot.") is marked before the text pipeline runs and
+// turned into a bold lead-in afterwards; paragraphs become blocks and
+// "- "/"\u2022 " lines become a list.
+const _SPX_LEAD = /^((?:[A-Z][A-Za-z'\u2019-]*)(?: (?:[A-Z][A-Za-z'\u2019-]*|of|the|a|an|and|or|to|in|on|with|for|from|vs\.?)){0,6}\.)(?= [A-Z0-9"(])/;
+function _spxMarkLeads(raw) {
+  // some catalogue text lost the space between sentences ("an action.You can")
+  return String(raw || '').replace(/\r\n?/g, '\n').replace(/([a-z]{2}[.!?])([A-Z][a-z])/g, '$1 $2').split(/\n{2,}/).map(p => p.replace(_SPX_LEAD, '\u0001$1\u0002')).join('\n\n');
+}
+function _spxBlocks(html) {
+  const lead = h => h.replace(/\u0001([\s\S]*?)\u0002/g, (m, t) => `<b class="spx-lead">${t.replace(/<[^>]+>/g, '')}</b>`);
+  return html.split(/(?:<br>\s*){2,}/).map(p => p.trim()).filter(Boolean).map(p => {
+    const lines = p.split(/<br>/).map(x => x.trim()).filter(Boolean);
+    if (lines.length && lines.every(l => /^(?:-|\u2022)\s+(?!\d)/.test(l)))
+      return `<ul class="spx-ul">${lines.map(l => `<li>${lead(l.replace(/^(?:-|\u2022)\s+/, ''))}</li>`).join('')}</ul>`;
+    return `<div class="spx-p">${lead(p)}</div>`;
+  }).join('');
+}
+window._spxMarkLeads = _spxMarkLeads; window._spxBlocks = _spxBlocks;
 function _qpSpellFullHtml(key, castLevel) {
   const sp = PHB_SPELL_LIST.find(x => x.key === key); if (!sp) return '';
   const raw = (typeof getEffectiveText === 'function') ? getEffectiveText('spell:' + sp.key, sp.descFull || sp.desc || '') : (sp.descFull || sp.desc || '');
-  let html = String(raw || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  let html = _spxMarkLeads(raw).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
   if (!html) return '';
   try {
     html = sp.level === 0
@@ -67545,6 +67767,7 @@ function _qpSpellFullHtml(key, castLevel) {
     if (typeof linkifyGlossaryTerms === 'function') html = linkifyGlossaryTerms(html, sp.name);
     if (typeof renderInlineFeatureTables === 'function') html = renderInlineFeatureTables(html);
   } catch (e) {}
+  try { html = _spxBlocks(html); } catch (e) { html = html.replace(/[\u0001\u0002]/g, ''); }
   return html;
 }
 // Full text is filled in only for sections that are open (a 200-spell
@@ -67611,12 +67834,12 @@ function renderQuickPlay() {
     const left = Math.max(0, r.max - (r.used || 0));
     if (r.max > 10) {
       const rec = String(r.recovery || '').toLowerCase();
-      return `<span class="qp-pips"><button class="qp-mini" onclick="qpUse('${r.id}', 1)" title="Use one">-</button> <b>${left}</b>/${r.max} <button class="qp-mini" onclick="qpUse('${r.id}', -1)" title="Get one back">+</button></span><span class="qp-dim">${/short/.test(rec) ? ' \u00b7 back on a Short Rest' : /long/.test(rec) ? ' \u00b7 back on a Long Rest' : ''}</span>`;
+      return `<span class="qp-pips"><button class="qp-mini" onclick="qpUse('${r.id}', 1)" title="Use one">-</button> <b>${left}</b>/${r.max} <button class="qp-mini" onclick="qpUse('${r.id}', -1)" title="Get one back">+</button></span><span class="qp-dim">${_qpRecText(r)}</span>`;
     }
     let h = '<span class="qp-pips">';
     for (let i = 0; i < r.max; i++) h += `<button class="qp-pip${i < left ? ' on' : ''}" onclick="qpUse('${r.id}', ${i < left ? 1 : -1})" title="${i < left ? 'Tap to use one' : 'Tap to get one back'}"></button>`;
     const rec = String(r.recovery || '').toLowerCase();
-    return h + `</span><span class="qp-dim"> ${left}/${r.max}${/short/.test(rec) ? ' \u00b7 back on a Short Rest' : /long/.test(rec) ? ' \u00b7 back on a Long Rest' : ''}</span>`;
+    return h + `</span><span class="qp-dim"> ${left}/${r.max}${_qpRecText(r)}</span>`;
   };
   const item = (name, text, extra = '') => `<div class="qp-item"><div class="qp-name">${name}${extra ? ` ${extra}` : ''}</div>${text ? `<div class="qp-text">${text}</div>` : ''}</div>`;
 
@@ -67630,7 +67853,7 @@ function renderQuickPlay() {
     const tag = QX.saves[k]?.tag, sAdv = QX.saves[k]?.adv;
     return `<span class="qp-chip${p ? ' prof' : ''}">${k.toUpperCase()} ${v}${sAdv ? ` <span class="qp-x" title="${_qpE(QX.saves[k].advFrom || '')}">Adv.</span>` : ''}${tag ? ` <span class="qp-x">${_qpE(tag)}</span>` : ''}</span>`;
   }).join('');
-  const saveNotes = [Q.rogue >= 7 ? '<b>Evasion:</b> on a Dexterity save for half damage, you take none if you succeed and half if you fail.' : ''].filter(Boolean);
+  const saveNotes = [Q.evasion ? '<b>Evasion:</b> on a Dexterity save for half damage, you take none if you succeed and half if you fail.' : ''].filter(Boolean);
   const skillsBy = {};
   (typeof SKILLS !== 'undefined' ? SKILLS : []).forEach(sk => {
     const v = (document.getElementById('skill-val-' + sk.key)?.innerText || '').replace('\u2212', '-');
@@ -67671,7 +67894,7 @@ function renderQuickPlay() {
     'evasion', 'reliable talent', 'improved critical', 'remarkable athlete', 'fighting style', 'weapon mastery', 'extra attack', 'expertise', 'spellcasting',
     'pact magic', 'heroic inspiration']);
   const SKIP_FEATURE = /known|options|improvement|choose|expanded|spell list|subclass$|book of shadows|^\w+ \(phb|proficienc|languages?$|\bspells?$/i;
-  const extra = { action: [], bonus: [], reaction: [], other: [] };
+  const extra = { action: [], bonus: [], reaction: [], hit: [], cast: [], other: [] };
   const shownNames = new Set(Q.spells.map(s => String(s.name).toLowerCase()));
   const STRICT = {
     bonus: /\b(as a|use a|take a|use your|as your|spend your) Bonus Action\b|\bBonus Action to\b/i,
@@ -67683,38 +67906,110 @@ function renderQuickPlay() {
     const f = (window._pdfFeatureEntries || []).find(x => x.name.toLowerCase() === n) || (window._pdfFeatureEntries || []).find(x => x.name.toLowerCase().includes(n) || n.includes(x.name.toLowerCase()));
     return f ? (typeof pdfPlain === 'function' ? pdfPlain(f.text) : f.text) : '';
   };
-  const sentenceFor = (text, b) => {
-    const ss = String(text || '').replace(/\s*\n+\s*/g, ' ').split(/(?<=[.!?])\s+(?=[A-Z])/);
-    const hits = b ? ss.filter(x => STRICT[b].test(x)).slice(0, 2).join(' ') : '';
-    const t = hits || ss.slice(0, 2).join(' ');
-    return t.length > 300 ? t.slice(0, 297) + '...' : t;
+  // Feature text comes in parts separated by " | " ("Flurry of Blows. You can ..."):
+  // each named part that is used a particular way gets its own line.
+  const HIT = /\bwhen you hit\b|\bhit (?:a|the|one) (?:creature|target)\b|\bhit it with\b|\bwhen you attack a creature and hit\b|\battack roll against a creature and miss\b/i;
+  const CAST = /\b[Ww]hen you cast (?:a |an |one of your )(?:[A-Z]\w+ )*spells?\b/;
+  const flat = t => String(t || '').replace(/\s*\n+\s*/g, ' ');
+  const partsOf = t => flat(t).split(/\s+\|\s+/).map(x => x.trim()).filter(Boolean)
+    .map((x, i) => { const m = i ? /^([A-Z][A-Za-z'’\- ]{1,40}?)\.\s+(.+)$/.exec(x) : null;
+      return m && !/\b(you|your)\b/i.test(m[1]) && m[1].split(' ').length <= 5 ? { name: m[1], body: m[2] } : { name: '', body: x }; });
+  const sentences = t => flat(t).replace(/\s+\|\s+/g, ' ').split(/(?<=[.!?])\s+(?=[A-Z])/);
+  const clip = t => t.length > 300 ? t.slice(0, 297) + '...' : t;
+  // the way of using it that the text names first ("As an action ... use a bonus action to leave" is an action)
+  const bucketFor = text => {
+    let best = null, at = Infinity;
+    ['bonus', 'reaction', 'action'].forEach(b => { const m = STRICT[b].exec(flat(text)); if (m && m.index < at) { at = m.index; best = b; } });
+    if (!best && HIT.test(flat(text))) best = 'hit';
+    if (!best && CAST.test(flat(text))) best = 'cast';
+    return best;
   };
-  const bucketFor = text => ['bonus', 'reaction', 'action'].find(b => STRICT[b].test(text)) || null;
+  const sentenceFor = (text, b) => {
+    const ss = sentences(text);
+    const test = b === 'hit' ? (x => HIT.test(x)) : b === 'cast' ? (x => CAST.test(x)) : b ? (x => STRICT[b].test(x)) : null;
+    const i = test ? ss.findIndex(test) : -1;
+    let t;
+    if (i >= 0) {
+      const hits = ss.filter(test).slice(0, 2);
+      // one matching sentence: the next one usually holds the numbers ("The reduction equals 1d10 plus ...")
+      t = hits.length > 1 ? hits.join(' ') : ss.slice(i, i + 2).join(' ');
+    } else {
+      // a counter with no way of using it named: the part that states the uses, else the first real part
+      const ps = partsOf(text).filter(p => !/following benefits|following ways|in the following/i.test(p.body));
+      const use = ps.find(p => /number of times|once per|uses?\b|regain/i.test(p.body)) || ps[0];
+      t = use ? sentences(use.body).slice(0, 2).join(' ') : ss.slice(0, 2).join(' ');
+    }
+    return clip(t);
+  };
   const usedRes = new Set(['action_surge', 'second_wind', 'scfeat_rogue_scion_of_the_three_bloodthirst']);
   const _resTexts = [];
   const _resDefs = (() => { const m = {}; try { (buildAllResourceDefs() || []).forEach(d => { if (d?.id) m[d.id] = d; }); } catch (e) {} return m; })();
+  const isShown = n => { n = String(n).toLowerCase(); return shownNames.has(n) || [...shownNames].some(x => x.endsWith(': ' + n)); };
   Q.spells.forEach(s => { if (s.res) usedRes.add(s.res.id); });
   (window._pdfResourceRows || []).filter(r => r.max > 0 && r.type !== 'display' && !usedRes.has(r.id) && !/heroic inspiration/i.test(r.name)).forEach(r => {
     if (shownNames.has(String(r.name).toLowerCase())) return;
     // a counter for one chosen option (e.g. "Giant Ancestry: Fire's Burn") goes by its own text, not the whole feature's
     const rd = _resDefs[r.id] || {}, own = rd.subraceReq && rd.desc ? rd.desc : '';
     const txt = own || featureText(r.name) || r.desc || '';
-    const b = bucketFor(txt) || 'other';
-    extra[b].push({ name: r.name, text: sentenceFor(txt, b === 'other' ? null : b), res: r });
+    // a feature in parts is sorted by the part that is used a particular way (Dread Ambusher -> Dreadful Strike)
+    // ...unless its opening part already says how it is used (Rage: "You can enter it as a Bonus Action")
+    const _ps = partsOf(txt);
+    const part = _ps[0] && !_ps[0].name && bucketFor(_ps[0].body) ? null : _ps.find(p => p.name && bucketFor(p.body));
+    const b = (part ? bucketFor(part.body) : bucketFor(txt)) || 'other';
+    extra[b].push({ name: r.name, text: sentenceFor(part ? part.body : txt, b === 'other' ? null : b), res: r });
     if (own.length > 40) _resTexts.push(own);
     shownNames.add(String(r.name).toLowerCase()); shownNames.add(String(r.name).toLowerCase().replace(/\s*\(.*\)$/, ''));
     if (own && /:/.test(r.name)) shownNames.add(String(r.name).split(':')[0].trim().toLowerCase());
+    if (part) shownNames.add(part.name.toLowerCase());
   });
-  (window._pdfFeatureEntries || []).filter(f => ['Class', 'Subclass', 'Race', 'Feat', 'Background Feat'].includes(f.sourceType)).forEach(f => {
+  // chosen options that are their own features: Eldritch Invocations, Psionic Disciplines
+  const chosen = [];
+  try {
+    (typeof parseInvocations === 'function' ? parseInvocations() : []).forEach(e => {
+      const inv = (typeof PHB_INVOCATIONS !== 'undefined' ? PHB_INVOCATIONS : []).find(i => i.clean === e.name);
+      if (!inv?.desc) return;
+      const sp = e.cantrip ? PHB_SPELL_LIST.find(x => x.key === e.cantrip) : null;
+      chosen.push({ name: e.name + (sp ? ` (${sp.name})` : ''), text: inv.desc });
+    });
+  } catch (e) {}
+  try {
+    const opts = partsOf(_qpFeature('Psionic Discipline Options') || ((PHB_CLASSES.psion?.features || []).find(f => f.name === 'Psionic Discipline Options')?.desc || ''));
+    (c.class_choices?.psionic_disciplines || []).forEach(n => { const o = opts.find(p => p.name === n); if (o) chosen.push({ name: n, text: o.body }); });
+  } catch (e) {}
+  const featureList = (window._pdfFeatureEntries || []).filter(f => ['Class', 'Subclass', 'Race', 'Feat', 'Background Feat'].includes(f.sourceType))
+    .map(f => ({ name: f.name, text: typeof pdfPlain === 'function' ? pdfPlain(f.text) : String(f.text || '') })).concat(chosen);
+  featureList.forEach(f => {
     const n = String(f.name).toLowerCase();
     if (HANDLED.has(n) || SKIP_FEATURE.test(f.name) || shownNames.has(n)) return;
-    const txt = typeof pdfPlain === 'function' ? pdfPlain(f.text) : String(f.text || '');
+    const txt = f.text;
     if (_resTexts.some(t => txt.includes(t))) return;   // already listed with its counter
-    const b = bucketFor(txt); if (!b) return;
+    // its named parts, each where it is used (Monk's Focus: Flurry of Blows / Patient Defense / Step of the Wind)
+    const parts = partsOf(txt).filter(p => p.name && !isShown(p.name) && bucketFor(p.body));
+    if (parts.length) {
+      const intro = partsOf(txt)[0], ib = intro && !intro.name ? bucketFor(intro.body) : null;
+      if (ib) extra[ib].push({ name: f.name, text: sentenceFor(intro.body, ib), res: null });
+      // a part that is also a feature of its own (Genie's Wrath) goes by its own name
+      parts.forEach(p => { const b = bucketFor(p.body); const own = featureList.some(x => x !== f && String(x.name).toLowerCase() === p.name.toLowerCase());
+        extra[b].push({ name: own ? p.name : `${f.name}: ${p.name}`, text: sentenceFor(p.body, b), res: null }); shownNames.add(p.name.toLowerCase()); });
+      shownNames.add(n);
+      return;
+    }
+    const b = bucketFor(partsOf(txt)[0]?.body || txt) || bucketFor(txt); if (!b) return;
     extra[b].push({ name: f.name, text: sentenceFor(txt, b), res: null });
     shownNames.add(n);
   });
-  const extraItems = b => extra[b].map(e => item(_qpE(e.name), _qpE(e.text), e.res ? pips(e.res) : '')).join('');
+  const _monk = _qpLevelOf('monk');
+  const _num = name => {
+    const ab = k => abilityMod(Q.abs[k] ?? 10), n = String(name).toLowerCase();
+    if (!_monk) return '';
+    const md = _monk >= 17 ? 12 : _monk >= 11 ? 10 : _monk >= 5 ? 8 : 6;
+    if (n === 'deflect attacks') return ` That's <b>1d10 + ${ab('dex') + _monk}</b>.`;
+    if (n === 'slow fall') return ` That's <b>${5 * _monk}</b>.`;
+    if (n === 'stunning strike') return ` Save DC <b>${8 + Q.prof + ab('wis')}</b>.`;
+    if (n === 'uncanny metabolism') return ` That's <b>1d${md} + ${_monk}</b> Hit Points.`;
+    return '';
+  };
+  const extraItems = b => extra[b].map(e => item(_qpE(e.name), _qpE(e.text) + _num(e.name), e.res ? pips(e.res) : '')).join('');
 
   // spell slots (tap a dot to spend one)
   const slotRows = [];
@@ -67756,24 +68051,28 @@ function renderQuickPlay() {
   // spells get their own sub-section at the bottom of each card, below the
   // card's normal options (weapon attacks, class features, standard actions)
   const _slotLevels = (() => { try { const ss = computeSpellSlotsForChar(currentChar); const l = (ss.levels || []).filter(x => x.max > 0).map(x => x.level); if (ss.warlock?.max && ss.warlock.slotLevel) l.push(ss.warlock.slotLevel); return [...new Set(l)].sort((a, b) => a - b); } catch (e) { return []; } })();
+  // the level a spell is cast at unless another slot is picked: a Warlock's pact slot level
+  const dflt = s => s.pact || s.level;
   const upSelect = (s, bucket) => {
     if (!s.level || s.stored || s.scroll || s.ritualOnly || window._previewMode) return '';
     // only spells whose own text says a higher-level slot changes something
     const _full = PHB_SPELL_LIST.find(x => x.key === s.key); if (!/Using a Higher-Level Spell Slot|At Higher Levels/i.test(String(_full?.descFull || _full?.desc || ''))) return '';
     const opts = _slotLevels.filter(l => l >= s.level);
-    if (!opts.some(l => l > s.level)) return '';
-    const cur = _qp.up[s.key] && opts.includes(_qp.up[s.key]) ? _qp.up[s.key] : s.level;
-    return `<select class="qp-upsel" title="Cast with a higher-level slot" onclick="event.stopPropagation()" onchange="qpUpcast('${_qpE(s.key)}','${bucket}',this.value)">${[...new Set([s.level, ...opts])].map(l => `<option value="${l}" ${l === cur ? 'selected' : ''}>${l === s.level ? 'level ' + l : 'cast at ' + l}</option>`).join('')}</select>`;
+    const all = s.pact ? opts : [...new Set([s.level, ...opts])];
+    if (all.length < 2 || !all.some(l => l > s.level)) return '';
+    const cur = _qp.up[s.key] && all.includes(_qp.up[s.key]) ? _qp.up[s.key] : dflt(s);
+    return `<select class="qp-upsel" title="Cast with a higher-level slot" onclick="event.stopPropagation()" onchange="qpUpcast('${_qpE(s.key)}','${bucket}',this.value)">${all.map(l => `<option value="${l}" ${l === cur ? 'selected' : ''}>${l === s.level ? 'level ' + l : 'cast at ' + l}</option>`).join('')}</select>`;
   };
   const upBox = (s, bucket) => {
     if (_qpTextMode() === 'full') {   // full text: the chosen level's numbers are worked into the text itself
-      const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : s.level;
+      const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : dflt(s);
       return `<div class="qp-full" id="qp-full-${bucket}-${_qpE(s.key)}" data-key="${_qpE(s.key)}" data-lvl="${cur}"></div><div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="display:none"></div>`;
     }
-    const h = (_qp.up[s.key] > s.level) ? _qpUpcastHtml(s.key, _qp.up[s.key]) : ''; return `<div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</div>`; };
-  const mathLine = (s, bucket) => { const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : s.level; const h = (s.stored || s.scroll) ? '' : _qpSpellMathHtml(s.key, cur);
+    const _u = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : (s.pact || 0);
+    const h = _u > s.level ? _qpUpcastHtml(s.key, _u) : ''; return `<div class="qp-upbox" id="qp-up-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</div>`; };
+  const mathLine = (s, bucket) => { const cur = (_qp.up[s.key] > s.level) ? _qp.up[s.key] : dflt(s); const h = (s.stored || s.scroll) ? '' : _qpSpellMathHtml(s.key, cur);
     return `<span class="qp-sm" id="qp-sm-${bucket}-${_qpE(s.key)}" style="${h ? '' : 'display:none'}">${h}</span>${h ? '<span class="qp-sep"> \u2014 </span>' : ''}`; };
-  const spellLine = (s, bucket) => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>${upSelect(s, bucket)}`,
+  const spellLine = (s, bucket) => item(`${_qpSpellName(s)} <span class="qp-dim">${s.level ? 'level ' + s.level + (s.pact ? ` \u00b7 cast at ${s.pact} (Pact Magic)` : s.upcast ? ' version' : '') : 'cantrip'}${s.conc ? ' \u00b7 Concentration' : ''}${s.ritualOnly ? ' \u00b7 Ritual' : ''}${s.source ? ' \u00b7 ' + _qpE(s.source) : ''}</span>${upSelect(s, bucket)}`,
     mathLine(s, bucket) + `<span class="qp-sum"${_qpTextMode() === 'full' ? ' style="display:none"' : ''}>${_qpE(s.desc)}</span>`, ((s.stored || s.scroll) && window._previewMode) ? '' : s.scroll ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" title="Use up the scroll and cast its spell" onclick="readSpellScroll('${_qpE(s.scroll.uid)}')">Read</button>` : s.stored ? `<button class="tbtn qp-stored-cast" style="min-height:28px;margin-left:6px" ${s.stored.canCast ? '' : 'disabled title="Requires attunement"'} onclick="castStoredSpell('${_qpE(s.stored.uid)}','${_qpE(s.stored.id)}')">Cast</button>` : s.res ? pips(s.res) : s.level === 0 ? '<span class="qp-dim">at will</span>' : '');
   const _slotLeft = (() => { const m = {}; try { const ss = computeSpellSlotsForChar(currentChar); (ss.levels || []).forEach(x => { if (x.max > 0) m[x.level] = `${x.max - (x.used || 0)}/${x.max} slots left`; }); } catch (e) {} return m; })();
   const spellSection = bucket => {
@@ -67799,7 +68098,7 @@ function renderQuickPlay() {
   const saItems = Q.sneakDice ? _qpItemSentences(/Sneak Attack/i) : [];
   const saTwice = saItems.some(x => /Sneak Attack damage twice/i.test(x.text) && /halved/i.test(x.text));
   const wRows = Q.weapons.map((w, i) => `<tr>
-      <td><b class="qp-feat" onclick="openInventoryItemDetailModal(currentChar.weapons[${w.idx}], 'weapon')">${_qpE(w.name)}</b><div class="qp-dim">${_qpE(w.range)}${w.mastery ? ` \u00b7 <span class="qp-feat" onclick="openWeaponMasteryInfoModal('${_qpE(String(w.phbName).replace(/'/g, "\\'"))}')">${_qpE(w.mastery.charAt(0).toUpperCase() + w.mastery.slice(1))}</span>` : ''}</div></td>
+      <td><b class="qp-feat" onclick="openWeaponDetail(${w.idx})">${_qpE(w.name)}</b><div class="qp-dim">${_qpE(w.range)}${w.mastery ? ` \u00b7 <span class="qp-feat" onclick="openWeaponMasteryInfoModal('${_qpE(String(w.phbName).replace(/'/g, "\\'"))}')">${_qpE(w.mastery.charAt(0).toUpperCase() + w.mastery.slice(1))}</span>` : ''}</div></td>
       <td data-label="To hit"><span class="qp-num">${_qpSign(w.hit)}</span></td>
       <td data-label="Damage"><span class="qp-num">${_qpE(_qpFormula(w, Q, false))}</span><div class="qp-dim">${_qpE(w.type)}</div></td>
       <td data-label="Crit"><span class="qp-num qp-critlink">${_qpE(_qpFormula(w, Q, true))}</span></td>
@@ -67808,8 +68107,8 @@ function renderQuickPlay() {
   const lightsAll = Q.weapons.filter(w => w.light);
   const nickOK = lightsAll.length >= 2 && Q.weapons.some(w => w.mastery === 'nick' && w.light);
   const attackCard = card('Action', 'one each turn', `
-    ${item('Attack', `${Q.weapons.length ? '' : 'You have no weapons equipped - an Unarmed Strike still works. '}Make <b>${Q.attacksPer === 1 ? 'one attack' : ['', '', 'two attacks', 'three attacks', 'four attacks'][Q.attacksPer] || Q.attacksPer + ' attacks'}</b>${Q.attacksPer > 1 ? ' (Extra Attack)' : ''} with ${Q.weapons.length ? (Q.attacksPer > 1 ? 'the weapons below' : 'a weapon below') : 'it'}${nickOK ? ', plus a free extra attack if you use the Nick trick (see Bonus Actions)' : ''}. Roll a d20 and add the to-hit number; if it equals or beats the target's AC, you hit.
-      <br>You score a <b>critical hit</b> on a d20 roll of <b>${Q.critMin === 20 ? '20' : Q.critMin + ' or 20'}</b>${Q.critMin < 20 ? ' (Improved Critical)' : ''}.${Q.champion ? ' <b>Remarkable Athlete:</b> immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks.' : ''}
+    ${item('Attack', `${Q.weapons.length ? '' : 'You have no weapons equipped - an Unarmed Strike still works. '}Make <b>${Q.attacksPer === 1 ? 'one attack' : ['', '', 'two attacks', 'three attacks', 'four attacks'][Q.attacksPer] || Q.attacksPer + ' attacks'}</b>${Q.attacksPer > 1 ? (Q.pactOnlyExtra ? ' (Thirsting Blade: only when you attack with your pact weapon)' : ' (Extra Attack)') : ''} with ${Q.weapons.length ? (Q.attacksPer > 1 ? 'the weapons below' : 'a weapon below') : 'it'}${nickOK ? ', plus a free extra attack if you use the Nick trick (see Bonus Actions)' : ''}. Roll a d20 and add the to-hit number; if it equals or beats the target's AC, you hit.
+      ${Q.critMin < 20 ? `<br>You score a <b>critical hit</b> on a d20 roll of <b>${Q.critMin} or 20</b> (Improved Critical).${Q.champion ? ' <b>Remarkable Athlete:</b> immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks.' : ''}` : ''}
       ${Q.elvenAcc ? `<br>With <b>Advantage</b> you roll two d20s; thanks to <b>Elven Accuracy</b> you can reroll one of them once (reroll the lower one if neither is a crit). That's about a <b>${Math.round(critPct * 100)}%</b> crit chance per attack.` : ''}`)}
     <div class="qp-calc">
       ${Q.sneakDice ? `<label class="qp-dim"><input type="checkbox" ${_qp.sneak ? 'checked' : ''} onchange="qpSetSneak(this.checked)"> include Sneak Attack (${sa}d6)</label>
@@ -67829,6 +68128,8 @@ function renderQuickPlay() {
     ${Q.rogue >= 5 ? item('Cunning Strike', `When you deal Sneak Attack damage you can give up Sneak Attack dice (before rolling) for an extra effect. Save DC <b>${Q.cunningDC}</b>.
       <ul class="qp-ul"><li><b>Poison</b> (1d6): Constitution save or Poisoned for 1 minute.</li><li><b>Trip</b> (1d6): a Large or smaller target makes a Dexterity save or falls Prone.</li><li><b>Withdraw</b> (1d6): right after the attack, move up to half your Speed without provoking Opportunity Attacks.</li>
       ${Q.strikeFear ? `<li><b>Terrify</b> (1d6): Wisdom save or Frightened for 1 minute, and <b>you have Advantage on attacks against it</b> - free Advantage for your crits. It repeats the save at the end of each of its turns.</li>` : ''}</ul>`) : ''}
+    ${extra.hit.length ? `<div class="qp-sub">When you attack</div>${extraItems('hit')}` : ''}
+    ${extra.cast.length ? `<div class="qp-sub">When you cast a spell</div>${extraItems('cast')}` : ''}
     ${Q.res.action_surge ? item('Action Surge', 'Once on your turn, take one extra action (not a Magic action) - for example a second Attack action.', pips(Q.res.action_surge)) : ''}
     ${extraItems('action')}
     <div class="qp-other"><b>Other actions anyone can take:</b> Dash (move again), Disengage (move without Opportunity Attacks), Dodge (attacks against you have Disadvantage), Help, Hide, Influence, Search, Study, Utilize, Ready.</div>
@@ -67855,8 +68156,8 @@ function renderQuickPlay() {
     ${Q.rogue >= 2 ? item('Cunning Action', 'Take the <b>Dash</b>, <b>Disengage</b> or <b>Hide</b> action as a Bonus Action.') : ''}
     ${Q.rogue >= 3 ? item('Steady Aim', 'Give yourself <b>Advantage on your next attack</b> this turn. Only if you haven\'t moved this turn, and your Speed becomes 0 until the end of the turn.' + (Q.elvenAcc ? ' Best friend of Elven Accuracy.' : '')) : ''}
     ${lights.length >= 2 ? item('Off-hand attack (two Light weapons)', `After attacking with a Light weapon, attack with a different Light weapon in your other hand (${lights.map(w => _qpE(w.name)).join(', ')}).${Q.twf ? ' Two-Weapon Fighting: add your +' + (lights[0]?.mod ?? 0) + ' to its damage like a normal attack.' : ' It doesn\'t add your ability modifier to damage.'}
-      ${nick ? `<br><b>Nick trick:</b> if one of the two is your <b>${_qpE(nick.name)}</b> (Nick), this extra attack becomes part of your Attack <b>action</b> instead - keeping your Bonus Action free for Steady Aim. Once per turn.` : ''}
-      Sneak Attack still only once per turn.`) : ''}
+      ${nick ? `<br><b>Nick trick:</b> if one of the two is your <b>${_qpE(nick.name)}</b> (Nick), this extra attack becomes part of your Attack <b>action</b> instead - keeping your Bonus Action free${Q.rogue >= 3 ? ' for Steady Aim' : ''}. Once per turn.` : ''}
+      ${Q.rogue ? 'Sneak Attack still only once per turn.' : ''}`) : ''}
     ${Q.res.second_wind ? item('Second Wind', `Roll <b>1d10 + ${Q.fighter}</b> and regain that many Hit Points (enter it in the Hit Points box and press Heal). You get one use back on a Short Rest and all of them on a Long Rest.`, pips(Q.res.second_wind)) : ''}
     ${extraItems('bonus')}
     ${spellSection('bonus')}`);
@@ -67864,7 +68165,7 @@ function renderQuickPlay() {
   // 7. reactions
   const bt = Q.res.scfeat_rogue_scion_of_the_three_bloodthirst;
   const reactCard = card('Reaction', 'one each round', `
-    ${item('Opportunity Attack', 'When an enemy you can see leaves your reach, make one melee attack against it. A hit can include Sneak Attack if you haven\'t used it this turn.')}
+    ${item('Opportunity Attack', 'When an enemy you can see leaves your reach, make one melee attack against it.' + (Q.rogue ? ' A hit can include Sneak Attack if you haven\'t used it this turn.' : ''))}
     ${bt ? item('Bloodthirst', 'When an enemy you can see within 30 feet takes damage and becomes <b>Bloodied</b> (at or below half its HP) without dying, teleport next to it and make <b>one melee attack</b> - another chance for Sneak Attack and a crit.', pips(bt)) : ''}
     ${Q.rogue >= 5 ? item('Uncanny Dodge', 'When an attacker you can see hits you, halve the attack\'s damage against you.') : ''}
     ${extraItems('reaction')}
@@ -67943,7 +68244,7 @@ function _qpFeatureTarget(name) {
   const js = v => String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const lc = s => String(s || '').toLowerCase().trim();
   const full = lc(name), base = lc(String(name).replace(/\s*\(.*\)\s*$/, ''));
-  const ALIAS = { 'terrify': 'strike fear', 'focus points': "monk's focus", 'sorcery points': 'font of magic', 'superiority dice': 'combat superiority' };
+  const ALIAS = { 'terrify': 'strike fear', 'focus points': "monk's focus", 'sorcery points': 'font of magic', 'superiority dice': 'combat superiority', 'psionic energy dice': 'psionic power' };
   if (/^off-hand attack/.test(full)) return Q_TWF() ? `openFeatInfoModal('Two-Weapon Fighting')` : `qpOpenRule('light')`;
   if (full === 'attack') return `qpOpenRule('attack')`;
   if (full === 'opportunity attack') return `qpOpenRule('opportunity')`;
@@ -67961,6 +68262,12 @@ function _qpFeatureTarget(name) {
   const race = (typeof PHB_RACES !== 'undefined') ? PHB_RACES[c.race] : null;
   const traits = [...(race?.features || []), ...(race?.subraces?.[c.subrace]?.features || [])];
   if (traits.some(t => want.includes(lc(t.name || t)))) return `openRaceInfoModal('${js(c.race)}')`;
+  // a chosen Eldritch Invocation
+  if (typeof PHB_INVOCATIONS !== 'undefined' && PHB_INVOCATIONS.some(i => lc(i.clean) === base)) return `openInvocationInfoModal('${js(String(name).replace(/\s*\(.*\)\s*$/, ''))}')`;
+  // a chosen Psionic Discipline: the Psionic Discipline Options feature
+  if ((c.class_choices?.psionic_disciplines || []).some(d => lc(d) === base)) return _qpFeatureTarget('Psionic Discipline Options');
+  // one part of a feature ("Monk's Focus: Flurry of Blows", "War Caster: Reactive Spell"): the feature itself
+  if (/:/.test(name)) return _qpFeatureTarget(String(name).split(':')[0]);
   return null;
 }
 window._qpFeatureTarget = _qpFeatureTarget;
@@ -68095,6 +68402,13 @@ window.qpJump = qpJump;
   .qp-fxb{min-height:32px;padding:5px 12px;border:1px solid var(--border);border-radius:16px;background:var(--bg3);color:var(--text2);font-family:var(--font-ui);font-size:12px;cursor:pointer}
   .qp-fxb.on{border-color:var(--accent);color:var(--accent);font-weight:700}.qp-fx .qp-note{flex-basis:100%}
   .qp-full{font-size:13px;line-height:1.55;color:var(--text2);margin-top:2px}.qp-full table{font-size:12px}
+  :is(.qp-full,.sp-full-text) .spx-p{margin:0 0 .55em}
+  :is(.qp-full,.sp-full-text) .spx-p:last-child{margin-bottom:0}
+  :is(.qp-full,.sp-full-text) .spx-lead{color:var(--text-hi,var(--text));font-weight:700;font-style:italic}
+  :is(.qp-full,.sp-full-text) .spx-ul{margin:0 0 .55em;padding-left:1.3em}
+  :is(.qp-full,.sp-full-text) .spx-ul li{margin:.15em 0}
+  /* rule links inside long text: still tappable, just quieter than the coloured numbers */
+  :is(.qp-full,.sp-full-text) span[onclick*="openGlossaryTermModal"]{color:inherit !important;text-decoration-color:color-mix(in srgb, var(--accent) 55%, transparent) !important}
   .qp-spmode{display:flex;align-items:center;gap:6px;font-family:var(--font-ui);font-size:11px;color:var(--text3);margin:2px 0 4px}
   .qp-spmode span{cursor:pointer;padding:5px 10px;min-height:28px;display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:14px;color:var(--text2)}
   .qp-spmode span.on{border-color:var(--accent);color:var(--accent);font-weight:700}
@@ -68104,6 +68418,7 @@ window.qpJump = qpJump;
   .qp-slotrow{display:grid;grid-template-columns:110px 1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}.qp-slotrow:last-child{border-bottom:none}
   .qp-pips{display:inline-flex;gap:3px;flex-wrap:wrap;align-items:center}.qp-pip{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--accent);background:transparent;cursor:pointer;padding:0}.qp-pip.on{background:var(--accent)}
   .qp-other{font-size:12px;color:var(--text2);margin-top:8px;line-height:1.5}
+  .qp-sub{font-family:var(--font-label);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:12px 0 2px}
   .qp-feat{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}.qp-feat:hover{color:var(--accent)}
   .qp-spell{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}.qp-spell:hover{color:var(--accent)}
   .qp-always{font-size:11px;color:var(--text3);padding:4px 0}
@@ -72863,6 +73178,13 @@ body { container: sheet / inline-size; }
 // spell list. Full shows each spell's complete rules text under its row
 // (same text pipeline as the spell pop-up and Quick Play). Remembered on
 // this device ('sp_spell_text'); Short (the one-line summary) is the default.
+// In Full mode a levelled spell whose text changes with a higher slot gets
+// "Cast at" buttons above its text, for each slot level the character has;
+// picking one redraws the text with that level's numbers (as in the spell
+// pop-up). Not saved - it starts at the spell's own level.
+// Each level heading (Cantrips, 1st Level...) folds its spells away, like
+// Quick Play's level bars; which ones are folded is remembered on this
+// device ('sp_folded_levels').
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
   const KEY = 'sp_spell_text';
@@ -72872,11 +73194,81 @@ body { container: sheet / inline-size; }
 #sp-text-mode span.opt{cursor:pointer;padding:3px 10px;border:1px solid var(--border);border-radius:var(--radius,6px);color:var(--text2);min-height:24px;display:inline-flex;align-items:center}
 #sp-text-mode span.opt.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
 #sp-known-body.sp-full .sp-short-desc{visibility:hidden}
-.sp-full-text{padding:2px 10px 12px 70px;margin-bottom:4px;border-bottom:1px solid var(--border);font-family:var(--font-body,var(--font-ui));font-size:13px;line-height:1.55;color:var(--text2)}
+.sp-full-text{padding:2px 14px 12px var(--sp-text-indent,70px);margin-bottom:4px;border-bottom:1px solid var(--border);font-family:var(--font-body,var(--font-ui));font-size:13px;line-height:1.55;color:var(--text2)}
+.sp-full-text > *{max-width:80ch}
 .sp-full-text table{font-size:12px}
-@container sheet (max-width: 820px){ .sp-full-text{padding-left:12px} }`;
+@container sheet (max-width: 820px){ .sp-full-text{padding-left:12px} }
+#sp-known-body .sp-level-group-hdr{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+#sp-known-body .sp-level-group-hdr::before{content:'\\25BE';font-size:.9em;opacity:.8;width:1em}
+#sp-known-body .sp-level-group-hdr.sp-folded::before{content:'\\25B8'}
+#sp-known-body .sp-fold-hide{display:none !important}
+.sp-castat{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 8px;font-family:var(--font-ui);font-size:11px;color:var(--text3)}
+.sp-castat button{font:inherit;font-size:11px;min-height:26px;padding:2px 9px;border:1px solid var(--border);border-radius:var(--radius,6px);background:transparent;color:var(--text2);cursor:pointer}
+.sp-castat button.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}`;
   document.head.appendChild(st);
   const mode = () => { try { return localStorage.getItem(KEY) === 'full' ? 'full' : 'short'; } catch (e) { return 'short'; } };
+  const FOLD = 'sp_folded_levels';
+  const folded = () => { try { return JSON.parse(localStorage.getItem(FOLD) || '{}') || {}; } catch (e) { return {}; } };
+  // everything after a level heading, up to the next heading, belongs to it
+  function groupOf(hdr) { const out = []; let n = hdr.nextElementSibling; while (n && !n.classList.contains('sp-level-group-hdr')) { out.push(n); n = n.nextElementSibling; } return out; }
+  function applyFolds(body) {
+    const f = folded();
+    body.querySelectorAll('.sp-level-group-hdr').forEach(h => {
+      const label = (h.dataset.lvl = h.dataset.lvl || h.firstChild?.textContent?.trim() || h.textContent.trim());
+      const shut = !!f[label];
+      h.classList.toggle('sp-folded', shut);
+      h.title = shut ? 'Show these spells' : 'Fold these spells away';
+      h.setAttribute('role', 'button'); h.setAttribute('aria-expanded', shut ? 'false' : 'true');
+      const kids = groupOf(h);
+      kids.forEach(k => k.classList.toggle('sp-fold-hide', shut));
+      h.onclick = () => { const g = folded(); if (g[label]) delete g[label]; else g[label] = true; try { localStorage.setItem(FOLD, JSON.stringify(g)); } catch (e) {} applyFolds(body); };
+    });
+  }
+  const castAt = {};   // spell key -> chosen slot level (this page only)
+  let pactAt = {};     // spell key -> Pact Magic level it is cast at (Warlock spells), rebuilt each draw
+  function readPact() {
+    pactAt = {};
+    try {
+      (buildKnownSpellRows() || []).forEach(r => {
+        const sp = PHB_SPELL_LIST.find(x => x.key === r.key);
+        const lv = typeof getPactCastLevel === 'function' ? getPactCastLevel(r, sp) : 0;
+        if (lv) pactAt[r.key] = lv;
+      });
+    } catch (e) {}
+  }
+  function slotLevels() {
+    try {
+      const ss = computeSpellSlotsForChar(currentChar);
+      const l = (ss.levels || []).filter(x => x.max > 0).map(x => x.level);
+      if (ss.warlock?.max && ss.warlock.slotLevel) l.push(ss.warlock.slotLevel);
+      return [...new Set(l)].sort((a, b) => a - b);
+    } catch (e) { return []; }
+  }
+  function castBar(key, levels) {
+    const sp = (typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []).find(x => x.key === key);
+    if (!sp || !sp.level) return '';
+    if (!/Using a Higher-Level Spell Slot|At Higher Levels/i.test(String(sp.descFull || sp.desc || ''))) return '';
+    const opts = levels.filter(l => l >= sp.level);
+    const pact = pactAt[key] || 0;
+    // a Warlock spell can only be cast with the slots there are: no "own level" button when that isn't one of them
+    const all = pact ? opts : [...new Set([sp.level, ...opts])];
+    if (pact && all.length < 2) return `<div class="sp-castat">Cast at level ${pact} (Pact Magic)</div>`;
+    if (!all.some(l => l > sp.level)) return '';
+    const cur = castAt[key] && all.includes(castAt[key]) ? castAt[key] : (pact || sp.level);
+    return `<div class="sp-castat" onclick="event.stopPropagation()">Cast at: ${all.map(l => `<button type="button" class="${l === cur ? 'on' : ''}" onclick="spCastAt('${key}', ${l})">level ${l}${l === pact ? ' (Pact Magic)' : ''}</button>`).join('')}</div>`;
+  }
+  function fillText(d, key, levels) {
+    const sp = (typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []).find(x => x.key === key);
+    const lvl = (sp && castAt[key] > sp.level) ? castAt[key] : (pactAt[key] || 0);
+    const html = (typeof _qpSpellFullHtml === 'function') ? _qpSpellFullHtml(key, lvl) : fullHtml(key);
+    d.innerHTML = castBar(key, levels) + html;
+  }
+  window.spCastAt = function (key, lvl) {
+    castAt[key] = lvl;
+    const row = document.querySelector(`#sp-known-body [data-sp-key="${key}"]`);
+    const d = row?.nextElementSibling;
+    if (d?.classList.contains('sp-full-text')) fillText(d, key, slotLevels());
+  };
   function fullHtml(key) {
     if (typeof _qpSpellFullHtml === 'function') return _qpSpellFullHtml(key, 0);
     const sp = (typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []).find(x => x.key === key);
@@ -72893,12 +73285,23 @@ body { container: sheet / inline-size; }
     bar.innerHTML = `Spell text: <span class="opt ${m === 'full' ? 'on' : ''}" onclick="spSpellTextMode('full')">Full</span><span class="opt ${m === 'short' ? 'on' : ''}" onclick="spSpellTextMode('short')">Short</span>`;
     body.querySelectorAll('.sp-full-text').forEach(e => e.remove());
     body.classList.toggle('sp-full', m === 'full');
-    if (m !== 'full') return;
-    body.querySelectorAll('[data-sp-key]').forEach(row => {
-      const html = fullHtml(row.dataset.spKey); if (!html) return;
-      const d = document.createElement('div'); d.className = 'sp-full-text'; d.innerHTML = html;
-      row.after(d);
-    });
+    if (m === 'full') {
+      const levels = slotLevels();
+      readPact();
+      body.querySelectorAll('[data-sp-key]').forEach(row => {
+        if (!fullHtml(row.dataset.spKey)) return;
+        const d = document.createElement('div'); d.className = 'sp-full-text';
+        fillText(d, row.dataset.spKey, levels);
+        row.after(d);
+      });
+      // line the text up with the spell names
+      requestAnimationFrame(() => { try {
+        const row = body.querySelector('[data-sp-key]'), nm = row?.querySelector('.sp-name');
+        const x = nm && row ? Math.round((nm.getBoundingClientRect().left - row.getBoundingClientRect().left) / (typeof sheetZoom === 'function' ? sheetZoom() : 1)) : 0;
+        if (x > 20 && x < 260) body.style.setProperty('--sp-text-indent', x + 'px');
+      } catch (e) {} });
+    }
+    applyFolds(body);
   }
   window.spSpellTextMode = function (m) { try { localStorage.setItem(KEY, m === 'full' ? 'full' : 'short'); } catch (e) {} decorate(); };
   const orig = window.renderKnownSpells;
@@ -73648,7 +74051,7 @@ const PV_VIEW_FNS = new Set([
   // plain gear has no separate viewer: its edit window opens, with every field and button inert
   'openGearEditModal',
   // navigation, expanding, closing
-  'qpJump', 'qpOpenRule', 'qpToggleCard', 'qpSpellTextMode', 'closeModal', 'switchPage', 'jumpToFeatureByName', 'scrollToAndOpenSpellbook',
+  'qpJump', 'qpOpenRule', 'qpToggleCard', 'qpSpellTextMode', 'spCastAt', 'closeModal', 'switchPage', 'jumpToFeatureByName', 'scrollToAndOpenSpellbook',
   'toggleProfPanelExpanded', 'toggleSkilledToolsExpanded', 'toggleSpellbook', 'toggleFullClassSpellList',
   // top bar: things that belong to the viewer, not the previewed character
   'exitPreviewMode', 'openPartyOverview', 'toggleTheme', 'toggleThemePicker', 'doLogout', 'exportCharacterPdf',
