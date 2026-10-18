@@ -14717,18 +14717,6 @@ const PHB_CLASS_CHOICES = {
       "wires": ["display"]
     }
   ],
-  "druid": [
-    {
-      "id": "circle_of_the_land_type",
-      "label": "Circle of the Land - Land Type",
-      "minLevel": 3,
-      "type": "dropdown",
-      "options": ["Arid", "Polar", "Temperate", "Tropical"],
-      "showIfSubclass": "Circle of the Land",
-      "desc": "Choose whenever you finish a Long Rest. Determines your Circle Spells (always prepared) and your Nature's Ward resistance at level 10 (Arid = Fire, Polar = Cold, Temperate = Lightning, Tropical = Poison).",
-      "wires": ["display"]
-    }
-  ],
   "fighter": [
     {
       "id": "infernal_resilience_type",
@@ -15392,6 +15380,16 @@ const PHB_CLASS_CHOICES = {
   "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback","Bolstering Precognition","Destructive Thoughts","Devilish Tongue","Expanded Awareness","Id Insinuation","Inerrant Aim","Observant Mind","Psionic Backlash","Psionic Guards","Sharpened Mind"]},{"id":"mutable_form_config","label":"Mutable Form","desc":"Bonus Action: expend 1 Psionic Energy Die to activate. Choose your form options below.","type":"modal-button","buttonLabel":"▶ Activate Mutable Form","buttonFn":"openMutableFormModal()","minLevel":3,"showIfSubclass":"metamorph"}],
   "druid": [
     {
+      "id": "circle_of_the_land_type",
+      "label": "Circle of the Land - Land Type",
+      "minLevel": 3,
+      "type": "dropdown",
+      "options": ["Arid", "Polar", "Temperate", "Tropical"],
+      "showIfSubclass": "Circle of the Land",
+      "desc": "Choose whenever you finish a Long Rest. Determines your Circle Spells (always prepared) and your Nature's Ward resistance at level 10 (Arid = Fire, Polar = Cold, Temperate = Lightning, Tropical = Poison).",
+      "wires": ["display"]
+    },
+    {
       "id": "primal_order",
       "label": "Primal Order",
       "minLevel": 1,
@@ -15528,7 +15526,7 @@ const PHB_CLASS_RESOURCES     = {
         3,
         3,
         3,
-        3,
+        4,
         4,
         4,
         4
@@ -15544,7 +15542,7 @@ const PHB_CLASS_RESOURCES     = {
         0,
         0,
         0,
-        1,
+        0,
         1,
         1,
         1,
@@ -15643,14 +15641,14 @@ const PHB_CLASS_RESOURCES     = {
         1,
         1,
         1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        3
       ],
       "desc": "Reroll a failed saving throw and add your Fighter level, but must keep the new result."
     }
@@ -23113,7 +23111,7 @@ const DMG_MAGIC_ITEMS = [
 {"key":"mythallar_cloak","name":"Mythallar Cloak","rarity":"common","type":"wondrous item","desc":"This electric-blue cloak is studded with crystal shards of a decommissioned mythallar. It has 10 charges, 1d10 regained at dawn. As bonus action while worn, 1 charge to activate for 1 min or until ended (no action). Gain 30 ft Fly and hover. Once per turn when I hit with atk, can deal extra 1d4 Radiant. Fall if aloft when magic ends.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"FRAiF"},
 {"key":"harper_pin","name":"Harper Pin","rarity":"common","type":"wondrous item","desc":"When I attune to this pin, I choose a Harper persona, including an alignment and a creature type. While wearing this pin, I register as that persona when targeted by magic to determine my creature type, alignment, or location. The type of pin determines its rarity and effects.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"FRAiF"},
 {"key":"mechanical_wonder","weight":"500 lb","name":"Mechanical Wonder","rarity":"common","type":"wondrous item","desc":"A Mechanical Wonder is a semi-autonomous object imbued with power. They vary in size and form depending on their function and must be wound for 1 minute to activate (Utilize each turn). Once wound, it remains active as per the wonder type.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"FRAiF"},
-{"key":"windskiff","name":"Windskiff","rarity":"common","type":"wondrous item","desc":"This jewelry has 3 charges, regained at dawn. As Magic action, 1 charge to transform into a Medium-size personal vehicle: AC 12, HP 30, Speed 40 ft. The vehicle hovers a few inches off the surface and can glide, moving 5 ft horizontally for every 1 ft it descends. The Windskiff and its riders take no falling damage.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"FRAiF"},
+{"key":"windskiff_fraif","name":"Windskiff","rarity":"common","type":"wondrous item","desc":"This jewelry has 3 charges, regained at dawn. As Magic action, 1 charge to transform into a Medium-size personal vehicle: AC 12, HP 30, Speed 40 ft. The vehicle hovers a few inches off the surface and can glide, moving 5 ft horizontally for every 1 ft it descends. The Windskiff and its riders take no falling damage.","attunement":false,"isWeapon":false,"isArmour":false,"isAmmo":false,"effects":null,"source":"FRAiF"},
 {"key":"boots_of_the_winding_path","name":"Boots of the Winding Path","rarity":"uncommon","type":"wondrous item","attunement":true,"attuned":false,"desc":"While wearing these boots, I can teleport up to 15 ft as a Bonus Action to an unoccupied space I can see, as long as I occupied that space at some point during the current turn.","effects":[],"source":"EFotA"},
 {"key":"dazzling_weapon","name":"Dazzling Weapon","rarity":"rare","type":"weapon (any)","attunement":true,"attuned":false,"desc":"This item adds a +1 on its to hit and damage, has 4 charges, and regains 1d4 at dawn. As a Bonus Action, I can have it start/stop shedding light, Bright in 30 ft, Dim in another 30 ft. As a Reaction if hit by an attack, I can use 1 charge to Blind the attacker until the end of its next turn unless it makes a Con 15 save.","effects":[],"source":"EFotA"},
 {"key":"helm_of_awareness","name":"Helm of Awareness","rarity":"uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"While wearing this helmet, I have Advantage on Initiative rolls.","effects":[],"source":"EFotA"},
@@ -23425,7 +23423,6 @@ const DMG_MAGIC_ITEMS = [
 {"key":"witherbloom_primer","name":"Witherbloom Primer","rarity":"uncommon","type":"wondrous item","attunement":false,"attuned":false,"desc":"This magic textbook has 3 charges, regaining 1d3 used charges at dawn. While holding it, I can use 1 charge to add +1d4 to a Nature or Survival check, after the d20 roll. If I study it during a long rest, I can pick a 1st-level druid or wizard spell. I can cast the spell once without a spell slot before my next long rest ends.","effects":[],"source":"2014"},
 {"key":"murgaxor_s_orb","name":"Murgaxor's Orb","rarity":"legendary","type":"wondrous item","attunement":false,"attuned":false,"desc":"This sentient, chaotic evil orb bears a curse. It can communicate telepathically with any creature touching it. It can cast Suggestion on my turn, possibly on me. I have no control over it. Any Humanoid I touch while holding the orb must make a DC 10 Wisdom save or become cursed. See the Notes page.","effects":[],"source":"2014"},
 {"key":"masque_charm","name":"Masque Charm","rarity":"common","type":"wondrous item","attunement":false,"attuned":false,"desc":"While wearing this small silver pin, I can cast Disguise Self once per sunset. It has DC 13 to discern the disguise. I can have the spell last its normal 1 hour duration, or 6 hours. If I choose 6 hours, the charm becomes nonmagical when the spell ends. In either case, the spell ends if the pin is removed from me.","effects":[],"source":"2014"},
-{"key":"breathing_bubble","name":"Breathing Bubble","rarity":"common","type":"wondrous item","attunement":false,"attuned":false,"desc":"This translucent, bubble-like sphere has a slightly tacky outer surface. I gain its benefits only while wearing it over my head like a helmet. The bubble contains 1 hour of breathable air. The bubble regains all its expended air daily at dawn.","effects":[],"source":"2014"},
 {"key":"earring_of_message","name":"Earring of Message","rarity":"common","type":"wondrous item","attunement":false,"attuned":false,"desc":"The blue crystal of this earring is wrapped with delicate copper wire. The earring has 5 charges. While wearing it, I can use an action to expend 1 charge and cast the message spell. The earring regains 1d4 + 1 expended charges daily at dawn.","effects":[],"source":"2014","charges":{"max":5,"recovery":"dawn"},"grantedSpells":[{"spellName":"Message","grantType":"itemCharges","chargeCost":1}]},
 {"key":"medal_of_muscle","name":"Medal of Muscle","rarity":"common","type":"wondrous item","attunement":false,"attuned":false,"desc":"Once as a an action, I can squeeze this medal tightly in the palm of my hand. Doing so gives me advantage on Strength checks and Strength saving throws for 1 hour. Once this property has been used, it can't be used again, and the medal becomes nonmagical.","effects":[],"source":"2014"},
 {"key":"medal_of_the_conch","name":"Medal of the Conch","rarity":"common","type":"wondrous item","attunement":false,"attuned":false,"desc":"Once as an action, I can rub this medal to gain a swimming speed equal to my walking speed for 1 hour. Once this property has been used, it can't be used again, and the medal becomes nonmagical.","effects":[],"source":"2014"},
@@ -26385,37 +26382,64 @@ function migrateToMulticlass() {
 }
 
 // Compute multiclass spell slot caster level
-function getMulticlassCasterLevel() {
+// How a class row adds to spell slots: 'full', 'half', 'third' (a
+// spellcasting subclass of a non-casting class) or 'none'. Warlock's
+// Pact Magic is never part of these slots; it is shown on its own.
+const SLOT_THIRD_CASTER_SUBCLASSES = {
+  fighter: ['eldritch knight'],
+  rogue:   ['arcane trickster'],
+  monk:    ['warrior of the mystic arts', 'mystic arts'],
+};
+function slotCasterType(cls, sub) {
+  cls = String(cls || '').toLowerCase();
+  sub = String(sub || '').toLowerCase();
+  const t = (typeof CLASS_CASTER_TYPE !== 'undefined' && CLASS_CASTER_TYPE[cls]) || 'none';
+  if (t === 'full' || t === 'half') return t;
+  if ((SLOT_THIRD_CASTER_SUBCLASSES[cls] || []).some(s => sub.includes(s))) return 'third';
+  return 'none';
+}
+
+// Caster level for the multiclass slot table: full levels, half levels
+// rounded up (2024 PHB Paladin/Ranger, and Artificer), a third of
+// Eldritch Knight / Arcane Trickster levels rounded down.
+function casterLevelForClasses(classes) {
   let casterLevel = 0;
-  for (const entry of getAllClasses()) {
-    const cls = entry.class?.toLowerCase();
-    const sub = (entry.subclass || '').toLowerCase();
+  for (const entry of classes || []) {
     const lvCount = entry.levels?.length || 0;
-    const type = MC_CASTER_TYPE[cls] || 'none';
-    if (type === 'full')    casterLevel += lvCount;
-    // 2024 PHB: Paladin/Ranger multiclassing text reads "Add half your
-    // Paladin [or Ranger] levels (rounded UP)" - this changed from 2014's
-    // round-down, matching Spellcasting moving to level 1 for both classes.
-    // (Artificer also rounds up, but isn't in MC_CASTER_TYPE as a caster
-    // here.) Confirmed against the class's own official multiclassing
-    // entry, not just inferred from the slot-table shift.
-    else if (type === 'half')   casterLevel += Math.ceil(lvCount / 2);
-    else if (type === 'none') {
-      // Check for third-caster subclass
-      const thirdSubs = MC_THIRD_CASTER_SUBCLASSES[cls] || [];
-      if (thirdSubs.some(s => sub.includes(s))) casterLevel += Math.floor(lvCount / 3);
-    }
-    // warlock handled separately
+    const type = slotCasterType(entry.class, entry.subclass);
+    if (type === 'full') casterLevel += lvCount;
+    else if (type === 'half') casterLevel += Math.ceil(lvCount / 2);
+    else if (type === 'third') casterLevel += Math.floor(lvCount / 3);
   }
-  return Math.floor(casterLevel);
+  return casterLevel;
+}
+
+// The spell slots (not Pact Magic) a set of class rows gives, [1st..9th].
+// One spellcasting class - even alongside non-casting classes or Warlock -
+// uses that class's own table at its own levels; two or more combine on
+// the multiclass table.
+function spellSlotTable(classes) {
+  const casters = (classes || []).filter(e => (e.levels?.length || 0) > 0 && slotCasterType(e.class, e.subclass) !== 'none');
+  if (!casters.length) return [];
+  if (casters.length === 1) {
+    const e = casters[0];
+    const type = slotCasterType(e.class, e.subclass);
+    const table = type === 'full' ? SLOTS_FULL : type === 'half' ? SLOTS_HALF : SLOTS_THIRD;
+    return (table[Math.min(e.levels.length, 20)] || []).slice();
+  }
+  const cl = casterLevelForClasses(casters);
+  return cl >= 1 ? (MC_SPELL_SLOTS[Math.min(cl, 20)] || []).slice() : [];
+}
+
+function getMulticlassCasterLevel() {
+  return casterLevelForClasses(getAllClasses());
 }
 
 // Get spell slots for current character (multiclass-aware)
 function getMulticlassSpellSlots() {
   if (!isMulticlass()) return null; // use single-class table
-  const cl = getMulticlassCasterLevel();
-  if (cl < 1) return null;
-  return MC_SPELL_SLOTS[Math.min(cl, 20)] || null;
+  const slots = spellSlotTable(getAllClasses());
+  return slots.some(n => n > 0) ? slots : null;
 }
 
 // Get hit die for a specific class
@@ -28654,8 +28678,12 @@ function getAutoACMethod() {
     }
   }
 
-  // No armor - check class/subclass for unarmored defense
-  const _udEntry = getAllClasses().find(e => CLASS_DEFAULT_AC[(e.class||'').toLowerCase().trim()]);
+  // No armor - check class/subclass for unarmored defense. A Monk's
+  // Unarmored Defense also needs no Shield (a Barbarian's allows one).
+  const _udEntry = getAllClasses().find(e => {
+    const m = CLASS_DEFAULT_AC[(e.class||'').toLowerCase().trim()];
+    return m && !(m === 'unarmored_wis' && currentChar.shield);
+  });
   const cls = (_udEntry?.class || '').toLowerCase().trim();
   if (CLASS_DEFAULT_AC[cls]) return CLASS_DEFAULT_AC[cls];
 
@@ -28913,7 +28941,7 @@ function calcAC() {
   if (!isWearingArmor) {
     if (hasClass('barbarian'))
       candidates.push(10 + dex + abilityMod(abs.con));            // Unarmored Defense (CON)
-    if (hasClass('monk') || monkSub.includes('mercy') || monkSub.includes('open hand') || monkSub.includes('shadow') || monkSub.includes('four elements') || monkSub.includes('kensei') || monkSub.includes('drunken') || monkSub.includes('long death') || monkSub.includes('sun soul') || monkSub.includes('astral self'))
+    if (!shield && (hasClass('monk') || monkSub.includes('mercy') || monkSub.includes('open hand') || monkSub.includes('shadow') || monkSub.includes('four elements') || monkSub.includes('kensei') || monkSub.includes('drunken') || monkSub.includes('long death') || monkSub.includes('sun soul') || monkSub.includes('astral self')))   // a Monk's Unarmored Defense needs no Shield
       candidates.push(10 + dex + abilityMod(abs.wis));            // Unarmored Defense (WIS)
     if (sorcSub.includes('draconic') || palSub.includes('noble genies'))
       candidates.push(10 + dex + abilityMod(abs.cha));            // Unarmored Defense (CHA)
@@ -29020,7 +29048,7 @@ function calcACBreakdown() {
   if (!isWearingArmor) {
     if (hasClass('barbarian'))
       candidates.push({ val: 10 + dex + con, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CON ${s(con)}` });
-    if (hasClass('monk') || monkSub2.includes('mercy') || monkSub2.includes('open hand') || monkSub2.includes('shadow') || monkSub2.includes('four elements') || monkSub2.includes('kensei') || monkSub2.includes('drunken') || monkSub2.includes('long death') || monkSub2.includes('sun soul') || monkSub2.includes('astral self'))
+    if (!shield && (hasClass('monk') || monkSub2.includes('mercy') || monkSub2.includes('open hand') || monkSub2.includes('shadow') || monkSub2.includes('four elements') || monkSub2.includes('kensei') || monkSub2.includes('drunken') || monkSub2.includes('long death') || monkSub2.includes('sun soul') || monkSub2.includes('astral self')))
       candidates.push({ val: 10 + dex + wis, label: `Unarmored Defense: 10 + DEX ${s(dex)} + WIS ${s(wis)}` });
     if (sorcSub2.includes('draconic') || palSub2.includes('noble genies'))
       candidates.push({ val: 10 + dex + cha, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CHA ${s(cha)}` });
@@ -29690,47 +29718,9 @@ function computeSpellSlotsForChar(char) {
 
   const used = char.spell_slots_used || {};
   const warlockEntry    = classes.find(c => (c.class||'').toLowerCase() === 'warlock');
-  const nonWarlockClasses = classes.filter(c => (c.class||'').toLowerCase() !== 'warlock');
 
-  let rawLevels = [];
-  if (nonWarlockClasses.length === 1 && classes.length === (warlockEntry ? 2 : 1)) {
-    // Single non-warlock casting class (possibly alongside warlock, handled separately below)
-    const cls     = (nonWarlockClasses[0].class || '').toLowerCase();
-    const sub     = (nonWarlockClasses[0].subclass || '').toLowerCase();
-    const lvCount = nonWarlockClasses[0].levels?.length || 0;
-    const type    = CLASS_CASTER_TYPE[cls] || 'none';
-    let table = type === 'full' ? SLOTS_FULL : type === 'half' ? SLOTS_HALF : null;
-    if (!table) {
-      const thirdSubs = MC_THIRD_CASTER_SUBCLASSES[cls] || [];
-      if (thirdSubs.some(s => sub.includes(s))) table = SLOTS_THIRD;
-    }
-    if (table) {
-      const raw = table[Math.min(lvCount, table.length - 1)] || [];
-      rawLevels = raw.map((max, i) => ({ level: i+1, max }));
-    }
-  } else if (nonWarlockClasses.length > 1) {
-    // True multiclass (2+ non-warlock casting/half-casting classes) - combined caster-level table
-    let casterLevel = 0;
-    nonWarlockClasses.forEach(entry => {
-      const cls = (entry.class||'').toLowerCase();
-      const sub = (entry.subclass||'').toLowerCase();
-      const lvCount = entry.levels?.length || 0;
-      const type = MC_CASTER_TYPE[cls] || 'none';
-      if (type === 'full') casterLevel += lvCount;
-      // 2024 PHB: Paladin/Ranger round UP for multiclassing, not down - see
-      // getMulticlassCasterLevel() for the same fix and its rationale.
-      else if (type === 'half') casterLevel += Math.ceil(lvCount/2);
-      else if (type === 'none') {
-        const thirdSubs = MC_THIRD_CASTER_SUBCLASSES[cls] || [];
-        if (thirdSubs.some(s => sub.includes(s))) casterLevel += Math.floor(lvCount/3);
-      }
-    });
-    casterLevel = Math.floor(casterLevel);
-    if (casterLevel >= 1) {
-      const raw = MC_SPELL_SLOTS[Math.min(casterLevel, 20)] || [];
-      rawLevels = raw.map((max,i) => ({level:i+1, max}));
-    }
-  }
+  // Same rule as the player's own Spells tab (spellSlotTable).
+  const rawLevels = spellSlotTable(classes).map((max, i) => ({ level: i + 1, max }));
 
   const levels = rawLevels.filter(l => l.max > 0).map(l => {
     let usedCount = 0;
@@ -32548,9 +32538,10 @@ const CLASS_CASTER_TYPE = {
 // two separate implementations - one still using the old 2014 "level +
 // ability mod" formula - which silently drifted out of sync. Index 0 =
 // level 1. Verified directly against the official Features tables.
-const FULL_PREPARED_TABLE_2024 = [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22]; // Cleric, Druid
+const FULL_PREPARED_TABLE_2024 = [4,5,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22]; // Bard, Cleric, Druid, Psion
+const SORCERER_PREPARED_TABLE_2024 = [2,4,6,7,9,10,11,12,14,15,16,16,17,17,18,18,19,20,21,22]; // Sorcerer's own table
 const WARLOCK_PREPARED_TABLE_2024 = [2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,15,15]; // Warlock's own table - different from full casters
-const WIZARD_PREPARED_TABLE_2024 = [4,5,6,7,9,10,11,12,14,15,16,16,17,18,19,21,22,23,24,26];
+const WIZARD_PREPARED_TABLE_2024 = [4,5,6,7,9,10,11,12,14,15,16,16,17,18,19,21,22,23,24,25];
 const HALF_PREPARED_TABLE_2024 = [2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15]; // Paladin, Ranger
 // Artificer 2024 (Eberron: Forge of the Artificer) - index 0 unused (no level 0).
 const ARTIFICER_PREPARED_TABLE_2024 = [0,2,3,4,5,6,6,7,7,9,9,10,10,11,11,12,12,14,14,15,15];
@@ -32566,12 +32557,12 @@ const CLASS_PREP_FORMULA = {
   ranger:   (level) => HALF_PREPARED_TABLE_2024[Math.min(level, HALF_PREPARED_TABLE_2024.length) - 1] || 0,
   artificer:(level) => ARTIFICER_PREPARED_TABLE_2024[Math.min(level, ARTIFICER_PREPARED_TABLE_2024.length - 1)] || 0,
   // Bard, Psion, Sorcerer, and Warlock all swap prepared spells only on
-  // level-up (like a known caster). Bard/Psion/Sorcerer's prepared-spell
-  // COUNT follows the same fixed 2024 table as Cleric/Druid; Warlock has
-  // its own distinct table (confirmed against the official 2024 table).
+  // level-up (like a known caster). Bard/Psion's prepared-spell COUNT
+  // follows the same fixed 2024 table as Cleric/Druid; Sorcerer and Warlock
+  // each have their own table.
   bard:    (level) => FULL_PREPARED_TABLE_2024[Math.min(level, FULL_PREPARED_TABLE_2024.length) - 1] || 0,
   psion:   (level) => FULL_PREPARED_TABLE_2024[Math.min(level, FULL_PREPARED_TABLE_2024.length) - 1] || 0,
-  sorcerer:(level) => FULL_PREPARED_TABLE_2024[Math.min(level, FULL_PREPARED_TABLE_2024.length) - 1] || 0,
+  sorcerer:(level) => SORCERER_PREPARED_TABLE_2024[Math.min(level, SORCERER_PREPARED_TABLE_2024.length) - 1] || 0,
   warlock: (level) => WARLOCK_PREPARED_TABLE_2024[Math.min(level, WARLOCK_PREPARED_TABLE_2024.length) - 1] || 0,
 };
 function getSpellSlots(cls, level) {
@@ -34004,7 +33995,9 @@ function getClassPreparedMax(cls, lv) {
   const type = cd.spellcasting?.type;
   let classMax = 0;
 
-  if (cls === 'bard' || cls === 'psion' || cls === 'sorcerer') {
+  if (cls === 'sorcerer') {
+    classMax = SORCERER_PREPARED_TABLE_2024[Math.min(lv, SORCERER_PREPARED_TABLE_2024.length) - 1] || 0;
+  } else if (cls === 'bard' || cls === 'psion') {
     classMax = FULL_PREPARED_TABLE_2024[Math.min(lv, FULL_PREPARED_TABLE_2024.length) - 1] || 0;
   } else if (cls === 'warlock') {
     classMax = WARLOCK_PREPARED_TABLE_2024[Math.min(lv, WARLOCK_PREPARED_TABLE_2024.length) - 1] || 0;
@@ -51686,7 +51679,14 @@ function renderResourceTracker() {
       // second time in the resource data itself (which would drift out of
       // sync with the Features tab the moment either one got edited).
       const subFeaturesForDesc = PHB_SUBCLASSES[eSubKey]?.features || [];
-      [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])].forEach(r => {
+      // Same name-dedupe as buildAllResourceDefs(): where both tables carry
+      // a feature, PHB_SUBCLASS_RESOURCES wins. The supplemental copies of
+      // several (Bulwark of Force, Telekinetic Master, ...) unlock at older
+      // levels, so letting them through showed counters too early.
+      const _seenTrackerSubRes = new Set();
+      [...(PHB_SUBCLASS_RESOURCES[eSubKey]||[]), ...(SUPPLEMENTAL_SUBCLASS_RESOURCES[eSubKey]||[])]
+        .filter(r => { if (_seenTrackerSubRes.has(r.name)) return false; _seenTrackerSubRes.add(r.name); return true; })
+        .forEach(r => {
         // 2024 rules guarantee no subclass feature unlocks before level 3 -
         // same reasoning as the Features tab fix - but a lot of the
         // underlying resource data has minLevel:1 as an unexamined
@@ -64627,8 +64627,8 @@ function getWildShapeUsesMax() {
   const druidEntry = getClassEntry('druid');
   if (!druidEntry) return 0;
   const lv = druidEntry.levels?.length || 0;
-  // PHB 2024: 2 uses lv2–5, 3 uses lv6–17, 4 uses lv18+
-  if (lv >= 18) return 4;
+  // PHB 2024: 2 uses lv2–5, 3 uses lv6–16, 4 uses lv17+
+  if (lv >= 17) return 4;
   if (lv >= 6)  return 3;
   if (lv >= 2)  return 2;
   return 0;
