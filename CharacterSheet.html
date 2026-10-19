@@ -9894,6 +9894,22 @@ function highlightCantripScaling(fullDescHtml, spell, charLevel) {
     return highlighted2 + after2;
   }
 
+  // Die CHANGES at each tier - "The damage die changes when you reach
+  // levels 5 (d10), 11 (d12), and 17 (2d6)" (Shillelagh), where the body
+  // says "the weapon's damage die becomes a d8".
+  const dieChangeMatch = raw.match(/damage die changes when you reach levels? 5 \((\d*d\d+)\),? 11 \((\d*d\d+)\),? and 17 \((\d*d\d+)\)/i);
+  if (dieChangeMatch) {
+    const tier = charLevel >= 17 ? 3 : charLevel >= 11 ? 2 : charLevel >= 5 ? 1 : 0;
+    if (tier === 0) return fullDescHtml;
+    const nd = dieChangeMatch[tier], newText = /^d/i.test(nd) ? 'a ' + nd : nd;
+    const upgradeIdx3 = fullDescHtml.search(/Cantrip Upgrade/i);
+    const before3 = upgradeIdx3 === -1 ? fullDescHtml : fullDescHtml.slice(0, upgradeIdx3);
+    const after3 = upgradeIdx3 === -1 ? '' : fullDescHtml.slice(upgradeIdx3);
+    const becomes = /\b(damage die becomes )a d\d+\b/i;
+    if (!becomes.test(before3)) return fullDescHtml;
+    return before3.replace(becomes, (m, lead) => `${lead}<span style="color:var(--accent);font-weight:600">${newText}</span>`) + after3;
+  }
+
   // Standard damage-dice scaling: "The damage increases by XdY when you
   // reach levels 5 (2dY), 11 (3dY), and 17 (4dY)" (older phrasing, e.g.
   // Fire Bolt) or "...when you reach 5th level (2dY), 11th level (3dY),
@@ -14566,6 +14582,7 @@ const PHB_CLASS_CHOICES = {
       "desc": "Falcon: while Raging, Fly Speed equal to my Speed if I'm not wearing armor. Lion: while Raging, enemies within 5 ft of me have Disadvantage on attack rolls against targets other than me or another Barbarian with this option active. Ram: while Raging, I can knock a Large or smaller creature Prone when I hit it with a melee attack.",
       "wires": ["display"]
     },
+    {"id": "weapon_mastery_barbarian", "label": "Weapon Mastery", "minLevel": 1, "type": "weapon-mastery", "options": ["Club", "Dagger", "Greatclub", "Handaxe", "Javelin", "Light Hammer", "Mace", "Quarterstaff", "Sickle", "Spear", "Battleaxe", "Flail", "Glaive", "Greataxe", "Greatsword", "Halberd", "Lance", "Longsword", "Maul", "Morningstar", "Pike", "Rapier", "Scimitar", "Shortsword", "Trident", "Warhammer", "War Pick", "Whip"], "desc": "The mastery properties of kinds of Simple or Martial Melee weapons of your choice. Whenever you finish a Long Rest, you can change one of those weapon choices. The number grows at certain Barbarian levels (Weapon Mastery column of the Barbarian Features table).", "wires": ["display"], "countByLevel": [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]},
     {
       "id": "primal_knowledge_skill",
       "label": "Primal Knowledge \u2014 Bonus Skill",
@@ -14738,6 +14755,7 @@ const PHB_CLASS_CHOICES = {
       "desc": "Choose when you finish a Short or Long Rest; changeable here at will.",
       "wires": ["display"]
     },
+    {"id": "fighting_style_champion", "label": "Additional Fighting Style", "minLevel": 7, "type": "dropdown", "showIfSubclass": "Champion", "options": ["Archery", "Blind Fighting", "Defense", "Dueling", "Great Weapon Fighting", "Interception", "Protection", "Thrown Weapon Fighting", "Two-Weapon Fighting", "Unarmed Fighting"], "desc": "You gain another Fighting Style feat of your choice.", "wires": ["display"]},
     {
       "id": "fighting_style",
       "label": "Fighting Style",
@@ -15388,6 +15406,7 @@ const PHB_CLASS_CHOICES = {
   "artificer": [{"id":"infusions_known","label":"Arcane Plans Known (Replicate Magic Item)","desc":"Choose arcane plans to know from the full magic item compendium, gated by rarity tier: Common (lvl 2+), Uncommon non-wondrous (lvl 6+), Uncommon wondrous (lvl 10+), Rare wondrous (lvl 14+). Count increases at higher levels. You can have up to half your known plans replicated simultaneously (see Replicated Items resource).","type":"multi-select","minLevel":2,"countByLevel":{"2":4,"3":4,"4":4,"5":4,"6":5,"7":5,"8":5,"9":5,"10":6,"11":6,"12":6,"13":6,"14":7,"15":7,"16":7,"17":7,"18":8,"19":8,"20":8},"options":["Boots of the Winding Path","Dazzling Weapon","Helm of Awareness","Manifold Tool","Mind Sharpener","Repeating Shot","Repulsion Shield","Returning Weapon","Spell-Refueling Ring"]},{"id":"armor_model","label":"Arcane Armor Model","minLevel":3,"type":"dropdown","options":["Dreadnaught","Guardian","Infiltrator"],"showIfSubclass":"armorer","desc":"Dreadnaught: Force Demolisher (1d10 Force, Reach, push/pull) + Giant Stature. Guardian: Thunder Pulse (1d8 Thunder, Disadvantage debuff) + Defensive Field. Infiltrator: Lightning Launcher (1d6 Lightning, 90/300 ft, +1d6 once/turn) + Powered Steps (+5 ft Speed) + Dampening Field (Adv. on Stealth). Can be changed on a rest with Smith's Tools in hand.","wires":["display"]},],
   "psion": [{"id":"psionic_disciplines","label":"Psionic Disciplines","desc":"Techniques fueled by Psionic Energy Dice. One per turn. Choose 2 at lv2; +1 at lv5/10/13/17.","type":"multi-select","minLevel":2,"countByLevel":{"2":2,"3":2,"4":2,"5":3,"6":3,"7":3,"8":3,"9":3,"10":4,"11":4,"12":4,"13":5,"14":5,"15":5,"16":5,"17":6,"18":6,"19":6,"20":6},"options":["Biofeedback","Bolstering Precognition","Destructive Thoughts","Devilish Tongue","Expanded Awareness","Id Insinuation","Inerrant Aim","Observant Mind","Psionic Backlash","Psionic Guards","Sharpened Mind"]},{"id":"mutable_form_config","label":"Mutable Form","desc":"Bonus Action: expend 1 Psionic Energy Die to activate. Choose your form options below.","type":"modal-button","buttonLabel":"▶ Activate Mutable Form","buttonFn":"openMutableFormModal()","minLevel":3,"showIfSubclass":"metamorph"}],
   "druid": [
+    {"id": "elemental_fury", "label": "Elemental Fury", "minLevel": 7, "type": "radio", "options": [{"value": "potent_spellcasting", "label": "Potent Spellcasting", "desc": "Add your Wisdom modifier to the damage you deal with any Druid cantrip. Improved Elemental Fury (level 15): When you cast a Druid cantrip with a range of 10 feet or greater, the spell's range increases by 300 feet."}, {"value": "primal_strike", "label": "Primal Strike", "desc": "Once on each of your turns when you hit a creature with an attack roll using a weapon or a Beast form's attack in Wild Shape, you can cause the target to take an extra 1d8 Cold, Fire, Lightning, or Thunder damage (choose when you hit). Improved Elemental Fury (level 15): The extra damage of your Primal Strike increases to 2d8."}], "wires": ["display"]},
     {
       "id": "circle_of_the_land_type",
       "label": "Circle of the Land - Land Type",
@@ -28984,7 +29003,7 @@ function calcAC() {
 function getKnownFightingStyles() {
   const styles = new Set();
   const cc = currentChar?.class_choices || {};
-  ['fighting_style', 'fighting_style_paladin', 'fighting_style_ranger'].forEach(k => {
+  ['fighting_style', 'fighting_style_paladin', 'fighting_style_ranger', 'fighting_style_champion'].forEach(k => {
     if (cc[k]) styles.add(cc[k]);
   });
   const featNames = new Set();
@@ -35309,6 +35328,10 @@ function renderKnownSpells() {
       if (_pi.some(e => e.name === 'Eldritch Spear' && e.cantrip === sp.key) && _wlLv)
         _invocBadges += `<span class="sp-tag" style="color:var(--purple);border-color:rgba(155,89,182,.4);background:rgba(155,89,182,.1)">+${30*_wlLv}ft</span>`;
     }
+    if (sp.level === 0) {
+      const _potent = getPotentSpellcastingBonus(sp.key);
+      if (_potent) _invocBadges += `<span class="sp-tag" title="Potent Spellcasting: + Wisdom modifier to damage" style="color:var(--gold);border-color:rgba(192,57,107,.4);background:rgba(192,57,107,.1)">${_potent>=0?'+':''}${_potent} dmg</span>`;
+    }
     row.innerHTML = `
       <div class="sp-pip ${sp.pipType}" title="${pipTitle}" ${pipClick}></div>
       <div class="sp-level-badge">${sp.level === 0 ? 'C' : sp.level}${_schoolAbbr ? `<span class="sp-school-abbr" style="color:${_schoolColor}" title="${_schoolName}">${_schoolAbbr}</span>` : ''}</div>
@@ -35904,7 +35927,8 @@ const CANTRIP_DAMAGE = {
   'true_strike':    { die:'d6',   count:[0,1,2,3], type:'Radiant+weapon', atkType:'melee' },
   'vicious_mockery':{ die:'d6',   count:[1,2,3,4], type:'Psychic',   atkType:'save',  saveAbility:'wis' },
   'word_of_radiance':{ die:'d6',  count:[1,2,3,4], type:'Radiant',   atkType:'save',  saveAbility:'con' },
-  'shillelagh':          { die:'d8',   count:[1,1,1,1], type:'Force',     atkType:'melee',  note:'Uses spell ability for attack' },
+  // "The damage die changes when you reach levels 5 (d10), 11 (d12), and 17 (2d6)."
+  'shillelagh':          { die:'d8',   count:[1,1,1,1], tierDice:['1d8','1d10','1d12','2d6'], addsSpellMod:true, type:'Force',     atkType:'melee',  note:'Uses spell ability for attack' },
   'green_flame_blade':   { die:'d8',   count:[0,1,1,2], type:'Fire',      atkType:'melee',  note:'Also hits adjacent creature' },
   'booming_blade':       { die:'d8',   count:[0,1,1,2], type:'Thunder',   atkType:'melee',  note:'Extra on movement' },
   'infestation':         { die:'d6',   count:[1,2,3,4], type:'Piercing',  atkType:'save',   saveAbility:'con' },
@@ -36039,6 +36063,8 @@ function getFightingStyle() {
   const styles = [];
   // Primary class fighting style
   if (choices.fighting_style) styles.push(choices.fighting_style.toLowerCase());
+  // Champion's Additional Fighting Style (fighter level 7)
+  if (choices.fighting_style_champion) styles.push(choices.fighting_style_champion.toLowerCase());
   // Additional classes may have fighting style choices too
   for (const entry of getAllClasses()) {
     const cls = entry.class?.toLowerCase();
@@ -36072,6 +36098,7 @@ function getWeaponMasteries() {
     'weapon_mastery_paladin',
     'weapon_mastery_ranger',
     'weapon_mastery_rogue',
+    'weapon_mastery_barbarian',
   ];
   for (const key of MASTERY_KEYS) {
     const val = choices[key];
@@ -36080,6 +36107,42 @@ function getWeaponMasteries() {
   }
   return masteries;
 }
+
+// ── Potent Spellcasting ───────────────────────────────────
+// Druid level 7 (Elemental Fury) or Cleric level 7 (Blessed Strikes), when
+// that option is the one chosen: "Add your Wisdom modifier to the damage
+// you deal with any Druid [Cleric] cantrip." Returns the bonus for one
+// cantrip, or 0.
+function getPotentSpellcastingBonus(spellKey) {
+  if (!currentChar) return 0;
+  const sp = PHB_SPELL_LIST.find(s => s.key === spellKey); if (!sp || sp.level !== 0) return 0;
+  // only cantrips that deal damage. Shillelagh is left out: it already adds
+  // your spellcasting modifier to the weapon's damage itself.
+  if (spellKey === 'shillelagh') return 0;
+  const txt = String(sp.descFull || sp.desc || '');
+  if (!(typeof CANTRIP_DAMAGE !== 'undefined' && CANTRIP_DAMAGE[spellKey]) && !/\d+d\d+[^.]*damage/i.test(txt)) return 0;
+  const cc = currentChar.class_choices || {};
+  const ok = (cls, key) => cc[key] === 'potent_spellcasting' && (getClassLevelCount(cls) || 0) >= 7 && (sp.classes || []).includes(cls);
+  if (!ok('druid', 'elemental_fury') && !ok('cleric', 'blessed_strikes')) return 0;
+  return abilityMod(getAbilities().wis);
+}
+window.getPotentSpellcastingBonus = getPotentSpellcastingBonus;
+
+// Elemental Fury / Blessed Strikes (and their Improved versions) list both
+// options; once one is chosen, only that one applies.
+const CHOSEN_OPTION_FEATURES = {
+  'elemental fury': ['elemental_fury', { potent_spellcasting: 'Potent Spellcasting', primal_strike: 'Primal Strike' }],
+  'improved elemental fury': ['elemental_fury', { potent_spellcasting: 'Potent Spellcasting', primal_strike: 'Primal Strike' }],
+  'blessed strikes': ['blessed_strikes', { divine_strike: 'Divine Strike', potent_spellcasting: 'Potent Spellcasting' }],
+  'improved blessed strikes': ['blessed_strikes', { divine_strike: 'Divine Strike', potent_spellcasting: 'Potent Spellcasting' }],
+};
+function chosenOptionText(featureName, text) {
+  const def = CHOSEN_OPTION_FEATURES[String(featureName || '').toLowerCase().trim()]; if (!def) return text;
+  const pick = currentChar?.class_choices?.[def[0]]; if (!pick || !def[1][pick]) return text;
+  const others = Object.entries(def[1]).filter(([k]) => k !== pick).map(([, l]) => l);
+  return String(text || '').split(/\s+\|\s+/).filter(part => !others.some(l => part.trim().startsWith(l + '.'))).join(' | ');
+}
+window.chosenOptionText = chosenOptionText;
 
 // ── Monk martial arts die ─────────────────────────────────
 function getMonkDie() {
@@ -40410,14 +40473,20 @@ function renderAttacksPanel() {
       const elemBonus = elemMatch ? chaMod : 0;
       // Empowered Evocation only applies to Evocation-school Wizard spells
       const empoweredEvocationBonus = (hasEmpoweredEvocation && phb?.school === 'Evocation') ? intMod : 0;
+      // Potent Spellcasting (Druid Elemental Fury / Cleric Blessed Strikes)
+      const potentBonus = getPotentSpellcastingBonus(key);
 
-      const totalBonus = agonizingBonus + elemBonus + empoweredEvocationBonus;
+      // Shillelagh: "use your spellcasting ability instead of Strength for the attack and damage rolls"
+      const spellModBonus = data.addsSpellMod && ability ? abilMod_spell : 0;
+      const totalBonus = agonizingBonus + elemBonus + empoweredEvocationBonus + potentBonus + spellModBonus;
       const bonusStr   = totalBonus ? ` + ${totalBonus}` : '';
       const dmgStr = data.beams
         ? `${data.count[scaleIdx]}× 1${data.die}${bonusStr} ${data.type}`
         : cnt === 0 && data.type === 'Radiant+weapon'
           ? `Weapon deals Radiant`
-          : `${cnt}${data.die}${bonusStr} ${data.type}`;
+          : data.tierDice
+            ? `${data.tierDice[scaleIdx]}${bonusStr} ${data.type}`
+            : `${cnt}${data.die}${bonusStr} ${data.type}`;
 
       // Cantrip damage breakdown - the dice themselves scale with
       // character level (baked into data.count/cnt already), so this
@@ -40427,6 +40496,8 @@ function renderAttacksPanel() {
       if (agonizingBonus) dmgBonusParts.push(`Agonizing Blast: CHA mod (${chaMod>=0?'+':''}${chaMod})`);
       if (elemBonus) dmgBonusParts.push(`Elemental Affinity (matching damage type): CHA mod (${chaMod>=0?'+':''}${chaMod})`);
       if (empoweredEvocationBonus) dmgBonusParts.push(`Empowered Evocation: INT mod (${intMod>=0?'+':''}${intMod})`);
+      if (potentBonus) dmgBonusParts.push(`Potent Spellcasting: WIS mod (${potentBonus>=0?'+':''}${potentBonus})`);
+      if (spellModBonus) dmgBonusParts.push(`${name}: ${ability.toUpperCase()} mod instead of STR (${spellModBonus>=0?'+':''}${spellModBonus})`);
       const dmgBreakdown = dmgBonusParts.length
         ? `Dice scale with level, plus ${dmgBonusParts.join(' + ')} added to the total`
         : `Dice scale with character level - no flat bonus applies to this cantrip`;
@@ -49575,7 +49646,7 @@ function renderChoiceDef(def, _choiceCls) {
     // Fighting Style choices also reflect any style(s) known via a taken
     // Fighting Style feat (type:'style' in PHB_FEATS), so this pill stays in
     // sync with whatever was picked over in the Feats tab.
-    if (['fighting_style','fighting_style_paladin','fighting_style_ranger'].includes(def.id)) {
+    if (['fighting_style','fighting_style_paladin','fighting_style_ranger','fighting_style_champion'].includes(def.id)) {
       const featStyles = [...getKnownFightingStyles()].filter(s => s !== val);
       if (featStyles.length) {
         inner += `<div style="font-family:var(--font-ui);font-size:9px;color:#16a085;margin-top:4px">Also known (via feat): ${featStyles.join(', ')}</div>`;
@@ -56509,7 +56580,7 @@ function renderFeatPicker(slot, dec, pfx = '') {
       ${prereq ? `<div style="font-family:var(--font-ui);font-size:10px;margin-bottom:4px">${renderPrereqLine(prereq, valKey)}</div>` : ''}
       ${needsCfg && !hasCfg ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--red);margin-bottom:4px;letter-spacing:.5px">&#9888; Click Config to set ability score &amp; options</div>` : ''}
       ${phb?.desc ? `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3);line-height:1.5">${formatFeatDescHtml(phb.desc)}</div>` : ''}
-      ${(val && phb?.type === 'style' && ['fighting_style','fighting_style_paladin','fighting_style_ranger'].some(k => currentChar.class_choices?.[k] === val)) ? `<div style="font-family:var(--font-ui);font-size:10px;color:#16a085;margin-top:4px">✓ Also your class Fighting Style feature pick</div>` : ''}
+      ${(val && phb?.type === 'style' && ['fighting_style','fighting_style_paladin','fighting_style_ranger','fighting_style_champion'].some(k => currentChar.class_choices?.[k] === val)) ? `<div style="font-family:var(--font-ui);font-size:10px;color:#16a085;margin-top:4px">✓ Also your class Fighting Style feature pick</div>` : ''}
       ${hasCfg && dec.featDetail?.asiAb ? `<div style="font-family:var(--font-ui);font-size:10px;color:var(--gold);margin-top:4px;letter-spacing:.5px">+1 ${AB_FULL[dec.featDetail.asiAb]} applied</div>` : ''}
       ${(()=>{
         if (!val) return '';
@@ -67552,6 +67623,14 @@ function _qpSpellMath(sp, charLevel, castLevel) {
       for (const m of tail.matchAll(/(\d+)d(\d+) at level (\d+)/gi)) if (charLevel >= parseInt(m[3], 10)) best = m;
       if (best && out.dmg[0]) { out.dmg[0].n = parseInt(best[1], 10); out.dmg[0].die = parseInt(best[2], 10); }
     }
+    else if (/damage die changes when you reach/i.test(tail)) {
+      // "the weapon's damage die becomes a d8" ... "The damage die changes when you reach levels 5 (d10), 11 (d12), and 17 (2d6)" (Shillelagh)
+      const base = /damage die becomes a d(\d+)/i.exec(body);
+      const ty = /\b(?:can be|deals?) ([A-Z][a-z]+) damage/.exec(body);
+      let n = 1, die = base ? parseInt(base[1], 10) : 0;
+      for (const m of tail.matchAll(/\b(\d+)\s*\((\d*)d(\d+)\)/g)) if (charLevel >= parseInt(m[1], 10)) { n = m[2] ? parseInt(m[2], 10) : 1; die = parseInt(m[3], 10); }
+      if (die && !out.dmg.length) out.dmg.push({ n, die, flat: 0, type: ty ? ty[1] : '' });
+    }
     else if (steps && /damage increases by/i.test(tail)) {
       const inc = /increases by (\d+)d(\d+)/i.exec(tail);
       out.dmg.forEach(d => { if (!inc || parseInt(inc[2], 10) === d.die || /one die/i.test(tail)) d.n += (inc ? parseInt(inc[1], 10) : 1) * steps; });
@@ -67590,6 +67669,10 @@ function _qpSpellMathHtml(key, castLevel) {
       if (inv.some(e => e.name === 'Repelling Blast')) _push = 'push up to 10 ft';
     } catch (e) {}
   }
+  // Potent Spellcasting: + WIS to a Druid / Cleric cantrip's damage
+  if (!sp.level) { try { const pb = getPotentSpellcastingBonus(key); if (pb) m.dmg.forEach(d => { d.flat += pb; }); } catch (e) {} }
+  // Shillelagh: the weapon uses your spellcasting ability instead of Strength for damage
+  if (key === 'shillelagh') { try { const ab = getPrimarySpellcasting()?.ability; if (ab) { const sm = abilityMod(getAbilities()[ab]); m.dmg.forEach(d => { d.flat += sm; }); } } catch (e) {} }
   if (m.attack) bits.push(`<b>${st.atk != null ? _qpSign(st.atk) + ' to hit' : 'spell attack'}</b>`);
   if (m.save) bits.push(`<b>${st.dc != null ? 'DC ' + st.dc + ' ' : ''}${m.save} save</b>`);
   const dice = d => `${d.n}d${d.die}${d.flat ? _qpSign(d.flat) : ''}${d.type ? ' ' + d.type : ''}`;
@@ -67982,7 +68065,7 @@ function renderQuickPlay() {
     (c.class_choices?.psionic_disciplines || []).forEach(n => { const o = opts.find(p => p.name === n); if (o) chosen.push({ name: n, text: o.body }); });
   } catch (e) {}
   const featureList = (window._pdfFeatureEntries || []).filter(f => ['Class', 'Subclass', 'Race', 'Feat', 'Background Feat'].includes(f.sourceType))
-    .map(f => ({ name: f.name, text: typeof pdfPlain === 'function' ? pdfPlain(f.text) : String(f.text || '') })).concat(chosen);
+    .map(f => ({ name: f.name, text: chosenOptionText(f.name, typeof pdfPlain === 'function' ? pdfPlain(f.text) : String(f.text || '')) })).concat(chosen);
   featureList.forEach(f => {
     const n = String(f.name).toLowerCase();
     if (HANDLED.has(n) || SKIP_FEATURE.test(f.name) || shownNames.has(n)) return;
@@ -74776,7 +74859,7 @@ html.m-ui #qp-body .qp-table { width: 100%; }
     let h = $('m-play-head');
     if (!h) { h = document.createElement('div'); h.id = 'm-play-head'; page.insertBefore(h, page.firstChild); }
     page.dataset.mf = playFilter;
-    h.innerHTML = `<div class="m-seg" role="group" aria-label="Show">${PLAY_FILTERS.map(([k, l]) => `<button class="${k === playFilter ? 'on' : ''}" aria-pressed="${k === playFilter}" onclick="mPlayFilter('${k}')">${l}</button>`).join('')}</div>${withYou()}`;
+    h.innerHTML = `<div class="m-seg" role="group" aria-label="Show">${PLAY_FILTERS.map(([k, l]) => `<button data-m-view class="${k === playFilter ? 'on' : ''}" aria-pressed="${k === playFilter}" onclick="mPlayFilter('${k}')">${l}</button>`).join('')}</div>${withYou()}`;
   }
 
   // tapping a row opens it as a sheet, at that row, with everything on it
@@ -74843,12 +74926,12 @@ html.m-ui #qp-body .qp-table { width: 100%; }
       rows += `<button class="m-li" data-name="${esc(String(s.name).toLowerCase())}" onclick="openSpellDetailModal('${esc(s.key)}')"><span class="m-lt"><span class="m-ln">${esc(typeof _qpSpellName === 'function' ? String(_qpSpellName(s)).replace(/<[^>]+>/g, '') : s.name)}</span><span class="m-lm">${esc(meta)}</span>${math ? `<span class="m-lx">${math}</span>` : ''}</span>${tags}${act}</button>`;
     });
     const seg = [['all', 'All'], ['cantrip', 'Cantrips'], ['levelled', 'Levelled'], ['ritual', 'Ritual'], ['conc', 'Conc.']]
-      .map(([k, l]) => `<button class="${k === spFilter ? 'on' : ''}" aria-pressed="${k === spFilter}" onclick="mSpellFilter('${k}')">${l}</button>`).join('');
+      .map(([k, l]) => `<button data-m-view class="${k === spFilter ? 'on' : ''}" aria-pressed="${k === spFilter}" onclick="mSpellFilter('${k}')">${l}</button>`).join('');
     host.innerHTML = `
       ${tiles ? `<div class="m-tiles">${tiles}</div>` : ''}
       ${slots.length ? `<section class="m-sec2"><div class="m-h2"><h2>Spell slots</h2><span>tap a dot to use one</span></div><div class="m-box">${slots.join('')}</div></section>` : ''}
       <div class="m-sticky"><div class="m-seg" role="group" aria-label="Show">${seg}</div>
-        <div class="m-search">${svg('search', 18, 2)}<label for="m-spell-q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search spells</label><input id="m-spell-q" type="search" placeholder="Search ${all.length} spells" value="${esc(spQuery)}" oninput="mSpellSearch(this.value)" autocomplete="off"></div></div>
+        <div class="m-search">${svg('search', 18, 2)}<label for="m-spell-q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search spells</label><input id="m-spell-q" data-m-view-input type="search" placeholder="Search ${all.length} spells" value="${esc(spQuery)}" oninput="mSpellSearch(this.value)" autocomplete="off"></div></div>
       <section class="m-sec2"><div class="m-box" id="m-spell-list">${rows || `<div class="m-empty">${all.length ? 'No spells match.' : 'No spells to cast.'}</div>`}</div></section>
       <button class="m-wide" onclick="switchPage('spells')"><span>All spells: prepare, learn and swap</span>${svg('chev', 18, 2)}</button>`;
     if (spQuery) window.mSpellSearch(spQuery, true);
@@ -75164,6 +75247,100 @@ html.m-ui #page-dm > div { padding: 0 !important; }
     al('renderPartyOverview', renderParty);
   })();
 
+  // ═════════════════════════════════════════════════════════════════
+  // Dropdowns as a list sheet
+  // On phones a tap on any dropdown opens its options as a sheet of big
+  // buttons; picking one sets the dropdown and fires its own change code,
+  // exactly as choosing it natively would. (Some phones needed a press and
+  // hold before the native list would open.)
+  // ═════════════════════════════════════════════════════════════════
+  const VIEW_SELECTS = '#spell-detail-source-select, #spell-detail-upcast-select';   // the preview lock's own view-only dropdowns
+  let pickSel = null, pickAt = 0;
+  function selectLabel(sel) {
+    const byFor = sel.id && document.querySelector(`label[for="${CSS.escape(sel.id)}"]`);
+    let t = (byFor && byFor.textContent) || sel.getAttribute('aria-label') || sel.title || '';
+    if (!t) { let p = sel.previousElementSibling; while (p && !t) { if (p.tagName === 'LABEL' || p.classList.contains('field-label')) t = p.textContent; p = p.previousElementSibling; } }
+    return String(t || 'Choose').replace(/\s+/g, ' ').trim();
+  }
+  function openPicker(sel) {
+    if (!sel || sel.disabled || sel.multiple || (sel.size || 0) > 1) return false;
+    if (window._previewMode && !sel.matches(VIEW_SELECTS)) return false;
+    pickSel = sel;
+    const box = ensureModal('m-pick-modal'); const ov = $('m-pick-modal');
+    let html = head('', selectLabel(sel), 'm-pick-modal') + '<div style="display:flex;flex-direction:column;gap:8px">';
+    let i = 0;
+    const opt = o => { const idx = i++; const on = o.selected;
+      return `<button data-m-view class="m-rest" style="flex-direction:row;align-items:center;gap:12px;margin:0;min-height:52px;padding:10px 14px !important;${on ? 'border-color:var(--accent) !important;background:var(--accent-bg, var(--bg3)) !important' : ''}" ${o.disabled ? 'disabled' : ''} onclick="mPickSet(${idx})" aria-pressed="${on}">
+        <span style="flex:1;min-width:0;font-size:15px;color:var(--text-hi);font-weight:${on ? 600 : 500}">${esc(o.textContent.trim() || o.value || '-')}</span>${on ? `<span style="color:var(--accent)">${svg('chev', 18, 2).replace(ICON.chev, '<path d="m5 12 5 5 9-10"/>')}</span>` : ''}</button>`; };
+    [...sel.children].forEach(ch => {
+      if (ch.tagName === 'OPTGROUP') { html += `<div class="m-kick" style="margin:8px 4px 0">${esc(ch.label || '')}</div>`; [...ch.children].forEach(o => { html += opt(o); }); }
+      else if (ch.tagName === 'OPTION') html += opt(ch);
+    });
+    box.innerHTML = html + '</div>';
+    box._opts = [...sel.querySelectorAll('option')];
+    document.body.appendChild(ov);                       // above whatever sheet the dropdown is in
+    openModal('m-pick-modal', true);
+    ov.style.zIndex = '10002';
+    return true;
+  }
+  window.mPickSet = function (i) {
+    const sel = pickSel, box = $('m-pick-modal')?.querySelector('.modal-box'); if (!sel || !box) return;
+    const o = box._opts[i]; closeModal('m-pick-modal'); pickSel = null;
+    if (!o || o.disabled || sel.value === o.value && o.selected) return;
+    sel.value = o.value;
+    sel.dispatchEvent(new Event('input', { bubbles: true }));
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const isPickable = t => isOn() && t instanceof HTMLSelectElement && !t.multiple && !((t.size || 0) > 1) && !t.disabled;
+  // keep the native list from opening, then open the sheet once per tap
+  ['mousedown', 'touchstart'].forEach(type => document.addEventListener(type, e => {
+    if (!isPickable(e.target)) return;
+    if (window._previewMode && !e.target.matches(VIEW_SELECTS)) return;
+    if (e.cancelable) e.preventDefault();
+  }, { capture: true, passive: false }));
+  ['click', 'touchend'].forEach(type => document.addEventListener(type, e => {
+    if (!isPickable(e.target)) return;
+    if (e.cancelable) e.preventDefault();
+    if (Date.now() - pickAt < 400) return;
+    pickAt = Date.now();
+    e.target.blur();
+    openPicker(e.target);
+  }, { capture: true, passive: false }));
+
+  // ═════════════════════════════════════════════════════════════════
+  // Read-only previews
+  // The preview lock lets through only things that change what is being
+  // looked at. The phone layout's own view controls (filters, search, a
+  // row opening its sheet) are added to that list; everything that would
+  // change the character stays blocked.
+  // ═════════════════════════════════════════════════════════════════
+  const pvCss = document.createElement('style');
+  pvCss.id = 'phone-layout-preview-css';
+  pvCss.textContent = `
+html.m-ui body.preview-readonly [data-m-view], html.m-ui body.preview-readonly [data-m-view-input],
+html.m-ui body.preview-readonly #qp-body .qp-item, html.m-ui body.preview-readonly #qp-body .qp-item .qp-name,
+html.m-ui body.preview-readonly #qp-body .qp-item .qp-text, html.m-ui body.preview-readonly #qp-body .qp-item .qp-itemtext { pointer-events: auto !important; cursor: pointer !important; }
+html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }`;
+  document.head.appendChild(pvCss);
+  function patchPreview() {
+    const o = window.previewAllowsClick; if (typeof o !== 'function' || o._m) return;
+    const f = function (t) {
+      if (t instanceof Element && isOn()) {
+        if (t.closest('[data-m-view]')) return true;
+        if (t.closest('#qp-body .qp-item') && !t.closest('button, input, select, textarea, label, .qp-pip, .qp-mini, [onclick]')) return true;
+      }
+      return o.apply(this, arguments);
+    };
+    f._m = true; window.previewAllowsClick = f;
+  }
+  // the search box: the lock blocks typing in fields, so for this one box
+  // the phone layout takes the events first (it only filters the list)
+  ['beforeinput', 'input', 'keydown', 'focusin', 'mousedown', 'pointerdown', 'paste', 'cut'].forEach(type => window.addEventListener(type, e => {
+    if (!window._previewMode || !(e.target instanceof Element) || !e.target.matches('[data-m-view-input]')) return;
+    e.stopImmediatePropagation();
+    if (type === 'input' && e.target.id === 'm-spell-q') window.mSpellSearch(e.target.value);
+  }, true));
+
   // ── refresh, throttled to one paint ─────────────────────────────────
   let queued = false;
   function refresh() {
@@ -75200,6 +75377,7 @@ html.m-ui #page-dm > div { padding: 0 !important; }
     m.setAttribute('content', 'width=device-width, initial-scale=1.0' + (phone ? ', viewport-fit=cover' : '') + (phone && isIOS ? ', maximum-scale=1' : ''));
   }
   function apply() {
+    patchPreview();
     const on = wantPhone();
     const was = isOn();
     root.classList.toggle('m-ui', on);
@@ -75221,6 +75399,7 @@ html.m-ui #page-dm > div { padding: 0 !important; }
     try { const r = $('sheet-layout-row'); if (r) r.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === pref())); } catch (e) {}
   }
   window.applyPhoneLayout = apply;
+  setTimeout(patchPreview, 0);                     // the preview lock is defined after this script
 
   // ── hooks into the sheet ────────────────────────────────────────────
   const wrap = (name, after, before) => { const o = window[name]; if (typeof o !== 'function') return; window[name] = function () { if (before && before.apply(this, arguments) === false) return; const r = o.apply(this, arguments); try { after && after.apply(this, arguments); } catch (e) { console.warn('[phone layout]', e); } return r; }; };
