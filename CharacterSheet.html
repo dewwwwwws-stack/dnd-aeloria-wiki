@@ -75792,12 +75792,24 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   document.addEventListener('click', onSheetClick, true);
 
   // ── dice in text: wrap NdM (+K) so it can be clicked ─────────────────
-  const SCAN_ROOTS = '#spell-detail-body, #qp-body .qp-text, #qp-body .qp-sm, #qp-body .qp-upbox, #qp-body .qp-full, #qp-body .qp-itemtext, #m-detail-modal, .modal-overlay:not(.hidden) .modal-box, .item-detail-overlay:not(.hidden)';
-  const SKIP = 'script, style, textarea, input, select, option, button, .dr-dice, .dr-satk, [contenteditable="true"], svg, .modal-title, h1, h2, h3';
+  const SCAN_ROOTS = '#page-spells.active, #page-features.active, #page-feats.active, #page-inventory.active, #page-companion.active, #page-summon.active, #page-wildshape.active, #page-forms.active, #spell-detail-body, #qp-body .qp-text, #qp-body .qp-sm, #qp-body .qp-upbox, #qp-body .qp-full, #qp-body .qp-itemtext, #m-detail-modal, .modal-overlay:not(.hidden) .modal-box, .item-detail-overlay:not(.hidden)';
+  const SKIP = 'script, style, textarea, input, select, option, button, .dr-dice, .dr-satk, [contenteditable]:not([contenteditable="false"]), svg, .modal-title, h1, h2, h3, .attack-row, #qp-body table, .qp-chip, .qp-stat, .sp-browser-name, .sp-name, .feat-card-name, .inv-row-name';
   function labelFor(node) {
     const el = node.parentElement;
     if (el?.closest('#spell-detail-modal')) return ($('spell-detail-title')?.textContent || '').trim();
     const it = el?.closest('.qp-item'); if (it) { const nm = it.querySelector('.qp-name'); return (nm?.querySelector('.qp-spell, .qp-feat')?.textContent || cleanName(nm) || '').trim(); }
+    // a table cell: its column heading ("Sneak Attack" in a progression table)
+    const td = el?.closest('td');
+    if (td && !td.closest('#qp-body')) {
+      const tbl = td.closest('table'), idx = [...td.parentElement.children].indexOf(td);
+      const th = tbl?.querySelector('thead tr')?.children[idx] || tbl?.querySelector('tr')?.children[idx];
+      if (th && th !== td) { const t = th.textContent.trim(); if (t && !/^\d+$/.test(t)) return t.slice(0, 60); }
+    }
+    // a row on the Spells / Features / Inventory pages: the nearest name above the text
+    for (let a = el, i = 0; a && i < 8 && !a.classList?.contains('page'); a = a.parentElement, i++) {
+      const nm = a.querySelector?.('.feat-pill-badge, .sp-name, .sp-browser-name, .feat-card-name, .inv-row-name, .resource-name, .attack-name');
+      if (nm) return cleanName(nm).slice(0, 60) || nm.textContent.trim().slice(0, 60);
+    }
     const box = el?.closest('.modal-box, .item-detail-overlay, #m-detail-modal');
     const h = box?.querySelector('.modal-title, h2, h3, [id$="-title"]');
     return h ? h.textContent.replace('✕', '').trim().slice(0, 60) : '';
@@ -75853,7 +75865,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     for (const m of muts) {
       const t = m.target;
       if (t instanceof Element && (t.closest('#dr-panel, #dr-log, #dr-fab'))) continue;
-      if (t instanceof Element ? t.closest('#spell-detail-modal, #qp-body, #m-detail-modal, .modal-overlay, .item-detail-overlay') || m.type === 'attributes' : true) { scanSoon(); return; }
+      scanSoon(); return;
     }
   });
   function unwrapAll() { document.querySelectorAll('.dr-dice, .dr-satk').forEach(sp => sp.replaceWith(document.createTextNode(sp.textContent))); }
@@ -75926,7 +75938,8 @@ html.m-ui #dr-panel{left:0;right:0;bottom:0;width:auto;max-width:none;max-height
 body:not(.dr-off) .dr-dice,body:not(.dr-off) .dr-satk{color:var(--accent);border-bottom:1px dotted currentColor;cursor:pointer}
 body:not(.dr-off) .dr-dice:hover,body:not(.dr-off) .dr-satk:hover{background:color-mix(in srgb,var(--accent) 15%,transparent)}
 body.dr-on #saves-block .save-name,body.dr-on #saves-block .save-val,body.dr-on #skills-block .skill-name,body.dr-on #skills-block .skill-val,body.dr-on .ability-row .ability-mod,body.dr-on #disp-init,body.dr-on #qs-init,body.dr-on .attack-row .attack-stat,body.dr-on #qp-body td[data-label] .qp-num,body.dr-on #qp-body .qp-checkrow .qp-chip,body.dr-on #qp-body .qp-chips .qp-chip,body.dr-on #qp-body .qp-sm b,body.dr-on #page-m-char .m-ab,body.dr-on #page-m-char .m-sk{cursor:pointer!important}
-body.dr-on #saves-block .save-row:hover .save-val,body.dr-on #skills-block .skill-row:hover .skill-val,body.dr-on .attack-row .attack-stat:hover,body.dr-on #qp-body td[data-label] .qp-num:hover{color:var(--accent)!important}
+body.dr-on #saves-block .save-row:hover .save-val,body.dr-on #skills-block .skill-row:hover .skill-val,body.dr-on .ability-row:hover .ability-mod,body.dr-on #disp-init:hover,body.dr-on #qs-init:hover,body.dr-on .attack-row .attack-stat:hover,body.dr-on #qp-body td[data-label] .qp-num:hover{color:var(--accent)!important}
+body.dr-on #saves-block .save-row:hover .save-val,body.dr-on #skills-block .skill-row:hover .skill-val,body.dr-on .ability-row:hover .ability-mod,body.dr-on #disp-init:hover,body.dr-on #qs-init:hover,body.dr-on .attack-row .attack-stat:hover,body.dr-on #qp-body td[data-label] .qp-num:hover{text-decoration:underline dotted;text-underline-offset:3px}
 body.preview-readonly #dr-fab,body.preview-readonly #dr-panel{display:none!important}
 /* DM log */
 #dr-log{position:fixed;right:12px;top:12px;bottom:12px;width:360px;z-index:9980;display:flex;flex-direction:column;background:var(--panel,var(--bg2));color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 32px rgba(0,0,0,.4);font-family:var(--font-ui);overflow:hidden}
