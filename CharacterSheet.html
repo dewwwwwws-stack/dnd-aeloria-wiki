@@ -75078,7 +75078,8 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   const ROLL_SEL = '.dr-dice, .dr-satk, .dr-tag, .dr-cell, .dr-abcell, #hd-rows .dr-dice, #ms-conc-save-bonus, #sp-conc-save-bonus, #ms-sp-atk, #sp-atk, #page-m-spells .m-tile, #tool-profs-summary .skill-row .skill-name, #tool-profs-summary .skill-row .skill-val, .attack-stat, .qp-item b, #saves-block .save-row .save-name, #saves-block .save-row .save-val, #skills-block .skill-row .skill-name, #skills-block .skill-row .skill-val, #skills-block .skill-row .skill-ability, .ability-row .ability-mod, .ability-row .ability-label, #disp-init, #qs-init, #m-top .m-init, .attack-row .attack-stat, #qp-body td[data-label] .qp-num, #qp-body .qp-checkrow .qp-chip, #qp-body .qp-chip, #qp-body .qp-stat .qp-big, #page-m-char .m-ab, #page-m-char .m-sk';
 
   function onSheetClick(e) {
-    if (!S.on || window._previewMode) return;
+    if (window._previewMode) return;
+    if (!S.on) { offHint(e.target); return; }
     const t = e.target; if (!(t instanceof Element)) return;
     if (t.closest('#dr-panel, #dr-fab, #dr-log, button, input, select, textarea, a, .prof-dot, .ability-stepper')) return;
     if (!t.closest(ROLL_SEL)) return;
@@ -75316,6 +75317,13 @@ html.m-ui #dr-panel{left:0;right:0;bottom:0;width:auto;max-width:none;max-height
 .dr-sw[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 #dr-card{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:10052;width:max-content;min-width:min(300px,calc(100vw - 24px));max-width:calc(100vw - 24px);background:var(--panel,var(--bg2));color:var(--text);border:1px solid var(--border);border-radius:14px;padding:12px 16px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:var(--font-ui);cursor:pointer}
 #dr-card[hidden]{display:none!important}
+#dr-fab[hidden]{display:none!important}
+#dr-ask{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:10053;width:max-content;max-width:min(360px,calc(100vw - 24px));background:var(--panel,var(--bg2));color:var(--text);border:1px solid var(--accent);border-radius:14px;padding:12px 16px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:var(--font-ui);font-size:13px;line-height:1.4}
+#dr-ask[hidden]{display:none!important}
+#dr-ask .s{font-size:11px;color:var(--text3);margin-top:3px}
+#dr-ask .b{display:flex;justify-content:center;gap:8px;margin-top:10px}
+#dr-ask button{min-height:34px;padding:0 14px;border-radius:17px;border:1px solid var(--border);background:none;color:var(--text2);font-family:var(--font-ui);font-size:12px;cursor:pointer}
+#dr-ask button.y{border-color:var(--accent);color:var(--accent);font-weight:600}
 #dr-card.crit-s{border-color:var(--accent)} #dr-card.crit-f{border-color:var(--red)}
 #dr-card .l{font-size:13px;color:var(--text2)} #dr-card .t{font-size:40px;font-weight:700;line-height:1.1;font-family:var(--font-label,var(--font-ui))} #dr-card .d{font-size:12px;color:var(--text3);overflow-wrap:anywhere}
 #dr-card .x{font-size:11px;color:var(--text3);margin-top:6px}
@@ -75389,6 +75397,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     // Escape closes the roller (or dismisses the result card) wherever the focus is
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (askOpen()) { hideAsk(); return; }
       if (S.open) { close(); fab.focus(); } else if (!card.hidden) { hideCard(); if (window.Dice3D) Dice3D.fade(); }
     });
     p.addEventListener('keydown', e => {
@@ -75458,7 +75467,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
         ${hist ? `<div><div class="dr-h" style="margin-bottom:4px">Recent · tap to roll again</div><div class="dr-hist">${hist}</div></div>` : ''}
         ${settingsHtml()}
       </div>
-      <div class="dr-ft"><span>${shareTo ? (shareTo.dm ? 'Your rolls show in the party log as DM' : 'Shared with your DM') : (window._previewMode ? 'Preview — not shared' : 'Not shared')}</span>${dmLog}<button type="button" data-act="off" title="Hide the dice roller on this device">Turn off</button></div>`;
+      <div class="dr-ft"><span>${shareTo ? (shareTo.dm ? 'Your rolls show in the party log as DM' : 'Shared with your DM') : (window._previewMode ? 'Preview — not shared' : 'Not shared')}</span>${dmLog}<button type="button" data-act="off" title="${(typeof currentChar !== 'undefined' && currentChar) ? 'Turn the dice roller off for this sheet' : 'Turn the dice roller off on this device'}">Turn off</button></div>`;
     placeTray();
     const det = p.querySelector('.dr-set'); if (det) det.addEventListener('toggle', () => { S.setOpen = det.open; });
   }
@@ -75510,7 +75519,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     else if (a === 'go') typed($('dr-expr')?.value);
     else if (a === 'cnt-') { S.count = Math.max(1, S.count - 1); render(); }
     else if (a === 'cnt+') { S.count = Math.min(20, S.count + 1); render(); }
-    else if (a === 'off') setOn(false);
+    else if (a === 'off') askOff();
     else if (a === 'clear') { ls(histKey(), null); S.last = null; S.err = ''; S.typed = ''; if (window.Dice3D) Dice3D.clear(); hideCard(); render(); $('dr-expr')?.focus(); }
     else if (a === 'log') { close(); dmToggle(true); }
   }
@@ -75602,11 +75611,45 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
 
   // ── on / off ─────────────────────────────────────────────────────────
   function setOn(v) {
-    S.on = !!v; setP('diceOn', v ? null : 'off');
+    S.on = !!v; setP('diceOn', v ? null : 'off'); hideAsk();
     apply();
     if (!v) { close(); hideCard(); if (window.Dice3D) Dice3D.clear(); try { toast((typeof currentChar !== 'undefined' && currentChar ? 'Dice roller off for this sheet.' : 'Dice roller off on this device.') + ' Switch it back on from the theme menu.', 'ok'); } catch (e) {} }
   }
   window.setDiceRoller = setOn;
+
+  // ── a small question box: confirm turning off, or offer to turn back on ──
+  let askT = 0;
+  const askOpen = () => { const a = $('dr-ask'); return !!(a && !a.hidden); };
+  function hideAsk() { const a = $('dr-ask'); if (a) a.hidden = true; clearTimeout(askT); }
+  function ask(msg, sub, yes, no, onYes, ms) {
+    let a = $('dr-ask');
+    if (!a) {
+      a = document.createElement('div'); a.id = 'dr-ask'; a.setAttribute('role', 'alertdialog'); a.hidden = true; document.body.appendChild(a);
+      a.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const f = a._yes; hideAsk(); if (b.classList.contains('y') && f) f(); });
+    }
+    a._yes = onYes;
+    a.innerHTML = `<div>${esc(msg)}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}<div class="b"><button type="button" class="y">${esc(yes)}</button><button type="button" class="n">${esc(no)}</button></div>`;
+    a.hidden = false; clearTimeout(askT);
+    if (ms) askT = setTimeout(hideAsk, ms);
+    try { a.querySelector('.y').focus({ preventScroll: true }); } catch (e) {}
+  }
+  const sheetOpen = () => typeof currentChar !== 'undefined' && !!currentChar;
+  function askOff() {
+    if (!S.on) return;
+    ask(sheetOpen() ? 'Turn the dice roller off for this sheet?' : 'Turn the dice roller off on this device?',
+      'Clicking numbers won’t roll dice until it’s switched back on from the theme menu.', 'Turn off', 'Keep it on', () => setOn(false));
+  }
+  window.diceAskOff = askOff;
+  // clicking something rollable while the roller is off: offer to turn it back on, once per sheet per visit
+  const hinted = new Set();
+  function offHint(t) {
+    if (!(t instanceof Element) || !t.closest(ROLL_SEL)) return;
+    if (t.closest('#dr-panel, #dr-fab, #dr-log, #dr-ask, button, input, select, textarea, a, .prof-dot, .ability-stepper')) return;
+    const key = sheetOpen() ? 'c:' + (currentChar.id || '') : 'device';
+    if (hinted.has(key)) return; hinted.add(key);
+    ask(sheetOpen() ? 'The dice roller is off for this sheet.' : 'The dice roller is off on this device.',
+      'Turn it on to roll by clicking.', 'Turn it on', 'Not now', () => setOn(true), 9000);
+  }
   function apply() {
     ensureUi();
     document.body.classList.toggle('dr-on', S.on);
@@ -75627,7 +75670,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     }
     row.innerHTML = `<span style="flex:1;letter-spacing:.5px;text-transform:uppercase">Dice roller</span>
       <button class="tbtn" style="font-size:10px;padding:3px 9px;${S.on ? 'color:var(--accent);border-color:var(--accent)' : ''}" onclick="setDiceRoller(true)">On</button>
-      <button class="tbtn" style="font-size:10px;padding:3px 9px;${!S.on ? 'color:var(--accent);border-color:var(--accent)' : ''}" onclick="setDiceRoller(false)">Off</button>`;
+      <button class="tbtn" style="font-size:10px;padding:3px 9px;${!S.on ? 'color:var(--accent);border-color:var(--accent)' : ''}" onclick="${S.on ? 'diceAskOff()' : ''}">Off</button>`;
     row.title = (typeof currentChar !== 'undefined' && currentChar) ? 'For this sheet only' : 'On this device';
   }
 
@@ -75847,7 +75890,7 @@ create policy "rolls remove" on public.rolls for delete to anon using (true);`;
   function boot() { apply(); flushOutbox(); }
   // a different sheet (or none) is open: its own dice settings
   if (typeof onSheetPrefsChange === 'function') onSheetPrefsChange(() => {
-    const wasOn = S.on; loadPrefs();
+    const wasOn = S.on; loadPrefs(); hideAsk();
     if (!S.on && wasOn) { close(); hideCard(); if (window.Dice3D) Dice3D.clear(); }
     if (document.body) apply();
     if (S.open) render();
