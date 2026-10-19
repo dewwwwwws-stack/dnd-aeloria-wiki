@@ -643,6 +643,9 @@ select:not([multiple]) {
   position: relative;
   z-index: 10;
   overflow: hidden;
+  /* clip, not just hidden: a hidden box can still be scrolled by script (scrollIntoView,
+     focus), which on phones slid the whole sheet sideways and cut off its left edge. */
+  overflow: clip;
 }
 #app.visible { display: flex; }
 
@@ -63830,12 +63833,8 @@ function initMobileAdaptations() {
     }, { passive: false });
   });
 
-  // Scroll active tab into view when switching tabs
-  document.querySelectorAll('.page-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      setTimeout(() => tab.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }), 50);
-    });
-  });
+  // (switchPage scrolls the tab bar itself. A scrollIntoView here used to scroll every
+  // ancestor too, sliding the whole sheet sideways on phones - see the Wild Shape tab.)
 }
 window.initMobileAdaptations = initMobileAdaptations;
 
@@ -74098,6 +74097,570 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
       return r;
     };
   }
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// PHONE LAYOUT - stage 1: the frame
+// On a narrow screen (700px or less) the sheet switches to a phone layout:
+// a fixed bar at the top with HP, AC, Initiative and Speed, five tabs along
+// the bottom (Play, Spells, Bag, Character, More) and every pop-up shown as
+// a sheet that slides up from the bottom and scrolls on its own.
+// It is a second layout over the same sheet: the same character, the same
+// saving and syncing, the same rules code. Nothing here changes what is
+// saved. Tabs not yet redesigned for phones open from More as full pages.
+//   - Anyone can switch back: More > Full sheet layout (remembered per device).
+//   - To turn it off for everyone: set PHONE_LAYOUT_DEFAULT to 'full'.
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  const PHONE_LAYOUT_DEFAULT = 'auto';   // 'auto' (phones get it) or 'full' (nobody does unless they switch it on)
+  const PHONE_MAX_W = 700;
+  const KEY = 'sheet_layout';            // per device: 'auto', 'phone' or 'full'
+  const root = document.documentElement;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const pref = () => { try { const v = localStorage.getItem(KEY); return ['auto', 'phone', 'full'].includes(v) ? v : PHONE_LAYOUT_DEFAULT; } catch (e) { return PHONE_LAYOUT_DEFAULT; } };
+  const wantPhone = () => { const p = pref(); return p === 'phone' || (p === 'auto' && window.innerWidth <= PHONE_MAX_W); };
+  const isOn = () => root.classList.contains('m-ui');
+  window.isPhoneLayout = isOn;
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // pages that have a place in the bottom bar; everything else is reached from More
+  const TAB_PAGE = { play: 'quickplay', spells: 'spells', bag: 'inventory', char: 'main', more: 'm-more' };
+  const PAGE_TAB = { quickplay: 'play', spells: 'spells', inventory: 'bag', main: 'char', 'm-more': 'more' };
+  const SUB_TITLES = { features: 'Features', tables: 'Tables', background: 'Background', feats: 'Feats', companion: 'Companion', summon: 'Summons',
+    wildshape: 'Wild Shape', forms: 'Forms', 'party-overview': 'Parties', dm: 'DM panel' };
+
+  const ICON = {
+    play: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+    spells: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+    bag: '<path d="M6 9a6 6 0 0 1 12 0v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/><path d="M9 7V5.5a3 3 0 0 1 6 0V7M9 14h6"/>',
+    char: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+    more: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    party: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.7.8 2.9 2.6 3.5 5.2"/>',
+    dm: '<path d="M12 3 3 7.5v9L12 21l9-4.5v-9z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
+    moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+    alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>',
+    back: '<path d="m15 6-6 6 6 6"/>',
+    chev: '<path d="m9 6 6 6-6 6"/>',
+    close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  };
+  const svg = (k, size = 22, w = 1.8) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
+
+  // ── styles ──────────────────────────────────────────────────────────
+  const css = document.createElement('style');
+  css.id = 'phone-layout-css';
+  css.textContent = `
+#m-top, #m-nav, #m-subhead, #m-backdrop { display: none; }
+@keyframes mUp { from { transform: translateY(100%); } to { transform: none; } }
+html.m-ui, html.m-ui body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+html.m-ui #topbar, html.m-ui #page-tabs, html.m-ui #fab-save { display: none !important; }
+html.m-ui #content { padding: 12px 12px 28px; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+html.m-ui #content::-webkit-scrollbar { display: none; }
+html.m-ui.m-modal-open #content { overflow: hidden; }
+html.m-ui .page { max-width: 100%; }
+html.m-ui #preview-banner { flex-wrap: wrap; padding: 8px 12px; }
+/* Play (Quick Play): the top bar already shows who, HP and AC, and rests are under its moon button */
+html.m-ui #qp-body .qp-top, html.m-ui #qp-body .qp-bar, html.m-ui #qp-c-hit-points { display: none !important; }
+/* spell pop-up: the spell first, its glyph and drawing options after */
+html.m-ui #spell-detail-glyph-col { order: 2; flex-basis: 100% !important; }
+html.m-ui #spell-detail-glyph svg, html.m-ui #spell-detail-glyph canvas { max-width: 100%; height: auto; }
+
+/* top bar */
+html.m-ui #m-top { display: flex; flex: none; flex-direction: column; gap: 8px; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; background: var(--bg2); border-bottom: 1px solid var(--border); font-family: var(--font-ui); }
+#m-top button, #m-nav button, #m-subhead button, #page-m-more button, .m-sheet-ui button { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+#m-top .m-r1 { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+#m-top .m-who { flex: 1; min-width: 0; }
+#m-top .m-name { font-family: var(--font-title, var(--font-ui)); font-size: 19px; font-weight: 600; color: var(--text-hi); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#m-top .m-cls { font-size: 13px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#m-top .m-ib { flex: none; width: 44px; height: 44px; border-radius: 12px !important; border: 1px solid var(--border) !important; display: flex; align-items: center; justify-content: center; color: var(--text2) !important; position: relative; }
+#m-top .m-badge { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--red); color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+#m-top .m-sync { flex: none; width: 10px; height: 10px; border-radius: 50%; background: transparent; }
+#m-top .m-sync.syncing { background: var(--amber, #a8843a); }
+#m-top .m-sync.error, #m-top .m-sync.err, #m-top .m-sync.offline { background: var(--red); }
+#m-top .m-r2 { display: flex; gap: 8px; }
+#m-top .m-hp { flex: 1; min-width: 0; height: 56px; border-radius: 12px !important; background: var(--bg3) !important; border: 1px solid var(--border2, var(--border)) !important; padding: 7px 12px !important; display: flex; flex-direction: column; justify-content: space-between; }
+#m-top .m-hpl { display: flex; align-items: baseline; gap: 6px; }
+#m-top .m-k { font-size: 11px; letter-spacing: .08em; color: var(--text2); font-weight: 600; text-transform: uppercase; }
+#m-top .m-hpv { font-size: 23px; font-weight: 700; color: var(--text-hi); line-height: 1; }
+#m-top .m-hpm { font-size: 14px; color: var(--text2); }
+#m-top .m-tmp { margin-left: auto; font-size: 13px; color: var(--accent); font-weight: 600; }
+#m-top .m-bar, .m-sheet-ui .m-bar { display: block; height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; }
+#m-top .m-bar > span, .m-sheet-ui .m-bar > span { display: block; height: 100%; border-radius: inherit; transition: width .25s; }
+#m-top .m-st { flex: none; width: 56px; height: 56px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+#m-top .m-sv { font-size: 19px; font-weight: 700; color: var(--text-hi); line-height: 1; white-space: nowrap; }
+#m-top .m-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#m-top .m-chip { min-height: 32px; padding: 4px 12px !important; border-radius: 16px !important; font-size: 13px; font-weight: 600; background: var(--red-bg, var(--bg3)) !important; color: var(--text-hi) !important; border: 1px solid var(--red) !important; }
+#m-top .m-chip.soft { border-color: var(--border2, var(--border)) !important; background: var(--bg3) !important; }
+
+/* bottom bar */
+html.m-ui #m-nav { display: grid; flex: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); background: var(--bg2); border-top: 1px solid var(--border); padding: 4px 4px calc(6px + env(safe-area-inset-bottom)); font-family: var(--font-ui); }
+#m-nav button { height: 56px; display: flex; flex-direction: column; align-items: center !important; justify-content: center; gap: 2px; font-size: 12px; font-weight: 500; color: var(--text2) !important; text-align: center !important; }
+#m-nav button .m-pill { width: 52px; height: 28px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+#m-nav button.on { color: var(--accent) !important; font-weight: 600; }
+#m-nav button.on .m-pill { background: var(--accent-bg, var(--bg3)); }
+
+/* back bar on pages opened from More */
+html.m-ui #m-subhead.on { display: flex; position: sticky; top: -12px; z-index: 20; margin: -12px -12px 12px; padding: 4px 12px 4px 4px; align-items: center; gap: 4px; background: var(--bg); border-bottom: 1px solid var(--border); font-family: var(--font-ui); }
+#m-subhead button { min-height: 44px; padding: 0 10px 0 6px !important; display: flex; align-items: center; gap: 2px; color: var(--accent) !important; font-size: 15px; font-weight: 600; }
+#m-subhead .m-st-t { font-size: 15px; font-weight: 600; color: var(--text-hi); }
+
+/* More */
+#page-m-more { font-family: var(--font-ui); }
+#page-m-more .m-sec { margin: 0 0 20px; }
+#page-m-more .m-sec h2 { margin: 0 4px 8px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+#page-m-more .m-list { border-radius: 14px; background: var(--bg2); border: 1px solid var(--border); overflow: hidden; }
+#page-m-more .m-row { width: 100%; min-height: 56px; padding: 10px 14px !important; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border) !important; color: var(--text-hi) !important; }
+#page-m-more .m-row:first-child { border-top: 0 !important; }
+#page-m-more .m-row .m-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 15px; font-weight: 500; }
+#page-m-more .m-row .m-s { font-size: 13px; color: var(--text2); font-weight: 400; }
+#page-m-more .m-row svg { flex: none; color: var(--text3); }
+#page-m-more .m-row.danger { color: var(--red) !important; }
+
+/* pop-ups as bottom sheets */
+html.m-ui .modal-overlay, html.m-ui .m-js-ov { align-items: center !important; justify-content: flex-end !important; flex-direction: column !important; padding: calc(env(safe-area-inset-top) + 20px) 0 0 !important; gap: 8px !important; }
+html.m-ui .m-sheet-box { width: 100% !important; max-width: none !important; min-width: 0 !important; margin: 0 !important; flex: 0 1 auto !important; min-height: 0 !important; height: auto !important;
+  max-height: calc(100dvh / var(--zoom, 1) - 20px - env(safe-area-inset-top)) !important; overflow-y: auto !important; overflow-x: hidden !important; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; border-radius: 18px 18px 0 0 !important; border-bottom: 0 !important; padding: 0 16px calc(20px + env(safe-area-inset-bottom)) !important; animation: mUp .22s cubic-bezier(.2,.8,.2,1); box-sizing: border-box !important; }
+html.m-ui .m-sheet-box .m-grab { position: sticky; top: 0; z-index: 6; display: flex; justify-content: center; margin: 0 -16px; padding: 8px 0 8px; background: inherit; touch-action: none; cursor: grab; }
+html.m-ui .m-sheet-box .m-grab > span { width: 40px; height: 5px; border-radius: 3px; background: var(--border2, var(--border)); }
+html.m-ui .m-sheet-box .m-sticky-head { position: sticky; top: 21px; z-index: 5; background: inherit; margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; padding-bottom: 8px; touch-action: none; }
+html.m-ui .m-sheet-box .modal-close { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
+html.m-ui .m-sheet-box select, html.m-ui .m-sheet-box textarea, html.m-ui .m-sheet-box input:not([type=checkbox]):not([type=radio]) { max-width: 100% !important; min-width: 0 !important; box-sizing: border-box; }
+html.m-ui .m-sheet-box .m-unscroll { max-height: none !important; overflow-y: visible !important; }
+html.m-ui .item-detail-overlay:not(.hidden) { display: flex !important; }
+html.m-ui .item-detail-overlay > .item-detail-img-outside { order: 0 !important; }
+html.m-ui .item-detail-overlay > .modal, html.m-ui .item-detail-overlay > .modal-box { order: 1 !important; }
+html.m-ui .item-detail-img-outside { max-height: 26dvh !important; max-width: 70vw !important; flex: none !important; }
+html.m-ui .item-detail-img-outside img { max-height: 26dvh !important; max-width: 70vw !important; }
+html.m-ui #pdf-choice, html.m-ui #theme-picker-panel { position: fixed !important; top: auto !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: auto !important; max-height: 80dvh; overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 18px 18px 0 0 !important; padding: 16px 16px calc(20px + env(safe-area-inset-bottom)) !important; z-index: 10001 !important; animation: mUp .22s cubic-bezier(.2,.8,.2,1); box-sizing: border-box; }
+html.m-ui #pdf-choice .tbtn { min-height: 52px; font-size: 14px !important; }
+html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.5); }
+
+/* the sheets the phone layout itself opens */
+.m-sheet-ui { font-family: var(--font-ui); color: var(--text); }
+.m-sheet-ui h3 { margin: 4px 0 2px; font-size: 21px; line-height: 1.2; font-weight: 600; color: var(--text-hi); }
+.m-sheet-ui .m-kick { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.m-sheet-ui .m-head { display: flex; align-items: flex-start; gap: 12px; padding: 0 0 12px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.m-sheet-ui .m-head > div { flex: 1; min-width: 0; padding-top: 4px; }
+.m-sheet-ui .m-x { flex: none; width: 44px; height: 44px; border-radius: 22px !important; background: var(--bg3) !important; display: flex; align-items: center; justify-content: center; color: var(--text-hi) !important; }
+.m-sheet-ui .m-big { font-size: 40px; font-weight: 700; color: var(--text-hi); line-height: 1; }
+.m-sheet-ui .m-amt { height: 56px; border-radius: 12px; border: 1px solid var(--border2, var(--border)); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 700; color: var(--text-hi); margin: 12px 0 8px; }
+.m-sheet-ui .m-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.m-sheet-ui .m-keys button { height: 52px; border-radius: 12px !important; background: var(--bg3) !important; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 500; color: var(--text-hi) !important; }
+.m-sheet-ui .m-acts { display: flex; gap: 8px; margin-top: 12px; }
+.m-sheet-ui .m-btn { flex: 1; min-height: 52px; border-radius: 12px !important; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-align: center !important; padding: 6px 10px !important; background: var(--bg3) !important; color: var(--text-hi) !important; }
+.m-sheet-ui .m-btn.pri { background: var(--accent) !important; color: var(--on-accent, #000) !important; }
+.m-sheet-ui .m-btn.dmg { background: var(--red) !important; color: #fff !important; }
+.m-sheet-ui .m-btn.heal { background: var(--green) !important; color: #fff !important; }
+.m-sheet-ui .m-btn:disabled { opacity: .45; }
+.m-sheet-ui .m-note { font-size: 13px; color: var(--text2); margin: 10px 0 0; line-height: 1.45; }
+.m-sheet-ui .m-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.m-sheet-ui .m-tog { min-height: 48px; padding: 0 14px !important; border-radius: 12px !important; font-size: 15px; font-weight: 500; display: flex; align-items: center; background: var(--bg3) !important; color: var(--text-hi) !important; border: 1px solid var(--border) !important; }
+.m-sheet-ui .m-tog.on { background: var(--red) !important; color: #fff !important; border-color: var(--red) !important; }
+.m-sheet-ui .m-step { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-radius: 12px; border: 1px solid var(--border2, var(--border)); padding: 8px 8px 8px 14px; margin-top: 12px; }
+.m-sheet-ui .m-step button { width: 44px; height: 44px; border-radius: 10px !important; background: var(--bg3) !important; font-size: 22px; display: flex; align-items: center; justify-content: center; color: var(--text-hi) !important; }
+.m-sheet-ui .m-ds { border-radius: 12px; border: 1px solid var(--red); background: var(--red-bg, var(--bg3)); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.m-sheet-ui .m-ds-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.m-sheet-ui .m-ds-row button { width: 40px; height: 40px; border-radius: 50% !important; border: 2px solid var(--text-hi) !important; }
+.m-sheet-ui .m-ds-row button.on { background: var(--text-hi) !important; }
+.m-sheet-ui .m-rest { width: 100%; border-radius: 14px !important; border: 1px solid var(--border2, var(--border)) !important; background: var(--bg3) !important; padding: 14px 16px !important; display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; color: var(--text) !important; }
+.m-sheet-ui .m-rest b { font-size: 17px; color: var(--text-hi); }
+.m-sheet-ui .m-rest span { font-size: 14px; color: var(--text2); line-height: 1.45; }
+`;
+  document.head.appendChild(css);
+
+  // ── values for the top bar ──────────────────────────────────────────
+  function classLine(c) {
+    try {
+      const cls = (typeof getAllClasses === 'function' ? getAllClasses() : []).filter(e => e.class);
+      const nm = k => (typeof PHB_CLASSES !== 'undefined' && PHB_CLASSES[String(k).toLowerCase()]?.name) || (String(k).charAt(0).toUpperCase() + String(k).slice(1));
+      let s = cls.map(e => `${nm(e.class)} ${e.levels?.length || 0}`).join(' / ');
+      if (cls.length === 1 && (cls[0].subclass || c.subclass)) s += ' · ' + (cls[0].subclass || c.subclass);
+      const race = c.race ? ((typeof PHB_RACES !== 'undefined' && PHB_RACES[c.race]?.name) || c.race) : '';
+      return [s, race].filter(Boolean).join(' · ');
+    } catch (e) { return ''; }
+  }
+  const txt = id => (($(id)?.innerText) || '').replace('−', '-').trim();
+  function hpColour(cur, max) { const p = max ? cur / max : 0; return p > .5 ? 'var(--green)' : p > .25 ? 'var(--amber, #a8843a)' : 'var(--red)'; }
+
+  function renderTop() {
+    const top = $('m-top'); if (!top) return;
+    const c = currentChar;
+    if (!c || !hasSheet()) { top.innerHTML = `<div class="m-r1"><div class="m-who"><div class="m-name">${esc(document.querySelector('.page.active')?.id === 'page-dm' ? 'DM panel' : 'Parties')}</div></div><span class="m-sync" id="m-sync"></span></div>`; mirrorSync(); return; }
+    const cur = parseInt(c.hp_current, 10) || 0, max = parseInt(c.hp_max, 10) || 0, tmp = parseInt(c.hp_temp, 10) || 0;
+    let ac = '';
+    try { ac = calcACBreakdown().total; } catch (e) { ac = txt('disp-ac') || c.ac || ''; }
+    const init = txt('disp-init') || '+0';
+    const speed = (txt('disp-speed') || String(c.speed || '')).replace(/\s*ft\.?$/i, '');
+    const conds = Array.isArray(c.conditions) ? c.conditions : [];
+    const exh = parseInt(c.exhaustion, 10) || 0;
+    const chips = [];
+    if (cur <= 0 && max > 0) { const ds = c.death_saves || {}; chips.push(`<button class="m-chip" onclick="mOpenHP()">0 HP · death saves ${ds.successes || 0}/${ds.failures || 0}</button>`); }
+    conds.forEach(x => chips.push(`<button class="m-chip" onclick="mOpenCond()">${esc(x)}</button>`));
+    if (exh > 0) chips.push(`<button class="m-chip soft" onclick="mOpenCond()">Exhaustion ${exh}</button>`);
+    const n = conds.length + (exh > 0 ? 1 : 0);
+    const pct = max ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
+    top.innerHTML = `
+      <div class="m-r1">
+        <div class="m-who"><div class="m-name">${esc(typeof stripNameMarkup === 'function' ? stripNameMarkup(c.charName || '-') : (c.charName || '-'))}</div><div class="m-cls">${esc(classLine(c))}</div></div>
+        <span class="m-sync" id="m-sync" aria-hidden="true"></span>
+        <button class="m-ib" onclick="mOpenCond()" aria-label="Conditions and exhaustion">${svg('alert')}${n ? `<span class="m-badge">${n}</span>` : ''}</button>
+        <button class="m-ib" onclick="mOpenRest()" aria-label="Rest">${svg('moon')}</button>
+      </div>
+      <div class="m-r2">
+        <button class="m-hp" onclick="mOpenHP()" aria-label="Hit points ${cur} of ${max}. Change hit points">
+          <span class="m-hpl"><span class="m-k">HP</span><span class="m-hpv">${cur}</span><span class="m-hpm">/ ${max}</span>${tmp ? `<span class="m-tmp">+${tmp} temp</span>` : ''}</span>
+          <span class="m-bar"><span style="width:${pct}%;background:${hpColour(cur, max)}"></span></span>
+        </button>
+        <div class="m-st"><span class="m-k">AC</span><span class="m-sv">${esc(ac)}</span></div>
+        <div class="m-st"><span class="m-k">Init</span><span class="m-sv">${esc(init)}</span></div>
+        <div class="m-st"><span class="m-k">Speed</span><span class="m-sv">${esc(speed)}</span></div>
+      </div>
+      ${chips.length ? `<div class="m-chips">${chips.join('')}</div>` : ''}`;
+    mirrorSync();
+  }
+  function mirrorSync() {
+    const s = $('sync-status'), d = $('m-sync'); if (!s || !d) return;
+    d.className = 'm-sync ' + (s.className || ''); d.title = s.textContent || s.title || '';
+  }
+
+  // ── bottom bar ──────────────────────────────────────────────────────
+  // a character is open when the sheet's own tab bar is in use
+  function hasSheet() { const t = $('page-tabs'); return !!currentChar && !!t && t.style.display !== 'none'; }
+  function activePage() { return (document.querySelector('#content > .page.active')?.id || '').replace(/^page-/, ''); }
+  function renderNav() {
+    const nav = $('m-nav'); if (!nav) return;
+    const pg = activePage();
+    let tabs;
+    if (hasSheet()) tabs = [['play', 'Play', "switchPage('quickplay')"], ['spells', 'Spells', "switchPage('spells')"], ['bag', 'Bag', "switchPage('inventory')"], ['char', 'Character', "switchPage('main')"], ['more', 'More', "switchPage('m-more')"]];
+    else tabs = [['party', 'Parties', 'openPartyOverview()']].concat(typeof isDM !== 'undefined' && isDM ? [['dm', 'DM', 'openDMPanelDirect()']] : []).concat([['more', 'More', "switchPage('m-more')"]]);
+    const cur = hasSheet() ? (PAGE_TAB[pg] || 'more') : (pg === 'dm' ? 'dm' : pg === 'party-overview' ? 'party' : 'more');
+    const sig = tabs.map(t => t[0]).join() + '|' + cur;
+    if (nav.dataset.sig === sig) return;
+    nav.dataset.sig = sig;
+    nav.innerHTML = tabs.map(([k, label, fn]) => `<button class="${k === cur ? 'on' : ''}" onclick="${fn}" ${k === cur ? 'aria-current="page"' : ''}><span class="m-pill">${svg(k)}</span>${label}</button>`).join('');
+  }
+  function renderSubhead() {
+    const sh = $('m-subhead'); if (!sh) return;
+    const pg = activePage();
+    const sub = hasSheet() && !PAGE_TAB[pg] && pg;
+    sh.classList.toggle('on', !!sub);
+    if (sub) sh.innerHTML = `<button onclick="switchPage('m-more')" aria-label="Back to More">${svg('back', 20, 2)}More</button><span class="m-st-t">${esc(SUB_TITLES[pg] || pg)}</span>`;
+  }
+
+  // ── More ────────────────────────────────────────────────────────────
+  function renderMore() {
+    const host = $('page-m-more'); if (!host) return;
+    const row = (label, sub, fn, cls = '') => `<button class="m-row ${cls}" onclick="${fn}"><span class="m-t">${esc(label)}${sub ? `<span class="m-s">${esc(sub)}</span>` : ''}</span>${svg('chev', 18, 2)}</button>`;
+    const tabShown = id => { const t = $(id); return t && t.style.display !== 'none'; };
+    const secs = [];
+    if (hasSheet()) {
+      const rows = [row('Features', 'Class, subclass and species features', "switchPage('features')"), row('Feats', '', "switchPage('feats')"), row('Background', 'Story, personality, notes', "switchPage('background')")];
+      if (tabShown('tab-tables')) rows.push(row('Tables', '', "switchPage('tables')"));
+      if (tabShown('tab-companion')) rows.push(row('Companion', $('tab-companion').textContent.trim(), "switchPage('companion')"));
+      if (tabShown('tab-summon')) rows.push(row('Summons', '', "switchPage('summon')"));
+      if (tabShown('tab-wildshape')) rows.push(row('Wild Shape', '', "switchPage('wildshape')"));
+      if (tabShown('tab-forms')) rows.push(row('Forms', '', "switchPage('forms')"));
+      secs.push(['Character', rows]);
+    }
+    const table = [row('Parties', 'Your party at a glance', 'openPartyOverview()')];
+    if (typeof isDM !== 'undefined' && isDM) table.push(row('DM panel', '', 'openDMPanelDirect()'));
+    const vap = $('view-as-player-btn');
+    if (vap && vap.style.display !== 'none') table.push(row(vap.textContent.replace(/[^\w\s]/g, '').trim() || 'View as player', 'Hide DM-only controls', 'toggleViewAsPlayer()'));
+    if (window._previewMode) table.unshift(row('Back to Parties', 'Leave this read-only preview', 'exitPreviewMode()'));
+    secs.push(['Table', table]);
+    const sheet = [];
+    if (hasSheet() && !window._previewMode) sheet.push(row('Save now', '', 'saveChar()'));
+    if (hasSheet()) sheet.push(row('Export PDF', 'Quick Play or the full sheet', 'exportCharacterPdf()'));
+    sheet.push(row('Theme and look', 'Colours, sheet style, text size', 'toggleThemePicker()'), row('Light or dark', '', 'toggleTheme()'));
+    secs.push(['Sheet', sheet]);
+    const acct = [];
+    if (hasSheet() && !window._previewMode) acct.push(row('Change PIN', '', 'openPINChange()'));
+    acct.push(row('Full sheet layout', 'The desktop layout, on this device', "mSetLayout('full')"), row('Log out', '', 'doLogout()', 'danger'));
+    secs.push(['Account', acct]);
+    host.innerHTML = secs.map(([t, rows]) => `<section class="m-sec"><h2>${esc(t)}</h2><div class="m-list">${rows.join('')}</div></section>`).join('');
+  }
+
+  // ── sheets the layout opens itself ──────────────────────────────────
+  function ensureModal(id) {
+    let ov = $(id);
+    if (!ov) {
+      ov = document.createElement('div'); ov.className = 'modal-overlay hidden'; ov.id = id;
+      ov.innerHTML = `<div class="modal-box m-sheet-ui"></div>`;
+      document.body.appendChild(ov);
+    }
+    return ov.querySelector('.modal-box');
+  }
+  const head = (kick, title, id) => `<div class="m-head"><div>${kick ? `<div class="m-kick">${esc(kick)}</div>` : ''}<h3>${esc(title)}</h3></div><button class="m-x modal-close" onclick="closeModal('${id}')" aria-label="Close">${svg('close', 20, 2)}</button></div>`;
+
+  let amt = '';
+  function hpBody() {
+    const c = currentChar; if (!c) return '';
+    const cur = parseInt(c.hp_current, 10) || 0, max = parseInt(c.hp_max, 10) || 0, tmp = parseInt(c.hp_temp, 10) || 0;
+    const pct = max ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
+    let ds = '';
+    if (cur <= 0 && max > 0) {
+      const rules = (typeof getDeathSaveRules === 'function') ? getDeathSaveRules(c) : { max: 3 };
+      const d = c.death_saves || { successes: 0, failures: 0 };
+      const dots = (type, n) => Array.from({ length: rules.max }, (_, i) => `<button class="${i < n ? 'on' : ''}" onclick="mDeathSave('${type}', ${i})" aria-label="${type === 'success' ? 'Success' : 'Failure'} ${i + 1}" aria-pressed="${i < n}"></button>`).join('');
+      ds = `<div class="m-ds"><b style="color:var(--text-hi)">Death saves</b>
+        <div class="m-ds-row"><span>Successes</span><span style="display:flex;gap:6px">${dots('success', d.successes || 0)}</span></div>
+        <div class="m-ds-row"><span>Failures</span><span style="display:flex;gap:6px">${dots('failure', d.failures || 0)}</span></div>
+        ${rules.note ? `<div class="m-note">${esc(rules.note)}</div>` : ''}</div>`;
+    }
+    const n = parseInt(amt, 10) || 0;
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => `<button onclick="mHPKey('${k}')">${k}</button>`).join('')
+      + `<button onclick="mHPKey('C')" aria-label="Clear">C</button><button onclick="mHPKey('0')">0</button><button onclick="mHPKey('D')" aria-label="Delete">⌫</button>`;
+    return head('Hit points', 'Damage or heal', 'm-hp-modal') + `
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:8px">
+        <div><span class="m-big">${cur}</span><span style="font-size:18px;color:var(--text2)"> / ${max}</span></div>
+        <div style="font-size:14px;color:var(--text2);text-align:right">Temp HP <b style="font-size:18px;color:var(--accent)">${tmp}</b></div>
+      </div>
+      <span class="m-bar" style="height:8px"><span style="width:${pct}%;background:${hpColour(cur, max)}"></span></span>
+      ${ds}
+      <div class="m-amt" aria-live="polite">${amt || '-'}</div>
+      <div class="m-keys">${keys}</div>
+      <div class="m-acts">
+        <button class="m-btn dmg" onclick="mHPApply('dmg')" ${n ? '' : 'disabled'}>Damage</button>
+        <button class="m-btn heal" onclick="mHPApply('heal')" ${n ? '' : 'disabled'}>Heal</button>
+        <button class="m-btn" onclick="mHPApply('temp')" ${n ? '' : 'disabled'}>Temp HP</button>
+      </div>
+      <p class="m-note">Roll your own dice, then type the total. Damage comes off temp HP first.</p>`;
+  }
+  function paintHP() { const b = ensureModal('m-hp-modal'); b.innerHTML = hpBody(); }
+  window.mOpenHP = function () { if (!currentChar || window._previewMode) return; amt = ''; paintHP(); openModal('m-hp-modal'); };
+  window.mHPKey = function (k) {
+    if (k === 'C') amt = ''; else if (k === 'D') amt = amt.slice(0, -1); else if (amt.length < 3) amt = (amt + k).replace(/^0+(?=\d)/, '');
+    paintHP();
+  };
+  window.mHPApply = function (kind) {
+    const c = currentChar, n = parseInt(amt, 10) || 0; if (!c || !n) return;
+    let cur = parseInt(c.hp_current, 10) || 0, tmp = parseInt(c.hp_temp, 10) || 0; const max = parseInt(c.hp_max, 10) || 0;
+    let msg = '';
+    if (kind === 'dmg') { const ft = Math.min(tmp, n); tmp -= ft; cur = Math.max(0, cur - (n - ft)); msg = `Took ${n} damage${ft ? ` (${ft} from temp HP)` : ''}`; }
+    else if (kind === 'heal') { const was = cur; cur = Math.min(max, cur + n); msg = `Healed ${cur - was} HP`; if (was <= 0 && cur > 0) c.death_saves = { successes: 0, failures: 0 }; }
+    else if (kind === 'temp') { tmp = Math.max(tmp, n); msg = `Temp HP ${tmp}`; }
+    c.hp_current = cur; c.hp_temp = tmp;
+    const a = document.querySelector('[data-key="hp_current"]'); if (a) a.value = cur;
+    const b = document.querySelector('[data-key="hp_temp"]'); if (b) b.value = tmp || '';
+    try { if (typeof clampCurrentHP === 'function') clampCurrentHP(); } catch (e) {}
+    try { if (typeof renderDeathSaves === 'function') renderDeathSaves(); } catch (e) {}
+    if (typeof debouncedSave === 'function') debouncedSave();
+    try { if (activePage() === 'quickplay' && typeof renderQuickPlay === 'function') renderQuickPlay(); } catch (e) {}
+    amt = '';
+    if (typeof toast === 'function') toast(msg, 'ok');
+    paintHP(); refresh();
+  };
+  window.mDeathSave = function (type, i) {
+    try { toggleDeathSave(type, i); } catch (e) {}
+    paintHP(); refresh();
+  };
+
+  function condBody() {
+    const c = currentChar; if (!c) return '';
+    const on = Array.isArray(c.conditions) ? c.conditions : [];
+    const list = (typeof CONDITIONS_5E !== 'undefined' ? CONDITIONS_5E : []);
+    const exh = parseInt(c.exhaustion, 10) || 0;
+    const note = exh > 0 && typeof EXHAUSTION_EFFECTS !== 'undefined' ? EXHAUSTION_EFFECTS[exh] : 'No exhaustion';
+    return head('Status', 'Conditions', 'm-cond-modal') +
+      `<div class="m-grid2">${list.map(x => `<button class="m-tog ${on.includes(x) ? 'on' : ''}" aria-pressed="${on.includes(x)}" onclick="mToggleCond(${esc(JSON.stringify(x))})">${esc(x)}</button>`).join('')}</div>
+      <div class="m-step"><div><div style="font-size:15px;color:var(--text-hi);font-weight:500">Exhaustion</div><div style="font-size:13px;color:var(--text2)">Level ${exh} of 6 · ${esc(note)}</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><button onclick="mExh(-1)" aria-label="Lower exhaustion">−</button><b style="width:24px;text-align:center;font-size:20px;color:var(--text-hi)">${exh}</b><button onclick="mExh(1)" aria-label="Raise exhaustion">+</button></div></div>
+      <p class="m-note">Tap a condition's name on the Character tab to read what it does.</p>`;
+  }
+  function paintCond() { ensureModal('m-cond-modal').innerHTML = condBody(); }
+  window.mOpenCond = function () { if (!currentChar || window._previewMode) return; paintCond(); openModal('m-cond-modal'); };
+  window.mToggleCond = function (x) { try { toggleCondition(x); } catch (e) {} paintCond(); refresh(); };
+  window.mExh = function (d) {
+    const c = currentChar; if (!c) return;
+    c.exhaustion = Math.max(0, Math.min(6, (parseInt(c.exhaustion, 10) || 0) + d));
+    try { renderExhaustion(); } catch (e) {}
+    try { recalcAll(); } catch (e) { if (typeof debouncedSave === 'function') debouncedSave(); }
+    paintCond(); refresh();
+  };
+
+  window.mOpenRest = function () {
+    if (!currentChar || window._previewMode) return;
+    ensureModal('m-rest-modal').innerHTML = head('', 'Take a rest', 'm-rest-modal') + `
+      <button class="m-rest" onclick="closeModal('m-rest-modal');mRest('short')"><b>Short Rest</b><span>Uses that come back on a Short Rest come back. You can spend Hit Dice next.</span></button>
+      <button class="m-rest" onclick="closeModal('m-rest-modal');mRest('long')"><b>Long Rest</b><span>HP to full and everything that comes back on a Long Rest.</span></button>
+      <div class="m-acts"><button class="m-btn" onclick="closeModal('m-rest-modal');mRest('dusk')">Dusk</button><button class="m-btn" onclick="closeModal('m-rest-modal');mRest('dawn')">Dawn</button></div>
+      <p class="m-note">Dusk and Dawn bring back things that recharge at that time of day.</p>`;
+    openModal('m-rest-modal');
+  };
+  window.mRest = function (kind) {
+    try { if (typeof qpRest === 'function') qpRest(kind); else { const f = { short: 'doShortRest', long: 'doLongRest', dusk: 'doDuskReset', dawn: 'doDawnReset' }[kind]; if (typeof window[f] === 'function') window[f](); } } catch (e) { console.warn(e); }
+    setTimeout(refresh, 120);
+  };
+
+  window.mSetLayout = function (v) {
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+    const tp = $('theme-picker-panel'); if (tp) tp.classList.add('hidden');
+    apply();
+    if (!isOn() && typeof toast === 'function') toast('Full sheet layout. To go back: palette button > Phone layout.', 'ok');
+  };
+
+  // ── turning pop-ups into bottom sheets ──────────────────────────────
+  function closeOverlay(ov) {
+    if (!ov) return;
+    if (ov.classList.contains('modal-overlay') && ov.id) { closeModal(ov.id); return; }
+    ov.dispatchEvent(new MouseEvent('click', { bubbles: true }));     // script-built pop-ups close on a backdrop click
+  }
+  function unscroll(box) {
+    // one scroller per sheet: inner boxes that scroll on their own just grow instead
+    box.querySelectorAll('*').forEach(el => {
+      if (el.classList.contains('m-unscroll') || el.closest('table')) return;
+      const cs = getComputedStyle(el);
+      if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && cs.maxHeight !== 'none' && el.scrollHeight > el.clientHeight + 2) el.classList.add('m-unscroll');
+    });
+  }
+  function sheetify(ov) {
+    if (!isOn() || !ov) return;
+    const kids = [...ov.children].filter(k => k.tagName !== 'SCRIPT' && k.tagName !== 'STYLE');
+    const box = kids.find(k => k.classList.contains('modal-box') || k.classList.contains('modal')) || kids[kids.length - 1];
+    if (!box) return;
+    box.classList.add('m-sheet-box');
+    if (!box.querySelector(':scope > .m-grab')) {
+      const g = document.createElement('div'); g.className = 'm-grab'; g.setAttribute('aria-hidden', 'true'); g.innerHTML = '<span></span>';
+      box.insertBefore(g, box.firstChild);
+      dragToClose(g, box, ov);
+    }
+    // the header row with the close button stays in view while the sheet scrolls
+    const x = box.querySelector('.modal-close');
+    if (x) {
+      let h = x; while (h.parentElement && h.parentElement !== box) h = h.parentElement;
+      if (h !== box && h.parentElement === box && h.offsetHeight < 110 && !h.classList.contains('m-sticky-head')) { h.classList.add('m-sticky-head'); dragToClose(h, box, ov); }
+    }
+    box.scrollTop = 0;
+    unscroll(box);
+    setTimeout(() => { if (box.isConnected) unscroll(box); }, 120);
+    setTimeout(() => { if (box.isConnected) unscroll(box); }, 600);
+  }
+  function dragToClose(handle, box, ov) {
+    let y0 = null, dy = 0;
+    handle.addEventListener('pointerdown', e => {
+      if (!isOn() || box.scrollTop > 0 || e.target.closest('button, input, select, textarea, a')) return;
+      y0 = e.clientY; dy = 0; box.style.transition = 'none';
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    handle.addEventListener('pointermove', e => { if (y0 == null) return; dy = Math.max(0, e.clientY - y0); box.style.transform = dy ? `translateY(${dy}px)` : ''; });
+    const end = () => {
+      if (y0 == null) return; y0 = null;
+      box.style.transition = 'transform .18s ease-out';
+      if (dy > 90) { box.style.transform = 'translateY(100%)'; setTimeout(() => { box.style.transform = ''; box.style.transition = ''; closeOverlay(ov); }, 170); }
+      else { box.style.transform = ''; setTimeout(() => { box.style.transition = ''; }, 200); }
+    };
+    handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
+  }
+  function syncLock() {
+    const open = !!document.querySelector('.modal-overlay:not(.hidden), .m-js-ov, #pdf-choice, #theme-picker-panel:not(.hidden)');
+    root.classList.toggle('m-modal-open', isOn() && open);
+    const bd = $('m-backdrop');
+    if (bd) bd.classList.toggle('on', isOn() && !!document.querySelector('#pdf-choice, #theme-picker-panel:not(.hidden)'));
+  }
+  const isJsOverlay = el => el instanceof HTMLElement && el.parentElement === document.body && !el.classList.contains('modal-overlay')
+    && el.style.position === 'fixed' && /inset:\s*0/.test(el.getAttribute('style') || '') && el.children.length >= 1;
+  new MutationObserver(muts => {
+    let touched = false;
+    muts.forEach(m => {
+      m.addedNodes.forEach(n => { if (isJsOverlay(n)) { n.classList.add('m-js-ov'); sheetify(n); } });
+      if (m.addedNodes.length || m.removedNodes.length) touched = true;
+    });
+    if (touched) syncLock();
+  }).observe(document.body, { childList: true });
+
+  // ── refresh, throttled to one paint ─────────────────────────────────
+  let queued = false;
+  function refresh() {
+    if (!isOn() || queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      try { renderTop(); renderNav(); renderSubhead(); if (activePage() === 'm-more') renderMore(); } catch (e) { console.warn('[phone layout]', e); }
+      syncLock();
+    });
+  }
+  window.mRefresh = refresh;
+
+  function build() {
+    const app = $('app'), content = $('content'); if (!app || !content || $('m-top')) return;
+    const top = document.createElement('div'); top.id = 'm-top';
+    app.insertBefore(top, $('preview-banner') || content);
+    const nav = document.createElement('nav'); nav.id = 'm-nav'; nav.setAttribute('aria-label', 'Sheet sections');
+    app.appendChild(nav);
+    const sub = document.createElement('div'); sub.id = 'm-subhead';
+    content.insertBefore(sub, content.firstChild);
+    const more = document.createElement('div'); more.className = 'page'; more.id = 'page-m-more';
+    content.appendChild(more);
+    const bd = document.createElement('div'); bd.id = 'm-backdrop';
+    bd.addEventListener('click', () => { const p = $('pdf-choice'); if (p) p.remove(); const t = $('theme-picker-panel'); if (t && !t.classList.contains('hidden')) t.classList.add('hidden'); syncLock(); });
+    document.body.appendChild(bd);
+    const ss = $('sync-status'); if (ss) new MutationObserver(mirrorSync).observe(ss, { attributes: true, childList: true, characterData: true, subtree: true });
+    const tp = $('theme-picker-panel'); if (tp) new MutationObserver(syncLock).observe(tp, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  function setViewport(phone) {
+    const m = document.querySelector('meta[name="viewport"]'); if (!m) return;
+    // iPhones zoom in when a small text box is tapped and leave the page shifted;
+    // maximum-scale stops that there (iOS still allows pinch zoom).
+    m.setAttribute('content', 'width=device-width, initial-scale=1.0' + (phone ? ', viewport-fit=cover' : '') + (phone && isIOS ? ', maximum-scale=1' : ''));
+  }
+  function apply() {
+    const on = wantPhone();
+    const was = isOn();
+    root.classList.toggle('m-ui', on);
+    setViewport(on);
+    if (on) {
+      build();
+      const pg = activePage();
+      // the theme picker lives in the hidden top bar: on phones it opens over the page instead
+      const tp = $('theme-picker-panel'); if (tp && tp.parentElement !== document.body) { tp._home = tp.parentElement; document.body.appendChild(tp); }
+      if (!was && hasSheet() && (pg === 'main' || pg === 'quickplay' || !pg)) switchPage('quickplay');
+    } else if (was) {
+      const tp = $('theme-picker-panel'); if (tp && tp._home) tp._home.appendChild(tp);
+      if (activePage() === 'm-more') switchPage('main');
+      try { if (typeof applyQuickPlayTab === 'function') applyQuickPlayTab(false); } catch (e) {}
+      root.classList.remove('m-modal-open');
+    }
+    if (on) refresh();
+    try { const r = $('sheet-layout-row'); if (r) r.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === pref())); } catch (e) {}
+  }
+  window.applyPhoneLayout = apply;
+
+  // ── hooks into the sheet ────────────────────────────────────────────
+  const wrap = (name, after, before) => { const o = window[name]; if (typeof o !== 'function') return; window[name] = function () { if (before && before.apply(this, arguments) === false) return; const r = o.apply(this, arguments); try { after && after.apply(this, arguments); } catch (e) { console.warn('[phone layout]', e); } return r; }; };
+  wrap('switchPage', page => {
+    if (!isOn()) return;
+    if (page === 'm-more') renderMore();
+    const c = $('content'); if (c) c.scrollLeft = 0;
+    refresh();
+  });
+  wrap('openModal', id => { const el = $(id); if (el) sheetify(el); syncLock(); });
+  wrap('closeModal', () => { syncLock(); refresh(); });
+  wrap('enterApp', () => setTimeout(() => { apply(); if (isOn() && hasSheet()) switchPage('quickplay'); refresh(); }, 30));
+  ['debouncedSave', 'autoSave', 'renderConditions', 'renderExhaustion', 'recalcAll', 'updateCharSummary', 'renderQuickPlay', 'handleRemoteCharUpdate', 'toggleViewAsPlayer'].forEach(fn => wrap(fn, refresh));
+  // Quick Play is the Play tab for everyone in the phone layout
+  const origQPT = window.applyQuickPlayTab;
+  if (typeof origQPT === 'function') window.applyQuickPlayTab = function (onOpen) {
+    if (!isOn()) return origQPT.apply(this, arguments);
+    if (onOpen && hasSheet()) switchPage('quickplay');
+  };
+  // the full layout can be switched back to phone from the palette panel
+  wrap('renderThemePicker', () => {
+    const panel = $('theme-picker-panel'); if (!panel || $('sheet-layout-row')) return;
+    const row = document.createElement('div'); row.id = 'sheet-layout-row';
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-ui);font-size:11px;color:var(--text2)';
+    row.innerHTML = `<span style="flex-basis:100%">Layout on this device</span>` + [['auto', 'Automatic'], ['phone', 'Phone'], ['full', 'Full sheet']].map(([v, l]) => `<button class="tbtn" data-layout="${v}" onclick="mSetLayout('${v}')">${l}</button>`).join('');
+    panel.appendChild(row);
+    row.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === pref()));
+  });
+  document.addEventListener('click', () => { if (isOn()) setTimeout(refresh, 0); }, true);
+  document.addEventListener('change', () => { if (isOn()) setTimeout(refresh, 0); }, true);
+  let rt = null;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (wantPhone() !== isOn()) apply(); }, 150); });
+  apply();
 })();
 </script>
 <script>
