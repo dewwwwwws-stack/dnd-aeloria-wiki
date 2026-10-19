@@ -75874,6 +75874,8 @@ html.m-ui #dr-panel{left:0;right:0;bottom:0;width:auto;max-width:none;max-height
 #dr-panel .dr-hd{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
 #dr-panel .dr-hd b{flex:1;font-size:14px;letter-spacing:.5px}
 #dr-panel button{font-family:var(--font-ui);cursor:pointer}
+.dr-clr{height:30px;padding:0 10px;border-radius:15px;border:1px solid var(--border);background:none;color:var(--text2);font-size:11px;font-weight:600}
+.dr-clr:hover{color:var(--red);border-color:var(--red)}
 .dr-x{width:36px;height:36px;border-radius:50%;border:0;background:none;color:var(--text2);font-size:18px}
 .dr-seg{display:inline-grid;grid-auto-flow:column;gap:2px;padding:2px;border-radius:9px;background:var(--bg3);border:1px solid var(--border)}
 .dr-seg button{min-width:44px;height:30px;border:0;border-radius:7px;background:none;color:var(--text2);font-size:12px;font-weight:600}
@@ -76017,7 +76019,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     const hist = history().slice(0, 10).map((h, i) => `<button type="button" data-hist="${i}" title="Roll again"><span class="l">${esc(h.label)} <small>${esc(h.expr)}</small></span><span class="t ${h.crit === 'success' ? 's' : h.crit === 'fail' ? 'f' : ''}">${h.total}</span></button>`).join('');
     const dmLog = onDmPage() ? `<button type="button" data-act="log">Party roll log</button>` : '';
     p.innerHTML = `
-      <div class="dr-hd"><b>Dice</b><span class="dr-h" style="letter-spacing:.6px">d20</span><span class="dr-seg" role="group" aria-label="Advantage on d20 rolls">${seg('normal', 'Normal')}${seg('adv', 'Adv')}${seg('dis', 'Dis')}</span><button type="button" class="dr-x" data-act="close" aria-label="Close">✕</button></div>
+      <div class="dr-hd"><b>Dice</b><span class="dr-h" style="letter-spacing:.6px">d20</span><span class="dr-seg" role="group" aria-label="Advantage on d20 rolls">${seg('normal', 'Normal')}${seg('adv', 'Adv')}${seg('dis', 'Dis')}</span>${r || hist ? `<button type="button" class="dr-clr" data-act="clear" title="Clear the result and your recent rolls on this device (the DM's log keeps them)">Clear</button>` : ''}<button type="button" class="dr-x" data-act="close" aria-label="Close">✕</button></div>
       <div class="dr-body">
         ${res}
         ${S.err ? `<div class="dr-err">${esc(S.err)}</div>` : ''}
@@ -76054,6 +76056,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     else if (a === 'cnt-') { S.count = Math.max(1, S.count - 1); render(); }
     else if (a === 'cnt+') { S.count = Math.min(20, S.count + 1); render(); }
     else if (a === 'off') setOn(false);
+    else if (a === 'clear') { ls(histKey(), null); S.last = null; S.err = ''; S.typed = ''; render(); $('dr-expr')?.focus(); }
     else if (a === 'log') { close(); dmToggle(true); }
   }
   function typed(v) {
