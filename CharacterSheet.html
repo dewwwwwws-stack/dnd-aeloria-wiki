@@ -74115,6 +74115,11 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
 //              tab is one tap away for preparing and learning
 //   Bag      - coin, attuned items, weapons, armour, magic items and gear;
 //              the full Inventory tab is one tap away for editing
+//   Character- ability scores, saves, skills, feats and details; the full
+//              main sheet is one tap away for editing
+//   Parties  - each party as short cards; the full overview one tap away
+//   DM panel - the Party tab as short cards that open an HP pad, death
+//              saves, conditions and exhaustion; the full cards one tap away
 //   - Anyone can switch back: More > Full sheet layout (remembered per device).
 //   - To turn it off for everyone: set PHONE_LAYOUT_DEFAULT to 'full'.
 // ═══════════════════════════════════════════════════════════════════════
@@ -74132,12 +74137,12 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
   const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // pages that have a place in the bottom bar; everything else is reached from More
-  const PAGE_TAB = { quickplay: 'play', 'm-spells': 'spells', 'm-bag': 'bag', main: 'char', 'm-more': 'more' };
+  const PAGE_TAB = { quickplay: 'play', 'm-spells': 'spells', 'm-bag': 'bag', 'm-char': 'char', 'm-more': 'more' };
   // full pages opened from a tab: which tab they belong to, and what the back bar says
-  const SUB_PARENT = { spells: 'm-spells', inventory: 'm-bag', companion: 'quickplay', summon: 'quickplay', wildshape: 'quickplay', forms: 'quickplay' };
-  const PARENT_NAME = { 'm-spells': 'Spells', 'm-bag': 'Bag', quickplay: 'Play', 'm-more': 'More' };
+  const SUB_PARENT = { main: 'm-char', spells: 'm-spells', inventory: 'm-bag', companion: 'quickplay', summon: 'quickplay', wildshape: 'quickplay', forms: 'quickplay' };
+  const PARENT_NAME = { 'm-char': 'Character', 'm-spells': 'Spells', 'm-bag': 'Bag', quickplay: 'Play', 'm-more': 'More' };
   const SUB_TITLES = { features: 'Features', tables: 'Tables', background: 'Background', feats: 'Feats', companion: 'Companion', summon: 'Summons',
-    wildshape: 'Wild Shape', forms: 'Forms', 'party-overview': 'Parties', dm: 'DM panel', spells: 'All spells', inventory: 'Inventory' };
+    wildshape: 'Wild Shape', forms: 'Forms', 'party-overview': 'Parties', dm: 'DM panel', spells: 'All spells', inventory: 'Inventory', main: 'Full sheet' };
 
   const ICON = {
     play: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
@@ -74343,7 +74348,7 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     const nav = $('m-nav'); if (!nav) return;
     const pg = activePage();
     let tabs;
-    if (hasSheet()) tabs = [['play', 'Play', "switchPage('quickplay')"], ['spells', 'Spells', "switchPage('m-spells')"], ['bag', 'Bag', "switchPage('m-bag')"], ['char', 'Character', "switchPage('main')"], ['more', 'More', "switchPage('m-more')"]];
+    if (hasSheet()) tabs = [['play', 'Play', "switchPage('quickplay')"], ['spells', 'Spells', "switchPage('m-spells')"], ['bag', 'Bag', "switchPage('m-bag')"], ['char', 'Character', "switchPage('m-char')"], ['more', 'More', "switchPage('m-more')"]];
     else tabs = [['party', 'Parties', 'openPartyOverview()']].concat(typeof isDM !== 'undefined' && isDM ? [['dm', 'DM', 'openDMPanelDirect()']] : []).concat([['more', 'More', "switchPage('m-more')"]]);
     const cur = hasSheet() ? (PAGE_TAB[pg] || PAGE_TAB[SUB_PARENT[pg]] || 'more') : (pg === 'dm' ? 'dm' : pg === 'party-overview' ? 'party' : 'more');
     const sig = tabs.map(t => t[0]).join() + '|' + cur;
@@ -74896,6 +74901,269 @@ html.m-ui #qp-body .qp-table { width: 100%; }
   }
   window.mRenderSpells = renderSpells; window.mRenderBag = renderBag;
 
+  // ═════════════════════════════════════════════════════════════════
+  // STAGE 3: Character, Parties, DM panel
+  // ═════════════════════════════════════════════════════════════════
+  const css3 = document.createElement('style');
+  css3.id = 'phone-layout-css-3';
+  css3.textContent = `
+#page-m-char button, #m-party button, #m-dm button { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+.m-abil { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.m-ab { border-radius: 14px; background: var(--bg2); border: 1px solid var(--border); padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.m-ab .m-k { font-size: 12px; letter-spacing: .1em; color: var(--text2); font-weight: 600; }
+.m-ab .m-mod { font-size: 26px; font-weight: 700; color: var(--text-hi); line-height: 1.1; }
+.m-ab .m-sc { font-size: 13px; color: var(--text3); }
+.m-ab .m-sv { margin-top: 4px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 8px; color: var(--text2); }
+.m-ab .m-sv.on { background: var(--accent-bg, var(--bg3)); color: var(--accent); }
+.m-skills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.m-sk { min-height: 46px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); }
+.m-sk:nth-child(-n+2) { border-top: 0; }
+.m-sk:nth-child(even) { border-left: 1px solid var(--border); }
+.m-sk .m-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--border2, var(--border)); }
+.m-sk .m-dot.p { background: var(--accent); border-color: var(--accent); }
+.m-sk .m-dot.x { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 2px var(--bg2), 0 0 0 3.5px var(--accent); }
+.m-sk .m-skn { flex: 1; min-width: 0; font-size: 14px; color: var(--text); line-height: 1.2; }
+.m-sk .m-skn small { font-size: 11px; color: var(--text3); }
+.m-sk .m-skv { font-size: 15px; font-weight: 700; color: var(--text-hi); }
+.m-dl { display: flex; gap: 12px; align-items: baseline; padding: 12px 14px; border-top: 1px solid var(--border); }
+.m-box > .m-dl:first-child { border-top: 0; }
+.m-dl dt { flex: none; width: 104px; font-size: 13px; color: var(--text2); }
+.m-dl dd { margin: 0; flex: 1; min-width: 0; font-size: 15px; color: var(--text-hi); overflow-wrap: anywhere; }
+.m-pc { width: 100%; border-radius: 16px; background: var(--bg2); border: 1px solid var(--border); padding: 12px 14px !important; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; color: var(--text) !important; }
+.m-pc.me { border-color: var(--border2, var(--accent)); }
+.m-pc.dead { opacity: .6; }
+.m-pc-r { display: flex; align-items: center; gap: 12px; width: 100%; }
+.m-pc-av { flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--accent-bg, var(--bg3)); border: 1px solid var(--border2, var(--border)); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent); font-size: 18px; background-size: cover; background-position: center; }
+.m-pc-n { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.m-pc-n b { font-size: 17px; color: var(--text-hi); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-pc-n span { font-size: 13px; color: var(--text2); line-height: 1.3; }
+.m-pc-ac { flex: none; width: 52px; height: 44px; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.m-pc-ac span { font-size: 10px; letter-spacing: .08em; color: var(--text2); font-weight: 600; }
+.m-pc-ac b { font-size: 17px; color: var(--text-hi); line-height: 1; }
+.m-pc-hp { display: flex; align-items: center; gap: 10px; width: 100%; }
+.m-pc-hp .m-bar { flex: 1; height: 8px; display: block; border-radius: 4px; background: var(--bg); overflow: hidden; }
+.m-pc-hp .m-bar > span { display: block; height: 100%; border-radius: inherit; }
+.m-pc-hp b { flex: none; font-size: 14px; color: var(--text-hi); }
+.m-pc-hp b small { font-size: 13px; color: var(--text2); font-weight: 400; }
+.m-chips2 { display: flex; flex-wrap: wrap; gap: 6px; }
+.m-chips2 span { min-height: 26px; padding: 3px 10px; border-radius: 13px; font-size: 12px; font-weight: 600; background: var(--red-bg, var(--bg3)); color: var(--text-hi); border: 1px solid var(--red); display: inline-flex; align-items: center; }
+.m-chips2 span.soft { border-color: var(--border2, var(--border)); background: var(--bg3); }
+.m-camp { width: 100%; min-height: 52px; border-radius: 12px !important; border: 1px solid var(--border2, var(--border)) !important; background: var(--bg3) !important; padding: 6px 12px !important; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.m-camp .m-ct { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.m-camp .m-ct span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.m-camp .m-ct b { font-size: 15px; line-height: 1.25; color: var(--text-hi); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.m-gh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 14px 4px 8px; }
+.m-gh h2 { margin: 0; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; color: var(--accent); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.m-gh span { flex: none; font-size: 12px; color: var(--text3); }
+html.m-ui #page-party-overview:not(.m-full) #party-overview-body { display: none !important; }
+html.m-ui #dm-pane-party:not(.m-full) #dm-hp-glance, html.m-ui #dm-pane-party:not(.m-full) #dm-char-list { display: none !important; }
+html.m-ui #page-party-overview:not(.m-full) > div > div:first-child p, html.m-ui #page-party-overview:not(.m-full) .po-intro { display: none; }
+/* DM panel tabs wrap instead of scrolling sideways */
+html.m-ui #dm-content > div:first-child { flex-wrap: wrap !important; overflow: visible !important; gap: 4px !important; border-bottom: 0 !important; }
+html.m-ui #dm-content > div:first-child > .dm-tab { flex: 1 1 30%; min-height: 40px; border-radius: 10px !important; border: 1px solid var(--border) !important; }
+html.m-ui #dm-content > div:first-child > .dm-tab.active { border-color: var(--accent) !important; }
+html.m-ui #page-dm > div { padding: 0 !important; }
+`;
+  document.head.appendChild(css3);
+
+  // ── Character ───────────────────────────────────────────────────────
+  function renderChar() {
+    const host = $('page-m-char'); if (!host || !currentChar) return;
+    const c = currentChar;
+    try { ['renderSavesBlock', 'renderSkillsBlock'].forEach(fn => { if (typeof window[fn] === 'function') window[fn](); }); } catch (e) {}
+    const abs = (typeof getAbilities === 'function') ? getAbilities() : (c.abilities || {});
+    const sign = n => (n >= 0 ? '+' : '') + n;
+    const AB = [['str', 'STR'], ['dex', 'DEX'], ['con', 'CON'], ['int', 'INT'], ['wis', 'WIS'], ['cha', 'CHA']];
+    const abil = AB.map(([k, l]) => {
+      const sc = abs[k] ?? 10, mod = typeof abilityMod === 'function' ? abilityMod(sc) : Math.floor((sc - 10) / 2);
+      const sv = txt('save-val-' + k) || sign(mod), prof = $('save-dot-' + k)?.classList.contains('prof');
+      return `<div class="m-ab"><span class="m-k">${l}</span><span class="m-mod">${esc(sign(mod))}</span><span class="m-sc">${esc(sc)}</span><span class="m-sv ${prof ? 'on' : ''}">Save ${esc(sv)}</span></div>`;
+    }).join('');
+    const skills = (typeof SKILLS !== 'undefined' ? SKILLS : []).slice().sort((a, b) => a.name.localeCompare(b.name)).map(sk => {
+      const v = txt('skill-val-' + sk.key);
+      const x = $('skill-exp-dot-' + sk.key)?.classList.contains('expert'), p = $('skill-prof-dot-' + sk.key)?.classList.contains('prof');
+      return `<div class="m-sk"><span class="m-dot ${x ? 'x' : p ? 'p' : ''}" aria-hidden="true"></span><span class="m-skn">${esc(sk.name)} <small>${esc(String(sk.ability || '').toUpperCase())}</small></span><span class="m-skv">${esc(v)}</span>${x || p ? `<span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">${x ? 'expertise' : 'proficient'}</span>` : ''}</div>`;
+    }).join('');
+    let prof = ''; try { prof = sign(getProf()); } catch (e) {}
+    const pp = txt('qs-pp');
+    // feats: from feat slots and any granted directly
+    const seen = new Set(), feats = [];
+    const times = {};
+    Object.values(c.featSlots || {}).forEach(s => { if (s?.feat) { times[s.feat] = (times[s.feat] || 0) + 1; if (!seen.has(s.feat)) { seen.add(s.feat); feats.push(s.feat); } } });
+    (c.feats || []).forEach(f => { const n = f?.name || f; if (n && !seen.has(n)) { seen.add(n); feats.push(n); } });
+    const featRows = feats.map(n => `<button class="m-li" onclick="openFeatInfoModal(${esc(JSON.stringify(n))})"><span class="m-lt"><span class="m-ln">${esc(n)}${times[n] > 1 ? ` <small style="color:var(--text2);font-weight:400">×${times[n]}</small>` : ''}</span></span>${svg('chev', 18, 2)}</button>`).join('');
+    const race = c.race ? ((typeof PHB_RACES !== 'undefined' && PHB_RACES[c.race]?.name) || c.race) : '';
+    const bg = c.background ? ((typeof PHB_BACKGROUNDS !== 'undefined' && PHB_BACKGROUNDS[c.background]?.name) || c.background) : '';
+    const langs = String(c.languages || '').split(/\n|,/).map(x => x.trim()).filter(Boolean).map(x => x.charAt(0).toUpperCase() + x.slice(1)).join(', ');
+    const about = [['Species', race], ['Background', bg], ['Alignment', c.alignment], ['Languages', langs], ['Tools', String(c.proficiencies || '').replace(/\n/g, ', ')], ['Player', c.playerName]].filter(([, v]) => v);
+    host.innerHTML = `
+      <div class="m-abil">${abil}</div>
+      <div class="m-tiles">${prof ? `<div class="m-tile"><span class="m-k">Proficiency</span><span class="m-v">${esc(prof)}</span></div>` : ''}${pp ? `<div class="m-tile"><span class="m-k">Passive Perception</span><span class="m-v">${esc(pp)}</span></div>` : ''}<div class="m-tile"><span class="m-k">Level</span><span class="m-v">${esc(typeof getLevel === 'function' ? getLevel() : '')}</span></div></div>
+      <section class="m-sec2"><div class="m-h2"><h2>Skills</h2><span>filled = proficient, ringed = expertise</span></div><div class="m-box m-skills">${skills}</div></section>
+      ${featRows ? `<section class="m-sec2"><div class="m-h2"><h2>Feats</h2><span>tap for the full text</span></div><div class="m-box">${featRows}</div></section>` : ''}
+      ${about.length ? `<section class="m-sec2"><div class="m-h2"><h2>About</h2><span></span></div><dl class="m-box" style="margin:0">${about.map(([k, v]) => `<div class="m-dl"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>` : ''}
+      <section class="m-sec2"><div class="m-box">
+        <button class="m-li" onclick="switchPage('features')"><span class="m-lt"><span class="m-ln">Features &amp; traits</span><span class="m-lm">Class, subclass and species</span></span>${svg('chev', 18, 2)}</button>
+        <button class="m-li" onclick="switchPage('background')"><span class="m-lt"><span class="m-ln">Background &amp; story</span><span class="m-lm">Personality, backstory, notes</span></span>${svg('chev', 18, 2)}</button>
+      </div></section>
+      <button class="m-wide" onclick="switchPage('main')"><span>Full sheet: edit scores, HP, AC, proficiencies</span>${svg('chev', 18, 2)}</button>`;
+  }
+  window.mRenderChar = renderChar;
+
+  // ── shared: who's in which party ────────────────────────────────────
+  // Party Overview and the DM panel already fetch every character and the
+  // campaign list; the phone lists reuse what they fetched.
+  let lastChars = null, lastCamps = null;
+  (function stash() {
+    const fac = window.fetchAllCharacters;
+    if (typeof fac === 'function') window.fetchAllCharacters = async function () { const r = await fac.apply(this, arguments); lastChars = r; return r; };
+    try {
+      if (typeof GH !== 'undefined' && typeof GH.getFile === 'function' && !GH.getFile._mStash) {
+        const g = GH.getFile;
+        GH.getFile = async function (name) { const r = await g.apply(this, arguments); if (name === '_dm.json') lastCamps = r?.content?.campaigns || null; return r; };
+        GH.getFile._mStash = true;
+      }
+    } catch (e) {}
+  })();
+  const camps = () => lastCamps || ((typeof _dmCampaigns !== 'undefined' && _dmCampaigns && _dmCampaigns.length) ? _dmCampaigns : null) || (typeof DEFAULT_CAMPAIGNS !== 'undefined' ? DEFAULT_CAMPAIGNS : []);
+  let campsAsked = false;
+  function needCamps(then) {
+    if (lastCamps || campsAsked || typeof GH === 'undefined') return;
+    campsAsked = true;
+    GH.getFile('_dm.json').then(r => { lastCamps = r?.content?.campaigns || null; then(); }).catch(() => {});
+  }
+  const groupsOf = chars => { try { return groupCharsByCampaign(chars, camps()); } catch (e) { return [{ id: '', name: 'Characters', chars }]; } };
+  const capF = s => s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : '';
+  const clsOf = c => { const cl = (c.classes || []).filter(e => e.class); if (cl.length) { const s = cl.map(e => `${(typeof PHB_CLASSES !== 'undefined' && PHB_CLASSES[String(e.class).toLowerCase()]?.name) || capF(e.class)} ${e.levels?.length || 0}`).join(' / '); return cl.length === 1 && cl[0].subclass ? s + ' · ' + cl[0].subclass : s; } return `${capF(c.class)} ${c.level || ''}`.trim(); };
+  function pcCard(id, c, fn, opts = {}) {
+    const cur = parseInt(c.hp_current, 10) || 0, max = parseInt(c.hp_max, 10) || 0;
+    const chips = [];
+    if (c.deceased) chips.push('<span>Dead</span>');
+    else if (cur <= 0 && max > 0) { const ds = c.death_saves || {}; chips.push(`<span>Dying · ${ds.successes || 0}/${ds.failures || 0}</span>`); }
+    (c.conditions || []).forEach(x => chips.push(`<span>${esc(x)}</span>`));
+    if ((parseInt(c.exhaustion, 10) || 0) > 0) chips.push(`<span class="soft">Exhaustion ${parseInt(c.exhaustion, 10)}</span>`);
+    const tok = String(c.tokenUrl || '').trim();
+    const name = typeof stripNameMarkup === 'function' ? stripNameMarkup(c.charName || id) : (c.charName || id);
+    return `<button class="m-pc ${opts.me ? 'me' : ''} ${c.deceased ? 'dead' : ''}" onclick="${fn}">
+      <span class="m-pc-r"><span class="m-pc-av" aria-hidden="true" ${tok ? `style="background-image:url('${esc(tok.replace(/'/g, '%27'))}')"` : ''}>${tok ? '' : esc(String(name).charAt(0))}</span>
+        <span class="m-pc-n"><b>${esc(name)}${opts.me ? ' <small style="font-size:12px;color:var(--accent)">· You</small>' : ''}</b><span>${esc(clsOf(c))}${c.playerName ? ' · ' + esc(c.playerName) : ''}</span></span>
+        ${c.ac ? `<span class="m-pc-ac"><span>AC</span><b>${esc(c.ac)}</b></span>` : ''}</span>
+      <span class="m-pc-hp">${hpBar(cur, max)}<b>${cur} <small>/ ${max}</small></b></span>
+      ${chips.length ? `<span class="m-chips2">${chips.join('')}</span>` : ''}</button>`;
+  }
+  const groupHead = (g) => { const cur = g.chars.reduce((s, x) => s + (parseInt(x.char.hp_current, 10) || 0), 0), max = g.chars.reduce((s, x) => s + (parseInt(x.char.hp_max, 10) || 0), 0);
+    return `<div class="m-gh"><h2 ${g.color ? `style="color:${esc(g.color)}"` : ''}>${esc(g.name || 'No party')}</h2><span>${g.chars.length} · HP ${max ? Math.round(cur / max * 100) : 0}%</span></div>`; };
+
+  // ── Parties (player view) ───────────────────────────────────────────
+  function renderParty() {
+    const page = $('page-party-overview'); if (!page || !isOn()) return;
+    let h = $('m-party');
+    if (!h) { h = document.createElement('div'); h.id = 'm-party'; h.style.fontFamily = 'var(--font-ui)'; page.insertBefore(h, page.firstChild); }
+    if (!lastChars) { h.innerHTML = '<div class="m-empty">Loading the parties…</div>'; return; }
+    needCamps(renderParty);
+    const vis = lastChars.filter(({ char }) => !char.hideFromPartyView);
+    let gs = groupsOf(vis).filter(g => g.chars.length);
+    const mine = currentChar?._campaign;
+    gs.sort((a, b) => (b.id === mine) - (a.id === mine));
+    const full = page.classList.contains('m-full');
+    h.innerHTML = gs.map(g => groupHead(g) + g.chars.map(({ id, char }) => pcCard(id, char, `previewCharacterSheet('${esc(id)}')`, { me: currentChar && id === currentChar.id && !window._previewMode })).join('')).join('')
+      + `<p class="m-note" style="font-size:13px;color:var(--text2);margin:6px 4px 14px">Tap a character to open their sheet, read-only.</p>
+      <button class="m-wide" onclick="mPartyFull()"><span>${full ? 'Hide' : 'Show'} full party cards: coin, items, gear</span>${svg('chev', 18, 2)}</button>`;
+  }
+  window.mPartyFull = function () { const p = $('page-party-overview'); if (p) p.classList.toggle('m-full'); renderParty(); };
+
+  // ── DM panel: Party tab ─────────────────────────────────────────────
+  let dmCamp = (() => { try { return localStorage.getItem('m_dm_camp') || ''; } catch (e) { return ''; } })();
+  let dmSel = null, dmAmt = '';
+  const dmCache = () => (typeof _partyCharCache !== 'undefined' ? _partyCharCache : {}) || {};
+  const dmGroups = () => (typeof _dmLastGroups !== 'undefined' && _dmLastGroups) ? _dmLastGroups : (lastChars ? groupsOf(lastChars) : []);
+  function renderDm() {
+    const pane = $('dm-pane-party'); if (!pane || !isOn()) return;
+    let h = $('m-dm');
+    if (!h) { h = document.createElement('div'); h.id = 'm-dm'; h.style.fontFamily = 'var(--font-ui)'; const g = $('dm-hp-glance'); pane.insertBefore(h, g || pane.firstChild); }
+    const gs = dmGroups().filter(g => g.chars.length);
+    if (!gs.length) { h.innerHTML = '<div class="m-empty">Loading the party…</div>'; return; }
+    let g = gs.find(x => (x.id || '') === dmCamp) || gs[0]; dmCamp = g.id || '';
+    const cache = dmCache();
+    const full = pane.classList.contains('m-full');
+    h.innerHTML = `<button class="m-camp" onclick="mDmCamps()" aria-label="Campaign: ${esc(g.name)}. Change campaign"><span class="m-ct"><span>Campaign</span><b>${esc(g.name || 'No party')}</b></span>${svg('chev', 18, 2)}</button>
+      ${groupHead(g)}
+      ${g.chars.map(({ id, char }) => pcCard(id, cache[id] || char, `mDmOpen('${esc(id)}')`)).join('')}
+      <button class="m-wide" onclick="mDmFull()" style="margin-top:4px"><span>${full ? 'Hide' : 'Show'} full DM cards: slots, coin, inventory, notes</span>${svg('chev', 18, 2)}</button>`;
+  }
+  window.mDmFull = function () { const p = $('dm-pane-party'); if (p) p.classList.toggle('m-full'); renderDm(); };
+  window.mDmCamps = function () {
+    const gs = dmGroups();
+    ensureModal('m-dmcamp-modal').innerHTML = head('DM', 'Choose a campaign', 'm-dmcamp-modal') + gs.map(g => `<button class="m-rest" style="flex-direction:row;align-items:center;gap:12px;${(g.id || '') === dmCamp ? 'border-color:var(--accent) !important' : ''}" onclick="mDmPickCamp(${esc(JSON.stringify(g.id || ''))})"><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:15px">${esc(g.name || 'No party')}</b><span>${g.chars.length} characters</span></span></button>`).join('');
+    openModal('m-dmcamp-modal');
+  };
+  window.mDmPickCamp = function (id) { dmCamp = id; try { localStorage.setItem('m_dm_camp', id); } catch (e) {} closeModal('m-dmcamp-modal'); renderDm(); };
+  function dmChar(id) { return dmCache()[id] || dmGroups().flatMap(g => g.chars).find(x => x.id === id)?.char; }
+  function dmBody() {
+    const c = dmChar(dmSel); if (!c) return '';
+    const cur = parseInt(c.hp_current, 10) || 0, max = parseInt(c.hp_max, 10) || 0;
+    const n = parseInt(dmAmt, 10) || 0;
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => `<button onclick="mDmKey('${k}')">${k}</button>`).join('')
+      + `<button onclick="mDmKey('C')" aria-label="Clear">C</button><button onclick="mDmKey('0')">0</button><button onclick="mDmKey('D')" aria-label="Delete">⌫</button>`;
+    let ds = '';
+    if (cur <= 0 && max > 0 && !c.deceased) {
+      const rules = typeof getDeathSaveRules === 'function' ? getDeathSaveRules(c) : { max: 3 }, d = c.death_saves || {};
+      const dots = (type, k) => Array.from({ length: rules.max }, (_, i) => `<button class="${i < k ? 'on' : ''}" aria-pressed="${i < k}" aria-label="${type} ${i + 1}" onclick="mDmDeath('${type}', ${i})"></button>`).join('');
+      ds = `<div class="m-ds"><b style="color:var(--text-hi)">Death saves</b><div class="m-ds-row"><span>Successes</span><span style="display:flex;gap:6px">${dots('success', d.successes || 0)}</span></div><div class="m-ds-row"><span>Failures</span><span style="display:flex;gap:6px">${dots('failure', d.failures || 0)}</span></div></div>`;
+    }
+    const on = c.conditions || [], exh = parseInt(c.exhaustion, 10) || 0;
+    const list = typeof CONDITIONS_5E !== 'undefined' ? CONDITIONS_5E : [];
+    return head(`${clsOf(c)}${c.playerName ? ' · ' + c.playerName : ''}`, typeof stripNameMarkup === 'function' ? stripNameMarkup(c.charName || dmSel) : (c.charName || dmSel), 'm-dmchar-modal') + `
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:8px"><div><span class="m-big">${cur}</span><span style="font-size:18px;color:var(--text2)"> / ${max}</span></div>${c.ac ? `<div style="font-size:14px;color:var(--text2)">AC <b style="font-size:18px;color:var(--text-hi)">${esc(c.ac)}</b></div>` : ''}</div>
+      ${hpBar(cur, max).replace('class="m-bar"', 'class="m-bar" style="height:8px"')}
+      ${ds}
+      <div class="m-amt" aria-live="polite">${dmAmt || '-'}</div>
+      <div class="m-keys">${keys}</div>
+      <div class="m-acts"><button class="m-btn dmg" onclick="mDmHP(-1)" ${n ? '' : 'disabled'}>Damage</button><button class="m-btn heal" onclick="mDmHP(1)" ${n ? '' : 'disabled'}>Heal</button></div>
+      <h3 style="font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin:18px 0 8px">Conditions</h3>
+      <div class="m-grid2">${list.map(x => `<button class="m-tog ${on.includes(x) ? 'on' : ''}" aria-pressed="${on.includes(x)}" onclick="mDmCond(${esc(JSON.stringify(x))})">${esc(x)}</button>`).join('')}</div>
+      <div class="m-step"><div style="font-size:15px;color:var(--text-hi);font-weight:500">Exhaustion</div><div style="display:flex;align-items:center;gap:6px"><button onclick="mDmExh(-1)" aria-label="Lower exhaustion">−</button><b style="width:24px;text-align:center;font-size:20px;color:var(--text-hi)">${exh}</b><button onclick="mDmExh(1)" aria-label="Raise exhaustion">+</button></div></div>
+      <div class="m-acts" style="margin-top:16px"><button class="m-btn pri" onclick="closeModal('m-dmchar-modal');dmLoadChar('${esc(dmSel)}')">Open their sheet</button></div>`;
+  }
+  function paintDm() { ensureModal('m-dmchar-modal').innerHTML = dmBody(); }
+  window.mDmOpen = function (id) { dmSel = id; dmAmt = ''; paintDm(); openModal('m-dmchar-modal'); };
+  window.mDmKey = function (k) { if (k === 'C') dmAmt = ''; else if (k === 'D') dmAmt = dmAmt.slice(0, -1); else if (dmAmt.length < 3) dmAmt = (dmAmt + k).replace(/^0+(?=\d)/, ''); paintDm(); };
+  // the same file writes the DM panel's own controls make
+  async function dmWrite(id, change, msg) {
+    try {
+      const { content: c, sha } = await GH.getFile(id + '.json');
+      const m = change(c); if (m === false) return;
+      await GH.putFile(id + '.json', c, sha);
+      try { broadcastCharUpdate(id, 'hp'); } catch (e) {}
+      if (typeof _partyCharCache !== 'undefined' && _partyCharCache) _partyCharCache[id] = c;
+      try { if (typeof refreshSingleCharacterCard === 'function') refreshSingleCharacterCard(id, c); } catch (e) {}
+      const t = typeof msg === 'function' ? msg(c) : msg; if (t && typeof toast === 'function') toast(t, 'ok');
+    } catch (e) { if (typeof toast === 'function') toast('Update failed: ' + e.message, 'error'); }
+    if (dmSel === id && !$('m-dmchar-modal')?.classList.contains('hidden')) paintDm();
+    renderDm();
+  }
+  window.mDmHP = function (dir) {
+    const val = parseInt(dmAmt, 10) || 0, id = dmSel; if (!val || !id) return; dmAmt = '';
+    dmWrite(id, c => { const mx = parseInt(c.hp_max, 10) || 0, cu = parseInt(c.hp_current, 10) || 0; c.hp_current = Math.max(0, Math.min(mx, cu + dir * val)); if (dir > 0 && cu <= 0 && c.hp_current > 0) c.death_saves = { successes: 0, failures: 0 }; },
+      c => `${c.charName || id}: HP ${dir > 0 ? '+' : '-'}${val} → ${c.hp_current}/${c.hp_max}`);
+  };
+  window.mDmDeath = function (type, i) {
+    const k = type === 'success' ? 'successes' : 'failures';
+    dmWrite(dmSel, c => { c.death_saves = c.death_saves || { successes: 0, failures: 0 }; const mx = (typeof getDeathSaveRules === 'function' ? getDeathSaveRules(c).max : 3); const cu = c.death_saves[k] || 0; c.death_saves[k] = Math.min(mx, cu > i ? i : i + 1); }, '');
+  };
+  window.mDmCond = function (x) {
+    dmWrite(dmSel, c => { c.conditions = c.conditions || []; if (c.conditions.includes(x)) c.conditions = c.conditions.filter(y => y !== x); else c.conditions.push(x); }, c => `${c.charName || dmSel}: ${(c.conditions || []).includes(x) ? x : 'removed ' + x}`);
+  };
+  window.mDmExh = function (d) {
+    dmWrite(dmSel, c => { const v = Math.max(0, Math.min(6, (parseInt(c.exhaustion, 10) || 0) + d)); if (v === (parseInt(c.exhaustion, 10) || 0)) return false; c.exhaustion = v; }, c => `${c.charName || dmSel}: exhaustion ${c.exhaustion}`);
+  };
+  window.mRenderParty = renderParty; window.mRenderDm = renderDm;
+  (function () {
+    const al = (name, after) => { const o = window[name]; if (typeof o !== 'function') return; window[name] = async function () { const r = await o.apply(this, arguments); try { if (isOn()) after(); } catch (e) { console.warn('[phone layout]', e); } return r; }; };
+    al('loadDMCharList', renderDm);
+    al('renderPartyOverview', renderParty);
+  })();
+
   // ── refresh, throttled to one paint ─────────────────────────────────
   let queued = false;
   function refresh() {
@@ -74917,7 +75185,7 @@ html.m-ui #qp-body .qp-table { width: 100%; }
     app.appendChild(nav);
     const sub = document.createElement('div'); sub.id = 'm-subhead';
     content.insertBefore(sub, content.firstChild);
-    ['m-more', 'm-spells', 'm-bag'].forEach(id => { const pg = document.createElement('div'); pg.className = 'page'; pg.id = 'page-' + id; content.appendChild(pg); });
+    ['m-more', 'm-spells', 'm-bag', 'm-char'].forEach(id => { const pg = document.createElement('div'); pg.className = 'page'; pg.id = 'page-' + id; content.appendChild(pg); });
     const bd = document.createElement('div'); bd.id = 'm-backdrop';
     bd.addEventListener('click', () => { const p = $('pdf-choice'); if (p) p.remove(); const t = $('theme-picker-panel'); if (t && !t.classList.contains('hidden')) t.classList.add('hidden'); syncLock(); });
     document.body.appendChild(bd);
@@ -74944,7 +75212,7 @@ html.m-ui #qp-body .qp-table { width: 100%; }
       if (!was && hasSheet() && (pg === 'main' || pg === 'quickplay' || !pg)) switchPage('quickplay');
     } else if (was) {
       const tp = $('theme-picker-panel'); if (tp && tp._home) tp._home.appendChild(tp);
-      const back = { 'm-more': 'main', 'm-spells': 'spells', 'm-bag': 'inventory' }[activePage()]; if (back) switchPage(back);
+      const back = { 'm-more': 'main', 'm-spells': 'spells', 'm-bag': 'inventory', 'm-char': 'main' }[activePage()]; if (back) switchPage(back);
       const mf = $('page-quickplay'); if (mf) delete mf.dataset.mf;
       try { if (typeof applyQuickPlayTab === 'function') applyQuickPlayTab(false); } catch (e) {}
       root.classList.remove('m-modal-open');
@@ -74961,13 +75229,19 @@ html.m-ui #qp-body .qp-table { width: 100%; }
     if (page === 'm-more') renderMore();
     if (page === 'm-spells') renderSpells();
     if (page === 'm-bag') renderBag();
+    if (page === 'm-char') renderChar();
+    if (page === 'party-overview') renderParty();
+    if (page === 'dm') setTimeout(renderDm, 0);
     if (page === 'quickplay') renderPlayHead();
     const c = $('content'); if (c) c.scrollLeft = 0;
     refresh();
   });
   wrap('openModal', id => { const el = $(id); if (el) sheetify(el); syncLock(); });
   wrap('closeModal', () => { syncLock(); refresh(); });
-  wrap('enterApp', () => setTimeout(() => { apply(); if (isOn() && hasSheet()) switchPage('quickplay'); refresh(); }, 30));
+  // leaving a read-only preview goes back to Parties, where it was opened from
+  wrap('exitPreviewMode', () => { if (isOn() && typeof openPartyOverview === 'function') setTimeout(() => openPartyOverview(), 60); });
+  // a character opens on Play, unless the sheet has already gone somewhere on purpose (back to Parties after a preview)
+  wrap('enterApp', () => setTimeout(() => { apply(); if (isOn() && hasSheet() && ['main', 'quickplay', ''].includes(activePage())) switchPage('quickplay'); refresh(); }, 30));
   wrap('renderQuickPlay', () => { if (!isOn()) return; renderPlayHead(); if (detailAt && !$('m-detail-modal')?.classList.contains('hidden')) paintDetail(); });
   wrap('qpSlot', () => { if (isOn() && activePage() === 'm-spells') renderSpells(); });
   ['renderMagicItemsPanel', 'renderUnifiedInventory', 'updateCurrencyTotal'].forEach(fn => wrap(fn, () => { if (isOn() && activePage() === 'm-bag') setTimeout(renderBag, 0); }));
