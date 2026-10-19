@@ -75669,12 +75669,11 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     const st = document.createElement('style');
     st.textContent = `#d3-stage{position:fixed;inset:0;z-index:10051;pointer-events:none;display:none}
 #d3-stage.on{display:block}
-#d3-stage.sheet .d3-dim{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,rgba(0,0,0,.18),rgba(0,0,0,.42));animation:d3fade .25s ease-out}
-@keyframes d3fade{from{opacity:0}}
+#d3-stage.fading{opacity:0;transition:opacity .45s ease-out}
 #d3-cv{position:absolute;inset:0;width:100%;height:100%}`;
     document.head.appendChild(st);
     stage = document.createElement('div'); stage.id = 'd3-stage'; stage.setAttribute('aria-hidden', 'true');
-    stage.innerHTML = '<div class="d3-dim"></div><canvas id="d3-cv"></canvas>';
+    stage.innerHTML = '<canvas id="d3-cv"></canvas>';
     document.body.appendChild(stage);
     cv = stage.querySelector('canvas'); ctx = cv.getContext('2d');
     size(); addEventListener('resize', () => { size(); redraw(); });
@@ -75803,19 +75802,23 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       return Object.assign(b, { sc: d.sc, frames: d.frames, fix });
     });
     stage.classList.toggle('sheet', !opt.tray);
+    clearTimeout(fadeT); stage.classList.remove('fading');
     stage.classList.add('on');
     landed = false;
     if (opt.instant) { t0 = performance.now() - 1e6; frame(performance.now()); return list.length; }
     t0 = performance.now(); raf = requestAnimationFrame(frame);
     return list.length;
   }
-  function clear() { if (!stage) return; cancelAnimationFrame(raf); raf = 0; bodies = []; landed = true; stage.classList.remove('on'); }
+  function clear() { if (!stage) return; clearTimeout(fadeT); cancelAnimationFrame(raf); raf = 0; bodies = []; landed = true; stage.classList.remove('on', 'fading'); }
+  // fade the dice away, then clear them
+  let fadeT = 0;
+  function fade() { if (!stage || !stage.classList.contains('on')) return; stage.classList.add('fading'); clearTimeout(fadeT); fadeT = setTimeout(clear, 480); }
   // for testing: the number on top of each die once it has stopped, and where it is
   function result() { return bodies.map(b => { const f = b.frames[b.frames.length - 1], q = Q.mul(f.q, b.fix);
     if (b.kind === 4) { let bi = 0, bz = -9; b.shape.v.forEach((p, i) => { const z = Q.rot(q, p)[2]; if (z > bz) { bz = z; bi = i; } }); const c4 = toScreen(f.p); return { kind: 4, want: b.want, top: b.shape.vval[bi], flat: 1, x: Math.round(c4[0] + (opt.tray && trayAt ? rectOf(opt.tray).x - trayAt.x : 0)), y: Math.round(c4[1] + (opt.tray && trayAt ? rectOf(opt.tray).y - trayAt.y : 0)), r: Math.round(b.sc), secs: +(b.frames.length / FPS).toFixed(2) }; }
     let best = null, bz = -2; b.shape.faces.forEach(fc => { const z = Q.rot(q, fc.n)[2]; if (z > bz) { bz = z; best = fc; } });
     const c = toScreen(f.p); if (opt.tray && trayAt) { const r = rectOf(opt.tray); c[0] += r.x - trayAt.x; c[1] += r.y - trayAt.y; } return { kind: b.kind, want: b.want, top: best.val, label: b.show(best.val), flat: +bz.toFixed(3), x: Math.round(c[0]), y: Math.round(c[1]), r: Math.round(b.sc), secs: +(b.frames.length / FPS).toFixed(2) }; }); }
-  window.Dice3D = { throw: throwDice, clear, redraw, busy: () => !landed, result, presets: Object.keys(PRESETS), max: MAX3D };
+  window.Dice3D = { throw: throwDice, clear, fade, redraw, busy: () => !landed, result, presets: Object.keys(PRESETS), max: MAX3D };
 })();
 </script>
 <script>
@@ -75921,7 +75924,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   // ── state ────────────────────────────────────────────────────────────
   const S = { on: ls(LS_ON) !== 'off', mode: ls(LS_MODE) || 'normal', last: null, open: false, err: '', count: 1, anim: 'a',
     // 3D dice (per device): style flat | 3d, where panel | sheet, colour sheet | preset
-    style: ls('dice_style') || 'flat', where: ls('dice_where') || 'panel', colour: ls('dice_colour') || 'sheet', setOpen: false };
+    style: ls('dice_style') || '3d', where: ls('dice_where') || 'sheet', colour: ls('dice_colour') || 'sheet', setOpen: false };
   const is3d = () => S.style === '3d' && typeof window.Dice3D !== 'undefined';
   const isOn = () => S.on;
   const onDmPage = () => !!($('page-dm')?.classList.contains('active') && (typeof _realIsDM !== 'undefined' && _realIsDM));
@@ -76504,7 +76507,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
   // the tray the 3D dice roll in: one element, moved into each fresh render of the panel
   let trayEl = null;
   const tray = () => { if (!trayEl) { trayEl = document.createElement('div'); trayEl.className = 'dr-tray3d'; trayEl.setAttribute('aria-hidden', 'true'); } return trayEl; };
-  let cardT = 0;
+  let cardT = 0, diceT = 0;
   function hideCard() { const c = $('dr-card'); if (c) c.hidden = true; clearTimeout(cardT); }
   function showCard(r) {
     const c = $('dr-card'); if (!c) return;
@@ -76514,7 +76517,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
       ${critTxt ? `<div class="dr-crit ${r.crit === 'success' ? 's' : 'f'}" style="margin-top:6px">${critTxt}</div>` : ''}${fol ? `<div class="dr-fol">${fol}</div>` : ''}
       <div class="x">Tap to dismiss \u00b7 <button type="button" data-act="openroller" style="border:0;background:none;color:var(--accent);font:inherit;cursor:pointer;padding:0">Open the roller</button></div>`;
     c.hidden = false; clearTimeout(cardT);
-    cardT = setTimeout(() => { hideCard(); if (is3d() && S.where === 'sheet') Dice3D.clear(); }, r.test ? 7000 : 5000);
+    cardT = setTimeout(() => { hideCard(); if (is3d() && S.where === 'sheet') Dice3D.fade(); }, 4000);
   }
   function critText(r) {
     return r.crit === 'success' ? (r.kind === 'attack' ? (r.natural === 20 ? 'Natural 20 \u2014 critical hit!' : `Natural ${r.natural} \u2014 critical hit (crit on ${r.critMin}\u201320)`) : 'Natural 20 \u2014 critical success!')
@@ -76680,7 +76683,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     } else {
       if (S.open) render();
       Dice3D.throw(dice, { tray: null, colour: S.colour, bounds: { top: phone() ? 250 : 190, bottom: phone() ? 92 : 8 },
-        onLanded: () => { r.pending = false; if (S.last !== r) return; showCard(r); if (S.open) render(); } });
+        onLanded: () => { r.pending = false; if (S.last !== r) return; showCard(r); if (S.open) render(); clearTimeout(diceT); diceT = setTimeout(() => { if (S.last === r && !Dice3D.busy()) Dice3D.fade(); }, 1500); } });
     }
   }
   window.diceRoll = (expr, opt) => roll(expr, opt);
