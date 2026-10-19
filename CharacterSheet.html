@@ -75650,8 +75650,48 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
 
   // returns { expr, opt, dmg:{expr,label} } or null
   function resolve(t) {
+    // hit dice: one die plus Constitution
+    let el = t.closest('#hd-rows .dr-dice');
+    if (el) { const m = /d(\d+)/.exec(el.dataset.expr); let con = 0; try { con = abilityMod(getAbilities().con); } catch (e) {} return { expr: '1d' + m[1] + (con ? sign(con).replace('−', '-') : ''), opt: { kind: 'other', label: 'Hit Die (d' + m[1] + ')' } }; }
+    // stat-block grids
+    el = t.closest('.dr-cell');
+    if (el) {
+      const row = el.parentElement?.parentElement;
+      const nm = (row?.firstElementChild?.querySelector('span, div')?.textContent || row?.firstElementChild?.textContent || '').trim().split('\n')[0].slice(0, 40) || 'Attack';
+      const who = creatureName(row || el, nm);
+      const dcell = row?.querySelector('.dr-cell[data-kind="dmg"]'), dmg = dcell ? dmgExprFrom(dcell.textContent) : null;
+      if (el.dataset.kind === 'atk') { if (!/[+\-−]?\d/.test(el.textContent) || /^DC/i.test(el.textContent.trim())) return null; return { expr: '1d20' + sign(num(el.textContent)).replace('−', '-'), opt: { test: true, kind: 'attack', label: withWho(who, nm + ' attack'), critMin: 20 }, dmg: dmg ? { expr: dmg, label: withWho(who, nm + ' damage') } : null }; }
+      return dmg ? { expr: dmg, opt: { kind: 'damage', label: withWho(who, nm + ' damage') } } : null;
+    }
+    el = t.closest('.dr-abcell');
+    if (el) { const k = el.dataset.ab, v = num([...el.children].pop()?.textContent); return { expr: '1d20' + sign(v).replace('−', '-'), opt: { test: true, kind: 'check', label: withWho(creatureName(el), ABN[k] + ' check') } }; }
+    el = t.closest('.dr-tag');
+    if (el) {
+      const who = creatureName(el), b = num(el.dataset.bonus);
+      if (el.dataset.kind === 'atk') {
+        const blk = el.closest('div, p, li') || el.parentElement;
+        // a stat-block action name ("Bite.") just before it
+        const nmEl = blk.querySelector('strong, b, em'); const nm = nmEl && (nmEl.compareDocumentPosition(el) & 4) && /\.\s*$/.test(nmEl.textContent) ? nmEl.textContent.replace(/[.:]\s*$/, '').trim() : '';
+        const d = [...blk.querySelectorAll('.dr-dice')].find(x => el.compareDocumentPosition(x) & 4);
+        // a caster summary ("save DC 15 · +7 to hit") is the spell attack, not one spell's
+        const generic = !nm && (el.closest('.qp-name .qp-dim') || /save DC|spell/i.test(blk.textContent));
+        const base = nm || (generic ? '' : labelFor({ parentElement: el }));
+        const lab = withWho(who, base ? base.replace(/\s+attack$/i, '') + ' attack' : (generic ? 'Spell attack' : 'Attack roll'));
+        return { expr: '1d20' + sign(b).replace('−', '-'), opt: { test: true, kind: 'attack', label: lab, critMin: 20 }, dmg: d ? { expr: d.dataset.expr, label: lab.replace(/ attack$/, ' damage') } : null };
+      }
+      const nm = el.dataset.name, full = ({ str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' })[nm.slice(0, 3).toLowerCase()];
+      return { expr: '1d20' + sign(b).replace('−', '-'), opt: { test: true, kind: el.dataset.kind, label: withWho(who, el.dataset.kind === 'save' ? full + ' saving throw' : nm + ' check') } };
+    }
+    // Concentration and spell attack values
+    el = t.closest('#ms-conc-save-bonus, #sp-conc-save-bonus');
+    if (el) { let adv = null; try { adv = calcConcentrationSave().advantage ? 'adv' : null; } catch (e) {} return { expr: '1d20' + sign(num(el.textContent)).replace('−', '-'), opt: { test: true, kind: 'save', label: 'Concentration save', rowAdv: adv } }; }
+    el = t.closest('#ms-sp-atk, #sp-atk, #page-m-spells .m-tile');
+    if (el && (el.id || /attack/i.test(el.textContent)) && /[+\-−]\d/.test(el.textContent)) { const v = el.id ? el.textContent : el.querySelector('.m-v')?.textContent; return { expr: '1d20' + sign(num(v)).replace('−', '-'), opt: { test: true, kind: 'attack', label: 'Spell attack', critMin: 20, rowAdv: /\(Adv\)/.test(el.textContent) ? 'adv' : null } }; }
+    // tool checks
+    el = t.closest('#tool-profs-summary .skill-row');
+    if (el && t.closest('.skill-name, .skill-val')) { const v = el.querySelector('.skill-val'); return { expr: '1d20' + sign(num(v?.textContent)).replace('−', '-'), opt: { test: true, kind: 'check', label: cleanName(el.querySelector('.skill-name')) + ' check', rowAdv: advFrom(el).adv } }; }
     // dice written in text
-    let el = t.closest('.dr-dice');
+    el = t.closest('.dr-dice');
     if (el) return { expr: el.dataset.expr, opt: { kind: el.dataset.kind || 'damage', label: el.dataset.label || el.dataset.expr } };
     el = t.closest('.dr-satk');
     if (el) {
@@ -75701,9 +75741,9 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     el = t.closest('#disp-init, #qs-init');
     if (el) { const a = advFrom(el.parentElement); return { expr: '1d20' + sign(num(el.textContent)).replace('−', '-'), opt: { test: true, kind: 'check', label: 'Initiative', rowAdv: a.adv } }; }
     // attacks panel
-    el = t.closest('.attack-row .attack-stat');
+    el = t.closest('.attack-stat');
     if (el) {
-      const row = el.closest('.attack-row'), lab = el.parentElement?.querySelector('.attack-stat-label')?.textContent || '';
+      const row = el.closest('.attack-row') || el.parentElement?.parentElement, lab = el.parentElement?.querySelector('.attack-stat-label')?.textContent || '';
       const name = cleanName(row.querySelector('.attack-name')) || 'Attack';
       const cells = [...row.querySelectorAll('.attack-stat')];
       const dmgCell = cells.find(c => /dam|dmg|at lv/i.test(c.parentElement?.querySelector('.attack-stat-label')?.textContent || ''));
@@ -75771,7 +75811,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     } catch (e) {}
     return {};
   }
-  const ROLL_SEL = '.dr-dice, .dr-satk, #qp-body .qp-item b, #saves-block .save-row .save-name, #saves-block .save-row .save-val, #skills-block .skill-row .skill-name, #skills-block .skill-row .skill-val, #skills-block .skill-row .skill-ability, .ability-row .ability-mod, .ability-row .ability-label, #disp-init, #qs-init, .attack-row .attack-stat, #qp-body td[data-label] .qp-num, #qp-body .qp-checkrow .qp-chip, #qp-body .qp-chip, #qp-body .qp-stat .qp-big, #page-m-char .m-ab, #page-m-char .m-sk';
+  const ROLL_SEL = '.dr-dice, .dr-satk, .dr-tag, .dr-cell, .dr-abcell, #hd-rows .dr-dice, #ms-conc-save-bonus, #sp-conc-save-bonus, #ms-sp-atk, #sp-atk, #page-m-spells .m-tile, #tool-profs-summary .skill-row .skill-name, #tool-profs-summary .skill-row .skill-val, .attack-stat, #qp-body .qp-item b, #saves-block .save-row .save-name, #saves-block .save-row .save-val, #skills-block .skill-row .skill-name, #skills-block .skill-row .skill-val, #skills-block .skill-row .skill-ability, .ability-row .ability-mod, .ability-row .ability-label, #disp-init, #qs-init, .attack-row .attack-stat, #qp-body td[data-label] .qp-num, #qp-body .qp-checkrow .qp-chip, #qp-body .qp-chip, #qp-body .qp-stat .qp-big, #page-m-char .m-ab, #page-m-char .m-sk';
 
   function onSheetClick(e) {
     if (!S.on || window._previewMode) return;
@@ -75792,8 +75832,8 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   document.addEventListener('click', onSheetClick, true);
 
   // ── dice in text: wrap NdM (+K) so it can be clicked ─────────────────
-  const SCAN_ROOTS = '#page-spells.active, #page-features.active, #page-feats.active, #page-inventory.active, #page-companion.active, #page-summon.active, #page-wildshape.active, #page-forms.active, #spell-detail-body, #qp-body .qp-text, #qp-body .qp-sm, #qp-body .qp-upbox, #qp-body .qp-full, #qp-body .qp-itemtext, #m-detail-modal, .modal-overlay:not(.hidden) .modal-box, .item-detail-overlay:not(.hidden)';
-  const SKIP = 'script, style, textarea, input, select, option, button, .dr-dice, .dr-satk, [contenteditable]:not([contenteditable="false"]), svg, .modal-title, h1, h2, h3, .attack-row, #qp-body table, .qp-chip, .qp-stat, .sp-browser-name, .sp-name, .feat-card-name, .inv-row-name';
+  const SCAN_ROOTS = '#page-main.active, #page-quickplay.active, #page-spells.active, #page-features.active, #page-feats.active, #page-inventory.active, #page-companion.active, #page-summon.active, #page-wildshape.active, #page-forms.active, #spell-detail-body, #qp-body .qp-text, #qp-body .qp-sm, #qp-body .qp-upbox, #qp-body .qp-full, #qp-body .qp-itemtext, #m-detail-modal, .modal-overlay:not(.hidden) .modal-box, .item-detail-overlay:not(.hidden)';
+  const SKIP = 'script, style, textarea, input, select, option, button, .dr-dice, .dr-satk, [contenteditable]:not([contenteditable="false"]), svg, .modal-title, h1, h2, h3, .attack-stat, #qp-body td[data-label], #qp-body .qp-sm b, label, .qp-chip, .qp-stat, .skill-row, .save-row, .ability-row, .dr-cell, .dr-abcell, .dr-tag, .sp-browser-name, .sp-name, .feat-card-name, .inv-row-name';
   function labelFor(node) {
     const el = node.parentElement;
     if (el?.closest('#spell-detail-modal')) return ($('spell-detail-title')?.textContent || '').trim();
@@ -75816,19 +75856,28 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   }
   function wrapIn(root) {
     if (!root || root.dataset.drBusy) return;
-    const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => (!n.nodeValue || !/\dd\d|spell attack/i.test(n.nodeValue) || n.parentElement?.closest(SKIP)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+    const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => (!n.nodeValue || !/\dd\d|spell attack|[+\-−]\s?\d/i.test(n.nodeValue) || n.parentElement?.closest(SKIP)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
     const nodes = []; while (tw.nextNode()) nodes.push(tw.currentNode);
-    if (!nodes.length) return;
+    if (!nodes.length && !root.querySelector('.dr-dice:not([data-trail])')) return;
     root.dataset.drBusy = '1';
     nodes.forEach(n => {
       const s = n.nodeValue, label = labelFor(n);
-      const re = /(\d+)d(\d+)((?:\s*[+\-−]\s*\d+(?![\dd%]))?)|\b(ranged|melee) spell attack\b/gi;
+      const re = TEXT_RE(); re.lastIndex = 0;
+      const block = (n.parentElement?.closest('div, p, li, td, dd') || n.parentElement)?.textContent.trim() || '';
+      const skillCtx = /^Skills?\b/i.test(block), saveCtx = /^(Saving Throws|Saves)\b/i.test(block);
       let m, last = 0, frag = null;
       while ((m = re.exec(s))) {
         frag = frag || document.createDocumentFragment();
         if (m.index > last) frag.appendChild(document.createTextNode(s.slice(last, m.index)));
         const sp = document.createElement('span');
-        if (m[4]) {
+        if (m[5] || m[6] || m[11]) {
+          const b = num(m[5] || m[6] || m[11]);
+          sp.className = 'dr-tag'; sp.dataset.kind = 'atk'; sp.dataset.bonus = b; sp.title = `Roll the attack (1d20${sign(b)})`;
+        } else if (m[7] || m[9]) {
+          if ((m[7] && !skillCtx) || (m[9] && !saveCtx)) { frag.appendChild(document.createTextNode(m[0])); last = re.lastIndex; continue; }
+          sp.className = 'dr-tag'; sp.dataset.kind = m[7] ? 'check' : 'save'; sp.dataset.name = m[7] || m[9]; sp.dataset.bonus = num(m[8] || m[10]);
+          sp.title = 'Roll ' + (m[7] || m[9]);
+        } else if (m[4]) {
           const b = spellAtkBonus();
           if (b == null) { frag.appendChild(document.createTextNode(m[0])); last = re.lastIndex; continue; }
           sp.className = 'dr-satk'; sp.dataset.bonus = b; sp.dataset.label = label; sp.title = `Roll the spell attack (1d20${sign(b)})`;
@@ -75841,6 +75890,23 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       if (!frag) return;
       if (last < s.length) frag.appendChild(document.createTextNode(s.slice(last)));
       n.parentNode.replaceChild(frag, n);
+    });
+    // the sheet often shows a modifier as its own highlighted piece right after the dice
+    // ("2d8 <span>+ 5</span>"): fold a flat +N / -N that directly follows into the roll
+    root.querySelectorAll('.dr-dice:not([data-trail])').forEach(sp => {
+      sp.dataset.trail = '1';
+      if (/[+\-]\d+$/.test(sp.dataset.expr)) return;
+      const tw2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let last = sp.lastChild; while (last && last.lastChild) last = last.lastChild;
+      if (!last) return;
+      tw2.currentNode = last;
+      let txt = '';
+      while (txt.length < 40 && tw2.nextNode()) { if (tw2.currentNode.parentElement?.closest('.dr-dice')) break; txt += tw2.currentNode.nodeValue; }
+      const m = /^\s*([+\-\u2212])\s*(\d+)(?![\dd])(?!\s*d\d)/.exec(txt);
+      if (m) { sp.dataset.expr += (m[1] === '+' ? '+' : '-') + m[2]; sp.title = 'Roll ' + sp.dataset.expr; return; }
+      if (/^\s*(?:\+|plus)\s*your spellcasting ability modifier/i.test(txt)) {
+        try { const ab = getPrimarySpellcasting()?.ability; if (ab) { const mod = abilityMod(getAbilities()[ab]); sp.dataset.expr += (mod >= 0 ? '+' : '-') + Math.abs(mod); sp.title = 'Roll ' + sp.dataset.expr; } } catch (e) {}
+      }
     });
     delete root.dataset.drBusy;
   }
@@ -75855,10 +75921,51 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     sp.title = 'Roll the spell attack'; sp.textContent = '\uD83C\uDFB2 Attack ' + sign(b);
     meta.appendChild(sp);
   }
+  const SKN = 'Acrobatics|Animal Handling|Arcana|Athletics|Deception|History|Insight|Intimidation|Investigation|Medicine|Nature|Perception|Performance|Persuasion|Religion|Sleight of Hand|Stealth|Survival';
+  const ABS_RE = 'Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma|Str|Dex|Con|Int|Wis|Cha';
+  // dice | spell attack | "Melee Attack Roll: +5" | "+5 to hit" | "Stealth +5" (Skills line) | "Dex +3" (Saves line)
+  const TEXT_RE = () => new RegExp(`(\\d+)d(\\d+)((?:\\s*[+\\-−]\\s*\\d+(?![\\dd%]))?)|\\b(ranged|melee) spell attack\\b|\\b(?:Melee|Ranged)(?: Weapon| Spell)? Attack(?: Roll)?:\\s*([+\\-−]\\d+)|([+\\-−]\\d+) to hit\\b|\\b(${SKN}) ([+\\-−]\\d+)|\\b(${ABS_RE}) ([+\\-−]\\d+)\\b|\\bSpell Atk(?:ack)?:?\\s*([+\\-−]\\d+)`, 'gi');
+  // stat-block grids: "ATK +5 / DMG 1d6+3" cells and "STR 6 -2" ability cells
+  function decorate(root) {
+    root.querySelectorAll('div, span, strong, b').forEach(lab => {
+      if (lab.children.length || lab.classList.contains('attack-stat-label') || lab.closest(SKIP_DEC)) return;
+      const t = lab.textContent.trim();
+      if (/^(ATK|To Hit|DMG|Damage|Bonus Dmg)$/i.test(t)) {
+        const cell = lab.parentElement; if (!cell || cell.children.length > 4) return;
+        const kind = /^(ATK|To Hit)$/i.test(t) ? 'atk' : 'dmg';
+        [...cell.children].forEach(v => {
+          const vt = v.textContent.trim();
+          if (v === lab || v.classList.contains('dr-cell') || vt.length > 40) return;
+          if (kind === 'atk' ? !/^[+\-−]\d+/.test(vt) : !/\d+d\d+/.test(vt)) return;      // only real rolls: a bonus, or damage with dice
+          v.classList.add('dr-cell'); v.dataset.kind = kind;
+        });
+      } else if (/^[+\-−]\d+$/.test(t) && /Spell Atk(?:ack)?:?\s*$/i.test(lab.previousSibling?.nodeValue || '')) {
+        // "Spell Atk: <strong>+8</strong>" in a summon's header
+        lab.classList.add('dr-tag'); lab.dataset.kind = 'atk'; lab.dataset.bonus = num(t); lab.title = 'Roll the spell attack';
+      } else if (/^(STR|DEX|CON|INT|WIS|CHA)$/.test(t)) {
+        const cell = lab.parentElement; if (!cell || cell.classList.contains('dr-abcell') || cell.children.length > 3) return;
+        if (/^(STR|DEX|CON|INT|WIS|CHA)\s*\d+\s*[+\-−]\d+$/.test(cell.textContent.replace(/\s+/g, ' ').trim())) { cell.classList.add('dr-abcell'); cell.dataset.ab = t.toLowerCase(); }
+      }
+    });
+  }
+  // creature stat blocks live on these pages and in pop-ups
+  const CREATURE = '#page-companion, #page-summon, #page-wildshape, #page-forms, #m-detail-modal, .item-detail-overlay';
+  const CREATURE_IN = '.modal-box';
+  const SKIP_DEC = '#spell-detail-modal, .attack-row, .ability-row, #page-dm, #dr-panel, #dr-log, .skill-row, .save-row';
+  function creatureName(el, skip) {
+    if (!el.closest(CREATURE + ', ' + CREATURE_IN) || el.closest('#spell-detail-modal')) return '';
+    if (el.closest('#page-companion')) { try { const d = getActiveCompanionDef(); if (d?.name) return d.name; } catch (e) {} }
+    for (let a = el.parentElement, i = 0; a && i < 10 && !a.classList?.contains('page') && a !== document.body; a = a.parentElement, i++) {
+      const lines = (a.innerText || '').split('\n').map(x => x.trim()).filter(Boolean), first = lines[0] || '';
+      if (first !== skip && lines.length > 3 && /^[A-Z][A-Za-z' ,()\-]{1,38}$/.test(first) && !/^(Attacks?|Actions?|Traits?|Reactions?|Skills?|Saves?|Saving Throws|Bonus Actions?|STR|DEX|CON|INT|WIS|CHA|ATK|DMG|To Hit|Damage|Summoned Creatures|Familiar|Wild Shape|Known Forms)\b/i.test(first)) return first;
+    }
+    return '';
+  }
+  const withWho = (who, txt) => who ? who + ': ' + txt : txt;
   let scanT = null;
   function scanSoon() {
     if (!S.on || scanT) return;
-    scanT = setTimeout(() => { scanT = null; if (!S.on) return; document.querySelectorAll(SCAN_ROOTS).forEach(wrapIn); spellPill(); }, 120);
+    scanT = setTimeout(() => { scanT = null; if (!S.on) return; document.querySelectorAll(SCAN_ROOTS).forEach(r => { wrapIn(r); if (r.matches(CREATURE)) decorate(r); else r.querySelectorAll(CREATURE_IN).forEach(decorate); }); spellPill(); }, 120);
   }
   const mo = new MutationObserver(muts => {
     if (!S.on) return;
@@ -75868,7 +75975,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       scanSoon(); return;
     }
   });
-  function unwrapAll() { document.querySelectorAll('.dr-dice, .dr-satk').forEach(sp => sp.replaceWith(document.createTextNode(sp.textContent))); }
+  function unwrapAll() { document.querySelectorAll('.dr-dice, .dr-satk, .dr-tag').forEach(sp => sp.replaceWith(document.createTextNode(sp.textContent))); document.querySelectorAll('.dr-cell, .dr-abcell').forEach(e => e.classList.remove('dr-cell', 'dr-abcell')); }
 
   // ── the roller panel ─────────────────────────────────────────────────
   const DIE_PTS = { 4: '20,4 37,34 3,34', 6: '5,5 35,5 35,35 5,35', 8: '20,2 38,20 20,38 2,20', 10: '20,2 37,16 20,38 3,16', 12: '20,2 38,15 31,37 9,37 2,15', 20: '20,2 36,11 36,29 20,38 4,29 4,11', 100: '20,2 37,16 20,38 3,16' };
@@ -75935,11 +76042,12 @@ html.m-ui #dr-panel{left:0;right:0;bottom:0;width:auto;max-width:none;max-height
 .dr-ft{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)}
 .dr-ft span{flex:1}
 .dr-ft button{border:1px solid var(--border);background:none;color:var(--text2);border-radius:14px;padding:4px 10px;font-size:11px}
-body:not(.dr-off) .dr-dice,body:not(.dr-off) .dr-satk{color:var(--accent);border-bottom:1px dotted currentColor;cursor:pointer}
-body:not(.dr-off) .dr-dice:hover,body:not(.dr-off) .dr-satk:hover{background:color-mix(in srgb,var(--accent) 15%,transparent)}
+body:not(.dr-off) .dr-dice,body:not(.dr-off) .dr-satk,body:not(.dr-off) .dr-tag{color:var(--accent);border-bottom:1px dotted currentColor;cursor:pointer}
+body:not(.dr-off) .dr-dice:hover,body:not(.dr-off) .dr-satk:hover,body:not(.dr-off) .dr-tag:hover{background:color-mix(in srgb,var(--accent) 15%,transparent)}
 body.dr-on #saves-block .save-name,body.dr-on #saves-block .save-val,body.dr-on #skills-block .skill-name,body.dr-on #skills-block .skill-val,body.dr-on .ability-row .ability-mod,body.dr-on #disp-init,body.dr-on #qs-init,body.dr-on .attack-row .attack-stat,body.dr-on #qp-body td[data-label] .qp-num,body.dr-on #qp-body .qp-checkrow .qp-chip,body.dr-on #qp-body .qp-chips .qp-chip,body.dr-on #qp-body .qp-sm b,body.dr-on #page-m-char .m-ab,body.dr-on #page-m-char .m-sk{cursor:pointer!important}
 body.dr-on #saves-block .save-row:hover .save-val,body.dr-on #skills-block .skill-row:hover .skill-val,body.dr-on .ability-row:hover .ability-mod,body.dr-on #disp-init:hover,body.dr-on #qs-init:hover,body.dr-on .attack-row .attack-stat:hover,body.dr-on #qp-body td[data-label] .qp-num:hover{color:var(--accent)!important}
-body.dr-on #saves-block .save-row:hover .save-val,body.dr-on #skills-block .skill-row:hover .skill-val,body.dr-on .ability-row:hover .ability-mod,body.dr-on #disp-init:hover,body.dr-on #qs-init:hover,body.dr-on .attack-row .attack-stat:hover,body.dr-on #qp-body td[data-label] .qp-num:hover{text-decoration:underline dotted;text-underline-offset:3px}
+body.dr-on #saves-block .save-row:hover .save-val,body.dr-on #skills-block .skill-row:hover .skill-val,body.dr-on .ability-row:hover .ability-mod,body.dr-on #disp-init:hover,body.dr-on #qs-init:hover,body.dr-on .attack-row .attack-stat:hover,body.dr-on #qp-body td[data-label] .qp-num:hover,body.dr-on .dr-cell:hover,body.dr-on .dr-abcell:hover,body.dr-on #ms-conc-save-bonus:hover,body.dr-on #sp-conc-save-bonus:hover,body.dr-on #ms-sp-atk:hover,body.dr-on #sp-atk:hover,body.dr-on #tool-profs-summary .skill-row:hover .skill-val{text-decoration:underline dotted;text-underline-offset:3px}
+body.dr-on .dr-cell,body.dr-on .dr-abcell,body.dr-on #ms-conc-save-bonus,body.dr-on #sp-conc-save-bonus,body.dr-on #ms-sp-atk,body.dr-on #sp-atk,body.dr-on #page-m-spells .m-tile,body.dr-on #tool-profs-summary .skill-name,body.dr-on #tool-profs-summary .skill-val{cursor:pointer!important}
 body.preview-readonly #dr-fab,body.preview-readonly #dr-panel{display:none!important}
 /* DM log */
 #dr-log{position:fixed;right:12px;top:12px;bottom:12px;width:360px;z-index:9980;display:flex;flex-direction:column;background:var(--panel,var(--bg2));color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 32px rgba(0,0,0,.4);font-family:var(--font-ui);overflow:hidden}
