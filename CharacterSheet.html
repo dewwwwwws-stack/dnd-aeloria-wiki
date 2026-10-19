@@ -8417,6 +8417,7 @@ function renderDMKeyStats(groups) {
             <span style="letter-spacing:.5px">LANGUAGES</span> <span style="color:var(--text2)">${s.languages.join(', ')}</span>
           </div>
         ` : ''}
+        <div class="dr-ks-last" data-char-id="${id}"></div>
       </div>
     `;
   });
@@ -44610,7 +44611,7 @@ function renderMagicItemBrowser() {
   const typeF  = document.getElementById('mi-br-type')?.value || '';
   const attuneF = document.getElementById('mi-br-attune')?.value || '';
 
-  const ownedKeys = new Set(currentChar.magicItems.map(i => i.key));
+  const ownedKeys = new Set((currentChar?.magicItems || []).map(i => i.key));
 
   let filtered = getEffectiveMagicItemsCatalog().filter(item => {
     // DM-only items (imported in bulk and not yet individually audited) are
@@ -75447,6 +75448,916 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   let rt = null;
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (wantPhone() !== isOn()) apply(); }, 150); });
   apply();
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// DICE ROLLER - optional digital dice
+// Nothing here changes the character: it only rolls and shows the result.
+// Type a roll (8d6, 2d20kh1+5, 4d6dl1, d%), tap a quick die, or click a
+// value on the sheet (skills, saves, checks, initiative, To Hit, Damage,
+// dice in spell / feature text). House rule: a natural 1 or 20 is a
+// critical failure / success on every d20 test; crit range from Champion
+// and the like widens attack rolls with weapons and Unarmed Strikes only.
+// Crit damage follows the sheet's own rule: every die at its maximum, plus
+// the dice rolled again, plus the modifier.
+// Rolls are shared with the DM: a broadcast for the live log and a row in
+// the Supabase "rolls" table so the log keeps its history. Without the
+// table, live rolls still arrive and the DM's browser keeps what it saw.
+// Players can switch the whole thing off (it is per device).
+// ═══════════════════════════════════════════════════════════════════════
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; };
+  const lsJson = (k, d) => { try { const v = JSON.parse(ls(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } };
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const sign = n => (n >= 0 ? '+' : '−') + Math.abs(n);
+  function rnd(n) { const a = new Uint32Array(1); crypto.getRandomValues(a); return 1 + (a[0] % n); }
+  const CC = () => (typeof currentChar !== 'undefined' ? currentChar : null);
+  const SID = () => (typeof _REALTIME_SESSION_ID !== 'undefined' ? _REALTIME_SESSION_ID : '');
+  const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+
+  const TABLE = 'rolls', TOPIC = 'dice-rolls';
+  const LS_ON = 'dice_roller', LS_MODE = 'dice_mode', LS_OUT = 'dice_outbox', LS_DMLOG = 'dice_dm_log', LS_DMCAMP = 'dice_dm_camp', LS_DOCK = 'dice_dm_dock';
+  const histKey = () => 'dice_hist_' + (onDmPage() ? 'dm' : (CC()?.id || 'none'));
+
+  // ── rolling ──────────────────────────────────────────────────────────
+  function parseRoll(src) {
+    const s = String(src || '').toLowerCase().replace(/−/g, '-').replace(/\s+/g, '');
+    if (!s) return null;
+    const re = /([+-]?)(?:(\d*)d(\d+|%)(?:(kh|kl|dh|dl)(\d+))?|(\d+))/gy;
+    const terms = []; let m, at = 0;
+    while (at < s.length && (m = re.exec(s))) {
+      if (m.index !== at || !m[0]) return null;
+      at = re.lastIndex;
+      const sg = m[1] === '-' ? -1 : 1;
+      if (m[6] != null) terms.push({ sign: sg, flat: parseInt(m[6], 10) });
+      else {
+        const n = m[2] ? parseInt(m[2], 10) : 1, die = m[3] === '%' ? 100 : parseInt(m[3], 10);
+        if (!n || n > 100 || !die || die > 1000) return null;
+        terms.push({ sign: sg, n, die, keep: m[4] || null, k: m[5] ? parseInt(m[5], 10) : null });
+      }
+    }
+    return at === s.length && terms.length ? terms : null;
+  }
+  const termText = t => t.flat != null ? String(t.flat) : `${t.n}d${t.die === 100 ? '%' : t.die}${t.keep ? t.keep + t.k : ''}`;
+  const exprText = terms => terms.map((t, i) => (i === 0 ? (t.sign < 0 ? '-' : '') : (t.sign < 0 ? '-' : '+')) + termText(t)).join('');
+
+  // o: { test, kind, label, critMin, adv:'adv'|'dis', crunchy, min }
+  function runRoll(expr, o) {
+    o = o || {};
+    const terms = parseRoll(expr); if (!terms) return null;
+    // advantage / disadvantage on a d20 test: the first single d20 becomes 2d20 keep one
+    if (o.test && o.adv) { const t = terms.find(t => t.die === 20 && t.n === 1 && !t.keep); if (t) { t.n = 2; t.keep = o.adv === 'adv' ? 'kh' : 'kl'; t.k = 1; } }
+    const dice = []; let total = 0, flat = 0, maxed = 0;
+    terms.forEach((t, ti) => {
+      if (t.flat != null) { total += t.sign * t.flat; flat += t.sign * t.flat; return; }
+      if (o.crunchy) { maxed += t.sign * t.n * t.die; total += t.sign * t.n * t.die; }
+      const vals = Array.from({ length: t.n }, () => rnd(t.die));
+      const order = vals.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+      const keep = new Set(vals.map((_, i) => i));
+      if (t.keep && t.k) {
+        const drop = t.keep === 'kh' ? order.slice(0, Math.max(0, t.n - t.k)) : t.keep === 'kl' ? order.slice(Math.min(t.k, t.n)) : t.keep === 'dl' ? order.slice(0, t.k) : order.slice(Math.max(0, t.n - t.k));
+        drop.forEach(([, i]) => keep.delete(i));
+      }
+      vals.forEach((v, i) => { const kept = keep.has(i); dice.push({ v, die: t.die, kept, term: ti, neg: t.sign < 0 }); });
+    });
+    // Reliable Talent and the like: a kept d20 below the minimum counts as the minimum
+    let natural = null, minned = false;
+    const d20 = dice.find(d => d.die === 20 && d.kept);
+    if (o.test && d20) { natural = d20.v; if (o.min && d20.v < o.min) { d20.counts = o.min; minned = true; } }
+    dice.forEach(d => { if (d.kept) total += (d.neg ? -1 : 1) * (d.counts ?? d.v); });
+    let crit = null;
+    if (o.test && d20 && !minned) crit = d20.v >= (o.kind === 'attack' ? (o.critMin || 20) : 20) ? 'success' : d20.v === 1 ? 'fail' : null;
+    return { id: uuid(), expr: exprText(terms) + (o.crunchy ? ' crit' : ''), base: expr, terms, label: o.label || exprText(terms), kind: o.kind || (o.test ? 'check' : 'damage'),
+      total, dice, flat, maxed, crit, natural, test: !!o.test, adv: o.adv || null, critMin: o.critMin || 20, min: o.min || 0, minned, crunchy: !!o.crunchy, at: Date.now(), opt: o };
+  }
+  function fmtDetail(r) {
+    const groups = {};
+    r.dice.forEach(d => { if (d.term >= 100) return; (groups[d.term] = groups[d.term] || []).push(d); });
+    const parts = [];
+    if (r.maxed) parts.push(r.maxed + ' max');
+    Object.values(groups).forEach(g => {
+      const shown = g.slice(0, 16).map(d => d.kept ? String(d.counts != null ? d.counts + ' (rolled ' + d.v + ')' : d.v) : '(' + d.v + ')');
+      const txt = g.length > 1 ? '[' + shown.join(', ') + (g.length > 16 ? ', …' : '') + ']' : shown[0];
+      parts.push((g[0].neg ? '− ' : '') + txt);
+    });
+    let t = parts.join(' + ').replace(/\+ −/g, '−');
+    if (r.flat) t += (r.flat > 0 ? ' + ' : ' − ') + Math.abs(r.flat);
+    if (r.other != null) t += ' · other roll ' + r.other;
+    return t;
+  }
+
+  // ── state ────────────────────────────────────────────────────────────
+  const S = { on: ls(LS_ON) !== 'off', mode: ls(LS_MODE) || 'normal', last: null, open: false, err: '', count: 1, anim: 'a' };
+  const isOn = () => S.on;
+  const onDmPage = () => !!($('page-dm')?.classList.contains('active') && (typeof _realIsDM !== 'undefined' && _realIsDM));
+  const phone = () => document.documentElement.classList.contains('m-ui');
+  function history() { return lsJson(histKey(), []); }
+  function pushHistory(r) {
+    const h = history(); h.unshift({ expr: r.base, label: r.label, total: r.total, crit: r.crit, kind: r.kind, opt: slimOpt(r.opt), at: r.at });
+    ls(histKey(), JSON.stringify(h.slice(0, 40)));
+  }
+  const slimOpt = o => { const x = Object.assign({}, o || {}); delete x.adv; return x; };
+
+  // ── sharing ──────────────────────────────────────────────────────────
+  const hasSb = () => typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined';
+  const hdrs = extra => Object.assign({ 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }, extra || {});
+  let noTable = false;
+  function sharer() {
+    if (window._previewMode) return null;
+    if (onDmPage()) return { who: 'DM', char_id: null, campaign: dmCamp() === '*' ? '' : dmCamp(), dm: true };
+    const c = CC(); if (!c || !c.id) return null;
+    const name = typeof stripNameMarkup === 'function' ? stripNameMarkup(c.charName || c.id) : (c.charName || c.id);
+    return { who: name, char_id: c.id, campaign: c._campaign || '', dm: false };
+  }
+  function rowOf(r, s) {
+    return { id: r.id, campaign: s.campaign || '', char_id: s.char_id, who: s.who, label: String(r.label).slice(0, 200), expr: String(r.expr).slice(0, 120),
+      kind: r.kind, total: r.total, detail: fmtDetail(r).slice(0, 400), crit: r.crit, at: new Date(r.at).toISOString() };
+  }
+  async function insertRow(row) {
+    if (!hasSb() || noTable) return false;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}`, { method: 'POST', headers: hdrs({ Prefer: 'return=minimal' }), body: JSON.stringify(row) });
+      if (res.ok || res.status === 409) return true;
+      const body = await res.text().catch(() => '');
+      if (res.status === 404 || /PGRST205|42P01|does not exist|schema cache/i.test(body)) { noTable = true; dmRender(); return 'notable'; }
+      return false;
+    } catch (e) { return false; }
+  }
+  async function broadcastRow(row) {
+    if (!hasSb()) return;
+    try { await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, { method: 'POST', headers: hdrs(), body: JSON.stringify({ messages: [{ topic: TOPIC, event: 'roll', payload: Object.assign({ from: SID() }, row) }] }) }); } catch (e) {}
+  }
+  async function share(r) {
+    const s = sharer(); if (!s) return;
+    const row = rowOf(r, s);
+    if (s.dm) dmAdd([row], true);
+    broadcastRow(row);
+    const ok = await insertRow(row);
+    if (ok === false) { const out = lsJson(LS_OUT, []); out.push(row); ls(LS_OUT, JSON.stringify(out.slice(-100))); }
+  }
+  // rolls that couldn't be saved (offline, a blip) are sent again later
+  let flushing = false;
+  async function flushOutbox() {
+    if (flushing || noTable) return; const out = lsJson(LS_OUT, []); if (!out.length) return;
+    flushing = true;
+    const left = [];
+    for (const row of out) { const ok = await insertRow(row); if (ok === false) left.push(row); }
+    ls(LS_OUT, left.length ? JSON.stringify(left) : null);
+    flushing = false;
+  }
+  window.addEventListener('online', () => { flushOutbox(); dmCatchUp(); });
+  setInterval(flushOutbox, 45000);
+
+  // ── what a click on the sheet rolls ──────────────────────────────────
+  const ABN = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+  const num = t => { const m = /([+\-−]?\s*\d+)/.exec(String(t || '')); return m ? parseInt(m[1].replace(/−/, '-').replace(/\s/g, ''), 10) : 0; };
+  const cleanName = el => { if (!el) return ''; const c = el.cloneNode(true); c.querySelectorAll('span, small, sup').forEach(x => x.remove()); return c.textContent.replace(/\s+/g, ' ').trim(); };
+  function advFrom(el) {
+    // badges and hover text on the row say whether something grants Advantage / Disadvantage
+    if (!el) return { adv: null, note: '' };
+    const txt = [...el.querySelectorAll('span, [title]')].map(x => x.textContent).join(' ') + ' ' + [el, ...el.querySelectorAll('[title]')].map(x => x.getAttribute && (x.getAttribute('title') || '')).join(' ');
+    const a = /\bADV\b|\bAdv\.|\bAdvantage -/.test(txt), d = /\bDISADV\b|\bDisadvantage -/.test(txt);
+    const auto = /AUTO-FAIL|Auto-fails/.test(txt);
+    return { adv: a && !d ? 'adv' : d && !a ? 'dis' : null, note: auto ? 'Auto-fails (a condition)' : '' };
+  }
+  function champCrit() {
+    try {
+      const f = (getAllClasses() || []).find(e => String(e.class || '').toLowerCase() === 'fighter');
+      const lv = f?.levels?.length || 0;
+      if (lv >= 3 && /champion/i.test(f.subclass || '')) return lv >= 15 ? 18 : 19;
+    } catch (e) {}
+    return 20;
+  }
+  function spellAtkBonus() {
+    try {
+      const sc = getPrimarySpellcasting(); const ab = sc?.ability; if (!ab) return null;
+      return abilityMod(getAbilities()[ab]) + getProf() + (getSpellAtkBonus() || 0) - (exhaustionD20Penalty() || 0) - (getDrunkennessAttackPenalty() || 0);
+    } catch (e) { return null; }
+  }
+  const DICE_RE = /(\d+)d(\d+)((?:\s*[+\-−]\s*\d+(?![\dd]))?)/g;
+  function firstDice(text) { DICE_RE.lastIndex = 0; const all = [...String(text || '').matchAll(DICE_RE)].map(m => (m[1] + 'd' + m[2] + (m[3] || '').replace(/\s/g, '').replace(/−/, '-'))); return all; }
+  function dmgExprFrom(text) {
+    // "1d8 + 5 Force", "2d6+3 Slashing + 1d6 Fire" -> 1d8+5 / 2d6+3+1d6
+    const t = String(text || '').replace(/−/g, '-');
+    const parts = [...t.matchAll(/(\d+d\d+)|([+-])\s*(\d+)(?!\s*d)\b/g)];
+    let out = ''; parts.forEach(m => { if (m[1]) out += (out ? '+' : '') + m[1]; else out += m[2] + m[3]; });
+    return parseRoll(out) && /d/.test(out) ? out : null;
+  }
+
+  // returns { expr, opt, dmg:{expr,label} } or null
+  function resolve(t) {
+    // dice written in text
+    let el = t.closest('.dr-dice');
+    if (el) return { expr: el.dataset.expr, opt: { kind: el.dataset.kind || 'damage', label: el.dataset.label || el.dataset.expr } };
+    el = t.closest('.dr-satk');
+    if (el) {
+      const b = num(el.dataset.bonus ?? el.textContent);
+      const scope = el.closest('#spell-detail-modal') ? $('spell-detail-body') : (el.closest('.qp-item, .dr-scope') || el.parentElement);
+      const d = scope?.querySelector('.dr-dice'), name = el.dataset.label || 'Spell';
+      let dx = d ? d.dataset.expr : null;
+      // a cantrip's damage includes what the sheet adds (Agonizing Blast and the like), as Quick Play shows it
+      try {
+        const sp = (typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []).find(x => x.name === name);
+        if (sp && !sp.level && typeof _qpSpellMathHtml === 'function') { const f = firstDice(String(_qpSpellMathHtml(sp.key) || '').replace(/<[^>]+>/g, ' '))[0]; if (f) dx = f; }
+      } catch (e) {}
+      return { expr: '1d20' + sign(b).replace('−', '-'), opt: { test: true, kind: 'attack', label: name + ' attack', critMin: 20 }, dmg: dx ? { expr: dx, label: name + ' damage' } : null };
+    }
+    // Quick Play spell line: "+8 to hit"
+    el = t.closest('#qp-body .qp-item b');
+    if (el && /^[+\-\u2212]\d+ to hit$/.test(el.textContent.trim())) {
+      const it = el.closest('.qp-item'), nm = it.querySelector('.qp-name');
+      const name = (nm?.querySelector('.qp-spell, .qp-feat')?.textContent || cleanName(nm) || 'Spell').trim();
+      const d = it.querySelector('.dr-dice');
+      return { expr: '1d20' + sign(num(el.textContent)).replace('\u2212', '-'), opt: { test: true, kind: 'attack', label: name + ' attack', critMin: 20 }, dmg: d ? { expr: d.dataset.expr, label: name + ' damage' } : null };
+    }
+    // saving throws
+    el = t.closest('#saves-block .save-row');
+    if (el && t.closest('.save-name, .save-val')) {
+      const v = el.querySelector('.save-val'); if (!v) return null;
+      const key = (v.id || '').replace('save-val-', '');
+      const label = key === 'conc' ? 'Concentration save' : (ABN[key] || cleanName(el.querySelector('.save-name'))) + ' saving throw';
+      const a = advFrom(el);
+      return { expr: '1d20' + sign(num(v.textContent)).replace('−', '-'), opt: { test: true, kind: 'save', label, rowAdv: a.adv, note: a.note } };
+    }
+    // skills
+    el = t.closest('#skills-block .skill-row');
+    if (el && t.closest('.skill-name, .skill-val, .skill-ability')) {
+      const v = el.querySelector('.skill-val'); if (!v) return null;
+      const a = advFrom(el);
+      const key = (v.id || '').replace('skill-val-', '');
+      return { expr: '1d20' + sign(num(v.textContent)).replace('−', '-'), opt: Object.assign({ test: true, kind: 'check', label: cleanName(el.querySelector('.skill-name')) + ' check', rowAdv: a.adv, note: a.note, guidance: true }, qpSkillExtras(key)) };
+    }
+    // ability checks
+    el = t.closest('.ability-row');
+    if (el && t.closest('.ability-mod, .ability-label')) {
+      const m = el.querySelector('.ability-mod'); const key = (m?.id || '').replace('mod-', '');
+      return { expr: '1d20' + sign(num(m?.textContent)).replace('−', '-'), opt: { test: true, kind: 'check', label: (ABN[key] || cleanName(el.querySelector('.ability-label'))) + ' check', guidance: true } };
+    }
+    // initiative
+    el = t.closest('#disp-init, #qs-init');
+    if (el) { const a = advFrom(el.parentElement); return { expr: '1d20' + sign(num(el.textContent)).replace('−', '-'), opt: { test: true, kind: 'check', label: 'Initiative', rowAdv: a.adv } }; }
+    // attacks panel
+    el = t.closest('.attack-row .attack-stat');
+    if (el) {
+      const row = el.closest('.attack-row'), lab = el.parentElement?.querySelector('.attack-stat-label')?.textContent || '';
+      const name = cleanName(row.querySelector('.attack-name')) || 'Attack';
+      const cells = [...row.querySelectorAll('.attack-stat')];
+      const dmgCell = cells.find(c => /dam|dmg|at lv/i.test(c.parentElement?.querySelector('.attack-stat-label')?.textContent || ''));
+      const dmg = dmgCell ? dmgExprFrom(dmgCell.textContent) : null;
+      if (/to hit/i.test(lab)) {
+        if (!/[+\-−]?\d/.test(el.textContent)) return null;
+        const isSpell = !!row.querySelector('.attack-type-badge.cantrip') || /spell attack/i.test(row.textContent);
+        return { expr: '1d20' + sign(num(el.textContent)).replace('−', '-'), opt: { test: true, kind: 'attack', label: name + ' attack', critMin: isSpell ? 20 : champCrit(), rowAdv: /\(Adv\)/.test(el.textContent) ? 'adv' : null }, dmg: dmg ? { expr: dmg, label: name + ' damage' } : null };
+      }
+      const e = dmgExprFrom(el.textContent);
+      if (e) return { expr: e, opt: { kind: 'damage', label: name + ' damage' } };
+      return null;
+    }
+    // Quick Play weapons table
+    el = t.closest('#qp-body td[data-label]');
+    if (el && el.closest('tr')) {
+      const tr = el.closest('tr'), Q = window._qpData || {};
+      const name = tr.querySelector('.qp-feat')?.textContent.trim() || 'Weapon';
+      const dmg = dmgExprFrom(tr.querySelector('td[data-label="Damage"] .qp-num')?.textContent);
+      const lab = el.dataset.label;
+      if (lab === 'To hit') return { expr: '1d20' + sign(num(el.textContent)).replace('−', '-'), opt: { test: true, kind: 'attack', label: name + ' attack', critMin: Q.critMin || champCrit() }, dmg: dmg ? { expr: dmg, label: name + ' damage' } : null };
+      if (lab === 'Damage' && dmg) return { expr: dmg, opt: { kind: 'damage', label: name + ' damage' } };
+      if (lab === 'Crit' && dmg) return { expr: dmg, opt: { kind: 'damage', label: name + ' damage (crit)', crunchy: true } };
+      return null;
+    }
+    // Quick Play checks and saves
+    el = t.closest('#qp-body .qp-chip');
+    if (el && !el.closest('.qp-spstat')) {
+      const txt = el.textContent.replace(/\s+/g, ' ').trim();
+      const sv = /^(STR|DEX|CON|INT|WIS|CHA) ([+\-−]?\d+)/.exec(txt);
+      const a = advFrom(el);
+      if (sv && !el.classList.contains('qp-ab')) return { expr: '1d20' + sign(num(sv[2])).replace('−', '-'), opt: { test: true, kind: 'save', label: ABN[sv[1].toLowerCase()] + ' saving throw', rowAdv: a.adv } };
+      const ck = /^([A-Za-z' ]+?) ([+\-−]?\d+)/.exec(txt);
+      if (ck && el.closest('.qp-checkrow')) {
+        const extra = el.querySelector('.qp-x'); const add = extra && /^\+(\d+d\d+)/.exec(extra.textContent.trim());
+        const mn = el.querySelector('.qp-xm'); const min = mn ? num(mn.textContent) : 0;
+        return { expr: '1d20' + sign(num(ck[2])).replace('−', '-') + (add ? '+' + add[1] : ''), opt: { test: true, kind: 'check', label: ck[1].trim() + ' check', rowAdv: a.adv, min, guidance: true } };
+      }
+      return null;
+    }
+    el = t.closest('#qp-body .qp-stat');
+    if (el && /initiative/i.test(el.querySelector('.qp-sl')?.textContent || '') && t.closest('.qp-big')) return { expr: '1d20' + sign(num(el.querySelector('.qp-big').textContent)).replace('−', '-'), opt: { test: true, kind: 'check', label: 'Initiative', rowAdv: /advantage/i.test(el.textContent) ? 'adv' : null } };
+    // phone layout: Character tab
+    el = t.closest('#page-m-char .m-ab');
+    if (el) {
+      const k = el.querySelector('.m-k')?.textContent.trim().toLowerCase();
+      if (t.closest('.m-sv')) return { expr: '1d20' + sign(num(el.querySelector('.m-sv').textContent)).replace('−', '-'), opt: { test: true, kind: 'save', label: (ABN[k] || k) + ' saving throw', rowAdv: advFrom($('save-val-' + k)?.closest('.save-row')).adv } };
+      return { expr: '1d20' + sign(num(el.querySelector('.m-mod')?.textContent)).replace('−', '-'), opt: { test: true, kind: 'check', label: (ABN[k] || k) + ' check', guidance: true } };
+    }
+    el = t.closest('#page-m-char .m-sk');
+    if (el) {
+      const n = cleanName(el.querySelector('.m-skn'));
+      const sk = (typeof SKILLS !== 'undefined' ? SKILLS : []).find(s => s.name === n);
+      const src = sk ? $('skill-val-' + sk.key)?.closest('.skill-row') : null;
+      return { expr: '1d20' + sign(num(el.querySelector('.m-skv')?.textContent)).replace('−', '-'), opt: Object.assign({ test: true, kind: 'check', label: n + ' check', rowAdv: advFrom(src).adv, guidance: true }, sk ? qpSkillExtras(sk.key) : {}) };
+    }
+    return null;
+  }
+  function qpSkillExtras(key) {
+    // Reliable Talent: proficient skill checks count a d20 of 9 or lower as 10
+    try {
+      const rog = (getAllClasses() || []).find(e => String(e.class || '').toLowerCase() === 'rogue');
+      const p = CC()?.skill_profs?.[key] || CC()?.skill_expert?.[key];
+      if ((rog?.levels?.length || 0) >= 7 && p) return { min: 10 };
+    } catch (e) {}
+    return {};
+  }
+  const ROLL_SEL = '.dr-dice, .dr-satk, #qp-body .qp-item b, #saves-block .save-row .save-name, #saves-block .save-row .save-val, #skills-block .skill-row .skill-name, #skills-block .skill-row .skill-val, #skills-block .skill-row .skill-ability, .ability-row .ability-mod, .ability-row .ability-label, #disp-init, #qs-init, .attack-row .attack-stat, #qp-body td[data-label] .qp-num, #qp-body .qp-checkrow .qp-chip, #qp-body .qp-chip, #qp-body .qp-stat .qp-big, #page-m-char .m-ab, #page-m-char .m-sk';
+
+  function onSheetClick(e) {
+    if (!S.on || window._previewMode) return;
+    const t = e.target; if (!(t instanceof Element)) return;
+    if (t.closest('#dr-panel, #dr-fab, #dr-log, button, input, select, textarea, a, .prof-dot, .ability-stepper')) return;
+    if (!t.closest(ROLL_SEL)) return;
+    const R = resolve(t); if (!R || !R.expr) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    const o = Object.assign({}, R.opt, { dmg: R.dmg || null });
+    if (o.test) {
+      let adv = e.shiftKey ? 'adv' : (e.ctrlKey || e.metaKey || e.altKey) ? 'dis' : null;
+      if (!adv) adv = S.mode !== 'normal' ? S.mode : o.rowAdv || null;
+      if (S.mode !== 'normal' && o.rowAdv && o.rowAdv !== S.mode) adv = null;     // one of each cancels out
+      o.adv = adv;
+    }
+    roll(R.expr, o);
+  }
+  document.addEventListener('click', onSheetClick, true);
+
+  // ── dice in text: wrap NdM (+K) so it can be clicked ─────────────────
+  const SCAN_ROOTS = '#spell-detail-body, #qp-body .qp-text, #qp-body .qp-sm, #qp-body .qp-upbox, #qp-body .qp-full, #qp-body .qp-itemtext, #m-detail-modal, .modal-overlay:not(.hidden) .modal-box, .item-detail-overlay:not(.hidden)';
+  const SKIP = 'script, style, textarea, input, select, option, button, .dr-dice, .dr-satk, [contenteditable="true"], svg, .modal-title, h1, h2, h3';
+  function labelFor(node) {
+    const el = node.parentElement;
+    if (el?.closest('#spell-detail-modal')) return ($('spell-detail-title')?.textContent || '').trim();
+    const it = el?.closest('.qp-item'); if (it) { const nm = it.querySelector('.qp-name'); return (nm?.querySelector('.qp-spell, .qp-feat')?.textContent || cleanName(nm) || '').trim(); }
+    const box = el?.closest('.modal-box, .item-detail-overlay, #m-detail-modal');
+    const h = box?.querySelector('.modal-title, h2, h3, [id$="-title"]');
+    return h ? h.textContent.replace('✕', '').trim().slice(0, 60) : '';
+  }
+  function wrapIn(root) {
+    if (!root || root.dataset.drBusy) return;
+    const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => (!n.nodeValue || !/\dd\d|spell attack/i.test(n.nodeValue) || n.parentElement?.closest(SKIP)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+    const nodes = []; while (tw.nextNode()) nodes.push(tw.currentNode);
+    if (!nodes.length) return;
+    root.dataset.drBusy = '1';
+    nodes.forEach(n => {
+      const s = n.nodeValue, label = labelFor(n);
+      const re = /(\d+)d(\d+)((?:\s*[+\-−]\s*\d+(?![\dd%]))?)|\b(ranged|melee) spell attack\b/gi;
+      let m, last = 0, frag = null;
+      while ((m = re.exec(s))) {
+        frag = frag || document.createDocumentFragment();
+        if (m.index > last) frag.appendChild(document.createTextNode(s.slice(last, m.index)));
+        const sp = document.createElement('span');
+        if (m[4]) {
+          const b = spellAtkBonus();
+          if (b == null) { frag.appendChild(document.createTextNode(m[0])); last = re.lastIndex; continue; }
+          sp.className = 'dr-satk'; sp.dataset.bonus = b; sp.dataset.label = label; sp.title = `Roll the spell attack (1d20${sign(b)})`;
+        } else {
+          sp.className = 'dr-dice'; sp.dataset.expr = m[1] + 'd' + m[2] + (m[3] || '').replace(/\s/g, '').replace(/−/, '-');
+          sp.dataset.label = label; sp.title = 'Roll ' + sp.dataset.expr;
+        }
+        sp.textContent = m[0]; frag.appendChild(sp); last = re.lastIndex;
+      }
+      if (!frag) return;
+      if (last < s.length) frag.appendChild(document.createTextNode(s.slice(last)));
+      n.parentNode.replaceChild(frag, n);
+    });
+    delete root.dataset.drBusy;
+  }
+  // spell window: a "Roll attack" pill when the spell makes a spell attack
+  function spellPill() {
+    const m = $('spell-detail-modal'), meta = $('spell-detail-meta'), body = $('spell-detail-body');
+    if (!m || m.classList.contains('hidden') || !meta || !body || meta.querySelector('.dr-satk')) return;
+    if (!/\b(ranged|melee) spell attack/i.test(body.textContent)) return;
+    const b = spellAtkBonus(); if (b == null) return;
+    const sp = document.createElement('span');
+    sp.className = 'meta-pill dr-satk'; sp.dataset.bonus = b; sp.dataset.label = ($('spell-detail-title')?.textContent || 'Spell').trim();
+    sp.title = 'Roll the spell attack'; sp.textContent = '\uD83C\uDFB2 Attack ' + sign(b);
+    meta.appendChild(sp);
+  }
+  let scanT = null;
+  function scanSoon() {
+    if (!S.on || scanT) return;
+    scanT = setTimeout(() => { scanT = null; if (!S.on) return; document.querySelectorAll(SCAN_ROOTS).forEach(wrapIn); spellPill(); }, 120);
+  }
+  const mo = new MutationObserver(muts => {
+    if (!S.on) return;
+    for (const m of muts) {
+      const t = m.target;
+      if (t instanceof Element && (t.closest('#dr-panel, #dr-log, #dr-fab'))) continue;
+      if (t instanceof Element ? t.closest('#spell-detail-modal, #qp-body, #m-detail-modal, .modal-overlay, .item-detail-overlay') || m.type === 'attributes' : true) { scanSoon(); return; }
+    }
+  });
+  function unwrapAll() { document.querySelectorAll('.dr-dice, .dr-satk').forEach(sp => sp.replaceWith(document.createTextNode(sp.textContent))); }
+
+  // ── the roller panel ─────────────────────────────────────────────────
+  const DIE_PTS = { 4: '20,4 37,34 3,34', 6: '5,5 35,5 35,35 5,35', 8: '20,2 38,20 20,38 2,20', 10: '20,2 37,16 20,38 3,16', 12: '20,2 38,15 31,37 9,37 2,15', 20: '20,2 36,11 36,29 20,38 4,29 4,11', 100: '20,2 37,16 20,38 3,16' };
+  const ICON = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 2.5 20.5 7.4v9.2L12 21.5 3.5 16.6V7.4z"/><path d="M12 2.5 7.5 15h9z"/><path d="M3.5 7.4 7.5 15M20.5 7.4 16.5 15M7.5 15 12 21.5 16.5 15"/></svg>';
+  const css = `
+#dr-fab{position:fixed;right:18px;bottom:18px;z-index:9990;width:52px;height:52px;border-radius:50%;border:1px solid var(--accent);background:var(--panel,var(--bg2));color:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+#dr-fab:hover{background:var(--bg3)}
+#dr-fab:focus-visible,#dr-panel :focus-visible,#dr-log :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+html.m-ui #dr-fab{bottom:calc(84px + env(safe-area-inset-bottom,0px));right:14px;width:50px;height:50px}
+html.m-ui.m-modal-open #dr-fab{display:none}
+#dr-panel{position:fixed;right:18px;bottom:80px;z-index:10050;width:360px;max-width:calc(100vw - 24px);max-height:calc(100vh - 110px);display:flex;flex-direction:column;background:var(--panel,var(--bg2));color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.45);font-family:var(--font-ui);overflow:hidden}
+#dr-panel[hidden],#dr-back[hidden],#dr-log[hidden]{display:none!important}
+#dr-back{position:fixed;inset:0;z-index:10049;background:rgba(0,0,0,.45)}
+html.m-ui #dr-panel{left:0;right:0;bottom:0;width:auto;max-width:none;max-height:88vh;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+#dr-panel .dr-hd{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+#dr-panel .dr-hd b{flex:1;font-size:14px;letter-spacing:.5px}
+#dr-panel button{font-family:var(--font-ui);cursor:pointer}
+.dr-x{width:36px;height:36px;border-radius:50%;border:0;background:none;color:var(--text2);font-size:18px}
+.dr-seg{display:inline-grid;grid-auto-flow:column;gap:2px;padding:2px;border-radius:9px;background:var(--bg3);border:1px solid var(--border)}
+.dr-seg button{min-width:44px;height:30px;border:0;border-radius:7px;background:none;color:var(--text2);font-size:12px;font-weight:600}
+.dr-seg button[aria-pressed="true"]{background:var(--accent);color:var(--bg,#000)}
+.dr-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.dr-res{border:1px solid var(--border);border-radius:12px;background:var(--bg3);padding:10px 12px}
+.dr-res.crit-s{border-color:var(--accent)} .dr-res.crit-f{border-color:var(--red)}
+.dr-lab{font-size:12px;color:var(--text2);overflow-wrap:anywhere}
+.dr-tray{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 4px;min-height:34px}
+.dr-die{position:relative;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;animation:drTumA .55s cubic-bezier(.2,.8,.2,1) both}
+.dr-tray.b .dr-die{animation-name:drTumB}
+.dr-die svg{position:absolute;inset:0}
+.dr-die b{position:relative;font-size:12px;font-family:var(--font-label,var(--font-ui));color:var(--text)}
+.dr-die.off{opacity:.38} .dr-die.off b{text-decoration:line-through}
+.dr-die.nat20 polygon{stroke:var(--accent);stroke-width:2.4} .dr-die.nat1 polygon{stroke:var(--red);stroke-width:2.4}
+@keyframes drTumA{from{transform:rotate(-200deg) scale(.4);opacity:0}to{transform:none;opacity:1}}
+@keyframes drTumB{from{transform:rotate(200deg) scale(.4);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.dr-die{animation:none!important}}
+.dr-tot{display:flex;align-items:baseline;gap:10px}
+.dr-tot b{font-size:34px;line-height:1.1;font-family:var(--font-label,var(--font-ui))}
+.dr-det{font-size:12px;color:var(--text3);overflow-wrap:anywhere}
+.dr-crit{margin-top:6px;font-size:12px;font-weight:700;letter-spacing:.4px;padding:4px 8px;border-radius:7px;display:inline-block}
+.dr-crit.s{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)} .dr-crit.f{background:color-mix(in srgb,var(--red) 22%,transparent);color:var(--red)}
+.dr-note{font-size:11px;color:var(--gold);margin-top:4px}
+.dr-fol{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.dr-fol button{flex:1 1 40%;min-height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;font-weight:600;padding:4px 8px}
+.dr-fol button.hot{border-color:var(--accent);color:var(--accent)}
+.dr-fol .done{flex:1 1 40%;min-height:36px;border-radius:9px;border:1px dashed var(--border);color:var(--text3);font-size:12px;display:flex;align-items:center;justify-content:center}
+.dr-quick{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.dr-quick button{height:40px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;font-weight:600}
+.dr-row{display:flex;gap:6px;align-items:center}
+.dr-row input{flex:1;min-width:0;height:38px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--text);padding:0 10px;font-size:14px;font-family:var(--font-ui)}
+.dr-row .dr-go{height:38px;padding:0 14px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:var(--bg,#000);font-weight:700;font-size:13px}
+.dr-step{display:inline-flex;align-items:center;gap:2px;font-size:12px;color:var(--text2)}
+.dr-step button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px}
+.dr-err{font-size:12px;color:var(--red);white-space:pre-line}
+.dr-help{font-size:12px;color:var(--text2);white-space:pre-line;line-height:1.5}
+.dr-hist{display:flex;flex-direction:column;gap:3px}
+.dr-hist button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;border-radius:8px;background:none;color:var(--text);padding:6px 6px;font-size:12px}
+.dr-hist button:hover{background:var(--bg3)}
+.dr-hist .l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .dr-hist .l small{color:var(--text3)}
+.dr-hist .t{font-weight:700;font-size:14px;min-width:28px;text-align:right}
+.dr-hist .t.s{color:var(--accent)} .dr-hist .t.f{color:var(--red)}
+.dr-h{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3)}
+.dr-ft{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)}
+.dr-ft span{flex:1}
+.dr-ft button{border:1px solid var(--border);background:none;color:var(--text2);border-radius:14px;padding:4px 10px;font-size:11px}
+body:not(.dr-off) .dr-dice,body:not(.dr-off) .dr-satk{color:var(--accent);border-bottom:1px dotted currentColor;cursor:pointer}
+body:not(.dr-off) .dr-dice:hover,body:not(.dr-off) .dr-satk:hover{background:color-mix(in srgb,var(--accent) 15%,transparent)}
+body.dr-on #saves-block .save-name,body.dr-on #saves-block .save-val,body.dr-on #skills-block .skill-name,body.dr-on #skills-block .skill-val,body.dr-on .ability-row .ability-mod,body.dr-on #disp-init,body.dr-on #qs-init,body.dr-on .attack-row .attack-stat,body.dr-on #qp-body td[data-label] .qp-num,body.dr-on #qp-body .qp-checkrow .qp-chip,body.dr-on #qp-body .qp-chips .qp-chip,body.dr-on #qp-body .qp-sm b,body.dr-on #page-m-char .m-ab,body.dr-on #page-m-char .m-sk{cursor:pointer!important}
+body.dr-on #saves-block .save-row:hover .save-val,body.dr-on #skills-block .skill-row:hover .skill-val,body.dr-on .attack-row .attack-stat:hover,body.dr-on #qp-body td[data-label] .qp-num:hover{color:var(--accent)!important}
+body.preview-readonly #dr-fab,body.preview-readonly #dr-panel{display:none!important}
+/* DM log */
+#dr-log{position:fixed;right:12px;top:12px;bottom:12px;width:360px;z-index:9980;display:flex;flex-direction:column;background:var(--panel,var(--bg2));color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 32px rgba(0,0,0,.4);font-family:var(--font-ui);overflow:hidden}
+body.dr-dock #page-dm>div{padding-right:384px!important;max-width:none!important}
+body.dr-dock #dr-fab{right:392px}
+body.dr-dock #dr-panel{right:392px}
+html.m-ui body.dr-logopen #dr-fab{display:none}
+html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-index:10040;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#dr-log .lh{flex:none;padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+#dr-log .lh1{display:flex;align-items:center;gap:8px}
+#dr-log .lh1 b{flex:1;font-size:14px;white-space:nowrap}
+#dr-log select{height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-family:var(--font-ui);font-size:12px;padding:0 8px;min-width:0;flex:1}
+#dr-log .pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap}
+#dr-log .pill i{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+#dr-log .pill.live{border-color:var(--accent);color:var(--accent)} #dr-log .pill.live i{background:var(--accent);animation:drPulse 1.4s infinite}
+#dr-log .pill.warn{border-color:var(--gold);color:var(--gold)} #dr-log .pill.warn i{background:var(--gold)}
+@keyframes drPulse{50%{opacity:.3}}
+#dr-log .flt{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:2px;border-radius:9px;background:var(--bg3);border:1px solid var(--border)}
+#dr-log .flt button{height:28px;border:0;border-radius:7px;background:none;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font-ui)}
+#dr-log .flt button[aria-pressed="true"]{background:var(--accent);color:var(--bg,#000)}
+#dr-log .lb{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px;display:flex;flex-direction:column;gap:5px}
+#dr-log .e{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:10px;background:var(--bg3);border:1px solid var(--border)}
+#dr-log .e.s{border-color:var(--accent)} #dr-log .e.f{border-color:var(--red)}
+#dr-log .e.new{animation:drNew 1.6s ease-out}
+@keyframes drNew{from{background:color-mix(in srgb,var(--accent) 25%,var(--bg3))}}
+#dr-log .av{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg2) center/cover;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent);font-size:13px}
+#dr-log .av.dm{color:var(--gold)}
+#dr-log .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+#dr-log .tx b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} #dr-log .tx b span{font-weight:400;color:var(--text2)}
+#dr-log .tx small{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dr-log .tot{flex:none;min-width:30px;text-align:right;font-size:18px;font-weight:700;font-family:var(--font-label,var(--font-ui))}
+#dr-log .e.s .tot{color:var(--accent)} #dr-log .e.f .tot{color:var(--red)}
+#dr-log .nb{flex:none;font-size:9px;font-weight:700;padding:2px 5px;border-radius:5px}
+#dr-log .e.s .nb{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)} #dr-log .e.f .nb{background:color-mix(in srgb,var(--red) 22%,transparent);color:var(--red)}
+#dr-log .day{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);padding:6px 4px 2px}
+#dr-log .msg{font-size:12px;color:var(--text2);padding:10px;text-align:center;line-height:1.45}
+#dr-log .warnbox{margin:8px 8px 0;padding:8px 10px;border-radius:9px;border:1px solid var(--gold);font-size:11px;color:var(--text2);line-height:1.45}
+#dr-log .lf{flex:none;display:flex;gap:6px;padding:8px;border-top:1px solid var(--border)}
+#dr-log .lf button,#dr-log .lh1 button{height:30px;padding:0 10px;border-radius:15px;border:1px solid var(--border);background:none;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font-ui)}
+#dr-log .lf button.danger{color:var(--red)}
+.dr-ks-last{font-family:var(--font-ui);font-size:9px;color:var(--text3);margin-top:3px}
+.dr-ks-last b{color:var(--text2);font-weight:600} .dr-ks-last .s{color:var(--accent)} .dr-ks-last .f{color:var(--red)}
+#dm-tab-rolls[aria-pressed="true"]{color:var(--accent)!important;border-bottom-color:var(--accent)!important}
+`;
+  function ensureUi() {
+    if ($('dr-panel')) return;
+    const st = document.createElement('style'); st.id = 'dr-css'; st.textContent = css; document.head.appendChild(st);
+    const fab = document.createElement('button');
+    fab.id = 'dr-fab'; fab.type = 'button'; fab.title = 'Dice roller'; fab.setAttribute('aria-label', 'Dice roller'); fab.innerHTML = ICON;
+    fab.onclick = () => (S.open ? close() : open());
+    const back = document.createElement('div'); back.id = 'dr-back'; back.hidden = true; back.onclick = () => close();
+    const p = document.createElement('section');
+    p.id = 'dr-panel'; p.hidden = true; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Dice roller');
+    document.body.append(fab, back, p);
+    p.addEventListener('click', panelClick);
+    p.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { close(); fab.focus(); }
+      if (e.key === 'Enter' && e.target.id === 'dr-expr') { e.preventDefault(); typed(e.target.value); }
+    });
+    p.addEventListener('input', e => { if (e.target.id === 'dr-expr') S.typed = e.target.value; });
+  }
+  function open() { ensureUi(); S.open = true; render(); $('dr-panel').hidden = false; $('dr-back').hidden = !phone(); }
+  function close() { S.open = false; const p = $('dr-panel'); if (p) p.hidden = true; const b = $('dr-back'); if (b) b.hidden = true; }
+
+  const HELP = 'Type a roll and press Enter:\n8d6 · 1d8+3 · 2d20kh1+5 (advantage) · 2d20kl1 (disadvantage)\n4d6dl1 (drop lowest) · d% · 1d8+2d6+4\n\nOn the sheet: click a skill, save, ability, Initiative, To Hit or Damage value, or any dice in spell and feature text.\nShift-click rolls with Advantage, Ctrl-click with Disadvantage.\nA natural 20 is a critical success and a natural 1 a critical failure on every d20 roll.';
+
+  function render() {
+    const p = $('dr-panel'); if (!p || !S.open) return;
+    const r = S.last;
+    const shareTo = sharer();
+    const seg = (k, t) => `<button type="button" data-mode="${k}" aria-pressed="${S.mode === k}">${t}</button>`;
+    let res = '';
+    if (r) {
+      const MAXD = 24, shown = r.dice.slice(0, MAXD);
+      const tray = shown.map(d => `<span class="dr-die ${d.kept ? '' : 'off'} ${r.test && d.die === 20 && d.kept && d.v === 20 ? 'nat20' : ''} ${r.test && d.die === 20 && d.kept && d.v === 1 ? 'nat1' : ''}" title="d${d.die === 100 ? '%' : d.die}${d.kept ? '' : ' (not counted)'}" style="animation-delay:${reduced() ? 0 : Math.min(i0(d, r) * 22, 300)}ms"><svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><polygon points="${DIE_PTS[d.die] || DIE_PTS[6]}" fill="var(--bg2)" stroke="var(--text3)" stroke-width="1.6" stroke-linejoin="round"/></svg><b>${d.v}</b></span>`).join('');
+      const more = r.dice.length > MAXD ? `<span class="dr-det" style="align-self:center">+${r.dice.length - MAXD} more</span>` : '';
+      const critTxt = r.crit === 'success' ? (r.kind === 'attack' ? (r.natural === 20 ? 'Natural 20 — critical hit!' : `Natural ${r.natural} — critical hit (crit on ${r.critMin}–20)`) : 'Natural 20 — critical success!')
+        : r.crit === 'fail' ? (r.kind === 'attack' ? 'Natural 1 — critical miss' : 'Natural 1 — critical failure') : '';
+      const fol = follow(r).map(f => f.done ? `<span class="done">${esc(f.t)}</span>` : `<button type="button" data-fol="${f.k}" class="${f.hot ? 'hot' : ''}">${esc(f.t)}</button>`).join('');
+      res = `<div class="dr-res ${r.crit === 'success' ? 'crit-s' : r.crit === 'fail' ? 'crit-f' : ''}" aria-live="polite">
+        <div class="dr-lab">${esc(r.label)}${r.adv ? ` · <b>${r.adv === 'adv' ? 'Advantage' : 'Disadvantage'}</b>` : ''}</div>
+        <div class="dr-tray ${S.anim}">${tray}${more}</div>
+        <div class="dr-tot"><b>${r.total}</b><span class="dr-det">${esc(r.expr)} · ${esc(fmtDetail(r))}</span></div>
+        ${critTxt ? `<div class="dr-crit ${r.crit === 'success' ? 's' : 'f'}">${critTxt}</div>` : ''}
+        ${r.minned ? `<div class="dr-note">Reliable Talent: the d20 (${r.natural}) counts as ${r.min}.</div>` : ''}
+        ${r.opt?.note ? `<div class="dr-note">${esc(r.opt.note)}</div>` : ''}
+        ${fol ? `<div class="dr-fol">${fol}</div>` : ''}
+      </div>`;
+    } else res = `<div class="dr-help">${esc(HELP)}</div>`;
+    const hist = history().slice(0, 10).map((h, i) => `<button type="button" data-hist="${i}" title="Roll again"><span class="l">${esc(h.label)} <small>${esc(h.expr)}</small></span><span class="t ${h.crit === 'success' ? 's' : h.crit === 'fail' ? 'f' : ''}">${h.total}</span></button>`).join('');
+    const dmLog = onDmPage() ? `<button type="button" data-act="log">Party roll log</button>` : '';
+    p.innerHTML = `
+      <div class="dr-hd"><b>Dice</b><span class="dr-h" style="letter-spacing:.6px">d20</span><span class="dr-seg" role="group" aria-label="Advantage on d20 rolls">${seg('normal', 'Normal')}${seg('adv', 'Adv')}${seg('dis', 'Dis')}</span><button type="button" class="dr-x" data-act="close" aria-label="Close">✕</button></div>
+      <div class="dr-body">
+        ${res}
+        ${S.err ? `<div class="dr-err">${esc(S.err)}</div>` : ''}
+        <div class="dr-row"><span class="dr-step" aria-label="Number of dice"><button type="button" data-act="cnt-" aria-label="Fewer dice">−</button><b style="min-width:22px;text-align:center" aria-live="polite">${S.count}</b><button type="button" data-act="cnt+" aria-label="More dice">+</button></span><span class="dr-h" style="flex:1">${S.count > 1 ? 'dice per tap' : 'die per tap'}</span></div>
+        <div class="dr-quick">${[4, 6, 8, 10, 12, 20, 100].map(d => `<button type="button" data-q="${d}" aria-label="Roll ${S.count}d${d === 100 ? '%' : d}">d${d === 100 ? '%' : d}</button>`).join('')}</div>
+        <div class="dr-row"><input id="dr-expr" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="8d6, 1d20+5 or /help" value="${esc(S.typed || '')}" aria-label="Type a roll"><button type="button" class="dr-go" data-act="go">Roll</button></div>
+        ${hist ? `<div><div class="dr-h" style="margin-bottom:4px">Recent · tap to roll again</div><div class="dr-hist">${hist}</div></div>` : ''}
+      </div>
+      <div class="dr-ft"><span>${shareTo ? (shareTo.dm ? 'Your rolls show in the party log as DM' : 'Shared with your DM') : (window._previewMode ? 'Preview — not shared' : 'Not shared')}</span>${dmLog}<button type="button" data-act="off" title="Hide the dice roller on this device">Turn off</button></div>`;
+  }
+  function i0(d, r) { return r.dice.indexOf(d); }
+
+  function follow(r) {
+    const out = [];
+    if (r.test) {
+      if (!r.adv && !r.twiceD20) { out.push({ k: 'addAdv', t: 'Had Advantage' }); out.push({ k: 'addDis', t: 'Had Disadvantage' }); }
+      if (r.kind === 'attack' && r.opt?.dmg) {
+        out.push({ k: 'dmg', t: 'Roll damage ' + r.opt.dmg.expr, hot: r.crit !== 'success' && r.crit !== 'fail' });
+        out.push({ k: 'crit', t: 'Crit damage', hot: r.crit === 'success' });
+      }
+      if (r.opt?.guidance) out.push(r.guided ? { t: 'Guidance added', done: true } : { k: 'guide', t: '+1d4 Guidance' });
+    } else if (!r.twice) out.push({ k: 'twice', t: 'Roll twice, keep higher' });
+    return out;
+  }
+  function panelClick(e) {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.mode) { S.mode = b.dataset.mode; ls(LS_MODE, S.mode); render(); return; }
+    if (b.dataset.q) { const d = b.dataset.q; S.err = ''; roll(S.count + 'd' + (d === '100' ? '%' : d), { kind: 'other', test: d === '20' && S.count === 1, adv: d === '20' && S.count === 1 && S.mode !== 'normal' ? S.mode : null, label: S.count + 'd' + (d === '100' ? '%' : d) }); return; }
+    if (b.dataset.hist) { const h = history()[+b.dataset.hist]; if (h) { const o = Object.assign({}, h.opt || {}); if (o.test && S.mode !== 'normal') o.adv = S.mode; roll(h.expr, o); } return; }
+    if (b.dataset.fol) { followUp(b.dataset.fol); return; }
+    const a = b.dataset.act;
+    if (a === 'close') close();
+    else if (a === 'go') typed($('dr-expr')?.value);
+    else if (a === 'cnt-') { S.count = Math.max(1, S.count - 1); render(); }
+    else if (a === 'cnt+') { S.count = Math.min(20, S.count + 1); render(); }
+    else if (a === 'off') setOn(false);
+    else if (a === 'log') { close(); dmToggle(true); }
+  }
+  function typed(v) {
+    v = String(v || '').trim(); S.typed = v;
+    if (!v) return;
+    if (/^\/?help$/i.test(v)) { S.last = null; S.err = ''; render(); return; }
+    const t = parseRoll(v);
+    if (!t) { S.err = 'That isn’t a roll I can read. Type /help for examples.'; render(); return; }
+    const single20 = t.length >= 1 && t.filter(x => x.die === 20).length === 1 && t.find(x => x.die === 20).n === 1;
+    S.err = '';
+    roll(v, { kind: single20 ? 'check' : 'other', test: single20 || t.some(x => x.die === 20 && x.keep), adv: single20 && S.mode !== 'normal' ? S.mode : null, label: v });
+  }
+  function followUp(k) {
+    const r = S.last; if (!r) return;
+    if (k === 'dmg' || k === 'crit') { const d = r.opt.dmg; roll(d.expr, { kind: 'damage', label: d.label + (k === 'crit' ? ' (crit)' : ''), crunchy: k === 'crit' }); return; }
+    if (k === 'twice') { roll(r.base, Object.assign({}, r.opt, { twice: true })); return; }
+    if (k === 'addAdv' || k === 'addDis') {
+      // roll the second d20 now and keep the higher / lower one
+      const d = r.dice.find(x => x.die === 20 && x.kept); if (!d) return;
+      const v2 = rnd(20), keepNew = k === 'addAdv' ? v2 > d.v : v2 < d.v;
+      const nd = { v: v2, die: 20, kept: keepNew, term: d.term, neg: false };
+      const idx = r.dice.indexOf(d), dice = r.dice.map(x => x === d ? Object.assign({}, x, { kept: !keepNew }) : x); dice.splice(idx + 1, 0, nd);
+      const kept = keepNew ? v2 : d.v;
+      let natural = kept, minned = false, counts = kept;
+      if (r.min && kept < r.min) { counts = r.min; minned = true; }
+      const keptDie = dice.find(x => x.die === 20 && x.kept); if (minned) keptDie.counts = r.min; else delete keptDie.counts;
+      const total = r.total - (d.counts ?? d.v) + counts;
+      const crit = minned ? null : kept >= (r.kind === 'attack' ? r.critMin : 20) ? 'success' : kept === 1 ? 'fail' : null;
+      finish(Object.assign({}, r, { id: uuid(), dice, total, natural, minned, crit, adv: k === 'addAdv' ? 'adv' : 'dis', twiceD20: true, at: Date.now(), expr: r.expr.replace(/^1d20/, '2d20' + (k === 'addAdv' ? 'kh1' : 'kl1')) }), true);
+      return;
+    }
+    if (k === 'guide') {
+      if (r.guided) return;
+      const x = runRoll('1d4');
+      finish(Object.assign({}, r, { id: uuid(), guided: true, total: r.total + x.total, dice: r.dice.concat(x.dice.map(d => Object.assign({}, d, { term: 99 }))), expr: r.expr + '+1d4', label: r.label + ' + Guidance', at: Date.now() }), true);
+    }
+  }
+
+  // roll an expression with options, show it, keep it, share it
+  function roll(expr, o) {
+    o = o || {};
+    let r = runRoll(expr, o);
+    if (!r) { S.err = 'That isn’t a roll I can read. Type /help for examples.'; open(); render(); return null; }
+    if (o.twice) {
+      const r2 = runRoll(expr, o), hi = r2.total > r.total ? r2 : r, lo = hi === r ? r2 : r;
+      r = Object.assign({}, hi, { twice: true, other: lo.total, dice: hi.dice.concat(lo.dice.map(d => Object.assign({}, d, { kept: false, term: 100 + d.term }))), label: (o.label || expr) + ' (rolled twice, kept the higher)' });
+    }
+    finish(r, false);
+    return r;
+  }
+  function finish(r, replace) {
+    S.last = r; S.anim = S.anim === 'a' ? 'b' : 'a';
+    if (!replace) pushHistory(r);
+    else { const h = history(); if (h[0]) { h[0] = { expr: r.base, label: r.label, total: r.total, crit: r.crit, kind: r.kind, opt: slimOpt(r.opt), at: r.at }; ls(histKey(), JSON.stringify(h)); } }
+    open();
+    share(r);
+  }
+  window.diceRoll = (expr, opt) => roll(expr, opt);
+
+  // ── on / off ─────────────────────────────────────────────────────────
+  function setOn(v) {
+    S.on = !!v; ls(LS_ON, v ? null : 'off');
+    apply();
+    if (!v) { close(); try { toast('Dice roller off. Switch it back on from the theme menu.', 'ok'); } catch (e) {} }
+  }
+  window.setDiceRoller = setOn;
+  function apply() {
+    ensureUi();
+    document.body.classList.toggle('dr-on', S.on);
+    document.body.classList.toggle('dr-off', !S.on);
+    $('dr-fab').hidden = !S.on || !!window._previewMode;
+    if (S.on) { mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] }); scanSoon(); }
+    else { mo.disconnect(); unwrapAll(); }
+    themeRow();
+  }
+  // a row in the theme menu to switch the roller on or off
+  function themeRow() {
+    const panel = $('theme-picker-panel'); if (!panel) return;
+    let row = $('dr-theme-row');
+    if (!row) {
+      row = document.createElement('div'); row.id = 'dr-theme-row';
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-family:var(--font-ui);font-size:10px;color:var(--text2)';
+      panel.appendChild(row);
+    }
+    row.innerHTML = `<span style="flex:1;letter-spacing:.5px;text-transform:uppercase">Dice roller</span>
+      <button class="tbtn" style="font-size:10px;padding:3px 9px;${S.on ? 'color:var(--accent);border-color:var(--accent)' : ''}" onclick="setDiceRoller(true)">On</button>
+      <button class="tbtn" style="font-size:10px;padding:3px 9px;${!S.on ? 'color:var(--accent);border-color:var(--accent)' : ''}" onclick="setDiceRoller(false)">Off</button>`;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // DM: live roll log with saved history
+  // ═════════════════════════════════════════════════════════════════════
+  const D = { rows: lsJson(LS_DMLOG, []), open: false, filter: 'all', conn: 'off', fresh: new Set(), more: true, ch: null, polled: 0, loading: false };
+  function dmCamp() { return ls(LS_DMCAMP) ?? (typeof _dmKeyStatsPartyId !== 'undefined' && _dmKeyStatsPartyId !== undefined ? (_dmKeyStatsPartyId || '') : '*'); }
+  function setDmCamp(v) { ls(LS_DMCAMP, v); D.more = true; dmRender(); dmFetch('replace'); }
+  const campaigns = () => (typeof _dmCampaigns !== 'undefined' && _dmCampaigns?.length) ? _dmCampaigns : [];
+  function saveDm() { D.rows.sort((a, b) => (b.at > a.at ? 1 : -1)); D.rows = D.rows.slice(0, 600); ls(LS_DMLOG, JSON.stringify(D.rows)); }
+  function dmAdd(rows, isNew) {
+    let changed = false;
+    const have = new Set(D.rows.map(r => r.id));
+    rows.forEach(r => { if (!r || !r.id || have.has(r.id)) return; const x = Object.assign({}, r); delete x.from; D.rows.push(x); have.add(r.id); changed = true; if (isNew) D.fresh.add(r.id); });
+    if (changed) { saveDm(); dmRender(); ksRender(); }
+  }
+  async function dmFetch(mode) {
+    // mode: 'replace' (latest page), 'older', 'since'
+    if (!hasSb() || noTable) return;
+    const c = dmCamp();
+    let q = `${SUPABASE_URL}/rest/v1/${TABLE}?select=*&order=at.desc&limit=${mode === 'since' ? 200 : 60}`;
+    if (c !== '*') q += '&campaign=eq.' + encodeURIComponent(c);
+    const mine = D.rows.filter(r => c === '*' || (r.campaign || '') === c);
+    if (mode === 'older' && mine.length) q += '&at=lt.' + encodeURIComponent(mine[mine.length - 1].at);
+    if (mode === 'since' && mine.length) q += '&at=gt.' + encodeURIComponent(mine[0].at);
+    D.loading = true; dmRender();
+    try {
+      const res = await fetch(q, { headers: hdrs() });
+      const body = await res.text();
+      if (!res.ok) { if (res.status === 404 || /PGRST205|42P01|does not exist|schema cache/i.test(body)) noTable = true; D.loading = false; dmRender(); return; }
+      const rows = JSON.parse(body || '[]');
+      if (mode === 'older' && rows.length < 60) D.more = false;
+      if (mode === 'replace' && rows.length < 60) D.more = false;
+      D.polled = Date.now();
+      D.loading = false;
+      dmAdd(rows, false); dmRender();
+    } catch (e) { D.loading = false; dmRender(); }
+  }
+  function dmCatchUp() { if (dmActive()) dmFetch('since'); }
+  const dmActive = () => !!((typeof _realIsDM !== 'undefined' && _realIsDM) && $('dm-content') && $('dm-content').style.display !== 'none');
+  let dmStarted = false;
+  function dmStart() {
+    if (!dmActive()) return;
+    dmAddButton();
+    if (dmStarted) return;
+    dmStarted = true;
+    dmFetch('replace');
+    dmPrune();
+    // live: a WebSocket channel; when it drops, fetch whatever was missed
+    const sb = typeof getSupabaseClient === 'function' ? getSupabaseClient() : null;
+    if (sb) {
+      try {
+        D.ch = sb.channel(TOPIC);
+        D.ch.on('broadcast', { event: 'roll' }, m => { const p = m.payload; if (p && p.from !== SID()) dmAdd([p], true); });
+        D.ch.subscribe(status => {
+          const was = D.conn;
+          D.conn = status === 'SUBSCRIBED' ? 'live' : (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') ? 'down' : D.conn;
+          if (D.conn === 'live' && was !== 'live' && was !== 'off') dmFetch('since');
+          dmRender();
+        });
+      } catch (e) { D.conn = 'down'; }
+    } else D.conn = 'down';
+    // safety net: every 20 s while the DM panel is open, pick up anything missed
+    setInterval(() => { if (dmActive() && !document.hidden && (D.conn !== 'live' || Date.now() - D.polled > 60000)) dmFetch('since'); }, 20000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) dmCatchUp(); });
+    if (ls(LS_DOCK) === '1' && !phone()) dmToggle(true);
+  }
+  async function dmPrune() {
+    // keep the table small: drop rolls older than 120 days
+    if (!hasSb() || noTable) return;
+    const cut = new Date(Date.now() - 120 * 864e5).toISOString();
+    try { await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?at=lt.${encodeURIComponent(cut)}`, { method: 'DELETE', headers: hdrs({ Prefer: 'return=minimal' }) }); } catch (e) {}
+  }
+  function dmAddButton() {
+    if ($('dm-tab-rolls')) return;
+    const strip = $('dm-tab-party')?.parentElement; if (!strip) return;
+    const b = document.createElement('button');
+    b.id = 'dm-tab-rolls'; b.className = 'dm-tab'; b.type = 'button'; b.setAttribute('aria-pressed', 'false');
+    b.style.cssText = 'padding:8px 14px;font-family:var(--font-ui);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;border:none;border-bottom:2px solid transparent;background:none;color:var(--text3);cursor:pointer;white-space:nowrap;margin-left:auto';
+    b.textContent = '🎲 Rolls';
+    b.onclick = () => dmToggle();
+    strip.appendChild(b);
+  }
+  function dmToggle(force) {
+    D.open = force === undefined ? !D.open : !!force;
+    let el = $('dr-log');
+    if (!el) {
+      el = document.createElement('aside'); el.id = 'dr-log'; el.setAttribute('aria-label', 'Party roll log'); el.hidden = true;
+      document.body.appendChild(el);
+      el.addEventListener('click', dmClick);
+      el.addEventListener('change', e => { if (e.target.id === 'dr-log-camp') setDmCamp(e.target.value); });
+      el.addEventListener('keydown', e => { if (e.key === 'Escape') dmToggle(false); });
+    }
+    el.hidden = !D.open;
+    const dock = D.open && !phone() && window.innerWidth >= 1180;
+    document.body.classList.toggle('dr-dock', dock);
+    document.body.classList.toggle('dr-logopen', D.open);
+    dmPlace();
+    if (!phone()) ls(LS_DOCK, D.open ? '1' : null);
+    $('dm-tab-rolls')?.setAttribute('aria-pressed', String(D.open));
+    if (D.open) { dmRender(); dmFetch(D.rows.length ? 'since' : 'replace'); }
+  }
+  // sit below the sheet's top bar rather than over it
+  function dmPlace() {
+    const el = $('dr-log'); if (!el) return;
+    if (phone()) { el.style.top = ''; return; }
+    const top = Math.round($('content')?.getBoundingClientRect().top || 0);
+    el.style.top = (top > 0 && top < 200 ? top + 8 : 12) + 'px';
+  }
+  window.dmToggleRollLog = dmToggle;
+  window.addEventListener('resize', () => { if (D.open) { document.body.classList.toggle('dr-dock', !phone() && window.innerWidth >= 1180); dmPlace(); } });
+  function dmClick(e) {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.f) { D.filter = b.dataset.f; dmRender(); return; }
+    const a = b.dataset.act;
+    if (a === 'close') dmToggle(false);
+    else if (a === 'older') dmFetch('older');
+    else if (a === 'roll') { open(); }
+    else if (a === 'sql') { try { navigator.clipboard.writeText(SETUP_SQL); toast('Setup SQL copied', 'ok'); } catch (err) { prompt('Copy this SQL into Supabase:', SETUP_SQL); } }
+    else if (a === 'clear') dmClear();
+  }
+  async function dmClear() {
+    const c = dmCamp(), name = c === '*' ? 'every campaign' : c === '' ? 'Unassigned' : (campaigns().find(x => x.id === c)?.name || c);
+    if (!confirm(`Delete the saved roll history for ${name}? This can't be undone.`)) return;
+    D.rows = D.rows.filter(r => !(c === '*' || (r.campaign || '') === c)); saveDm(); dmRender(); ksRender();
+    if (hasSb() && !noTable) { try { await fetch(`${SUPABASE_URL}/rest/v1/${TABLE}?${c === '*' ? 'id=not.is.null' : 'campaign=eq.' + encodeURIComponent(c)}`, { method: 'DELETE', headers: hdrs({ Prefer: 'return=minimal' }) }); } catch (err) {} }
+  }
+  const KIND = { check: 'check', save: 'save', attack: 'attack', damage: 'damage' };
+  function ago(iso) {
+    const t = new Date(iso).getTime(), s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 10) return 'just now'; if (s < 60) return s + 's ago'; if (s < 3600) return Math.round(s / 60) + ' min ago';
+    const d = new Date(t); return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+  const dayOf = iso => { const d = new Date(iso), n = new Date(); const same = d.toDateString() === n.toDateString(); const y = new Date(n.getTime() - 864e5).toDateString() === d.toDateString(); return same ? 'Today' : y ? 'Yesterday' : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); };
+  function tokenOf(charId) { try { const f = (typeof _allCharFiles !== 'undefined' && _allCharFiles || []).concat((typeof _dmLastGroups !== 'undefined' && _dmLastGroups || []).flatMap(g => g.chars || [])).find(x => x.id === charId); return String(f?.char?.tokenUrl || '').trim(); } catch (e) { return ''; } }
+  function dmRender() {
+    const el = $('dr-log'); if (!el || el.hidden) return;
+    const c = dmCamp();
+    const keep = el.querySelector('.lb')?.scrollTop || 0;
+    const opts = [['*', 'All campaigns']].concat(campaigns().map(x => [x.id, x.name])).concat([['', 'Unassigned']]);
+    if (!opts.some(o => o[0] === c)) opts.splice(1, 0, [c, 'This campaign']);
+    const flt = [['all', 'All'], ['check', 'Checks'], ['attack', 'Attacks'], ['damage', 'Damage'], ['dm', 'DM']];
+    const rows = D.rows.filter(r => (c === '*' || (r.campaign || '') === c)).filter(r => D.filter === 'all' ? true : D.filter === 'dm' ? r.who === 'DM' && !r.char_id : D.filter === 'check' ? (r.kind === 'check' || r.kind === 'save') : r.kind === D.filter);
+    let lastDay = '', list = '';
+    rows.slice(0, 300).forEach(r => {
+      const day = dayOf(r.at); if (day !== lastDay) { list += `<div class="day">${esc(day)}</div>`; lastDay = day; }
+      const dm = r.who === 'DM' && !r.char_id, tok = dm ? '' : tokenOf(r.char_id);
+      list += `<div class="e ${r.crit === 'success' ? 's' : r.crit === 'fail' ? 'f' : ''} ${D.fresh.has(r.id) ? 'new' : ''}">
+        <span class="av ${dm ? 'dm' : ''}" aria-hidden="true" ${tok ? `style="background-image:url('${esc(tok.replace(/'/g, '%27'))}')"` : ''}>${tok ? '' : esc(String(r.who || '?').charAt(0))}</span>
+        <span class="tx"><b>${esc(r.who)} <span>· ${esc(r.label)}</span></b><small>${esc(r.expr)} · ${esc(r.detail)} · ${esc(ago(r.at))}</small></span>
+        ${r.crit ? `<span class="nb">${r.crit === 'success' ? 'CRIT' : 'NAT 1'}</span>` : ''}<span class="tot">${esc(r.total)}</span></div>`;
+    });
+    D.fresh.clear();
+    const conn = !hasSb() ? ['warn', 'Offline'] : D.conn === 'live' ? ['live', 'Live'] : D.conn === 'down' ? ['warn', 'Every 20s'] : ['', 'Connecting…'];
+    el.innerHTML = `
+      <div class="lh">
+        <div class="lh1"><b>Party rolls</b><span class="pill ${conn[0]}" title="${conn[0] === 'live' ? 'New rolls arrive as they happen' : 'Live connection unavailable: checking for new rolls every 20 seconds'}"><i></i>${conn[1]}</span><button type="button" data-act="roll" title="Open the dice roller">Roll</button><button type="button" data-act="close" aria-label="Close the roll log">✕</button></div>
+        <div class="lh1"><select id="dr-log-camp" aria-label="Campaign">${opts.map(([v, t]) => `<option value="${esc(v)}" ${v === c ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+        <div class="flt" role="group" aria-label="Show">${flt.map(([k, t]) => `<button type="button" data-f="${k}" aria-pressed="${D.filter === k}">${t}</button>`).join('')}</div>
+      </div>
+      ${noTable ? `<div class="warnbox"><b style="color:var(--gold)">History isn't being saved yet.</b> Live rolls still arrive, and this browser keeps what it has seen. To keep the full history, run the setup SQL once in Supabase (SQL Editor). <button type="button" data-act="sql" style="margin-top:6px;height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--gold);background:none;color:var(--gold);font-size:11px;font-weight:600;cursor:pointer">Copy setup SQL</button></div>` : ''}
+      <div class="lb" aria-live="polite">${list || `<div class="msg">${D.loading ? 'Loading rolls…' : 'No rolls yet. Players’ rolls appear here as they make them.'}</div>`}</div>
+      <div class="lf">${!noTable && hasSb() && D.more ? `<button type="button" data-act="older">${D.loading ? 'Loading…' : 'Load older'}</button>` : ''}<span style="flex:1"></span><button type="button" class="danger" data-act="clear">Clear history</button></div>`;
+    const lb = el.querySelector('.lb'); if (lb) lb.scrollTop = keep;
+  }
+  // Key Stats: each character's latest roll under their card
+  function ksRender() {
+    document.querySelectorAll('.dr-ks-last').forEach(el => {
+      const id = el.dataset.charId, r = D.rows.find(x => x.char_id === id);
+      el.innerHTML = r ? `LAST ROLL <b>${esc(r.label)}</b> <span class="${r.crit === 'success' ? 's' : r.crit === 'fail' ? 'f' : ''}" style="font-weight:700">${esc(r.total)}${r.crit === 'success' ? ' (crit)' : r.crit === 'fail' ? ' (nat 1)' : ''}</span> · ${esc(ago(r.at))}` : '';
+    });
+  }
+  setInterval(() => { if (D.open) { const lb = $('dr-log')?.querySelector('.lb'); if (lb && lb.scrollTop < 40) dmRender(); } ksRender(); }, 30000);
+
+  const SETUP_SQL = `-- Dice roller: roll history (run once in Supabase > SQL Editor)
+create table if not exists public.rolls (
+  id uuid primary key,
+  campaign text not null default '',
+  char_id text,
+  who text not null,
+  label text,
+  expr text,
+  kind text,
+  total integer,
+  detail text,
+  crit text,
+  at timestamptz not null default now()
+);
+create index if not exists rolls_campaign_at on public.rolls (campaign, at desc);
+alter table public.rolls enable row level security;
+drop policy if exists "rolls read" on public.rolls;
+drop policy if exists "rolls add" on public.rolls;
+drop policy if exists "rolls remove" on public.rolls;
+create policy "rolls read" on public.rolls for select to anon using (true);
+create policy "rolls add" on public.rolls for insert to anon with check (true);
+create policy "rolls remove" on public.rolls for delete to anon using (true);`;
+  window.DICE_SETUP_SQL = SETUP_SQL;
+
+  // ── hooks into the sheet ─────────────────────────────────────────────
+  function wrap(name, after) {
+    const f = window[name]; if (typeof f !== 'function' || f._dr) return;
+    const w = function () { const r = f.apply(this, arguments); try { if (r && typeof r.then === 'function') r.then(() => after(), () => after()); else after(); } catch (e) {} return r; };
+    w._dr = true; window[name] = w;
+  }
+  wrap('loadDMCharList', () => { dmStart(); dmRender(); ksRender(); });
+  wrap('verifyDMPin', () => { dmStart(); });
+  wrap('switchDMTab', () => { dmStart(); setTimeout(ksRender, 0); });
+  wrap('switchDMKeyStatsParty', () => { const id = typeof _dmKeyStatsPartyId !== 'undefined' ? (_dmKeyStatsPartyId || '') : '*'; if (ls(LS_DMCAMP) !== id) setDmCamp(id); ksRender(); });
+  wrap('renderDMKeyStats', () => ksRender());
+  wrap('switchPage', () => { if (S.open) render(); if (D.open && !$('page-dm')?.classList.contains('active')) dmToggle(false); });
+  wrap('previewCharacterSheet', () => { close(); apply(); });
+  wrap('exitPreviewMode', () => apply());
+  wrap('toggleThemePicker', () => themeRow());
+  wrap('enterApp', () => { if (S.open) render(); flushOutbox(); });
+
+  function boot() { apply(); flushOutbox(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 </script>
 <script>
