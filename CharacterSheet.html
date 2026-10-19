@@ -74101,7 +74101,7 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-// PHONE LAYOUT - stage 1: the frame
+// PHONE LAYOUT
 // On a narrow screen (700px or less) the sheet switches to a phone layout:
 // a fixed bar at the top with HP, AC, Initiative and Speed, five tabs along
 // the bottom (Play, Spells, Bag, Character, More) and every pop-up shown as
@@ -74109,6 +74109,12 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
 // It is a second layout over the same sheet: the same character, the same
 // saving and syncing, the same rules code. Nothing here changes what is
 // saved. Tabs not yet redesigned for phones open from More as full pages.
+//   Play     - Quick Play, laid out as short rows that open a sheet, with
+//              what's out with you (familiar, summons, Wild Shape) on top
+//   Spells   - the castable spells by level, slots on top; the full Spells
+//              tab is one tap away for preparing and learning
+//   Bag      - coin, attuned items, weapons, armour, magic items and gear;
+//              the full Inventory tab is one tap away for editing
 //   - Anyone can switch back: More > Full sheet layout (remembered per device).
 //   - To turn it off for everyone: set PHONE_LAYOUT_DEFAULT to 'full'.
 // ═══════════════════════════════════════════════════════════════════════
@@ -74126,10 +74132,12 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
   const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // pages that have a place in the bottom bar; everything else is reached from More
-  const TAB_PAGE = { play: 'quickplay', spells: 'spells', bag: 'inventory', char: 'main', more: 'm-more' };
-  const PAGE_TAB = { quickplay: 'play', spells: 'spells', inventory: 'bag', main: 'char', 'm-more': 'more' };
+  const PAGE_TAB = { quickplay: 'play', 'm-spells': 'spells', 'm-bag': 'bag', main: 'char', 'm-more': 'more' };
+  // full pages opened from a tab: which tab they belong to, and what the back bar says
+  const SUB_PARENT = { spells: 'm-spells', inventory: 'm-bag', companion: 'quickplay', summon: 'quickplay', wildshape: 'quickplay', forms: 'quickplay' };
+  const PARENT_NAME = { 'm-spells': 'Spells', 'm-bag': 'Bag', quickplay: 'Play', 'm-more': 'More' };
   const SUB_TITLES = { features: 'Features', tables: 'Tables', background: 'Background', feats: 'Feats', companion: 'Companion', summon: 'Summons',
-    wildshape: 'Wild Shape', forms: 'Forms', 'party-overview': 'Parties', dm: 'DM panel' };
+    wildshape: 'Wild Shape', forms: 'Forms', 'party-overview': 'Parties', dm: 'DM panel', spells: 'All spells', inventory: 'Inventory' };
 
   const ICON = {
     play: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
@@ -74144,6 +74152,7 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
     back: '<path d="m15 6-6 6 6 6"/>',
     chev: '<path d="m9 6 6 6-6 6"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
   };
   const svg = (k, size = 22, w = 1.8) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
 
@@ -74168,7 +74177,7 @@ html.m-ui #spell-detail-glyph svg, html.m-ui #spell-detail-glyph canvas { max-wi
 
 /* top bar */
 html.m-ui #m-top { display: flex; flex: none; flex-direction: column; gap: 8px; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; background: var(--bg2); border-bottom: 1px solid var(--border); font-family: var(--font-ui); }
-#m-top button, #m-nav button, #m-subhead button, #page-m-more button, .m-sheet-ui button { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+#m-top button, #m-nav button, #m-subhead button, #page-m-more button, #page-m-spells button, #page-m-bag button, #m-play-head button, .m-sheet-ui button { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
 #m-top .m-r1 { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 #m-top .m-who { flex: 1; min-width: 0; }
 #m-top .m-name { font-family: var(--font-title, var(--font-ui)); font-size: 19px; font-weight: 600; color: var(--text-hi); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -74334,9 +74343,9 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     const nav = $('m-nav'); if (!nav) return;
     const pg = activePage();
     let tabs;
-    if (hasSheet()) tabs = [['play', 'Play', "switchPage('quickplay')"], ['spells', 'Spells', "switchPage('spells')"], ['bag', 'Bag', "switchPage('inventory')"], ['char', 'Character', "switchPage('main')"], ['more', 'More', "switchPage('m-more')"]];
+    if (hasSheet()) tabs = [['play', 'Play', "switchPage('quickplay')"], ['spells', 'Spells', "switchPage('m-spells')"], ['bag', 'Bag', "switchPage('m-bag')"], ['char', 'Character', "switchPage('main')"], ['more', 'More', "switchPage('m-more')"]];
     else tabs = [['party', 'Parties', 'openPartyOverview()']].concat(typeof isDM !== 'undefined' && isDM ? [['dm', 'DM', 'openDMPanelDirect()']] : []).concat([['more', 'More', "switchPage('m-more')"]]);
-    const cur = hasSheet() ? (PAGE_TAB[pg] || 'more') : (pg === 'dm' ? 'dm' : pg === 'party-overview' ? 'party' : 'more');
+    const cur = hasSheet() ? (PAGE_TAB[pg] || PAGE_TAB[SUB_PARENT[pg]] || 'more') : (pg === 'dm' ? 'dm' : pg === 'party-overview' ? 'party' : 'more');
     const sig = tabs.map(t => t[0]).join() + '|' + cur;
     if (nav.dataset.sig === sig) return;
     nav.dataset.sig = sig;
@@ -74347,7 +74356,8 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     const pg = activePage();
     const sub = hasSheet() && !PAGE_TAB[pg] && pg;
     sh.classList.toggle('on', !!sub);
-    if (sub) sh.innerHTML = `<button onclick="switchPage('m-more')" aria-label="Back to More">${svg('back', 20, 2)}More</button><span class="m-st-t">${esc(SUB_TITLES[pg] || pg)}</span>`;
+    const par = SUB_PARENT[pg] || 'm-more';
+    if (sub) sh.innerHTML = `<button onclick="switchPage('${par}')" aria-label="Back to ${PARENT_NAME[par]}">${svg('back', 20, 2)}${PARENT_NAME[par]}</button><span class="m-st-t">${esc(SUB_TITLES[pg] || pg)}</span>`;
   }
 
   // ── More ────────────────────────────────────────────────────────────
@@ -74395,13 +74405,56 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
   }
   const head = (kick, title, id) => `<div class="m-head"><div>${kick ? `<div class="m-kick">${esc(kick)}</div>` : ''}<h3>${esc(title)}</h3></div><button class="m-x modal-close" onclick="closeModal('${id}')" aria-label="Close">${svg('close', 20, 2)}</button></div>`;
 
-  let amt = '';
+  // ── what's out with you: companion, summons ─────────────────────────
+  // Values come from the sheet's own companion and summon code, so the
+  // numbers always match the Companion and Summons tabs.
+  function companions() {
+    try {
+      if (typeof getActiveCompanionDef !== 'function' || !getActiveCompanionDef()) return [];
+      if (typeof renderCompanionTab === 'function') renderCompanionTab();
+      const host = $('page-companion'); if (!host) return [];
+      return [...host.querySelectorAll('[id^="chp-"]')].map(el => {
+        const p = el.closest('.panel'), hd = p?.querySelector('span > span');
+        const acl = p ? [...p.querySelectorAll('div')].find(d => d.textContent.trim() === 'ARMOUR CLASS') : null;
+        const id = el.id.slice(4);
+        return { id, name: (hd?.childNodes[0]?.textContent || 'Companion').trim(), sub: (hd?.parentElement?.nextElementSibling?.textContent || '').trim(),
+          ac: (acl?.previousElementSibling?.textContent || '').trim(), cur: parseInt(el.textContent, 10) || 0,
+          max: parseInt(String(el.nextElementSibling?.textContent || '').replace(/[^\d]/g, ''), 10) || 0,
+          tmp: parseInt(currentChar?._companionTempHP?.[id], 10) || 0 };
+      }).filter(x => x.max > 0);
+    } catch (e) { console.warn('[phone layout] companion', e); return []; }
+  }
+  function summons() {
+    try {
+      if (typeof SUMMON_SPELL_DEFS === 'undefined') return [];
+      if (typeof migrateSummonStateIfNeeded === 'function') migrateSummonStateIfNeeded();
+      return (currentChar?._activeSummons || []).map(key => {
+        const d = SUMMON_SPELL_DEFS[key]; if (!d) return null;
+        const lv = d.fixedStatBlock ? 1 : (typeof getSummonSlotFor === 'function' ? getSummonSlotFor(key) : 1);
+        const form = typeof getSummonFormFor === 'function' ? getSummonFormFor(key) : '';
+        const max = typeof d.hp === 'function' ? d.hp(lv, form) : 0;
+        const ac = typeof d.ac === 'function' ? d.ac(lv, form) : '';
+        const cur = currentChar._summonHP?.[key] ?? max;
+        return { key, name: d.creatureName || d.name, sub: [form, d.fixedStatBlock ? '' : `cast at level ${lv}`].filter(Boolean).join(' · '), ac, cur, max };
+      }).filter(Boolean);
+    } catch (e) { console.warn('[phone layout] summons', e); return []; }
+  }
+
+  // ── the HP pad: you, your companion or a summon ─────────────────────
+  let amt = '', hpT = { kind: 'me' };
+  function hpTarget() {
+    const c = currentChar;
+    if (hpT.kind === 'comp') { const x = companions().find(v => v.id === hpT.id); if (x) return { ...x, kick: x.name, temp: true }; }
+    if (hpT.kind === 'summon') { const x = summons().find(v => v.key === hpT.id); if (x) return { ...x, tmp: 0, kick: x.name, temp: false }; }
+    hpT = { kind: 'me' };
+    return { cur: parseInt(c.hp_current, 10) || 0, max: parseInt(c.hp_max, 10) || 0, tmp: parseInt(c.hp_temp, 10) || 0, kick: 'Hit points', temp: true, me: true };
+  }
   function hpBody() {
     const c = currentChar; if (!c) return '';
-    const cur = parseInt(c.hp_current, 10) || 0, max = parseInt(c.hp_max, 10) || 0, tmp = parseInt(c.hp_temp, 10) || 0;
+    const t = hpTarget(), cur = t.cur, max = t.max, tmp = t.tmp;
     const pct = max ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
     let ds = '';
-    if (cur <= 0 && max > 0) {
+    if (t.me && cur <= 0 && max > 0) {
       const rules = (typeof getDeathSaveRules === 'function') ? getDeathSaveRules(c) : { max: 3 };
       const d = c.death_saves || { successes: 0, failures: 0 };
       const dots = (type, n) => Array.from({ length: rules.max }, (_, i) => `<button class="${i < n ? 'on' : ''}" onclick="mDeathSave('${type}', ${i})" aria-label="${type === 'success' ? 'Success' : 'Failure'} ${i + 1}" aria-pressed="${i < n}"></button>`).join('');
@@ -74413,10 +74466,10 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     const n = parseInt(amt, 10) || 0;
     const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(k => `<button onclick="mHPKey('${k}')">${k}</button>`).join('')
       + `<button onclick="mHPKey('C')" aria-label="Clear">C</button><button onclick="mHPKey('0')">0</button><button onclick="mHPKey('D')" aria-label="Delete">⌫</button>`;
-    return head('Hit points', 'Damage or heal', 'm-hp-modal') + `
+    return head(t.kick, 'Damage or heal', 'm-hp-modal') + `
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:8px">
         <div><span class="m-big">${cur}</span><span style="font-size:18px;color:var(--text2)"> / ${max}</span></div>
-        <div style="font-size:14px;color:var(--text2);text-align:right">Temp HP <b style="font-size:18px;color:var(--accent)">${tmp}</b></div>
+        ${t.temp ? `<div style="font-size:14px;color:var(--text2);text-align:right">Temp HP <b style="font-size:18px;color:var(--accent)">${tmp}</b></div>` : ''}
       </div>
       <span class="m-bar" style="height:8px"><span style="width:${pct}%;background:${hpColour(cur, max)}"></span></span>
       ${ds}
@@ -74425,28 +74478,38 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
       <div class="m-acts">
         <button class="m-btn dmg" onclick="mHPApply('dmg')" ${n ? '' : 'disabled'}>Damage</button>
         <button class="m-btn heal" onclick="mHPApply('heal')" ${n ? '' : 'disabled'}>Heal</button>
-        <button class="m-btn" onclick="mHPApply('temp')" ${n ? '' : 'disabled'}>Temp HP</button>
+        ${t.temp ? `<button class="m-btn" onclick="mHPApply('temp')" ${n ? '' : 'disabled'}>Temp HP</button>` : ''}
       </div>
-      <p class="m-note">Roll your own dice, then type the total. Damage comes off temp HP first.</p>`;
+      <p class="m-note">Roll your own dice, then type the total.${t.temp ? ' Damage comes off temp HP first.' : ''}</p>`;
   }
   function paintHP() { const b = ensureModal('m-hp-modal'); b.innerHTML = hpBody(); }
-  window.mOpenHP = function () { if (!currentChar || window._previewMode) return; amt = ''; paintHP(); openModal('m-hp-modal'); };
+  window.mOpenHP = function (kind, id) { if (!currentChar || window._previewMode) return; hpT = kind ? { kind, id } : { kind: 'me' }; amt = ''; paintHP(); openModal('m-hp-modal'); };
   window.mHPKey = function (k) {
     if (k === 'C') amt = ''; else if (k === 'D') amt = amt.slice(0, -1); else if (amt.length < 3) amt = (amt + k).replace(/^0+(?=\d)/, '');
     paintHP();
   };
   window.mHPApply = function (kind) {
     const c = currentChar, n = parseInt(amt, 10) || 0; if (!c || !n) return;
-    let cur = parseInt(c.hp_current, 10) || 0, tmp = parseInt(c.hp_temp, 10) || 0; const max = parseInt(c.hp_max, 10) || 0;
+    const t = hpTarget();
+    let cur = t.cur, tmp = t.tmp; const max = t.max;
     let msg = '';
-    if (kind === 'dmg') { const ft = Math.min(tmp, n); tmp -= ft; cur = Math.max(0, cur - (n - ft)); msg = `Took ${n} damage${ft ? ` (${ft} from temp HP)` : ''}`; }
-    else if (kind === 'heal') { const was = cur; cur = Math.min(max, cur + n); msg = `Healed ${cur - was} HP`; if (was <= 0 && cur > 0) c.death_saves = { successes: 0, failures: 0 }; }
-    else if (kind === 'temp') { tmp = Math.max(tmp, n); msg = `Temp HP ${tmp}`; }
-    c.hp_current = cur; c.hp_temp = tmp;
-    const a = document.querySelector('[data-key="hp_current"]'); if (a) a.value = cur;
-    const b = document.querySelector('[data-key="hp_temp"]'); if (b) b.value = tmp || '';
-    try { if (typeof clampCurrentHP === 'function') clampCurrentHP(); } catch (e) {}
-    try { if (typeof renderDeathSaves === 'function') renderDeathSaves(); } catch (e) {}
+    if (kind === 'dmg') { const ft = t.temp ? Math.min(tmp, n) : 0; tmp -= ft; cur = Math.max(0, cur - (n - ft)); msg = `${t.me ? '' : t.name + ': '}Took ${n} damage${ft ? ` (${ft} from temp HP)` : ''}`; }
+    else if (kind === 'heal') { const was = cur; cur = Math.min(max, cur + n); msg = `${t.me ? '' : t.name + ': '}Healed ${cur - was} HP`; if (t.me && was <= 0 && cur > 0) c.death_saves = { successes: 0, failures: 0 }; }
+    else if (kind === 'temp') { tmp = Math.max(tmp, n); msg = `${t.me ? '' : t.name + ': '}Temp HP ${tmp}`; }
+    if (t.me) {
+      c.hp_current = cur; c.hp_temp = tmp;
+      const a = document.querySelector('[data-key="hp_current"]'); if (a) a.value = cur;
+      const b = document.querySelector('[data-key="hp_temp"]'); if (b) b.value = tmp || '';
+      try { if (typeof clampCurrentHP === 'function') clampCurrentHP(); } catch (e) {}
+      try { if (typeof renderDeathSaves === 'function') renderDeathSaves(); } catch (e) {}
+    } else if (hpT.kind === 'comp') {
+      c._companionHP = c._companionHP || {}; c._companionHP[hpT.id] = cur;
+      c._companionTempHP = c._companionTempHP || {}; c._companionTempHP[hpT.id] = tmp;
+      try { if (typeof renderCompanionTab === 'function') renderCompanionTab(); } catch (e) {}
+    } else if (hpT.kind === 'summon') {
+      c._summonHP = c._summonHP || {}; c._summonHP[hpT.id] = cur;
+      try { if (typeof renderSummonTab === 'function') renderSummonTab(); } catch (e) {}
+    }
     if (typeof debouncedSave === 'function') debouncedSave();
     try { if (activePage() === 'quickplay' && typeof renderQuickPlay === 'function') renderQuickPlay(); } catch (e) {}
     amt = '';
@@ -74571,6 +74634,268 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     if (touched) syncLock();
   }).observe(document.body, { childList: true });
 
+  // ═════════════════════════════════════════════════════════════════
+  // STAGE 2: Play, Spells, Bag
+  // ═════════════════════════════════════════════════════════════════
+  const css2 = document.createElement('style');
+  css2.id = 'phone-layout-css-2';
+  const PLAY_ORDER = ['qp-c-action', 'qp-c-bonus-action', 'qp-c-reaction', 'qp-c-other-limited-abilities', 'qp-c-spell-slots', 'qp-c-stored-dice',
+    'qp-c-takes-longer', 'qp-c-magic-items', 'qp-c-saving-throws', 'qp-c-ability-checks', 'qp-c-movement-ac'];
+  const PLAY_FILTERS = [['all', 'All', null], ['action', 'Action', ['qp-c-action']], ['bonus', 'Bonus', ['qp-c-bonus-action']],
+    ['reaction', 'React', ['qp-c-reaction']], ['uses', 'Uses', ['qp-c-other-limited-abilities', 'qp-c-spell-slots', 'qp-c-stored-dice']]];
+  css2.textContent = `
+/* shared phone list look */
+.m-sec2 { margin: 0 0 20px; font-family: var(--font-ui); }
+.m-sec2 > .m-h2 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 4px 8px; }
+.m-sec2 > .m-h2 h2 { margin: 0; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.m-sec2 > .m-h2 span { font-size: 12px; color: var(--text3); }
+.m-box { border-radius: 14px; background: var(--bg2); border: 1px solid var(--border); overflow: hidden; }
+.m-li { width: 100%; min-height: 56px; padding: 10px 14px !important; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border) !important; color: var(--text) !important; text-align: left; font: inherit; background: none; cursor: pointer; }
+.m-box > .m-li:first-child, .m-box > .m-lvl + .m-li { border-top: 0 !important; }
+.m-li .m-lt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.m-li .m-ln { font-size: 15px; font-weight: 500; color: var(--text-hi); line-height: 1.25; }
+.m-li .m-lm { font-size: 13px; color: var(--text2); line-height: 1.3; }
+.m-li .m-lx { font-size: 13px; color: var(--accent); font-weight: 500; line-height: 1.3; }
+.m-li .m-tag { flex: none; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--border2, var(--border)); color: var(--text2); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.m-li .m-pill2 { flex: none; font-size: 12px; padding: 3px 8px; border-radius: 8px; background: var(--accent-bg, var(--bg3)); color: var(--accent); font-weight: 600; }
+.m-li .m-qty { flex: none; font-size: 14px; color: var(--text2); font-weight: 500; }
+.m-lvl { display: flex; align-items: baseline; justify-content: space-between; padding: 8px 14px; background: var(--bg3); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; color: var(--text2); border-top: 1px solid var(--border); }
+.m-box > .m-lvl:first-child { border-top: 0; }
+.m-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--border); font-family: var(--font-ui); }
+.m-seg button { height: 38px; border-radius: 9px !important; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; color: var(--text2) !important; text-align: center !important; background: none; border: 0; cursor: pointer; font-family: inherit; padding: 0 2px !important; }
+.m-seg button.on { background: var(--accent) !important; color: var(--on-accent, #000) !important; }
+.m-wide { width: 100%; min-height: 52px; border-radius: 14px !important; border: 1px solid var(--border2, var(--border)) !important; background: var(--bg3) !important; color: var(--text-hi) !important; font: 500 15px var(--font-ui); display: flex; align-items: center; justify-content: space-between; padding: 0 16px !important; cursor: pointer; }
+.m-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.m-tile { border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); padding: 8px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 56px; text-align: center; }
+.m-tile .m-k { font-size: 11px; letter-spacing: .08em; color: var(--text2); font-weight: 600; text-transform: uppercase; }
+.m-tile .m-v { font-size: 19px; font-weight: 700; color: var(--text-hi); line-height: 1.15; }
+.m-tile .m-v small { font-size: 13px; color: var(--text2); font-weight: 500; }
+.m-pips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.m-pips button { width: 28px; height: 28px; border-radius: 50% !important; border: 2px solid var(--accent) !important; background: transparent !important; padding: 0 !important; cursor: pointer; }
+.m-pips button.on { background: var(--accent) !important; }
+.m-search { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg2); margin: 8px 0; }
+.m-search input { flex: 1; min-width: 0; height: 42px; border: 0 !important; background: transparent !important; color: var(--text-hi); font-size: 16px !important; outline: none; box-shadow: none !important; padding: 0 !important; }
+.m-sticky { position: sticky; top: -12px; z-index: 15; background: var(--bg); margin: -12px -12px 14px; padding: 12px 12px 10px; border-bottom: 1px solid var(--border); }
+.m-empty { padding: 18px 14px; color: var(--text2); font-size: 14px; text-align: center; }
+
+/* Play: what's out with you */
+.m-with { border-radius: 14px; background: var(--bg2); border: 1px solid var(--border2, var(--border)); overflow: hidden; margin-bottom: 10px; }
+.m-with-top { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px !important; min-height: 64px; color: var(--text) !important; }
+.m-with-av { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--accent-bg, var(--bg3)); border: 1px solid var(--border2, var(--border)); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent); font-size: 17px; }
+.m-with-ac { flex: none; width: 50px; height: 44px; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.m-with-ac .m-k { font-size: 10px; letter-spacing: .08em; color: var(--text2); font-weight: 600; }
+.m-with-ac b { font-size: 17px; color: var(--text-hi); line-height: 1; }
+.m-with-row { display: flex; border-top: 1px solid var(--border); }
+.m-with-row > button { flex: 1; min-width: 0; min-height: 52px; padding: 8px 14px !important; display: flex; flex-direction: column; justify-content: center; gap: 6px; color: var(--text) !important; }
+.m-with-row > button + button { flex: none; width: 128px; border-left: 1px solid var(--border) !important; }
+.m-with-row .m-hpl { display: flex; align-items: baseline; gap: 6px; }
+.m-with-row .m-k { font-size: 11px; letter-spacing: .08em; color: var(--text2); font-weight: 600; text-transform: uppercase; }
+.m-with-row b { font-size: 18px; color: var(--text-hi); line-height: 1; }
+.m-with-row .m-bar { display: block; height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; }
+.m-with-row .m-bar > span { display: block; height: 100%; border-radius: inherit; }
+.m-with-row .m-go { font-size: 15px; font-weight: 600; color: var(--accent); }
+#m-play-head { font-family: var(--font-ui); }
+#m-play-head .m-seg { margin-bottom: 14px; }
+
+/* Play: Quick Play as rows */
+html.m-ui #qp-body { display: flex; flex-direction: column; gap: 18px; }
+html.m-ui #qp-body .qp-cols, html.m-ui #qp-body .qp-side, html.m-ui #qp-body .qp-main, html.m-ui #qp-body .qp-mainA, html.m-ui #qp-body .qp-mainB,
+html.m-ui #qp-body .qp-grid3, html.m-ui #qp-body .qp-grid2 { display: contents !important; }
+${PLAY_ORDER.map((id, i) => `html.m-ui #${id} { order: ${i + 1}; }`).join('\n')}
+${PLAY_FILTERS.filter(f => f[2]).map(([k, , ids]) => `html.m-ui #page-quickplay[data-mf="${k}"] #qp-body .qp-card:not(${ids.map(i => '#' + i).join(',')}) { display: none !important; }`).join('\n')}
+html.m-ui #page-quickplay:not([data-mf="all"]) .m-with-sec { display: none; }
+html.m-ui #qp-body .qp-card { margin: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+html.m-ui #qp-body .qp-h { margin: 0 !important; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px 8px !important; min-height: 32px; background: none !important; border: 0 !important; }
+html.m-ui #qp-body .qp-ht { font-size: 13px !important; letter-spacing: .1em; text-transform: uppercase; color: var(--accent) !important; font-weight: 600; }
+html.m-ui #qp-body .qp-hs { font-size: 12px !important; color: var(--text3) !important; }
+html.m-ui #qp-body .qp-cb { border-radius: 14px; background: var(--bg2) !important; border: 1px solid var(--border) !important; overflow: hidden; padding: 4px 14px 10px !important; }
+html.m-ui #qp-body .qp-item { margin: 0 -14px !important; padding: 12px 14px !important; border: 0 !important; border-top: 1px solid var(--border) !important; border-radius: 0 !important; background: none !important; cursor: pointer; }
+html.m-ui #qp-body .qp-cb > .qp-item:first-child { border-top: 0 !important; }
+html.m-ui #qp-body .qp-item:active { background: var(--bg3) !important; }
+/* in the row, the name and preview text open the row's sheet; their links work in the sheet */
+html.m-ui #qp-body .qp-item .qp-name .qp-feat, html.m-ui #qp-body .qp-item .qp-text [onclick], html.m-ui #qp-body .qp-item .qp-itemtext [onclick], html.m-ui #qp-body .qp-item [data-glossary-term] { pointer-events: none; }
+html.m-ui #qp-body .qp-item .qp-name { font-size: 15px !important; font-weight: 500; color: var(--text-hi) !important; line-height: 1.3; }
+html.m-ui #qp-body .qp-item .qp-text, html.m-ui #qp-body .qp-item .qp-itemtext { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px !important; color: var(--text2) !important; line-height: 1.4; margin-top: 2px; }
+html.m-ui #qp-body .qp-item .qp-itemtext * { display: inline; margin: 0; padding: 0; font-size: inherit !important; }
+html.m-ui #qp-body .qp-pip { width: 26px !important; height: 26px !important; }
+html.m-ui #qp-body .qp-mini { min-width: 40px; min-height: 36px; }
+html.m-ui #qp-body .qp-spellsec { margin: 4px -14px 0; border-top: 1px solid var(--border); padding: 4px 14px 0; }
+html.m-ui #qp-body .qp-spellsec > summary { min-height: 44px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; color: var(--text-hi); cursor: pointer; }
+html.m-ui #qp-body .qp-table { width: 100%; }
+.m-detail .qp-item { padding: 0 !important; margin: 0 !important; border: 0 !important; background: none !important; }
+.m-detail .qp-name { font-size: 13px; color: var(--text2); margin-bottom: 10px; }
+.m-detail .qp-text, .m-detail .qp-itemtext { font-size: 15px; line-height: 1.55; color: var(--text); }
+.m-detail .qp-pips { display: inline-flex; gap: 8px; }
+.m-detail .qp-pip { width: 32px; height: 32px; }
+`;
+  document.head.appendChild(css2);
+
+  const hpBar = (cur, max) => { const pct = max ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0; return `<span class="m-bar"><span style="width:${pct}%;background:${hpColour(cur, max)}"></span></span>`; };
+  let playFilter = (() => { try { return localStorage.getItem('m_play_filter') || 'all'; } catch (e) { return 'all'; } })();
+  window.mPlayFilter = function (k) { playFilter = k; try { localStorage.setItem('m_play_filter', k); } catch (e) {} renderPlayHead(); const c = $('content'); if (c) c.scrollTop = 0; };
+  function withYou() {
+    if (!hasSheet()) return '';
+    const cards = [];
+    companions().forEach(x => cards.push(`<div class="m-with">
+      <button class="m-with-top" onclick="switchPage('companion')"><span class="m-with-av" aria-hidden="true">${esc(x.name.charAt(0))}</span>
+        <span class="m-lt" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:600;color:var(--text-hi)">${esc(x.name)}</span><span style="font-size:13px;color:var(--text2)">${esc(x.sub || 'Companion')}</span></span>
+        ${x.ac ? `<span class="m-with-ac"><span class="m-k">AC</span><b>${esc(x.ac)}</b></span>` : ''}</button>
+      <div class="m-with-row"><button onclick="mOpenHP('comp', ${esc(JSON.stringify(x.id))})" aria-label="${esc(x.name)} hit points ${x.cur} of ${x.max}. Change"><span class="m-hpl"><span class="m-k">HP</span><b>${x.cur}</b><span style="font-size:13px;color:var(--text2)">/ ${x.max}${x.tmp ? ` +${x.tmp}` : ''}</span></span>${hpBar(x.cur, x.max)}</button>
+        <button onclick="switchPage('companion')"><span class="m-k">Statblock</span><span class="m-go">Open</span></button></div></div>`));
+    summons().forEach(x => cards.push(`<div class="m-with">
+      <button class="m-with-top" onclick="switchPage('summon')"><span class="m-with-av" aria-hidden="true">${esc(String(x.name).charAt(0))}</span>
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:600;color:var(--text-hi)">${esc(x.name)}</span><span style="font-size:13px;color:var(--text2)">${esc(x.sub || 'Summon')}</span></span>
+        ${x.ac !== '' ? `<span class="m-with-ac"><span class="m-k">AC</span><b>${esc(x.ac)}</b></span>` : ''}</button>
+      <div class="m-with-row"><button onclick="mOpenHP('summon', ${esc(JSON.stringify(x.key))})" aria-label="${esc(x.name)} hit points ${x.cur} of ${x.max}. Change"><span class="m-hpl"><span class="m-k">HP</span><b>${x.cur}</b><span style="font-size:13px;color:var(--text2)">/ ${x.max}</span></span>${hpBar(x.cur, x.max)}</button>
+        <button onclick="switchPage('summon')"><span class="m-k">Statblock</span><span class="m-go">Open</span></button></div></div>`));
+    const ws = $('tab-wildshape');
+    if (ws && ws.style.display !== 'none' && typeof getWildShapeUsesMax === 'function') {
+      try {
+        const max = getWildShapeUsesMax(), used = parseInt(currentChar._wsUsesUsed, 10) || 0, left = Math.max(0, max - used);
+        const known = (currentChar._wsKnownForms || []).length, kmax = typeof getWildShapeKnownFormsMax === 'function' ? getWildShapeKnownFormsMax() : '';
+        cards.push(`<div class="m-with">
+          <button class="m-with-top" onclick="switchPage('wildshape')"><span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:600;color:var(--text-hi)">Wild Shape</span><span style="font-size:13px;color:var(--text2)">${left} of ${max} uses left \u00b7 ${known}${kmax !== '' ? ' of ' + kmax : ''} forms known</span></span>${svg('chev', 18, 2)}</button>
+          <div class="m-with-row"><button onclick="mUseWildShape()" ${left ? '' : 'disabled'}><span class="m-k">Bonus action</span><span class="m-go">${left ? 'Use Wild Shape' : 'No uses left'}</span></button>
+            <button onclick="switchPage('wildshape')"><span class="m-k">Beasts</span><span class="m-go">Choose</span></button></div></div>`);
+      } catch (e) { console.warn('[phone layout] wild shape', e); }
+    }
+    if (!cards.length) return '';
+    return `<section class="m-sec2 m-with-sec"><div class="m-h2"><h2>With you</h2><span>tap to manage</span></div>${cards.join('')}</section>`;
+  }
+  window.mUseWildShape = function () {
+    try { if (typeof useWildShape === 'function') useWildShape(); } catch (e) { console.warn(e); }
+    renderPlayHead();
+  };
+  function renderPlayHead() {
+    const page = $('page-quickplay'); if (!page || !isOn()) return;
+    let h = $('m-play-head');
+    if (!h) { h = document.createElement('div'); h.id = 'm-play-head'; page.insertBefore(h, page.firstChild); }
+    page.dataset.mf = playFilter;
+    h.innerHTML = `<div class="m-seg" role="group" aria-label="Show">${PLAY_FILTERS.map(([k, l]) => `<button class="${k === playFilter ? 'on' : ''}" aria-pressed="${k === playFilter}" onclick="mPlayFilter('${k}')">${l}</button>`).join('')}</div>${withYou()}`;
+  }
+
+  // tapping a row opens it as a sheet, at that row, with everything on it
+  let detailAt = null;
+  function detailFrom(at) {
+    const card = $(at.card); if (!card) return null;
+    const it = card.querySelectorAll('.qp-item')[at.i]; if (!it) return null;
+    return { title: (it.querySelector('.qp-name')?.childNodes[0]?.textContent || it.querySelector('.qp-name')?.textContent || '').trim(), kick: card.querySelector('.qp-ht')?.textContent || '', node: it };
+  }
+  function paintDetail() {
+    const d = detailAt && detailFrom(detailAt); if (!d) return false;
+    const b = ensureModal('m-detail-modal'); b.classList.add('m-detail');
+    const cl = d.node.cloneNode(true); cl.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+    b.innerHTML = head(d.kick, d.title || 'Details', 'm-detail-modal');
+    b.appendChild(cl);
+    return true;
+  }
+  document.addEventListener('click', e => {
+    if (!isOn()) return;
+    const it = e.target.closest && e.target.closest('#qp-body .qp-item'); if (!it) return;
+    if (e.target.closest('button, a, input, select, textarea, label, summary, details, .qp-feat, .qp-pip, .qp-mini, [onclick]:not(.qp-item)')) return;
+    const card = it.closest('.qp-card'); if (!card) return;
+    detailAt = { card: card.id, i: [...card.querySelectorAll('.qp-item')].indexOf(it) };
+    if (paintDetail()) openModal('m-detail-modal');
+  }, true);
+
+  // ── Spells ──────────────────────────────────────────────────────────
+  let spFilter = 'all', spQuery = '';
+  const timeLabel = t => { t = String(t || '').trim();
+    if (/^1\s*a\b/i.test(t)) return 'Action'; if (/bns|bonus/i.test(t)) return 'Bonus action'; if (/\brea/i.test(t)) return 'Reaction';
+    return t.replace(/\bmin\b/, 'minute').replace(/\bh\b/, 'hour'); };
+  const rangeLabel = r => String(r || '').replace(/^S:\s*/, 'Self, ').replace(/-ft rad\b/, ' ft radius');
+  function renderSpells() {
+    const host = $('page-m-spells'); if (!host || !currentChar) return;
+    let Q;
+    try { Q = window._qpData = _qpBuild(); } catch (e) { host.innerHTML = `<div class="m-empty">Couldn't list the spells: ${esc(e.message)}</div>`; return; }
+    // save DC and attack for each casting class, as Quick Play shows them
+    let tiles = '';
+    try {
+      (typeof getAllSpellcastingClasses === 'function' ? getAllSpellcastingClasses() : []).forEach(x => {
+        const m = abilityMod(Q.abs[x.ability] ?? 10);
+        const nm = x.cls.charAt(0).toUpperCase() + x.cls.slice(1);
+        tiles += `<div class="m-tile"><span class="m-k">${esc(nm)} DC</span><span class="m-v">${8 + Q.prof + m + (getSpellDCBonus() || 0)}</span></div><div class="m-tile"><span class="m-k">${esc(nm)} attack</span><span class="m-v">${_qpSign(Q.prof + m + (getSpellAtkBonus() || 0))}</span></div>`;
+      });
+    } catch (e) {}
+    const slotRow = (label, sub, max, left, fn) => `<div class="m-li" style="cursor:default"><span class="m-lt"><span class="m-ln">${label}</span><span class="m-lm">${left} of ${max} left${sub}</span></span>
+      <span class="m-pips">${[...Array(max)].map((_, i) => `<button class="${i < left ? 'on' : ''}" onclick="${fn(i < left)}" aria-label="${label}: ${i < left ? 'use a slot' : 'get a slot back'}"></button>`).join('')}</span></div>`;
+    const slots = [];
+    (Q.slots.levels || []).filter(l => l.max).forEach(l => { const left = l.max - (l.used || 0); slots.push(slotRow(`Level ${l.level}`, '', l.max, left, on => `qpSlot(${l.level}, ${on ? 1 : -1}, false)`)); });
+    if (Q.slots.warlock?.max) { const w = Q.slots.warlock, left = w.max - (w.used || 0); slots.push(slotRow(`Pact slots \u00b7 level ${w.slotLevel}`, ' \u00b7 back on a Short Rest', w.max, left, on => `qpSlot(${w.slotLevel}, ${on ? 1 : -1}, true)`)); }
+    const all = Q.spells.slice().sort((a, b) => a.level - b.level || String(a.name).localeCompare(String(b.name)));
+    const keep = s => spFilter === 'all' || (spFilter === 'cantrip' && !s.level) || (spFilter === 'levelled' && s.level > 0) || (spFilter === 'ritual' && (s.ritualOnly || PHB_SPELL_LIST.find(x => x.key === s.key)?.ritual)) || (spFilter === 'conc' && s.conc);
+    const list = all.filter(keep);
+    let rows = '', lv = null;
+    const slotLeft = {}; (Q.slots.levels || []).forEach(l => { if (l.max) slotLeft[l.level] = `${l.max - (l.used || 0)}/${l.max} slots`; });
+    list.forEach(s => {
+      if (s.level !== lv) { lv = s.level; rows += `<div class="m-lvl" data-lvl="${lv}"><span>${lv ? 'Level ' + lv : 'Cantrips'}</span><span>${lv ? (slotLeft[lv] || '') : 'at will'}</span></div>`; }
+      const sp = PHB_SPELL_LIST.find(x => x.key === s.key) || {};
+      let math = ''; try { math = (s.stored || s.scroll) ? '' : (_qpSpellMathHtml(s.key, (_qp.up[s.key] > s.level) ? _qp.up[s.key] : (s.pact || s.level)) || ''); } catch (e) {}
+      const meta = [timeLabel(sp.time), rangeLabel(sp.range), s.pact ? `cast at ${s.pact}` : '', s.source].filter(Boolean).join(' \u00b7 ');
+      const tags = (s.conc ? '<span class="m-tag" title="Concentration">C</span>' : '') + ((s.ritualOnly || sp.ritual) ? '<span class="m-tag" title="Ritual">R</span>' : '');
+      const act = (window._previewMode) ? '' : s.scroll ? `<button class="m-tag" style="height:36px;padding:0 10px" onclick="event.stopPropagation();readSpellScroll('${esc(s.scroll.uid)}')">Read</button>`
+        : s.stored ? `<button class="m-tag" style="height:36px;padding:0 10px" ${s.stored.canCast ? '' : 'disabled'} onclick="event.stopPropagation();castStoredSpell('${esc(s.stored.uid)}','${esc(s.stored.id)}')">Cast</button>` : '';
+      rows += `<button class="m-li" data-name="${esc(String(s.name).toLowerCase())}" onclick="openSpellDetailModal('${esc(s.key)}')"><span class="m-lt"><span class="m-ln">${esc(typeof _qpSpellName === 'function' ? String(_qpSpellName(s)).replace(/<[^>]+>/g, '') : s.name)}</span><span class="m-lm">${esc(meta)}</span>${math ? `<span class="m-lx">${math}</span>` : ''}</span>${tags}${act}</button>`;
+    });
+    const seg = [['all', 'All'], ['cantrip', 'Cantrips'], ['levelled', 'Levelled'], ['ritual', 'Ritual'], ['conc', 'Conc.']]
+      .map(([k, l]) => `<button class="${k === spFilter ? 'on' : ''}" aria-pressed="${k === spFilter}" onclick="mSpellFilter('${k}')">${l}</button>`).join('');
+    host.innerHTML = `
+      ${tiles ? `<div class="m-tiles">${tiles}</div>` : ''}
+      ${slots.length ? `<section class="m-sec2"><div class="m-h2"><h2>Spell slots</h2><span>tap a dot to use one</span></div><div class="m-box">${slots.join('')}</div></section>` : ''}
+      <div class="m-sticky"><div class="m-seg" role="group" aria-label="Show">${seg}</div>
+        <div class="m-search">${svg('search', 18, 2)}<label for="m-spell-q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search spells</label><input id="m-spell-q" type="search" placeholder="Search ${all.length} spells" value="${esc(spQuery)}" oninput="mSpellSearch(this.value)" autocomplete="off"></div></div>
+      <section class="m-sec2"><div class="m-box" id="m-spell-list">${rows || `<div class="m-empty">${all.length ? 'No spells match.' : 'No spells to cast.'}</div>`}</div></section>
+      <button class="m-wide" onclick="switchPage('spells')"><span>All spells: prepare, learn and swap</span>${svg('chev', 18, 2)}</button>`;
+    if (spQuery) window.mSpellSearch(spQuery, true);
+  }
+  window.mSpellFilter = function (k) { spFilter = k; renderSpells(); };
+  window.mSpellSearch = function (v, quiet) {
+    spQuery = String(v || ''); const q = spQuery.trim().toLowerCase();
+    const box = $('m-spell-list'); if (!box) return;
+    let lvl = null, any = {};
+    box.querySelectorAll('.m-li').forEach(r => { const on = !q || r.dataset.name.includes(q); r.style.display = on ? '' : 'none'; });
+    box.querySelectorAll('.m-lvl').forEach(h => { let n = h.nextElementSibling, vis = false; while (n && !n.classList.contains('m-lvl')) { if (n.style.display !== 'none') vis = true; n = n.nextElementSibling; } h.style.display = vis ? '' : 'none'; });
+  };
+
+  // ── Bag ─────────────────────────────────────────────────────────────
+  function renderBag() {
+    const host = $('page-m-bag'); if (!host || !currentChar) return;
+    const c = currentChar;
+    try { if (typeof ensureWeaponData === 'function') ensureWeaponData(); if (typeof ensureMagicItems === 'function') ensureMagicItems(); } catch (e) {}
+    const cur = c.currency || {};
+    const nm = it => (typeof getItemDisplayName === 'function' ? getItemDisplayName(it) : (it.customName || it.name || 'Item'));
+    const rar = it => { const r = typeof getEffectiveItemRarity === 'function' ? getEffectiveItemRarity(it) : it.rarity; return r ? r.charAt(0).toUpperCase() + r.slice(1) : ''; };
+    const row = (name, meta, fn, extra = '') => `<button class="m-li" onclick="${fn}"><span class="m-lt"><span class="m-ln">${esc(name)}</span>${meta ? `<span class="m-lm">${esc(meta)}</span>` : ''}</span>${extra}</button>`;
+    const qty = q => (q || 1) > 1 ? `<span class="m-qty">\u00d7${q}</span>` : '';
+    const mis = (c.magicItems || []).map((it, i) => ({ it, i }));
+    const att = mis.filter(x => x.it.attuned);
+    const magicW = new Set(mis.filter(x => x.it.isWeapon).map(x => nm(x.it).toLowerCase().trim()));
+    const magicA = new Set(mis.filter(x => x.it.isArmour).map(x => nm(x.it).toLowerCase().trim()));
+    const weapons = [], armour = [], magic = [], gear = [];
+    (c.weapons || []).forEach((w, i) => { if (w._fromMagicItem || magicW.has(String(w.name || '').toLowerCase().trim())) return;
+      weapons.push(row(w.name || 'Weapon', [w.equipped ? '' : 'not equipped', w.weight].filter(Boolean).join(' \u00b7 '), `openWeaponDetail(${i})`, (w.equipped ? '<span class="m-pill2">Equipped</span>' : '') + qty(w.qty))); });
+    (c.armorOwned || []).forEach((a, i) => { if (magicA.has(String(a.name || '').toLowerCase().trim())) return;
+      armour.push(row(a.name || 'Armour', a.weight || '', `openArmorDetail(${i})`, (a.worn ? '<span class="m-pill2">Worn</span>' : '') + qty(a.qty))); });
+    mis.forEach(({ it, i }) => {
+      const meta = [rar(it), it.type, it.attunement ? (it.attuned ? 'attuned' : 'needs attunement') : ''].filter(Boolean).join(' \u00b7 ');
+      const r = row(nm(it), meta, `openMagicItemDetailModal(currentChar.magicItems[${i}])`, (it.equipped ? '<span class="m-pill2">Equipped</span>' : '') + qty(it.quantity));
+      if (it.isWeapon && !it.isAmmo) weapons.push(r); else if (it.isArmour) armour.push(r); else magic.push(r);
+    });
+    (c.equipment || []).forEach((g, i) => gear.push(row(g.name || 'Item', g.weight || '', `openGearEditModal(${i})`, qty(g.qty))));
+    const sec = (t, n, rows) => rows.length ? `<section class="m-sec2"><div class="m-h2"><h2>${t}</h2><span>${n}</span></div><div class="m-box">${rows.join('')}</div></section>` : '';
+    const coins = ['pp', 'gp', 'ep', 'sp', 'cp'].map(k => `<div class="m-tile"><span class="m-k">${k}</span><span class="m-v">${(parseInt(cur[k], 10) || 0).toLocaleString('en-GB')}</span></div>`).join('');
+    host.innerHTML = `
+      <section class="m-sec2"><div class="m-h2"><h2>Coin</h2><span></span></div><div class="m-tiles" style="grid-template-columns:repeat(5,minmax(0,1fr))">${coins}</div></section>
+      ${sec('Attuned', `${att.length} attuned`, att.map(({ it, i }) => row(nm(it), [rar(it), it.type].filter(Boolean).join(' \u00b7 '), `openMagicItemDetailModal(currentChar.magicItems[${i}])`)))}
+      ${sec('Weapons', weapons.length + '', weapons)}
+      ${sec('Armour', armour.length + '', armour)}
+      ${sec('Magic items', magic.length + '', magic)}
+      ${sec('Gear', gear.length + '', gear)}
+      ${!weapons.length && !armour.length && !magic.length && !gear.length ? '<div class="m-empty">Nothing carried yet.</div>' : ''}
+      <button class="m-wide" onclick="switchPage('inventory')"><span>Edit inventory: add, equip, weights, containers</span>${svg('chev', 18, 2)}</button>`;
+  }
+  window.mRenderSpells = renderSpells; window.mRenderBag = renderBag;
+
   // ── refresh, throttled to one paint ─────────────────────────────────
   let queued = false;
   function refresh() {
@@ -74592,8 +74917,7 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     app.appendChild(nav);
     const sub = document.createElement('div'); sub.id = 'm-subhead';
     content.insertBefore(sub, content.firstChild);
-    const more = document.createElement('div'); more.className = 'page'; more.id = 'page-m-more';
-    content.appendChild(more);
+    ['m-more', 'm-spells', 'm-bag'].forEach(id => { const pg = document.createElement('div'); pg.className = 'page'; pg.id = 'page-' + id; content.appendChild(pg); });
     const bd = document.createElement('div'); bd.id = 'm-backdrop';
     bd.addEventListener('click', () => { const p = $('pdf-choice'); if (p) p.remove(); const t = $('theme-picker-panel'); if (t && !t.classList.contains('hidden')) t.classList.add('hidden'); syncLock(); });
     document.body.appendChild(bd);
@@ -74620,7 +74944,8 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
       if (!was && hasSheet() && (pg === 'main' || pg === 'quickplay' || !pg)) switchPage('quickplay');
     } else if (was) {
       const tp = $('theme-picker-panel'); if (tp && tp._home) tp._home.appendChild(tp);
-      if (activePage() === 'm-more') switchPage('main');
+      const back = { 'm-more': 'main', 'm-spells': 'spells', 'm-bag': 'inventory' }[activePage()]; if (back) switchPage(back);
+      const mf = $('page-quickplay'); if (mf) delete mf.dataset.mf;
       try { if (typeof applyQuickPlayTab === 'function') applyQuickPlayTab(false); } catch (e) {}
       root.classList.remove('m-modal-open');
     }
@@ -74634,12 +74959,20 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
   wrap('switchPage', page => {
     if (!isOn()) return;
     if (page === 'm-more') renderMore();
+    if (page === 'm-spells') renderSpells();
+    if (page === 'm-bag') renderBag();
+    if (page === 'quickplay') renderPlayHead();
     const c = $('content'); if (c) c.scrollLeft = 0;
     refresh();
   });
   wrap('openModal', id => { const el = $(id); if (el) sheetify(el); syncLock(); });
   wrap('closeModal', () => { syncLock(); refresh(); });
   wrap('enterApp', () => setTimeout(() => { apply(); if (isOn() && hasSheet()) switchPage('quickplay'); refresh(); }, 30));
+  wrap('renderQuickPlay', () => { if (!isOn()) return; renderPlayHead(); if (detailAt && !$('m-detail-modal')?.classList.contains('hidden')) paintDetail(); });
+  wrap('qpSlot', () => { if (isOn() && activePage() === 'm-spells') renderSpells(); });
+  ['renderMagicItemsPanel', 'renderUnifiedInventory', 'updateCurrencyTotal'].forEach(fn => wrap(fn, () => { if (isOn() && activePage() === 'm-bag') setTimeout(renderBag, 0); }));
+  ['renderSummonTab', 'renderWildShapeList', 'useWildShape', 'resetWildShapeUses'].forEach(fn => wrap(fn, () => { if (isOn() && activePage() === 'quickplay') setTimeout(renderPlayHead, 0); }));
+  wrap('closeModal', id => { if (!isOn()) return; if (activePage() === 'm-bag') setTimeout(renderBag, 0); if (activePage() === 'm-spells' && id !== 'spell-detail-modal') setTimeout(renderSpells, 0); });
   ['debouncedSave', 'autoSave', 'renderConditions', 'renderExhaustion', 'recalcAll', 'updateCharSummary', 'renderQuickPlay', 'handleRemoteCharUpdate', 'toggleViewAsPlayer'].forEach(fn => wrap(fn, refresh));
   // Quick Play is the Play tab for everyone in the phone layout
   const origQPT = window.applyQuickPlayTab;
