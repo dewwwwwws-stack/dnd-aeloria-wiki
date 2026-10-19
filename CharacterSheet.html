@@ -8707,6 +8707,7 @@ function applyRemoteAdoptedUI(changed, notify) {
   run(typeof renderActiveEffects === 'function' ? renderActiveEffects : null);
   run(typeof renderKnownSpells === 'function' ? renderKnownSpells : null);
   if (has('quickPlay')) run(() => applyQuickPlayTab(false));
+  if (has('prefs')) run(applySheetPrefs);
   const itemKeys = ['magicItems','weapons','armorOwned','equipment','valuables','mountsVehicles'];
   if (notify?.itemName && typeof showItemReceivedModal === 'function' && has(...itemKeys, 'currency')) showItemReceivedModal(notify);
   else {
@@ -9057,6 +9058,48 @@ let isDM           = false;
 // restore isDM correctly when toggling back.
 let _realIsDM       = false;
 let _viewingAsPlayer = false;
+
+// ═══════════════════════════════════════════════════════════
+// PER-SHEET DISPLAY SETTINGS
+// Look, size, layout, folded sections, spell text and the dice roller's settings belong to the character
+// (currentChar.prefs), so they follow that sheet onto every device and one
+// sheet's choices never change another's. (The theme itself was already
+// stored on the character.) With no character open - the login screen, the
+// DM panel on its own - the device keeps its own choice, as before. A
+// read-only preview can change them for the moment, but never saves them.
+// ═══════════════════════════════════════════════════════════
+const SHEET_PREF_DEVICE_KEYS = { look: 'sheet_look', zoom: 'sheet_zoom', layout: 'sheet_layout', diceOn: 'dice_roller',
+  diceStyle: 'dice_style', diceWhere: 'dice_where', diceColour: 'dice_colour', diceMode: 'dice_mode',
+  qpFolded: 'qp_folded_cards', progOpen: 'qp_prog_open', qpSpellText: 'qp_spell_text', spSpellText: 'sp_spell_text', spFolded: 'sp_folded_levels' };
+let _sheetPrefPreview = { id: null, vals: {} };
+function sheetPref(k) {
+  const c = typeof currentChar !== 'undefined' ? currentChar : null;
+  if (c) {
+    if (window._previewMode && _sheetPrefPreview.id === c.id && k in _sheetPrefPreview.vals) return _sheetPrefPreview.vals[k];
+    const v = c.prefs && Object.prototype.hasOwnProperty.call(c.prefs, k) ? c.prefs[k] : undefined;
+    return v === null ? undefined : v;                // a sheet with no choice of its own uses the built-in default
+  }
+  try { const v = localStorage.getItem(SHEET_PREF_DEVICE_KEYS[k]); return v === null ? undefined : v; } catch (e) { return undefined; }
+}
+function setSheetPref(k, v) {
+  const c = typeof currentChar !== 'undefined' ? currentChar : null;
+  if (c && window._previewMode) {
+    if (_sheetPrefPreview.id !== c.id) _sheetPrefPreview = { id: c.id, vals: {} };
+    _sheetPrefPreview.vals[k] = v == null ? undefined : String(v);
+  } else if (c) {
+    if (!c.prefs || typeof c.prefs !== 'object') c.prefs = {};
+    if (v == null) delete c.prefs[k]; else c.prefs[k] = String(v);
+    if (typeof debouncedSave === 'function') debouncedSave();
+  } else {
+    try { if (v == null) localStorage.removeItem(SHEET_PREF_DEVICE_KEYS[k]); else localStorage.setItem(SHEET_PREF_DEVICE_KEYS[k], String(v)); } catch (e) {}
+  }
+}
+// Each part of the page that uses these registers how to re-apply them; they
+// all run whenever a different character opens (or none is open any more).
+const _sheetPrefAppliers = [];
+function onSheetPrefsChange(fn) { _sheetPrefAppliers.push(fn); }
+function applySheetPrefs() { _sheetPrefAppliers.forEach(fn => { try { fn(); } catch (e) { console.warn('[sheet settings]', e); } }); }
+window.sheetPref = sheetPref; window.setSheetPref = setSheetPref; window.onSheetPrefsChange = onSheetPrefsChange; window.applySheetPrefs = applySheetPrefs;
 
 // ═══════════════════════════════════════════════════════════
 // STARFIELD
@@ -15327,6 +15370,7 @@ function enterApp() {
     vapBtn.style.borderColor = 'var(--gold)';
   }
   injectCustomSpellsIntoCatalog();
+  applySheetPrefs();                                  // this sheet's own look, size, layout and dice settings
 
   // A character is loaded now - restore the sheet tab bar in case it was
   // hidden by openDMPanelFromLogin's no-character DM entry path.
@@ -15650,6 +15694,7 @@ async function doLogout() {
   _teardownPreviewState();
   currentChar = null; currentCharSHA = null; isDM = false;
   _realIsDM = false; _viewingAsPlayer = false;
+  applySheetPrefs();
   applyThemeFull('default-dark');
   document.getElementById('login-screen').style.display = '';
   document.getElementById('app').classList.remove('visible');
@@ -62223,6 +62268,7 @@ function _teardownPreviewState() {
     return true;
   }
   currentChar = null;
+  applySheetPrefs();
   clearCustomThemeInlineOverrides();
   document.documentElement.setAttribute('data-theme', _pageDefaultTheme);
   const themeBtn = document.getElementById('theme-toggle-btn');
@@ -66568,30 +66614,32 @@ function _qpCheckExtras(Q) {
   return out;
 }
 window._qpCheckExtras = _qpCheckExtras;
-// Folded cards are remembered on this device (not on the character), so
-// each player keeps their own layout.
+// Folded cards are remembered on the sheet (sheetPref 'qpFolded'), so each
+// character keeps its own layout on every device.
 function _qpShut() {
-  if (!_qp.shut) { try { _qp.shut = JSON.parse(localStorage.getItem('qp_folded_cards') || '{}') || {}; } catch (e) { _qp.shut = {}; } }
+  if (!_qp.shut) { try { _qp.shut = JSON.parse(sheetPref('qpFolded') || '{}') || {}; } catch (e) { _qp.shut = {}; } }
   return _qp.shut;
 }
+// another sheet opened: read its own folds and spell text choice
+onSheetPrefsChange(() => { _qp.shut = null; _qp.textMode = null; });
 function qpToggleCard(slug, force) {
   const shut = _qpShut(); const el = document.getElementById('qp-c-' + slug);
   const now = force === undefined ? !shut[slug] : !!force;
   if (now) shut[slug] = 1; else delete shut[slug];
-  try { localStorage.setItem('qp_folded_cards', JSON.stringify(shut)); } catch (e) {}
+  setSheetPref('qpFolded', Object.keys(shut).length ? JSON.stringify(shut) : null);
   if (el) el.classList.toggle('qp-shut', now);
   if (el && !now) { try { qpFillFull(el); } catch (e) {} }
 }
 window.qpToggleCard = qpToggleCard;
 // Spell text on Quick Play: the spell's full rules text (the default) or
-// the old one-line summary. Remembered on this device.
+// the old one-line summary. Remembered on the sheet.
 function _qpTextMode() {
-  if (!_qp.textMode) { try { _qp.textMode = localStorage.getItem('qp_spell_text') === 'short' ? 'short' : 'full'; } catch (e) { _qp.textMode = 'full'; } }
+  if (!_qp.textMode) _qp.textMode = sheetPref('qpSpellText') === 'short' ? 'short' : 'full';
   return _qp.textMode;
 }
 function qpSpellTextMode(mode) {
   _qp.textMode = mode === 'short' ? 'short' : 'full';
-  try { localStorage.setItem('qp_spell_text', _qp.textMode); } catch (e) {}
+  setSheetPref('qpSpellText', _qp.textMode === 'short' ? 'short' : null);
   renderQuickPlay();
 }
 window.qpSpellTextMode = qpSpellTextMode;
@@ -71685,14 +71733,15 @@ const THEME_PACK_2 = [{"key": "ember", "label": "Ember", "swatch": "#f08a3c"}, {
 //   - To remove the experiment entirely: delete this one <script> block.
 // ═══════════════════════════════════════════════════════════════════════
 const SHEET_LOOK_DEFAULT = 'square';   // 'square' (Quick Play look, squared), 'qp' (Quick Play look, rounded) or 'classic'
-function getSheetLook() { try { const v = localStorage.getItem('sheet_look'); return ['classic', 'qp', 'square'].includes(v) ? v : SHEET_LOOK_DEFAULT; } catch (e) { return SHEET_LOOK_DEFAULT; } }
+function getSheetLook() { const v = sheetPref('look'); return ['classic', 'qp', 'square'].includes(v) ? v : SHEET_LOOK_DEFAULT; }
 function applySheetLook() {
   document.body.classList.toggle('qp-look', getSheetLook() !== 'classic');
   document.body.classList.toggle('qp-square', getSheetLook() === 'square');
   document.querySelectorAll('#sheet-look-row [data-look]').forEach(b => b.classList.toggle('on', b.dataset.look === getSheetLook()));
   try { if (typeof qpPinBar === 'function') qpPinBar(); } catch (e) {}
 }
-function setSheetLook(v) { try { localStorage.setItem('sheet_look', ['classic', 'qp', 'square'].includes(v) ? v : SHEET_LOOK_DEFAULT); } catch (e) {} applySheetLook();
+onSheetPrefsChange(applySheetLook);
+function setSheetLook(v) { setSheetPref('look', ['classic', 'qp', 'square'].includes(v) ? v : SHEET_LOOK_DEFAULT); applySheetLook();
   try { if (typeof populateFeaturesTab === 'function' && currentChar) populateFeaturesTab(); } catch (e) {} }
 // Features tab, Quick Play look only: each class progression table folds
 // away behind a one-line summary of the character's current level, so the
@@ -71701,7 +71750,7 @@ function setSheetLook(v) { try { localStorage.setItem('sheet_look', ['classic', 
 function qpLookFoldProgression() {
   if (!document.body.classList.contains('qp-look')) return;
   const page = document.getElementById('page-features'); if (!page) return;
-  let open = {}; try { open = JSON.parse(localStorage.getItem('qp_prog_open') || '{}') || {}; } catch (e) {}
+  let open = {}; try { open = JSON.parse(sheetPref('progOpen') || '{}') || {}; } catch (e) {}
   page.querySelectorAll('.panel div[style="margin:8px 0"]').forEach(block => {
     // casters' tables sit inside a sideways-scrolling wrapper, so look for the table at any depth
     const table = block.querySelector('table'); const head = block.firstElementChild;
@@ -71721,7 +71770,7 @@ function qpLookFoldProgression() {
     det.appendChild(sum);
     while (head.nextSibling) det.appendChild(head.nextSibling);
     head.style.display = 'none'; block.appendChild(det);
-    det.addEventListener('toggle', () => { try { const o = JSON.parse(localStorage.getItem('qp_prog_open') || '{}') || {}; if (det.open) o[key] = 1; else delete o[key]; localStorage.setItem('qp_prog_open', JSON.stringify(o)); } catch (e) {} });
+    det.addEventListener('toggle', () => { try { const o = JSON.parse(sheetPref('progOpen') || '{}') || {}; if (!!o[key] === det.open) return; if (det.open) o[key] = 1; else delete o[key]; setSheetPref('progOpen', Object.keys(o).length ? JSON.stringify(o) : null); } catch (e) {} });
   });
 }
 window.qpLookFoldProgression = qpLookFoldProgression;
@@ -72070,7 +72119,8 @@ body { container: sheet / inline-size; }
 #sheet-zoom-row #sheet-zoom-val { min-width:44px; text-align:center; font-weight:700; color:var(--text); }`;
   document.head.appendChild(st);
   let want = 1, cur = 1;
-  try { const v = parseFloat(localStorage.getItem(KEY)); if (v >= 0.5 && v <= 2) want = v; } catch (e) {}
+  const readWant = () => { const v = parseFloat(sheetPref('zoom')); want = (v >= 0.5 && v <= 2) ? v : 1; };
+  readWant();
   // never let the sheet get narrower (in its own units) than the smallest phone layout
   const cap = () => Math.max(1, Math.floor((window.innerWidth / MIN_W) * 100) / 100);
   window.sheetZoom = () => cur;
@@ -72083,7 +72133,8 @@ body { container: sheet / inline-size; }
     const v = document.getElementById('sheet-zoom-val');
     if (v) { v.textContent = Math.round(cur * 100) + '%'; v.title = cur < want ? 'Limited to ' + Math.round(cur * 100) + '% on a screen this narrow' : ''; }
   }
-  window.setSheetZoom = function (z) { want = Math.max(STEPS[0], Math.min(STEPS[STEPS.length - 1], z)); try { localStorage.setItem(KEY, String(want)); } catch (e) {} apply(); };
+  window.setSheetZoom = function (z) { want = Math.max(STEPS[0], Math.min(STEPS[STEPS.length - 1], z)); setSheetPref('zoom', want === 1 ? null : want); apply(); };
+  onSheetPrefsChange(() => { readWant(); apply(); });
   window.stepSheetZoom = function (dir) {
     const base = cur, i = STEPS.findIndex(s => s >= base - 0.001);
     const at = i < 0 ? STEPS.length - 1 : i;
@@ -72112,17 +72163,16 @@ body { container: sheet / inline-size; }
 // The Quick Play "Spell text: Full / Short" switch, on the Spells tab's
 // spell list. Full shows each spell's complete rules text under its row
 // (same text pipeline as the spell pop-up and Quick Play). Remembered on
-// this device ('sp_spell_text'); Short (the one-line summary) is the default.
+// the sheet (sheetPref 'spSpellText'); Short (the one-line summary) is the default.
 // In Full mode a levelled spell whose text changes with a higher slot gets
 // "Cast at" buttons above its text, for each slot level the character has;
 // picking one redraws the text with that level's numbers (as in the spell
 // pop-up). Not saved - it starts at the spell's own level.
 // Each level heading (Cantrips, 1st Level...) folds its spells away, like
-// Quick Play's level bars; which ones are folded is remembered on this
-// device ('sp_folded_levels').
+// Quick Play's level bars; which ones are folded is remembered on the
+// sheet (sheetPref 'spFolded').
 // ═══════════════════════════════════════════════════════════════════════
 (function () {
-  const KEY = 'sp_spell_text';
   const st = document.createElement('style');
   st.textContent = `
 #sp-text-mode{display:flex;align-items:center;gap:4px;margin:2px 0 8px;font-family:var(--font-ui);font-size:11px;color:var(--text3)}
@@ -72141,9 +72191,9 @@ body { container: sheet / inline-size; }
 .sp-castat button{font:inherit;font-size:11px;min-height:26px;padding:2px 9px;border:1px solid var(--border);border-radius:var(--radius,6px);background:transparent;color:var(--text2);cursor:pointer}
 .sp-castat button.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}`;
   document.head.appendChild(st);
-  const mode = () => { try { return localStorage.getItem(KEY) === 'full' ? 'full' : 'short'; } catch (e) { return 'short'; } };
-  const FOLD = 'sp_folded_levels';
-  const folded = () => { try { return JSON.parse(localStorage.getItem(FOLD) || '{}') || {}; } catch (e) { return {}; } };
+  // both remembered on the sheet (sheetPref 'spSpellText' / 'spFolded')
+  const mode = () => sheetPref('spSpellText') === 'full' ? 'full' : 'short';
+  const folded = () => { try { return JSON.parse(sheetPref('spFolded') || '{}') || {}; } catch (e) { return {}; } };
   // everything after a level heading, up to the next heading, belongs to it
   function groupOf(hdr) { const out = []; let n = hdr.nextElementSibling; while (n && !n.classList.contains('sp-level-group-hdr')) { out.push(n); n = n.nextElementSibling; } return out; }
   function applyFolds(body) {
@@ -72156,7 +72206,7 @@ body { container: sheet / inline-size; }
       h.setAttribute('role', 'button'); h.setAttribute('aria-expanded', shut ? 'false' : 'true');
       const kids = groupOf(h);
       kids.forEach(k => k.classList.toggle('sp-fold-hide', shut));
-      h.onclick = () => { const g = folded(); if (g[label]) delete g[label]; else g[label] = true; try { localStorage.setItem(FOLD, JSON.stringify(g)); } catch (e) {} applyFolds(body); };
+      h.onclick = () => { const g = folded(); if (g[label]) delete g[label]; else g[label] = true; setSheetPref('spFolded', Object.keys(g).length ? JSON.stringify(g) : null); applyFolds(body); };
     });
   }
   const castAt = {};   // spell key -> chosen slot level (this page only)
@@ -72238,7 +72288,7 @@ body { container: sheet / inline-size; }
     }
     applyFolds(body);
   }
-  window.spSpellTextMode = function (m) { try { localStorage.setItem(KEY, m === 'full' ? 'full' : 'short'); } catch (e) {} decorate(); };
+  window.spSpellTextMode = function (m) { setSheetPref('spSpellText', m === 'full' ? 'full' : null); decorate(); };
   const orig = window.renderKnownSpells;
   if (typeof orig === 'function') {
     renderKnownSpells = window.renderKnownSpells = function () { const r = orig.apply(this, arguments); try { decorate(); } catch (e) {} return r; };
@@ -72993,12 +73043,16 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
 (function () {
   const PHONE_LAYOUT_DEFAULT = 'auto';   // 'auto' (phones get it) or 'full' (nobody does unless they switch it on)
   const PHONE_MAX_W = 700;
-  const KEY = 'sheet_layout';            // per device: 'auto', 'phone' or 'full'
+  // Layout is a per-sheet setting (sheetPref('layout')): 'auto' - phone layout on a
+  // phone-sized screen, full sheet otherwise - or 'phone' - phone layout everywhere.
+  // A phone can show the full sheet for the rest of the visit (tempFull), never saved.
   const root = document.documentElement;
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  const pref = () => { try { const v = localStorage.getItem(KEY); return ['auto', 'phone', 'full'].includes(v) ? v : PHONE_LAYOUT_DEFAULT; } catch (e) { return PHONE_LAYOUT_DEFAULT; } };
-  const wantPhone = () => { const p = pref(); return p === 'phone' || (p === 'auto' && window.innerWidth <= PHONE_MAX_W); };
+  let tempFull = false;
+  const small = () => window.innerWidth <= PHONE_MAX_W;
+  const pref = () => { const v = typeof sheetPref === 'function' ? sheetPref('layout') : null; return v === 'phone' ? 'phone' : PHONE_LAYOUT_DEFAULT; };
+  const wantPhone = () => small() ? !tempFull : pref() === 'phone';
   const isOn = () => root.classList.contains('m-ui');
   window.isPhoneLayout = isOn;
   const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -73274,7 +73328,7 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     secs.push(['Sheet', sheet]);
     const acct = [];
     if (hasSheet() && !window._previewMode) acct.push(row('Change PIN', '', 'openPINChange()'));
-    acct.push(row('Full sheet layout', 'The desktop layout, on this device', "mSetLayout('full')"), row('Log out', '', 'doLogout()', 'danger'));
+    acct.push(row('Full sheet layout', 'The desktop layout, until you next open the sheet', "mSetLayout('full')"), row('Log out', '', 'doLogout()', 'danger'));
     secs.push(['Account', acct]);
     host.innerHTML = secs.map(([t, rows]) => `<section class="m-sec"><h2>${esc(t)}</h2><div class="m-list">${rows.join('')}</div></section>`).join('');
   }
@@ -73445,11 +73499,13 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
   };
 
   window.mSetLayout = function (v) {
-    try { localStorage.setItem(KEY, v); } catch (e) {}
+    if (v === 'full') { tempFull = small(); if (!small()) setSheetPref('layout', null); }
+    else { tempFull = false; setSheetPref('layout', v === 'phone' ? 'phone' : null); }
     const tp = $('theme-picker-panel'); if (tp) tp.classList.add('hidden');
     apply();
-    if (!isOn() && typeof toast === 'function') toast('Full sheet layout. To go back: palette button > Phone layout.', 'ok');
+    if (tempFull && typeof toast === 'function') toast('Full sheet for now - the phone layout comes back next time you open the sheet. Or: palette button > Layout.', 'ok');
   };
+  onSheetPrefsChange(() => { tempFull = false; apply(); });
 
   // ── turning pop-ups into bottom sheets ──────────────────────────────
   function closeOverlay(ov) {
@@ -74201,7 +74257,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       root.classList.remove('m-modal-open');
     }
     if (on) refresh();
-    try { const r = $('sheet-layout-row'); if (r) r.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === pref())); } catch (e) {}
+    try { paintLayoutRow(); } catch (e) {}
   }
   window.applyPhoneLayout = apply;
   setTimeout(patchPreview, 0);                     // the preview lock is defined after this script
@@ -74239,13 +74295,22 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     if (onOpen && hasSheet()) switchPage('quickplay');
   };
   // the full layout can be switched back to phone from the palette panel
+  function paintLayoutRow() {
+    const row = $('sheet-layout-row'); if (!row) return;
+    const cur = small() && tempFull ? 'full' : pref();
+    const opts = [['auto', 'Automatic'], ['phone', 'Phone everywhere']].concat(small() ? [['full', 'Full sheet for now']] : []);
+    row.innerHTML = `<span style="flex-basis:100%">Layout ${currentChar ? 'for this sheet' : 'on this device'}</span>` +
+      opts.map(([v, l]) => `<button class="tbtn${v === cur ? ' on' : ''}" data-layout="${v}" onclick="mSetLayout('${v}')">${l}</button>`).join('') +
+      `<span style="flex-basis:100%;font-size:10px;color:var(--text3)">Automatic: the phone layout on a phone, the full sheet on a bigger screen.</span>`;
+  }
   wrap('renderThemePicker', () => {
-    const panel = $('theme-picker-panel'); if (!panel || $('sheet-layout-row')) return;
-    const row = document.createElement('div'); row.id = 'sheet-layout-row';
-    row.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-ui);font-size:11px;color:var(--text2)';
-    row.innerHTML = `<span style="flex-basis:100%">Layout on this device</span>` + [['auto', 'Automatic'], ['phone', 'Phone'], ['full', 'Full sheet']].map(([v, l]) => `<button class="tbtn" data-layout="${v}" onclick="mSetLayout('${v}')">${l}</button>`).join('');
-    panel.appendChild(row);
-    row.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === pref()));
+    const panel = $('theme-picker-panel'); if (!panel) return;
+    if (!$('sheet-layout-row')) {
+      const row = document.createElement('div'); row.id = 'sheet-layout-row';
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-family:var(--font-ui);font-size:11px;color:var(--text2)';
+      panel.appendChild(row);
+    }
+    paintLayoutRow();
   });
   document.addEventListener('click', () => { if (isOn()) setTimeout(refresh, 0); }, true);
   document.addEventListener('change', () => { if (isOn()) setTimeout(refresh, 0); }, true);
@@ -74496,7 +74561,18 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     if ((txt === '6' || txt === '9') && p.b.kind >= 6) ctx.fillRect(-fs * 0.22, fs * 0.42, fs * 0.44, Math.max(1, fs * 0.07));
     ctx.restore();
   }
+  // A throw always finishes: if drawing fails, or the browser stops giving animation
+  // frames (a hidden tab, some embedded views), the result is shown anyway.
+  let guardT = 0;
+  function finishNow() {
+    if (landed) return;
+    cancelAnimationFrame(raf); raf = 0; landed = true; clearTimeout(guardT);
+    try { opt.onLanded && opt.onLanded(); } catch (e) { console.warn('[dice 3d]', e); }
+  }
   function frame(now) {
+    try { drawFrame(now); } catch (e) { console.warn('[dice 3d] could not draw the dice', e); finishNow(); }
+  }
+  function drawFrame(now) {
     if (!stage) return;
     const el = (now - t0) / 1000, fi = Math.floor(el * FPS);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
@@ -74542,7 +74618,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     });
     if (clipped) ctx.restore();
     if (!done) raf = requestAnimationFrame(frame);
-    else { raf = 0; if (!landed) { landed = true; try { opt.onLanded && opt.onLanded(); } catch (e) { console.warn('[dice 3d]', e); } } }
+    else { raf = 0; finishNow(); }
   }
   function redraw() { if (stage && stage.classList.contains('on') && !raf && bodies.length) frame(performance.now()); }
 
@@ -74610,9 +74686,12 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     landed = false;
     if (opt.instant) { t0 = performance.now() - 1e6; frame(performance.now()); return list.length; }
     t0 = performance.now(); raf = requestAnimationFrame(frame);
+    clearTimeout(guardT);
+    const longest = bodies.reduce((m, b) => Math.max(m, b.frames.length), 0);
+    guardT = setTimeout(() => { if (!landed) { console.warn('[dice 3d] the animation stalled - showing the result'); try { drawFrame(performance.now() + 1e6); } catch (e) {} finishNow(); } }, longest / FPS * 1000 + 2500);
     return list.length;
   }
-  function clear() { if (!stage) return; clearTimeout(fadeT); cancelAnimationFrame(raf); raf = 0; bodies = []; landed = true; stage.classList.remove('on', 'fading'); }
+  function clear() { if (!stage) return; clearTimeout(fadeT); clearTimeout(guardT); cancelAnimationFrame(raf); raf = 0; bodies = []; landed = true; stage.classList.remove('on', 'fading'); }
   // fade the dice away, then clear them
   let fadeT = 0;
   function fade() { if (!stage || !stage.classList.contains('on')) return; stage.classList.add('fading'); clearTimeout(fadeT); fadeT = setTimeout(clear, 480); }
@@ -74725,9 +74804,16 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   }
 
   // ── state ────────────────────────────────────────────────────────────
-  const S = { on: ls(LS_ON) !== 'off', mode: ls(LS_MODE) || 'normal', last: null, open: false, err: '', count: 1, anim: 'a',
-    // 3D dice (per device): style flat | 3d, where panel | sheet, colour sheet | preset
-    style: ls('dice_style') || '3d', where: ls('dice_where') || 'sheet', colour: ls('dice_colour') || 'sheet', setOpen: false };
+  // Settings belong to the open sheet (sheetPref), or to the device when no sheet is open.
+  const P = k => (typeof sheetPref === 'function' ? sheetPref(k) : ls(({ diceOn: LS_ON, diceMode: LS_MODE, diceStyle: 'dice_style', diceWhere: 'dice_where', diceColour: 'dice_colour' })[k])) ?? null;
+  const setP = (k, v) => { if (typeof setSheetPref === 'function') setSheetPref(k, v); };
+  const S = { on: true, mode: 'normal', last: null, open: false, err: '', count: 1, anim: 'a', style: '3d', where: 'sheet', colour: 'sheet', setOpen: false };
+  // on/off, Adv/Dis, flat or 3D, where the dice roll, their colour
+  function loadPrefs() {
+    S.on = P('diceOn') !== 'off'; S.mode = ['normal', 'adv', 'dis'].includes(P('diceMode')) ? P('diceMode') : 'normal';
+    S.style = P('diceStyle') === 'flat' ? 'flat' : '3d'; S.where = P('diceWhere') === 'panel' ? 'panel' : 'sheet'; S.colour = P('diceColour') || 'sheet';
+  }
+  loadPrefs();
   const is3d = () => S.style === '3d' && typeof window.Dice3D !== 'undefined';
   const isOn = () => S.on;
   const onDmPage = () => !!($('page-dm')?.classList.contains('active') && (typeof _realIsDM !== 'undefined' && _realIsDM));
@@ -75407,12 +75493,12 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
   }
   function panelClick(e) {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.mode) { S.mode = b.dataset.mode; ls(LS_MODE, S.mode); render(); return; }
+    if (b.dataset.mode) { S.mode = b.dataset.mode; setP('diceMode', S.mode === 'normal' ? null : S.mode); render(); return; }
     if (b.dataset.q) { const d = b.dataset.q; S.err = ''; roll(S.count + 'd' + (d === '100' ? '%' : d), { kind: 'other', test: d === '20' && S.count === 1, adv: d === '20' && S.count === 1 && S.mode !== 'normal' ? S.mode : null, label: S.count + 'd' + (d === '100' ? '%' : d) }); return; }
     if (b.dataset.hist) { const h = history()[+b.dataset.hist]; if (h) { const o = Object.assign({}, h.opt || {}); if (o.test && S.mode !== 'normal') o.adv = S.mode; roll(h.expr, o); } return; }
     if (b.dataset.fol) { followUp(b.dataset.fol); return; }
     if (b.dataset.set) {
-      const k = b.dataset.set, v = b.dataset.v; S[k] = v; ls(k === 'style' ? 'dice_style' : k === 'where' ? 'dice_where' : 'dice_colour', v);
+      const k = b.dataset.set, v = b.dataset.v; S[k] = v; setP(k === 'style' ? 'diceStyle' : k === 'where' ? 'diceWhere' : 'diceColour', v);
       if (window.Dice3D) Dice3D.clear(); hideCard();
       render();
       // show the choice straight away
@@ -75484,6 +75570,15 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     if (!is3d()) { open(); return; }
     // 3D: throw the dice, then show the result once they have stopped
     r.pending = true; hideCard();
+    try { throw3d(r); }
+    catch (e) {
+      // the 3D dice couldn't be shown here: give the result straight away instead
+      console.warn('[dice] 3D dice failed, showing the result without them', e);
+      r.pending = false; try { window.Dice3D && Dice3D.clear(); } catch (e2) {}
+      if (S.where === 'panel' || S.open) { open(); render(); } else showCard(r);
+    }
+  }
+  function throw3d(r) {
     const dice = r.dice;
     if (S.where === 'panel') {
       open();
@@ -75507,9 +75602,9 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
 
   // ── on / off ─────────────────────────────────────────────────────────
   function setOn(v) {
-    S.on = !!v; ls(LS_ON, v ? null : 'off');
+    S.on = !!v; setP('diceOn', v ? null : 'off');
     apply();
-    if (!v) { close(); hideCard(); if (window.Dice3D) Dice3D.clear(); try { toast('Dice roller off. Switch it back on from the theme menu.', 'ok'); } catch (e) {} }
+    if (!v) { close(); hideCard(); if (window.Dice3D) Dice3D.clear(); try { toast((typeof currentChar !== 'undefined' && currentChar ? 'Dice roller off for this sheet.' : 'Dice roller off on this device.') + ' Switch it back on from the theme menu.', 'ok'); } catch (e) {} }
   }
   window.setDiceRoller = setOn;
   function apply() {
@@ -75533,6 +75628,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     row.innerHTML = `<span style="flex:1;letter-spacing:.5px;text-transform:uppercase">Dice roller</span>
       <button class="tbtn" style="font-size:10px;padding:3px 9px;${S.on ? 'color:var(--accent);border-color:var(--accent)' : ''}" onclick="setDiceRoller(true)">On</button>
       <button class="tbtn" style="font-size:10px;padding:3px 9px;${!S.on ? 'color:var(--accent);border-color:var(--accent)' : ''}" onclick="setDiceRoller(false)">Off</button>`;
+    row.title = (typeof currentChar !== 'undefined' && currentChar) ? 'For this sheet only' : 'On this device';
   }
 
   // ═════════════════════════════════════════════════════════════════════
@@ -75749,6 +75845,13 @@ create policy "rolls remove" on public.rolls for delete to anon using (true);`;
   wrap('enterApp', () => { if (S.open) render(); flushOutbox(); });
 
   function boot() { apply(); flushOutbox(); }
+  // a different sheet (or none) is open: its own dice settings
+  if (typeof onSheetPrefsChange === 'function') onSheetPrefsChange(() => {
+    const wasOn = S.on; loadPrefs();
+    if (!S.on && wasOn) { close(); hideCard(); if (window.Dice3D) Dice3D.clear(); }
+    if (document.body) apply();
+    if (S.open) render();
+  });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
 </script>
