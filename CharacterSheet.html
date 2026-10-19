@@ -2025,8 +2025,16 @@ body.preview-readonly #mi-detail-edit-row * {
    depending on exactly how much room the controls happen to leave. */
 @container sheet (max-width: 480px) {
   .inv-row { flex-wrap: wrap; row-gap: 4px; }
-  .inv-row-name { flex-basis: 100%; order: 1; }
+  .inv-row-name { flex-basis: 100% !important; order: 1; }
   .inv-row > *:not(.inv-row-name) { order: 2; }
+}
+/* Wider phones (and phones with the sheet zoomed out) still squeezed the
+   name to a letter or two ("D..."): the name's inline flex:1 let it shrink
+   to nothing before anything wrapped. Keep room for the name; the controls
+   move to the next line when they don't fit beside it. */
+@container sheet (max-width: 820px) {
+  .inv-row { flex-wrap: wrap; row-gap: 4px; }
+  .inv-row > .inv-row-name { flex: 1 1 10em !important; min-width: 10em !important; }
 }
 
 /* ── PARTY OVERVIEW: expandable inventory categories ───────── */
@@ -7742,11 +7750,10 @@ async function createCharacter() {
       traits:'', ideals:'', bonds:'', flaws:'',
       backstory:'', appearance:'', history:'', notes_bg:'', notes:'',
       goals:'', enemies:'', relationships:'', secrets:'',
-      spells:[], spell_notes:'', spell_slots_used:{},
-      class_choices:{}, resources:{}, exhaustion:0, featSlots:{}, _darkvision:0, _dmgres:[], _customSpeed:false,
+      spells:[], spell_notes:'',
+      class_choices:{}, resources:{}, featSlots:{}, _darkvision:0, _dmgres:[], _customSpeed:false,
       faith:'', age:'', height:'', weight:'', eyes:'', hair:'', skin:'', gender:'',
-      holdings:'', feats:[], currency:{ cp:0, sp:0, ep:0, gp:0, pp:0 },
-      equipment:[], magic_items:[]
+      holdings:'', feats:[],
     };
 
     await GH.putFile(`${id}.json`, charData, null);
@@ -14733,7 +14740,6 @@ const PHB_CLASS_CHOICES = {
       "label": "Fighting Style",
       "minLevel": 1,
       "type": "dropdown",
-      "wires": ["display"],
       "options": [
         "Archery",
         "Blind Fighting",
@@ -17763,7 +17769,6 @@ const PHB_FEATS_FULL    = {
   "tyro_of_the_gauntlet": {"name":"Tyro of the Gauntlet [Origin]","type":"origin","source":"FRHoF","desc":"You gain the following benefits. | Stand as One. When an ally within 5 feet of you is subjected to an effect that would push or pull it, you can take a Reaction to prevent that ally from being pushed or pulled. To receive this benefit, the ally can't have the Incapacitated condition. | Vigilant. When you take the Ready action, the next attack roll made against you has Disadvantage before the start of your next turn."},
   "zhentarim_ruffian": {"name":"Zhentarim Ruffian [Origin]","type":"origin","source":"FRHoF","desc":"You gain the following benefits. | Exploit Opening. When you roll damage for an Opportunity Attack, you can roll the damage dice twice and use either roll against the target. | Family First. If you have Heroic Inspiration when you roll Initiative, you can expend it to give yourself and your allies Advantage on that Initiative roll."},
   // EFotA Dragonmark Origin Feats
-  "aberrant_dragonmark_feat": {"name":"Aberrant Dragonmark","type":"origin","source":"EFotA","desc":"You gain the following benefits. | Aberrant Fortitude. When you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. Once you've used this benefit, you can't use it again until you finish a Long Rest. | Aberrant Magic. You know one cantrip of your choice from the Sorcerer spell list. Also, choose a level 1 spell from that spell list. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Short or Long Rest. You can also cast this spell using any spell slots you have. Constitution is your spellcasting ability for this spell. | Aberrant Surge. When you cast the level 1 spell from this feat, you can expend one of your Hit Point Dice and roll it. If you roll an even number, you gain a number of Temporary Hit Points equal to the number rolled. If you roll an odd number, one creature within 30 feet of you (not including you) takes Force damage equal to the number rolled. If no other creatures are in range, you take the damage."},
   "mark_of_detection": {"name":"Mark of Detection","type":"origin","source":"EFotA","desc":"You gain the following benefits. | Deductive Intuition. When you make an Intelligence (Investigation) or Wisdom (Insight) check, you can roll 1d4 and add the number rolled to the ability check. | Magical Detection. You always have the Detect Magic and Detect Poison and Disease spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast these spells using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose when you select this feat). | When you reach character level 3, you also always have the See Invisibility spell prepared and can cast it the same way. | Spells of the Mark. If you have the Spellcasting or Pact Magic class feature, the spells on the Mark of Detection Spells table are added to that feature's spell list. | Mark of Detection Spells - Level 1: Detect Evil and Good, Identify. Level 2: Detect Thoughts, Find Traps. Level 3: Clairvoyance, Nondetection. Level 4: Arcane Eye, Divination. Level 5: Legend Lore."},
   "mark_of_finding": {"name":"Mark of Finding","type":"origin","source":"EFotA","desc":"You gain the following benefits. | Hunter's Intuition. When you make a Wisdom (Perception or Survival) check, you can roll 1d4 and add the number rolled to the ability check. | Finder's Magic. You always have the Hunter's Mark spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast it using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | When you reach character level 3, you also always have the Locate Object spell prepared and can cast it the same way. | Spells of the Mark. If you have the Spellcasting or Pact Magic class feature, the spells on the Mark of Finding Spells table are added to that feature's spell list. | Mark of Finding Spells - Level 1: Faerie Fire, Longstrider. Level 2: Locate Animals or Plants, Mind Spike. Level 3: Clairvoyance, Speak with Plants. Level 4: Divination, Locate Creature. Level 5: Commune with Nature."},
   "mark_of_handling": {"name":"Mark of Handling","type":"origin","source":"EFotA","desc":"You gain the following benefits. | Wild Intuition. When you make an Intelligence (Nature) or Wisdom (Animal Handling) check, you can roll 1d4 and add the number rolled to the ability check. | Primal Connection. You always have the Animal Friendship and Speak with Animals spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast these spells using any spell slots you have. Intelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose when you select this feat). | Monstrous Connections. When you reach character level 3, you can target a Monstrosity when you cast Animal Friendship or Speak with Animals if the creature's Intelligence score is 3 or lower. | Spells of the Mark. If you have the Spellcasting or Pact Magic class feature, the spells on the Mark of Handling Spells table are added to that feature's spell list. | Mark of Handling Spells - Level 1: Command, Find Familiar. Level 2: Beast Sense, Calm Emotions. Level 3: Beacon of Hope, Conjure Animals. Level 4: Aura of Life, Dominate Beast. Level 5: Awaken."},
@@ -19460,9 +19465,6 @@ const RACIAL_RESOURCES                = {
       "desc": "Cast Darkness once per Long Rest."
     }
   ],
-  "gnome": [
-    {"id": "gnome_lineage", "name": "Gnome (PHB24)", "recovery": "long", "maxByLevel": [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "desc": "Cast spells granted by your gnome subtype once per Long Rest."}
-  ],
   "goliath": [
     {"id": "giant_trait", "name": "Giant Ancestry Trait", "recovery": "short", "maxByLevel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "profBonus": true, "desc": "Use your giant ancestry trait. Uses = Prof Bonus per Short Rest."},
     {
@@ -19590,7 +19592,7 @@ const PHB_FEATS = {
     "desc": "You gain the following benefits. | Battle Medic. If you have a Healer's Kit, you can expend one use of it and tend to a creature within 5 feet of yourself as a Utilize action. That creature can expend one of its Hit Point Dice, and you then roll that die. The creature regains a number of Hit Points equal to the roll plus your Proficiency Bonus. | Healing Rerolls. Whenever you roll a die to determine the number of Hit Points you restore with a spell or with this feat's Battle Medic benefit, you can reroll the die if it rolls a 1, and you must use the new roll.",
     "asi": {},
     "skills": []
-  ,"usages":"prof_bonus","recovery":"long rest"},
+  },
   "lucky": {
     "name": "Lucky [Origin]",
     "type":"origin",
@@ -20088,7 +20090,7 @@ const PHB_FEATS = {
   "boon_of_the_soul_drinker": {"name":"Boon of the Soul Drinker","type":"epic","prereq":"Level 19+","minLevel":null,"desc":"You gain the following benefits. | Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30. | Grave Resistance. You have Resistance to Cold damage and Necrotic damage. | Siphon Life. When an enemy within 120 feet of you is reduced to 0 Hit Points, you can take a Reaction to regain 50 Hit Points. Once you use this benefit, you can't use it again until you finish a Short or Long Rest.","asi":{},"skills":[],"source":"FRHoF"},
   "child_of_the_sun": {"name":"Child of the Sun [Origin]","type":"origin","prereq":"","minLevel":null,"desc":"You gain the following benefits. | Eyes of Eirdu. You and allies within 10 feet of you have Advantage on saving throws made to avoid or end the Blinded condition. | Faerie Fire. You learn the Faerie Fire spell. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have. | When you cast Faerie Fire without a spell slot using this benefit, taking damage can't break your Concentration on the spell.","asi":{},"skills":[],"source":"LFL"},
   "shadowmoor_hexer": {"name":"Shadowmoor Hexer [Origin]","type":"origin","prereq":"","minLevel":null,"desc":"You gain the following benefits. | Hex. You always have the Hex spell prepared. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have. | Curse Magic. When a creature that you've cursed with Hex hits you with an attack roll, the creature takes Psychic damage equal to your Proficiency Bonus. A creature takes this damage only once per turn.","asi":{},"skills":[],"source":"LFL"},
-  "aberrant_dragonmark": {"name":"Aberrant Dragonmark","type":"dragonmark","prereq":"Eberron Campaign Setting, No other Dragonmark","minLevel":null,"desc":"You gain the following benefits. | Aberrant Fortitude. When you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. Once you've used this benefit, you can't use it again until you finish a Long Rest. | Aberrant Magic. You know one cantrip of your choice from the Sorcerer spell list. Also, choose a level 1 spell from that spell list. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Short or Long Rest. You can also cast this spell using any spell slots you have. Constitution is your spellcasting ability for this spell. | Aberrant Surge. When you cast the level 1 spell from this feat, you can expend one of your Hit Point Dice and roll it. If you roll an even number, you gain a number of Temporary Hit Points equal to the number rolled. If you roll an odd number, one creature within 30 feet of you (not including you) takes Force damage equal to the number rolled. If no other creatures are in range, you take the damage.","asi":{},"skills":[],"source":"EFotA"},
+  "aberrant_dragonmark": {"name":"Aberrant Dragonmark","type":"dragonmark","prereq":"Eberron Campaign, Can't Have Another Dragonmark Feat","minLevel":null,"desc":"You gain the following benefits. | Aberrant Fortitude. When you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. Once you've used this benefit, you can't use it again until you finish a Long Rest. | Aberrant Magic. You know one cantrip of your choice from the Sorcerer spell list. Also, choose a level 1 spell from that spell list. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Short or Long Rest. You can also cast this spell using any spell slots you have. Constitution is your spellcasting ability for this spell. | Aberrant Surge. When you cast the level 1 spell from this feat, you can expend one of your Hit Point Dice and roll it. If you roll an even number, you gain a number of Temporary Hit Points equal to the number rolled. If you roll an odd number, one creature within 30 feet of you (not including you) takes Force damage equal to the number rolled. If no other creatures are in range, you take the damage.","asi":{},"skills":[],"source":"EFotA","usages":1,"recovery":"long rest"},
   "mark_of_detection": {"name":"Mark of Detection","type":"dragonmark","prereq":"Eberron Campaign Setting, No other Dragonmark","minLevel":null,"desc":"You gain the following benefits. | Deductive Intuition. When you make an Intelligence (Investigation) or Wisdom (Insight) check, you can roll 1d4 and add the number rolled to the ability check. | Magical Detection. You always have the Detect Magic and Detect Poison and Disease spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast these spells using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose when you select this feat). | When you reach character level 3, you also always have the See Invisibility spell prepared and can cast it the same way. | Spells of the Mark. If you have the Spellcasting or Pact Magic class feature, the spells on the Mark of Detection Spells table are added to that feature's spell list. | Mark of Detection Spells - Level 1: Detect Evil and Good, Identify. Level 2: Detect Thoughts, Find Traps. Level 3: Clairvoyance, Nondetection. Level 4: Arcane Eye, Divination. Level 5: Legend Lore.","asi":{},"skills":[],"source":"EFotA"},
   "mark_of_finding": {"name":"Mark of Finding","type":"dragonmark","prereq":"Eberron Campaign Setting, No other Dragonmark","minLevel":null,"desc":"You gain the following benefits. | Hunter's Intuition. When you make a Wisdom (Perception or Survival) check, you can roll 1d4 and add the number rolled to the ability check. | Finder's Magic. You always have the Hunter's Mark spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast it using any spell slots you have of the appropriate level. Intelligence, Wisdom, or Charisma is your spellcasting ability for this spell (choose when you select this feat). | When you reach character level 3, you also always have the Locate Object spell prepared and can cast it the same way. | Spells of the Mark. If you have the Spellcasting or Pact Magic class feature, the spells on the Mark of Finding Spells table are added to that feature's spell list. | Mark of Finding Spells - Level 1: Faerie Fire, Longstrider. Level 2: Locate Animals or Plants, Mind Spike. Level 3: Clairvoyance, Speak with Plants. Level 4: Divination, Locate Creature. Level 5: Commune with Nature.","asi":{},"skills":[],"source":"EFotA"},
   "mark_of_handling": {"name":"Mark of Handling","type":"dragonmark","prereq":"Eberron Campaign Setting, No other Dragonmark","minLevel":null,"desc":"You gain the following benefits. | Wild Intuition. When you make an Intelligence (Nature) or Wisdom (Animal Handling) check, you can roll 1d4 and add the number rolled to the ability check. | Primal Connection. You always have the Animal Friendship and Speak with Animals spells prepared. You can cast each spell once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast these spells using any spell slots you have. Intelligence, Wisdom, or Charisma is your spellcasting ability for these spells (choose when you select this feat). | Monstrous Connections. When you reach character level 3, you can target a Monstrosity when you cast Animal Friendship or Speak with Animals if the creature's Intelligence score is 3 or lower. | Spells of the Mark. If you have the Spellcasting or Pact Magic class feature, the spells on the Mark of Handling Spells table are added to that feature's spell list. | Mark of Handling Spells - Level 1: Command, Find Familiar. Level 2: Beast Sense, Calm Emotions. Level 3: Beacon of Hope, Conjure Animals. Level 4: Aura of Life, Dominate Beast. Level 5: Awaken.","asi":{},"skills":[],"source":"EFotA"},
@@ -20231,7 +20233,6 @@ const PHB_FEATS = {
   // ability, free cast once per Short or Long Rest) still needs its
   // spell-choice wired through SPELL_FEATS/FEAT_EXTRA_CHOICES - flagged
   // separately, not completed in this pass.
-  "aberrant_dragonmark_feat": {"name":"Aberrant Dragonmark","type":"origin","prereq":"","minLevel":null,"desc":"You gain the following benefits. | Aberrant Fortitude. When you fail a Constitution saving throw, you can take a Reaction to roll 1d4 and add the number rolled to the save, potentially turning the failure into a success. Once you've used this benefit, you can't use it again until you finish a Long Rest. | Aberrant Magic. You know one cantrip of your choice from the Sorcerer spell list. Also, choose a level 1 spell from that spell list. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Short or Long Rest. You can also cast this spell using any spell slots you have. Constitution is your spellcasting ability for this spell. | Aberrant Surge. When you cast the level 1 spell from this feat, you can expend one of your Hit Point Dice and roll it. If you roll an even number, you gain a number of Temporary Hit Points equal to the number rolled. If you roll an odd number, one creature within 30 feet of you (not including you) takes Force damage equal to the number rolled. If no other creatures are in range, you take the damage.","asi":{},"skills":[],"source":"EFotA","usages":1,"recovery":"long rest"},
   "eldritch_adept": {"name":"Eldritch Adept","type":"general","prereq":"Spellcasting or Pact Magic feature","minLevel":null,"desc":"Studying occult lore, you learn one Eldritch Invocation option of your choice from the warlock class. Your spellcasting ability for the invocation is Intelligence, Wisdom, or Charisma (choose when you select this feat). If the invocation has a prerequisite of any kind, you can choose that invocation only if you're a warlock who meets the prerequisite. | Whenever you gain a level, you can replace the invocation with another one from the warlock class.","asi":{},"skills":[],"source":"2014"},
   "fey_touched": {"name":"Fey Touched","type":"general","prereq":"Level 4+","minLevel":null,"desc":"Your exposure to the Feywild's magic grants you the following benefits. | Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20. | Fey Magic. Choose one level 1 spell from the Divination or Enchantment school of magic. You always have that spell and the Misty Step spell prepared. You can cast each of these spells without expending a spell slot. Once you cast either spell in this way, you can't cast that spell in this way again until you finish a Long Rest. You can also cast these spells using spell slots you have of the appropriate level. The spells' spellcasting ability is the ability increased by this feat.","asi":{},"skills":[],"source":"2014"},
   "fighting_initiate": {"name":"Fighting Initiate","type":"general","prereq":"Proficiency with a martial weapon","minLevel":null,"desc":"Your martial training has helped you develop a particular style of fighting. As a result, you learn one Fighting Style option of your choice from the fighter class. If you already have a style, the one you choose must be different. | Whenever you reach a level that grants the Ability Score Improvement feature, you can replace this feat's fighting style with another one from the fighter class that you don't have.","asi":{},"skills":[],"source":"2014"},
@@ -26448,6 +26449,18 @@ function getHitDieForClass(cls) {
   return cd?.die || CLASS_HIT_DIE[cls?.toLowerCase()] || 8;
 }
 
+// The class a character level was taken in: the Level Plan when it names a
+// class the character still has, else the class row whose levels include it,
+// else the first class row. Older multiclass characters saved without a
+// complete Level Plan get their hit dice from their class rows this way.
+function classAtCharLevel(lv) {
+  const classes = getAllClasses();
+  const planned = currentChar?.levelPlan?.[lv];
+  if (planned && classes.some(e => e.class === planned)) return planned;
+  const row = classes.find(e => (e.levels || []).includes(lv));
+  return row?.class || classes[0]?.class || '';
+}
+
 // Compute multiclass-aware HP max
 function calcMulticlassHPMax(method) {
   if (!currentChar) return 0;
@@ -26462,7 +26475,7 @@ function calcMulticlassHPMax(method) {
   if (m === 'maximum') {
     let hp = 0;
     for (let lv = 1; lv <= total; lv++) {
-      const cls = plan[lv] || classes[0]?.class || '';
+      const cls = classAtCharLevel(lv);
       const die = getHitDieForClass(cls);
       hp += die + conMod;
     }
@@ -26473,7 +26486,7 @@ function calcMulticlassHPMax(method) {
   if (m === 'roll' && !currentChar.hpRolls) currentChar.hpRolls = {};
   let hp = 0;
   for (let lv = 1; lv <= total; lv++) {
-    const cls = plan[lv] || classes[0]?.class || '';
+    const cls = classAtCharLevel(lv);
     const die = getHitDieForClass(cls);
     if (lv === 1) {
       hp += die + conMod; // Level 1: max die
@@ -29335,7 +29348,7 @@ function hpMethodFormula(method) {
   if (isMulticlass()) {
     const classes = getAllClasses();
     const plan = currentChar.levelPlan || {};
-    const lv1Class = plan[1] || classes[0]?.class || '';
+    const lv1Class = classAtCharLevel(1);
     const lv1Die = getHitDieForClass(lv1Class);
     const total = calcHPMax(method);
 
@@ -29345,7 +29358,7 @@ function hpMethodFormula(method) {
     // inconsistent with the total even though the total itself is correct.
     const remainingByClass = {};
     for (let lv = 2; lv <= level; lv++) {
-      const cls = (plan[lv] || classes[0]?.class || '').toLowerCase();
+      const cls = classAtCharLevel(lv).toLowerCase();
       remainingByClass[cls] = (remainingByClass[cls] || 0) + 1;
     }
     const remainingSummary = Object.entries(remainingByClass).map(([cls, count]) => {
@@ -29426,7 +29439,7 @@ function renderHPRollInputs() {
   }
   let rows = '';
   for (let lv = 2; lv <= level; lv++) {
-    const cls = plan[lv] || classes[0]?.class || '';
+    const cls = classAtCharLevel(lv);
     const hd = getHitDieForClass(cls);
     const val = currentChar.hpRolls[lv] ?? '';
     rows += `<div style="display:flex;align-items:center;gap:6px">
@@ -29447,7 +29460,7 @@ function setHPRoll(level, value) {
   if (!currentChar.hpRolls) currentChar.hpRolls = {};
   const plan = currentChar.levelPlan || {};
   const classes = getAllClasses();
-  const cls = plan[level] || classes[0]?.class || '';
+  const cls = classAtCharLevel(level);
   const hd = getHitDieForClass(cls);
   const n = parseInt(value);
   if (!Number.isFinite(n) || n < 1) {
@@ -32516,7 +32529,7 @@ const CLASS_SPELL_ABILITY = {
   artificer:'int',
   bard:'cha', cleric:'wis', druid:'wis', paladin:'cha',
   ranger:'wis', sorcerer:'cha', warlock:'cha', wizard:'int',
-  artificer:'int', eldritch_knight:'int', arcane_trickster:'int'
+  eldritch_knight:'int', arcane_trickster:'int'
 };
 
 // Caster type by class
@@ -35884,7 +35897,6 @@ const CANTRIP_DAMAGE = {
   'starry_wisp':    { die:'d8',   count:[1,2,3,4], type:'Radiant',   atkType:'spell' },
   'telekinetic_fling': { die:'d10', count:[1,2,3,4], type:'Force',   atkType:'spell' },
   'thorn_whip':     { die:'d6',   count:[1,2,3,4], type:'Piercing',  atkType:'melee' },
-  'thunderclap':    { die:'d6',   count:[1,2,3,4], type:'Thunder',   atkType:'save',  saveAbility:'con' },
   'toll_the_dead':  { die:'d12',  count:[1,2,3,4], type:'Necrotic',  atkType:'save',  saveAbility:'wis', altDie:'d8' },
   'true_strike':    { die:'d6',   count:[0,1,2,3], type:'Radiant+weapon', atkType:'melee' },
   'vicious_mockery':{ die:'d6',   count:[1,2,3,4], type:'Psychic',   atkType:'save',  saveAbility:'wis' },
@@ -47716,39 +47728,6 @@ function _itemArtNormalize(s) {
     .replace(/^_+|_+$/g, '');
 }
 
-// Builds normalized-name -> [keys] indices for all four flat item
-// catalogs that share the item-images/{key}.webp namespace. Confirmed
-// (offline, against the real catalogs) that no key collides across any
-// pair of these four, so one shared upload namespace is safe. Magic
-// items use the live effective catalog (official + DM overrides/
-// additions); weapons/armor/gear are the file's fixed PHB catalogs,
-// since those aren't DM-editable the way magic items are.
-//
-// Armor gets a second, suffix-stripped index alongside the plain one:
-// the armor catalog's own names often omit the trailing word "Armor"
-// ("Padded", "Half Plate", "Splint") while the art pack's filenames
-// include it ("Padded Armor", "Half Plate Armor", "Splint Armor"). The
-// plain index is checked first so an exact match always wins; the
-// stripped index only kicks in as a fallback in _itemArtLookup.
-function _itemArtCatalogIndex() {
-  const magic = {}, weapon = {}, armor = {}, armorStripped = {}, gear = {};
-  const addTo = (idx, name, key) => { const n = _itemArtNormalize(name); if (n) (idx[n] = idx[n] || []).push(key); };
-
-  const magicItems = (typeof getEffectiveMagicItemsCatalog === 'function') ? getEffectiveMagicItemsCatalog() : DMG_MAGIC_ITEMS;
-  magicItems.forEach(it => { if (it.key && it.name) addTo(magic, it.name, it.key); });
-
-  (typeof PHB_WEAPONS !== 'undefined' ? PHB_WEAPONS : []).forEach(w => { if (w.key && w.name) addTo(weapon, w.name, w.key); });
-
-  (typeof PHB_ARMOUR !== 'undefined' ? PHB_ARMOUR : []).forEach(a => {
-    if (!a.key || !a.name) return;
-    addTo(armor, a.name, a.key);
-    addTo(armorStripped, a.name + ' armor', a.key); // e.g. "Padded" -> normalizes same as filename "Padded Armor"
-  });
-
-  (typeof PHB_GEAR !== 'undefined' ? PHB_GEAR : []).forEach(g => { if (g.key && g.name) addTo(gear, g.name, g.key); });
-
-  return { magic, weapon, armor, armorStripped, gear };
-}
 
 const _ITEM_ART_RARITY_SUFFIXES = ['_common','_uncommon','_rare','_very_rare','_legendary','_artifact','_primeval_vestige'];
 
@@ -57145,7 +57124,6 @@ const FEAT_ASI_CHOICES = {
   'boon of bloodshed':              ['str','dex','con','int','wis','cha'],
   'boon of bountiful health':       ['str','dex','con','int','wis','cha'],
   'boon of exquisite radiance':     ['str','dex','con','int','wis','cha'],
-  'boon of fortune\'s favor':       ['str','dex','con','int','wis','cha'],
   'boon of poison mastery':         ['str','dex','con','int','wis','cha'],
   'boon of the soul drinker':       ['str','dex','con','int','wis','cha'],
   // ── Any ability ──
@@ -63028,12 +63006,40 @@ function renderQuickStartRaceStep(body) {
         `).join('')}
       </div>
     </div>
+    ${_qsRacialAbilityHtml()}
     ${currentRace && PHB_RACES[currentRace] ? `<details open style="margin-top:14px;padding:10px;background:var(--bg3);border:1px solid var(--accent3);border-radius:var(--radius)">
       <summary style="cursor:pointer;font-family:var(--font-ui);font-size:10px;color:var(--accent3);letter-spacing:.5px;text-transform:uppercase">${String(PHB_RACES[currentRace].name).replace(/[<>&]/g,'')} gives you</summary>
       <div style="margin-top:8px">${buildRaceInfoHtml(currentRace, currentChar.subrace || '')}</div>
     </details>` : ''}`;
   renderQuickStartRaceGrid();
 }
+
+// Species and lineages that grant spells let the player choose Intelligence,
+// Wisdom or Charisma for them. Quick Start asks here, on the species step,
+// rather than leaving the race's default in place unnoticed.
+function _qsRacialAbilityHtml() {
+  if (!currentChar?.race || typeof getRacialSpellAbilityDefault !== 'function' || !getRacialSpellAbilityDefault()) return '';
+  const chosen = (typeof getEffectiveRacialSpellAbility === 'function' ? getEffectiveRacialSpellAbility() : '') || '';
+  const opts = [['int', 'Intelligence'], ['wis', 'Wisdom'], ['cha', 'Charisma']];
+  return `<div id="qs-racial-ability-section" style="margin-top:14px">
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--text3);letter-spacing:.5px;margin-bottom:4px">SPELLCASTING ABILITY FOR SPECIES SPELLS</div>
+      <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5">Your species gives you spells. Choose the ability they use for their save DC and attacks.</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+        ${opts.map(([k, label]) => `<div class="tbtn" style="padding:8px 10px;text-align:center;${k === chosen ? 'border-color:var(--accent);color:var(--accent)' : ''}" onclick="selectQuickStartRacialAbility('${k}')">${label}</div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function selectQuickStartRacialAbility(ability) {
+  if (!currentChar || !['int', 'wis', 'cha'].includes(ability)) return;
+  currentChar.racialSpellAbility = ability;
+  const sel = document.getElementById('ci-racial-spell-ability');
+  if (sel) sel.value = ability;
+  if (typeof recalcAll === 'function') recalcAll();
+  if (typeof debouncedSave === 'function') debouncedSave();
+  renderQuickStartRaceStep(document.getElementById('qs-step-body'));
+}
+window.selectQuickStartRacialAbility = selectQuickStartRacialAbility;
 
 function renderQuickStartRaceGrid() {
   const grid = document.getElementById('qs-race-grid');
@@ -68531,8 +68537,43 @@ function _qppCard(id) {
   return out;
 }
 
-async function exportQuickPlayPdf() {
+// The sheet's own colours for the themed export, in the light or dark
+// version of the theme in use (whichever the player picks to export), read
+// from a hidden element so the sheet on screen doesn't change.
+function _qppThemeColours(rgb, mode) {
+  const dark = mode === 'dark';
+  const root = document.documentElement;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden';
+  if (root.dataset.customTheme === '1' && typeof deriveCustomTheme === 'function') {
+    const seeds = { ...(currentChar?.customThemeSeeds || (typeof _defaultCustomThemeSeeds === 'function' ? _defaultCustomThemeSeeds() : {})) };
+    if (!!seeds.isDark !== dark && typeof _CUSTOM_THEME_MODE_DEFAULTS !== 'undefined') {
+      const md = dark ? _CUSTOM_THEME_MODE_DEFAULTS.dark : _CUSTOM_THEME_MODE_DEFAULTS.light;
+      Object.assign(seeds, { bg: md.bg, panel: md.panel, text: md.text, isDark: dark });
+      probe.setAttribute('data-theme', dark ? 'default-dark' : 'default-light');
+      for (const [k, v] of Object.entries(deriveCustomTheme(seeds))) probe.style.setProperty(k, v);
+    }
+  } else {
+    const key = (typeof _migrateThemeKey === 'function' ? _migrateThemeKey(root.getAttribute('data-theme')) : root.getAttribute('data-theme')) || 'default-light';
+    probe.setAttribute('data-theme', `${key.replace(/-(dark|light)$/, '')}-${dark ? 'dark' : 'light'}`);
+  }
+  document.body.appendChild(probe);
+  const read = (v, fallback) => {
+    probe.style.color = `var(${v}, ${fallback})`;
+    const m = getComputedStyle(probe).color.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/);
+    return m ? rgb(+m[1] / 255, +m[2] / 255, +m[3] / 255) : null;
+  };
+  const out = {
+    bg: read('--bg', '#ffffff'), text: read('--text', '#000000'), muted: read('--text3', '#737373'),
+    line: read('--border2', 'var(--border, #d9d9e0)'), accent: read('--accent', '#6b4d9e'),
+  };
+  probe.remove();
+  return Object.values(out).every(Boolean) ? out : null;
+}
+
+async function exportQuickPlayPdf(opts) {
   if (!currentChar) return;
+  opts = opts || {};
   const btn = document.getElementById('pdf-export-btn'); if (btn) btn.disabled = true;
   try {
     toast('Building Quick Play PDF...');
@@ -68543,7 +68584,15 @@ async function exportQuickPlayPdf() {
     const F = await doc.embedFont(L.StandardFonts.Helvetica), B = await doc.embedFont(L.StandardFonts.HelveticaBold);
     const form = doc.getForm();
     const { rgb } = L;
-    const ACC = rgb(.42, .30, .62), GREY = rgb(.45, .45, .45), LIGHT = rgb(.85, .85, .88), BLACK = rgb(0, 0, 0), WHITE = rgb(1, 1, 1);
+    let ACC = rgb(.42, .30, .62), GREY = rgb(.45, .45, .45), LIGHT = rgb(.85, .85, .88), BLACK = rgb(0, 0, 0), WHITE = rgb(1, 1, 1);
+    // Fields (tick boxes, HP boxes) keep a white face and black ink in both
+    // looks, so what is written or ticked in them always shows.
+    const FIELD_INK = rgb(0, 0, 0);
+    let PAGE_BG = null;
+    if (opts.theme) {
+      const T = _qppThemeColours(rgb, opts.theme === 'dark' ? 'dark' : 'light');
+      if (T) { PAGE_BG = T.bg; BLACK = T.text; GREY = T.muted; LIGHT = T.line; ACC = T.accent; }
+    }
     const { W, H, M } = QPP;
     let page, y, pageNo = 0, fieldN = 0;
     const pages = [];
@@ -68568,7 +68617,11 @@ async function exportQuickPlayPdf() {
     const line = (x1, y1, x2, y2, color = LIGHT, th = .6) => page.drawLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, color, thickness: th });
     const rect = (x, yy, ww, hh, color = GREY, th = .7) => page.drawRectangle({ x, y: yy, width: ww, height: hh, borderColor: color, borderWidth: th });
     const footer = () => text(M, M - 14, `Quick Play sheet \u00b7 ${c.charName || ''} \u00b7 page ${pageNo}`, 6.5, F, GREY);
-    const newPage = () => { if (page) footer(); page = doc.addPage([W, H]); pages.push(page); pageNo++; y = H - M - 10; };
+    const newPage = () => {
+      if (page) footer();
+      page = doc.addPage([W, H]); pages.push(page); pageNo++; y = H - M - 10;
+      if (PAGE_BG) page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: PAGE_BG });
+    };
     const ensure = need => { if (y - need < M + 6) newPage(); };
     const ticks = (x, yy, n, checkedN, base, size = 8) => {
       for (let i = 0; i < n; i++) {
@@ -68581,7 +68634,7 @@ async function exportQuickPlayPdf() {
     const tfield = (name, x, yy, ww, hh, value, size = 11) => {
       const tf = form.createTextField(`${name}_${fieldN++}`);
       if (value !== undefined && value !== null && value !== '') tf.setText(safe(value));
-      tf.addToPage(page, { x, y: yy, width: ww, height: hh, borderColor: GREY, borderWidth: .5, backgroundColor: WHITE, textColor: BLACK, font: F });
+      tf.addToPage(page, { x, y: yy, width: ww, height: hh, borderColor: GREY, borderWidth: .5, backgroundColor: WHITE, textColor: FIELD_INK, font: F });
       tf.setFontSize(size);
     };
     const section = (title, sub) => {
@@ -68816,7 +68869,9 @@ window.exportQuickPlayPdf = exportQuickPlayPdf;
     m.style.cssText = `position:fixed;z-index:10000;top:${r.bottom / (window.sheetZoom ? sheetZoom() : 1) + 6}px;left:${Math.max(8, Math.min(r.left, window.innerWidth - 230 * (window.sheetZoom ? sheetZoom() : 1)) / (window.sheetZoom ? sheetZoom() : 1))}px;width:220px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);padding:6px;display:flex;flex-direction:column;gap:4px`;
     const opt = (label, sub, fn) => { const b = document.createElement('button'); b.className = 'tbtn'; b.style.cssText = 'text-align:left;padding:8px 10px;line-height:1.3';
       b.innerHTML = `${label}<div style="font-size:9px;color:var(--text3);text-transform:none;letter-spacing:0">${sub}</div>`; b.onclick = () => { m.remove(); fn(); }; return b; };
-    m.appendChild(opt('Quick Play sheet', 'A4, white, 2 pages, fillable', exportQuickPlayPdf));
+    m.appendChild(opt('Quick Play sheet', 'A4, white - best for printing, fillable', () => exportQuickPlayPdf()));
+    m.appendChild(opt('Quick Play sheet - theme, light', 'A4, your theme\'s light colours, fillable', () => exportQuickPlayPdf({ theme: 'light' })));
+    m.appendChild(opt('Quick Play sheet - theme, dark', 'A4, your theme\'s dark colours - for screens, uses a lot of ink', () => exportQuickPlayPdf({ theme: 'dark' })));
     m.appendChild(opt('Full character sheet', 'every page, every detail', () => full()));
     document.body.appendChild(m);
     setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
@@ -72845,6 +72900,20 @@ body.qp-look .sp-spellbook-row{font-weight:700;font-size:13px}
   body.qp-look .sp-known-row{grid-template-columns:14px 42px minmax(0,1fr) auto auto auto;gap:0 6px;padding-left:2px;padding-right:2px}
   body.qp-look .sp-known-row .sp-short-desc{display:none}
   body.qp-look .sp-level-badge{min-width:42px}
+}
+@container sheet (max-width:820px) {
+  /* phones: a row with a source tag ("Book of Shadows", "The Genie") or an
+     "at will" tag left the name a couple of pixels, so it vanished. The row
+     flows instead: the name keeps room for itself, and tags that don't fit
+     beside it move to a second line under the name. */
+  .sp-known-row{display:flex;flex-wrap:wrap;align-items:center;column-gap:6px;row-gap:4px}
+  .sp-known-row > .sp-pip{flex:0 0 auto}
+  .sp-known-row > .sp-level-badge{flex:0 0 42px;min-width:42px}
+  .sp-known-row > .sp-name{flex:1 1 8em;min-width:8em}
+  .sp-known-row > .sp-short-desc{display:none}
+  .sp-known-row > .sp-tags,.sp-known-row > .sp-tag{flex:0 0 auto}
+  .sp-known-row > .sp-tags{display:flex;flex-wrap:wrap;gap:3px}
+  .sp-known-row > :last-child:empty{display:none}
 }
 body.qp-look .inv-row{background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0}
 body.qp-look .inv-row:hover{background:var(--bg3)}
