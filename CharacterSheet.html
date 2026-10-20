@@ -16461,9 +16461,8 @@ const PHB_MANEUVERS     = [
   }
 ];
 const PRIMAL_ORDER_DESCS = {
-  "Magician": "I know one extra Druid cantrip. I also gain proficiency in one of these skills: Arcana, History, Nature, or Religion.",
-  "Warden": "I gain proficiency with Martial weapons and training with Medium armor.",
-  "shadow":{"subclass":"Way of Shadow","source":"PHB","bonusSpells":["darkness","darkvision","pass_without_trace","silence"]}
+  "Magician": "You know one extra cantrip from the Druid spell list. In addition, your mystical connection to nature gives you a bonus to your Intelligence (Arcana or Nature) checks. The bonus equals your Wisdom modifier (minimum bonus of +1).",
+  "Warden": "Trained for battle, you gain proficiency with Martial weapons and training with Medium armor."
 };
 
 const FIGHTING_STYLE_DESCS = {"Archery":"You gain a +2 bonus to attack rolls you make with Ranged weapons.","Blind Fighting":"You have Blindsight with a range of 10 feet.","Defense":"While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class.","Dueling":"When you're holding a Melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon.","Great Weapon Fighting":"When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit.","Interception":"When a creature you can see hits another creature within 5 feet of you with an attack roll, you can take a Reaction to reduce the damage dealt to the target by 1d10 plus your Proficiency Bonus. You must be holding a Shield or a Simple or Martial weapon to use this Reaction.","Protection":"When a creature you can see attacks a target other than you that is within 5 feet of you, you can take a Reaction to interpose your Shield if you're holding one. You impose Disadvantage on the triggering attack roll and all other attack rolls against the target until the start of your next turn if you remain within 5 feet of the target.","Thrown Weapon Fighting":"When you hit with a ranged attack roll using a weapon that has the Thrown property, you gain a +2 bonus to the damage roll.","Two-Weapon Fighting":"When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage.","Unarmed Fighting":"When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8.","Blessed Warrior":"You learn two Cleric cantrips of your choice. They count as Paladin spells for you, and Charisma is your spellcasting ability.","Superior Technique":"You learn one maneuver of your choice from the Battle Master subclass. If the maneuver requires a saving throw, the save DC equals 8 + your Proficiency Bonus + your Strength or Dexterity modifier (your choice). You gain one Superiority Die (d6).","Druidic Warrior":"You learn two Druid cantrips of your choice. They count as Ranger spells for you, and Wisdom is your spellcasting ability.","Tunnel Fighter":"As a Bonus Action, you can enter a defensive stance that lasts until the start of your next turn. While in the stance, you can make Opportunity Attacks without spending your Reaction, and you can use your Reaction to make a melee attack against a creature that moves more than 5 feet while within your reach."};
@@ -34701,7 +34700,6 @@ function getWeaponMasteries() {
   // Collect from all mastery choice keys
   const MASTERY_KEYS = [
     'weapon_mastery',        // fighter, barbarian
-    'weapon_mastery_monk',
     'weapon_mastery_paladin',
     'weapon_mastery_ranger',
     'weapon_mastery_rogue',
@@ -74539,7 +74537,9 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     faces.forEach(g => {
       if (kind === 6) { const m = V.mul(V.add(v[g.ix[0]], v[g.ix[1]]), 0.5); g.up = V.norm(V.sub(m, g.c)); }
       else if (kind === 10) { const pole = g.ix.includes(0) ? 0 : 1; g.pole = pole; g.up = V.norm(V.sub(v[pole], g.c)); }
-      else g.up = V.norm(V.sub(v[g.ix[0]], g.c));
+      // d8 / d12 / d20: every number reads "up" along one axis of the die (through a corner), as on a printed die -
+      // neighbouring numbers line up instead of pointing at random corners
+      else { const P = V.norm(v[0]), pr = V.sub(P, V.mul(g.n, V.dot(P, g.n))); g.up = V.len(pr) > 1e-6 ? V.norm(pr) : V.norm(V.sub(v[g.ix[0]], g.c)); }
     });
     const opp = i => faces.findIndex((g, j) => j !== i && V.dot(g.n, faces[i].n) < -0.98);
     if (kind === 10) {
@@ -74828,7 +74828,10 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
         const want = s.v[s.vval.indexOf(b.want)]; fix = s.sym.find(q => V.len(V.sub(Q.rot(q, want), s.v[top])) < 1e-4) || fix;
       } else {
         let up = null, uz = -2; s.faces.forEach(f => { const z = Q.rot(last.q, f.n)[2]; if (z > uz) { uz = z; up = f; } });
-        const want = (s.faces.find(f => f.val === b.want) || s.faces[0]).n; fix = s.sym.find(q => V.dot(Q.rot(q, want), up.n) > 0.9999) || fix;
+        const wf = s.faces.find(f => f.val === b.want) || s.faces[0], want = wf.n;
+        // of the turns that put the wanted face on top, use the one that shows its number most upright
+        let bestU = Infinity; s.sym.forEach(q => { if (V.dot(Q.rot(q, want), up.n) <= 0.9999) return;
+          const u = Q.rot(Q.mul(last.q, q), wf.up), sy = u[1] * CT - u[2] * ST; if (sy < bestU) { bestU = sy; fix = q; } });
       }
       return Object.assign(b, { sc: d.sc, frames: d.frames, fix });
     });
