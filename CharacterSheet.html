@@ -74509,6 +74509,8 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       const e = (p, q) => Math.abs(V.len(V.sub(v[p], v[q])) - 2) < 1e-6; if (e(i, j) && e(j, k) && e(i, k)) f.push([i, j, k]); }
     return { v, f };
   }
+  // the number on each face, in the order build() makes the faces
+  const LAYOUT = {6: [1, 6, 2, 5, 4, 3], 8: [1, 7, 6, 4, 5, 3, 2, 8], 12: [1, 11, 9, 6, 5, 10, 7, 8, 3, 12, 2, 4], 20: [19, 1, 17, 9, 7, 5, 13, 15, 10, 3, 11, 12, 4, 8, 14, 20, 6, 18, 16, 2]};
   function build(kind) {
     let v, f;
     if (kind === 4) { v = [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]]; f = [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]; }
@@ -74547,10 +74549,17 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       const top = faces.map((g, i) => [g, i]).filter(([g]) => g.pole === 0).sort((a, b) => Math.atan2(a[0].c[1], a[0].c[0]) - Math.atan2(b[0].c[1], b[0].c[0]));
       [1, 7, 3, 9, 5].forEach((val, k) => { const [g, i] = top[k]; g.val = val; faces[opp(i)].val = (9 - val) || 10; });
     } else if (kind !== 4) {
-      // opposite faces add up to the number of sides + 1, as on real dice
-      const N = faces.length, val = new Array(N).fill(0); let next = 1;
-      for (let i = 0; i < N; i++) { if (val[i]) continue; while (val.includes(next)) next++; val[i] = next; const o = opp(i); if (o >= 0) val[o] = N + 1 - next; }
-      faces.forEach((g, i) => { g.val = val[i]; });
+      // laid out like real dice: opposite faces add up to the number of sides + 1; on the d6, 1-2-3 run
+      // counter-clockwise round their corner; the d8, d12 and d20 are numerically balanced (no two consecutive numbers
+      // side by side, the numbers round each corner adding up to about the same), and the d20's 20 sits between 2, 8 and 14
+      const N = faces.length, L = LAYOUT[kind];
+      const ok = L && L.length === N && L.every((x, i) => x + L[opp(i)] === N + 1);
+      if (ok) faces.forEach((g, i) => { g.val = L[i]; });
+      else {
+        const val = new Array(N).fill(0); let next = 1;
+        for (let i = 0; i < N; i++) { if (val[i]) continue; while (val.includes(next)) next++; val[i] = next; const o = opp(i); if (o >= 0) val[o] = N + 1 - next; }
+        faces.forEach((g, i) => { g.val = val[i]; });
+      }
     }
     const sh = { v, faces, kind, vval: kind === 4 ? [1, 2, 3, 4] : null };
     sh.sym = symmetries(sh);
@@ -74590,6 +74599,8 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
 
   // ── physics ──────────────────────────────────────────────────────────
   const G = 5200, REST = 0.32, MU = 0.45, HZ = 240, DT = 1 / HZ, FPS = HZ / 4;
+  const CONTACT = 0.92;   // how close two dice may come while rolling, as a share of their sizes (they knock as spheres)
+  const CONTACT_END = 1.0; // once they stop, no two dice overlap at all
   function simulate(list, S, B, tray) {
     const side = Math.floor(Math.random() * 4), W = B.x1 - B.x0;
     const dice = list.map((b, i) => {
@@ -74637,26 +74648,33 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
         }
         if (d.inside) {
           // bounce off the walls; a real knock adds a little spin, resting against a wall does not
-          if (d.p[0] < B.x0) { d.p[0] = B.x0; if (d.v[0] < -60) d.w = V.add(d.w, [0, 0, rand(-3, 3)]); d.v[0] = Math.abs(d.v[0]) * 0.55; }
-          if (d.p[0] > B.x1) { d.p[0] = B.x1; if (d.v[0] > 60) d.w = V.add(d.w, [0, 0, rand(-3, 3)]); d.v[0] = -Math.abs(d.v[0]) * 0.55; }
-          if (d.p[1] < B.y0) { d.p[1] = B.y0; d.v[1] = Math.abs(d.v[1]) * 0.55; }
-          if (d.p[1] > B.y1) { d.p[1] = B.y1; d.v[1] = -Math.abs(d.v[1]) * 0.55; }
+          // walls bounce a die back (and a hard knock adds a little spin); a die leaning on a wall is eased off it
+          // so it can't sit there cocked on an edge
+          const wall = (i, lo, hi) => {
+            if (d.p[i] >= lo && d.p[i] <= hi) return;
+            const inward = d.p[i] < lo ? 1 : -1, sp = Math.abs(d.v[i]);
+            d.p[i] = d.p[i] < lo ? lo : hi;
+            if (sp > 60) d.w = V.add(d.w, [0, 0, rand(-3, 3)]);
+            d.v[i] = inward * Math.max(sp * 0.72, 40);
+          };
+          wall(0, B.x0, B.x1); wall(1, B.y0, B.y1);
         }
         // rolling friction grows the longer a die is on the table, so round dice don't roll forever
         const ramp = touching ? Math.min(0.02, Math.max(0, t - d.start - 1.0) * 0.018) : 0;
         d.v = V.mul(d.v, touching ? 0.997 - ramp : 0.9998); d.w = V.mul(d.w, touching ? 0.993 - ramp : 0.9995);
-        const slow = V.len(d.v) < 30 && V.len(d.w) < 1.2 && touching >= 3;
+        const slow = V.len(d.v) < 30 && V.len(d.w) < 1.2 && touching >= 2;
         d.still = slow ? d.still + DT : 0;
-        if (d.still > 0.12 || t > T - 0.3) settle(d);
+        if (d.still > (touching >= 3 ? 0.12 : 0.25) || t > T - 0.3) settle(d);
       });
       // dice knock each other (as spheres)
       for (let i = 0; i < dice.length; i++) for (let k = i + 1; k < dice.length; k++) {
         const a = dice[i], c = dice[k]; if (t < a.start || t < c.start) continue;
-        const dvec = V.sub(c.p, a.p), dist = V.len(dvec), min = (a.R + c.R) * 0.7; if (dist >= min || dist < 1e-3) continue;
+        const dvec = V.sub(c.p, a.p), dist = V.len(dvec), min = (a.R + c.R) * CONTACT; if (dist >= min || dist < 1e-3) continue;
         const n = V.mul([dvec[0], dvec[1], 0], 1 / Math.max(1e-3, Math.hypot(dvec[0], dvec[1]))), push = (min - dist) / 2;
         if (!a.asleep) a.p = V.sub(a.p, V.mul(n, c.asleep ? push * 2 : push)); if (!c.asleep) c.p = V.add(c.p, V.mul(n, a.asleep ? push * 2 : push));
         const rel = V.dot(V.sub(c.v, a.v), n);
-        if (rel < -40) { const j = -1.5 * rel / 2; a.v = V.sub(a.v, V.mul(n, j)); c.v = V.add(c.v, V.mul(n, j)); [a, c].forEach(d => { d.asleep = false; d.still = 0; d.w = V.add(d.w, V.mul(randAxis(), Math.min(6, -rel / 120))); }); }
+        if (rel < -40) { const j = -1.5 * rel / 2, hard = rel < -160;
+          [a, c].forEach((d, k) => { if (d.asleep && !hard) return; d.v = (k ? V.add : V.sub)(d.v, V.mul(n, (a.asleep || c.asleep) && !hard ? 2 * j : j)); d.asleep = false; d.still = 0; d.w = V.add(d.w, V.mul(randAxis(), Math.min(6, -rel / 120))); }); }
       }
       // knocks between dice never push one through a wall
       dice.forEach(d => { if (!d.inside) return; d.p[0] = Math.min(B.x1, Math.max(B.x0, d.p[0])); d.p[1] = Math.min(B.y1, Math.max(B.y0, d.p[1])); });
@@ -74669,8 +74687,31 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       for (let k = 1; k <= 8; k++) { const t = k / 8, e = t * t * (3 - 2 * t); d.frames.push({ p: V.add(p0, V.mul(V.sub(d.p, p0), e)), q: slerp(q0, d.q, e) }); }
     });
     dice.forEach(d => { if (d.frames.length) d.frames.push({ p: d.p.slice(), q: d.q.slice() }); });
+    separate(dice, B);
     return dice;
   }
+  // dice that came to rest overlapping are slid apart over their last few frames (kept inside the walls)
+  function separate(dice, B) {
+    const end = dice.map(d => d.p.slice());
+    for (let it = 0; it < 200; it++) {
+      let moved = false;
+      for (let i = 0; i < dice.length; i++) for (let k = i + 1; k < dice.length; k++) {
+        const a = end[i], c = end[k], dx = c[0] - a[0], dy = c[1] - a[1], dist = Math.hypot(dx, dy), min = (dice[i].R + dice[k].R) * CONTACT_END;
+        if (dist >= min) continue;
+        const ux = dist > 1e-3 ? dx / dist : Math.cos(i + k), uy = dist > 1e-3 ? dy / dist : Math.sin(i + k), push = (min - dist) / 2 + 0.5;
+        a[0] -= ux * push; a[1] -= uy * push; c[0] += ux * push; c[1] += uy * push; moved = true;
+      }
+      end.forEach(p => { p[0] = Math.min(B.x1, Math.max(B.x0, p[0])); p[1] = Math.min(B.y1, Math.max(B.y0, p[1])); });
+      if (!moved) break;
+    }
+    dice.forEach((d, i) => {
+      const dx = end[i][0] - d.p[0], dy = end[i][1] - d.p[1]; if (Math.hypot(dx, dy) < 0.5) return;
+      const F = d.frames, n = Math.min(10, F.length);
+      for (let k = 0; k < n; k++) { const f = F[F.length - n + k]; if (!f) continue; const e = (k + 1) / n, s = e * e * (3 - 2 * e); f.p = [f.p[0] + dx * s, f.p[1] + dy * s, f.p[2]]; }
+      d.p = end[i].slice();
+    });
+  }
+
   // lay it flat on whichever face is lowest
   function settle(d) {
     const sh = d.b.shape; let best = null, bz = 2;
@@ -74792,6 +74833,13 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     return { body: acc, edge: acc.map(c => c * 0.45), ink: lum > 0.55 ? '#16120c' : '#f8f2e6' };
   }
 
+  // shrink the dice when there are too many to lie side by side in the space (with some room to spare)
+  function fitSize(S, list, w, h, floor) {
+    const area = list.reduce((a, b) => a + Math.pow(2 * SCALE[b.kind], 2), 0);   // each die needs about (2R)^2
+    const fit = Math.sqrt((w * h * 0.45) / Math.max(1e-6, area));
+    return Math.max(floor, Math.min(S, fit));
+  }
+
   // ── the public part ──────────────────────────────────────────────────
   // dice: [{ die, v, kept }]; opt: { tray: element (roll inside it) | null (across the sheet), bounds: {top, bottom, left, right}, colour: key, onLanded }
   function throwDice(dice, o) {
@@ -74812,12 +74860,15 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       S = Math.max(13, Math.min(40, Math.min(r.w, r.h) / (n > 14 ? 11.5 : n > 10 ? 10 : n > 6 ? 8 : n > 3 ? 6.4 : 4.4)));
       const pad = S;
       B = { x0: r.x + 3 + pad, x1: r.x + r.w - 3 - pad, y0: (r.y + 3 + pad) / CT, y1: (r.y + r.h - 3 - pad) / CT };
+      S = fitSize(S, shown, r.w - 6, (r.h - 6) / CT, 9); B = { x0: r.x + 3 + S, x1: r.x + r.w - 3 - S, y0: (r.y + 3 + S) / CT, y1: (r.y + r.h - 3 - S) / CT };
     } else {
       trayAt = null;
       S = Math.max(20, Math.min(56, Math.min(W, H) / (n > 14 ? 14 : n > 10 ? 12 : n > 6 ? 10 : n > 3 ? 8.5 : 7)));
       const pad = S * 1.15, top = (o.bounds && o.bounds.top) || (W < 600 ? 270 : 200), bottom = (o.bounds && o.bounds.bottom) || 8;
       const left = (o.bounds && o.bounds.left) || 0, right = (o.bounds && o.bounds.right) || 0;
       B = { x0: left + pad, x1: W - right - pad, y0: (top + pad) / CT, y1: (H - pad - bottom) / CT };
+      const S2 = fitSize(S, shown, W - right - left, (H - bottom - top) / CT, 14);
+      if (S2 < S) { S = S2; const p2 = S * 1.15; B = { x0: left + p2, x1: W - right - p2, y0: (top + p2) / CT, y1: (H - p2 - bottom) / CT }; }
     }
     const sim = simulate(shown, S, B, !!opt.tray);
     bodies = sim.map(d => {
@@ -74942,13 +74993,16 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     return { id: uuid(), expr: exprText(terms) + (o.crunchy ? ' crit' : ''), base: expr, terms, label: o.label || exprText(terms), kind: o.kind || (o.test ? 'check' : 'damage'),
       total, dice, flat, maxed, crit, natural, test: !!o.test, adv: o.adv || null, critMin: o.critMin || 20, min: o.min || 0, minned, crunchy: !!o.crunchy, at: Date.now(), opt: o };
   }
-  function fmtDetail(r) {
+  // a die showing its highest face is shown green, its lowest (1) red - on any die
+  const hiLo = d => { const top = d.die === 100 ? 100 : d.die; return d.v === top ? 'hi' : d.v === 1 ? 'lo' : ''; };
+  function fmtDetail(r, html) {
     const groups = {};
     r.dice.forEach(d => { if (d.term >= 100) return; (groups[d.term] = groups[d.term] || []).push(d); });
     const parts = [];
     if (r.maxed) parts.push(r.maxed + ' max');
     Object.values(groups).forEach(g => {
-      const shown = g.slice(0, 16).map(d => d.kept ? String(d.counts != null ? d.counts + ' (rolled ' + d.v + ')' : d.v) : '(' + d.v + ')');
+      const val = d => { if (!html) return String(d.v); const c = hiLo(d); return c ? `<span class="dr-${c}">${d.v}</span>` : String(d.v); };
+      const shown = g.slice(0, 16).map(d => d.kept ? (d.counts != null ? d.counts + ' (rolled ' + val(d) + ')' : val(d)) : '(' + val(d) + ')');
       const txt = g.length > 1 ? '[' + shown.join(', ') + (g.length > 16 ? ', …' : '') + ']' : shown[0];
       parts.push((g[0].neg ? '− ' : '') + txt);
     });
@@ -75429,7 +75483,9 @@ html.m-ui #dr-panel{left:0;right:0;bottom:0;width:auto;max-width:none;max-height
 .dr-die svg{position:absolute;inset:0}
 .dr-die b{position:relative;font-size:12px;font-family:var(--font-label,var(--font-ui));color:var(--text)}
 .dr-die.off{opacity:.38} .dr-die.off b{text-decoration:line-through}
-.dr-die.nat20 polygon{stroke:var(--accent);stroke-width:2.4} .dr-die.nat1 polygon{stroke:var(--red);stroke-width:2.4}
+.dr-die.dr-hi polygon{stroke:#34c759;stroke-width:2.4} .dr-die.dr-lo polygon{stroke:#ff4d4f;stroke-width:2.4}
+.dr-die.dr-hi b{color:#34c759} .dr-die.dr-lo b{color:#ff4d4f}
+.dr-hi{color:#34c759;font-weight:700} .dr-lo{color:#ff4d4f;font-weight:700}
 @keyframes drTumA{from{transform:rotate(-200deg) scale(.4);opacity:0}to{transform:none;opacity:1}}
 @keyframes drTumB{from{transform:rotate(200deg) scale(.4);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion: reduce){.dr-die{animation:none!important}}
@@ -75571,7 +75627,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     const c = $('dr-card'); if (!c) return;
     const critTxt = critText(r), fol = follow(r).filter(f => !f.done).map(f => `<button type="button" data-fol="${f.k}" class="${f.hot ? 'hot' : ''}">${esc(f.t)}</button>`).join('');
     c.className = r.crit === 'success' ? 'crit-s' : r.crit === 'fail' ? 'crit-f' : '';
-    c.innerHTML = `<div class="l">${esc(r.label)}${r.adv ? ' \u00b7 ' + (r.adv === 'adv' ? 'Advantage' : 'Disadvantage') : ''}</div><div class="t">${r.total}</div><div class="d">${esc(r.expr)} \u00b7 ${esc(fmtDetail(r))}</div>
+    c.innerHTML = `<div class="l">${esc(r.label)}${r.adv ? ' \u00b7 ' + (r.adv === 'adv' ? 'Advantage' : 'Disadvantage') : ''}</div><div class="t">${r.total}</div><div class="d">${esc(r.expr)} \u00b7 ${fmtDetail(r, true)}</div>
       ${critTxt ? `<div class="dr-crit ${r.crit === 'success' ? 's' : 'f'}" style="margin-top:6px">${critTxt}</div>` : ''}${unthrown(r) ? `<div class="d">${unthrown(r)} more dice not thrown — all are in the total</div>` : ''}${fol ? `<div class="dr-fol">${fol}</div>` : ''}
       <div class="x">Tap to dismiss \u00b7 <button type="button" data-act="openroller" style="border:0;background:none;color:var(--accent);font:inherit;cursor:pointer;padding:0">Open the roller</button></div>`;
     c.hidden = false; clearTimeout(cardT);
@@ -75594,7 +75650,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     let res = '';
     if (r) {
       const MAXD = 24, shown = r.dice.slice(0, MAXD);
-      const tray = shown.map(d => `<span class="dr-die ${d.kept ? '' : 'off'} ${r.test && d.die === 20 && d.kept && d.v === 20 ? 'nat20' : ''} ${r.test && d.die === 20 && d.kept && d.v === 1 ? 'nat1' : ''}" title="d${d.die === 100 ? '%' : d.die}${d.kept ? '' : ' (not counted)'}" style="animation-delay:${reduced() ? 0 : Math.min(i0(d, r) * 22, 300)}ms"><svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><polygon points="${DIE_PTS[d.die] || DIE_PTS[6]}" fill="var(--bg2)" stroke="var(--text3)" stroke-width="1.6" stroke-linejoin="round"/></svg><b>${d.v}</b></span>`).join('');
+      const tray = shown.map(d => `<span class="dr-die ${d.kept ? '' : 'off'} ${hiLo(d) ? 'dr-' + hiLo(d) : ''}" title="d${d.die === 100 ? '%' : d.die}${d.kept ? '' : ' (not counted)'}" style="animation-delay:${reduced() ? 0 : Math.min(i0(d, r) * 22, 300)}ms"><svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><polygon points="${DIE_PTS[d.die] || DIE_PTS[6]}" fill="var(--bg2)" stroke="var(--text3)" stroke-width="1.6" stroke-linejoin="round"/></svg><b>${d.v}</b></span>`).join('');
       const more = r.dice.length > MAXD ? `<span class="dr-det" style="align-self:center">+${r.dice.length - MAXD} more</span>` : '';
       const critTxt = r.pending ? '' : critText(r);
       const in3d = is3d() && S.where === 'panel';
@@ -75602,7 +75658,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
       res = `<div class="dr-res ${r.crit === 'success' ? 'crit-s' : r.crit === 'fail' ? 'crit-f' : ''}" aria-live="polite">
         <div class="dr-lab">${esc(r.label)}${r.adv ? ` · <b>${r.adv === 'adv' ? 'Advantage' : 'Disadvantage'}</b>` : ''}</div>
         ${in3d ? `<div class="dr-tray3d-slot"></div>${unthrown(r) ? `<div class="dr-det">${unthrown(r)} more dice not thrown \u2014 all are in the total</div>` : ''}` : `<div class="dr-tray ${S.anim}">${tray}${more}</div>`}
-        <div class="dr-tot"><b>${r.pending ? '\u2026' : r.total}</b><span class="dr-det">${r.pending ? 'Rolling\u2026' : esc(r.expr) + ' \u00b7 ' + esc(fmtDetail(r))}</span></div>
+        <div class="dr-tot"><b>${r.pending ? '\u2026' : r.total}</b><span class="dr-det">${r.pending ? 'Rolling\u2026' : esc(r.expr) + ' \u00b7 ' + fmtDetail(r, true)}</span></div>
         ${critTxt ? `<div class="dr-crit ${r.crit === 'success' ? 's' : 'f'}">${critTxt}</div>` : ''}
         ${!r.pending && r.minned ? `<div class="dr-note">Reliable Talent: the d20 (${r.natural}) counts as ${r.min}.</div>` : ''}
         ${r.opt?.note ? `<div class="dr-note">${esc(r.opt.note)}</div>` : ''}
