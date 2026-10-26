@@ -4062,6 +4062,7 @@ body.preview-readonly #mi-detail-edit-row * {
           </div>
           <div style="display:flex;gap:5px;flex-wrap:wrap">
             <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="loadDMCharList()">↺ Refresh</button>
+            <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="atlasPublishAll(this)" title="Work out every character's Atlas copy now, so Atlas Online shows them without each sheet being opened">⇪ Publish all to Atlas</button>
             <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="dmBulkRest('short')">☽ Short Rest…</button>
             <button class="tbtn" style="font-size:9px;padding:3px 10px" onclick="dmBulkRest('long')">★ Long Rest…</button>
           </div>
@@ -81569,6 +81570,8 @@ function mdExtractBlocks(text, store) {
 //   atlasSnapshot()          the file's content for the open character
 //   atlasSyncSoon()          after a save (debounced)
 //   atlasSyncNow(force)      write now; force writes even when unchanged
+//   atlasPublishAll(btn)     DM panel: every character, each through the
+//                            read-only preview (nothing of theirs is saved)
 // ═══════════════════════════════════════════════════════════════════════
 const ATLAS_DIR = 'atlas';
 const ATLAS_TEMPLATE_ID = 'dorenia-pc-d0r3n1';
@@ -81692,8 +81695,9 @@ function atlasSnapshot() {
 }
 
 const _atlasKey = id => 'atlasSnap:' + id;
-async function atlasSyncNow(force) {
-  if (!currentChar?.id || window._previewMode) return null;
+async function atlasSyncNow(force, opts) {
+  // a read-only preview writes no copy, except for "Publish all" (it saves nothing of the character's)
+  if (!currentChar?.id || (window._previewMode && !(opts && opts.allowPreview))) return null;
   if (_atlasBusy) { _atlasAgain = true; return null; }
   _atlasBusy = true;
   const id = currentChar.id;
@@ -81735,6 +81739,55 @@ function atlasSyncSoon() {
 window.atlasSnapshot = atlasSnapshot;
 window.atlasSyncNow = atlasSyncNow;
 window.atlasSyncSoon = atlasSyncSoon;
+
+// DM panel: "Publish all to Atlas". Opens each character in the read-only
+// preview (which never saves the character), lets the sheet draw it, writes its
+// copy when it changed, then puts back whatever was open before.
+let _atlasAllRunning = false;
+async function atlasPublishAll(btn) {
+  if (_atlasAllRunning) return null;
+  _atlasAllRunning = true;
+  const label = btn ? btn.textContent : '';
+  const veil = document.createElement('div');
+  veil.setAttribute('role', 'status');
+  veil.style.cssText = 'position:fixed;inset:0;z-index:10080;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.72);color:var(--text);font-family:var(--font-ui);font-size:14px;text-align:center;padding:20px';
+  const say = t => { veil.textContent = t; if (btn) btn.textContent = t; };
+  document.body.appendChild(veil);
+  const result = { written: 0, same: 0, failed: [] };
+  // what was open before: each preview would otherwise remember the one before it
+  const before = window._previewMode ? _previewPriorState : { currentChar, currentCharSHA, hadSession: !!currentChar };
+  const wasDM = typeof isDM !== 'undefined' ? isDM : false;
+  try {
+    say('Atlas: finding the characters…');
+    const ids = (await GH.listFiles()).map(f => f.name).filter(n => !n.startsWith('_')).map(n => n.replace(/\.json$/, ''));
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      say(`Atlas: publishing ${i + 1} of ${ids.length}…`);
+      try {
+        await previewCharacterSheet(id);
+        if (!window._previewMode || currentChar?.id !== id) { result.failed.push(id); continue; }
+        await new Promise(r => setTimeout(r, 400));   // panels drawn after the first pass
+        const r = await atlasSyncNow(false, { allowPreview: true });
+        if (r === true) result.written++; else if (r === false) result.same++; else result.failed.push(currentChar?.charName || id);
+      } catch (e) { result.failed.push(id); console.warn('[atlas] publish failed for', id, e.message); }
+    }
+  } catch (e) {
+    toast('Atlas: could not list the characters - ' + e.message, 'error');
+  } finally {
+    try { if (window._previewMode) { _previewPriorState = before; _teardownPreviewState(); } } catch (e) { console.warn('[atlas] could not reopen the sheet', e.message); }
+    // the reopened sheet finishes drawing (it may switch pages) before the DM panel comes back
+    await new Promise(r => setTimeout(r, 600));
+    try { isDM = wasDM; if (typeof openDMPanelDirect === 'function') openDMPanelDirect(); } catch (e) {}
+    veil.remove();
+    if (btn) btn.textContent = label;
+    _atlasAllRunning = false;
+  }
+  const parts = [`${result.written} updated`, `${result.same} already up to date`];
+  if (result.failed.length) parts.push(`not published: ${result.failed.join(', ')}`);
+  toast('Atlas: ' + parts.join(', '), result.failed.length ? 'error' : 'ok');
+  return result;
+}
+window.atlasPublishAll = atlasPublishAll;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
