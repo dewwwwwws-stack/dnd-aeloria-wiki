@@ -81688,10 +81688,85 @@ function _atlasFields(D, c) {
   return F;
 }
 
+// The inventory for Atlas Online's Inventory tab: every item with what Atlas shows of it, a stable
+// `uid` (the plugin makes the item's id from it) and the slot it is worn or held in (null: the bag),
+// and the purse. The plugin writes it into the character's book in each campaign.
+const _AT_SLOT_WORDS = [[/\bring\b/i, 'ring'], [/cloak|cape|mantle/i, 'cloak'], [/boots|slippers|shoes|sandals/i, 'feet'], [/gloves|gauntlets|bracers/i, 'hands'],
+  [/belt|girdle/i, 'belt'], [/amulet|necklace|periapt|medallion|pendant|scarab|brooch|talisman/i, 'neck'], [/helm|\bhat\b|circlet|crown|headband|\bcap\b|diadem|mask|goggles|eyes of/i, 'head'],
+  [/robe|vestments|tunic/i, 'body']];
+function _atlasBook(D, c) {
+  const items = [];
+  const taken = new Set();
+  const want = (slot) => { if (!slot || taken.has(slot)) return null; taken.add(slot); return slot; };
+  const hand = () => want('main-hand') || (c.shield ? null : want('off-hand'));
+  const plain = (t) => _atParas(/<[a-z][\s\S]*>/i.test(String(t || '')) ? pdfPlain(t) : t);
+  const lb = (w) => { const t = String(w ?? '').replace(/\s*lb\.?$/i, '').trim(); return t ? t + ' lb' : ''; };
+  const prop = (label, value) => (value === '' || value === null || value === undefined ? null : { label, value: String(value) });
+  const weapons = (c.weapons || []);
+  const mdText = new Map((D.magicItems || []).map(m => [m.name, m.text]));
+  // shields first, so a weapon held in the off hand never takes the shield's hand
+  const isShieldItem = (mi) => /shield/i.test(mi.type || '') || /\bshield\b/i.test(mi.customName || mi.name || '');
+  const magicShield = (c.magicItems || []).find(isShieldItem);
+  if (c.shield) {
+    const own = (c.armorOwned || []).find(a => /shield/i.test(a.key || a.name || ''));
+    if (!own && !magicShield) items.push({ uid: 'shield', name: 'Shield', type: 'Shield', rarity: null, desc: '', props: [], slot: want('off-hand') });
+  }
+  (c.armorOwned || []).forEach((a, i) => {
+    const isShield = /shield/i.test(a.key || a.name || '');
+    items.push({ uid: 'a:' + (a.key || a.name) + ':' + i, name: a.name || _pdfCap(String(a.key || 'Armour').replace(/_/g, ' ')), type: isShield ? 'Shield' : 'Armour', rarity: null,
+      desc: _atText(a.notes || ''), props: [prop('Magic bonus', a.magicBonus ? _pdfSign(a.magicBonus) : ''), prop('Weight', lb(a.weight))].filter(Boolean),
+      slot: isShield ? (c.shield ? want('off-hand') : null) : (a.worn ? want('armour') : null) });
+  });
+  (c.magicItems || []).forEach((mi, i) => {
+    const name = mi.customName || mi.name || mi._baseName || 'Magic item';
+    const asWeapon = weapons.find(w => w._fromMagicItem && w._fromMagicItem === mi._uid);
+    let slot = null;
+    if (asWeapon) slot = asWeapon.equipped !== false ? hand() : null;
+    else if (mi === magicShield) slot = c.shield ? want('off-hand') : null;
+    else if (mi.attuned || (!mi.attunement && /wondrous|ring/i.test(mi.type || ''))) {
+      const hit = _AT_SLOT_WORDS.find(([re]) => re.test(name) || re.test(mi.type || ''));
+      if (hit) slot = hit[1] === 'ring' ? (want('ring-1') || want('ring-2')) : want(hit[1]);
+      if (!slot && /armor|armour/i.test(mi.type || '')) slot = want('armour');
+    }
+    const text = mdText.get(name) ?? plain((mi.desc || mi._baseDesc || '').replace(/\{\{VESSEL_[A-Z]+\}\}/g, ''));
+    items.push({ uid: 'mi:' + (mi._uid || (mi.key || name) + ':' + i), name, type: _pdfCap(mi.type || 'Magic item'), rarity: mi.rarity ? _pdfCap(mi.rarity) : null,
+      desc: _atText(text), slot,
+      props: [prop('Quantity', (mi.quantity || 1) > 1 ? mi.quantity : ''), prop('Attunement', mi.attunement ? (mi.attuned ? 'Attuned' : 'Requires attunement') : ''), prop('Notes', _atText(mi.notes || ''))].filter(Boolean) });
+  });
+  const magicNames = new Set((c.magicItems || []).map(mi => (mi.customName || mi.name || '').toLowerCase()));
+  weapons.filter(w => !w._fromMagicItem && !magicNames.has(String(w.name || '').toLowerCase()) && !w.naturalWeapon && !w.psychicBlade && w.weaponKey !== 'unarmed_strike').forEach((w, i) => {
+    const atk = (D.attacks || []).find(a => a.name === w.name);
+    items.push({ uid: 'w:' + (w.weaponKey || w.name) + ':' + i, name: w.name || _pdfCap(String(w.weaponKey || 'Weapon').replace(/_/g, ' ')), type: 'Weapon', rarity: null, desc: '',
+      props: [prop('To hit', atk?.hit || ''), prop('Damage', atk ? _atJoin([atk.dmg, atk.type], ' ') : ''), prop('Range', atk?.range || ''), prop('Quantity', (w.qty || 1) > 1 ? w.qty : ''), prop('Weight', lb(w.weight))].filter(Boolean),
+      slot: w.equipped !== false ? hand() : null });
+  });
+  let quiver = false;
+  Object.entries(c.ammo || {}).filter(([, n]) => n > 0).forEach(([k, n]) => {
+    const name = (c.ammoCustom || {})[k]?.label || _pdfCap(k.replace(/_/g, ' '));
+    items.push({ uid: 'ammo:' + k, name, type: 'Ammunition', rarity: null, desc: '', props: [prop('Quantity', n)], slot: quiver ? null : (quiver = true, want('ammunition')) });
+  });
+  (c.equipment || []).forEach((e, i) => {
+    if (!e || !e.name) return;
+    items.push({ uid: 'e:' + e.name + ':' + i, name: String(e.name), type: 'Equipment', rarity: null, desc: _atText(e.desc || ''),
+      props: [prop('Quantity', (e.qty ?? 1) !== 1 ? e.qty : ''), prop('Weight', lb(e.weight))].filter(Boolean), slot: null });
+  });
+  (c.valuables || []).forEach((v, i) => {
+    const def = (typeof VALUABLES_CATALOG !== 'undefined') ? VALUABLES_CATALOG.find(x => x.key === v.key) : null;
+    const val = typeof getValuableValue === 'function' ? getValuableValue(v, def) : (v.customValue || def?.value || '');
+    items.push({ uid: 'v:' + (v.key || '') + ':' + i, name: def?.name || _pdfCap(String(v.key || 'Valuable').replace(/_/g, ' ')), type: def?.category || 'Valuable', rarity: null, desc: '',
+      props: [prop('Quantity', (v.qty || 1) > 1 ? v.qty : ''), prop('Value', val ? val + ((v.qty || 1) > 1 ? ' each' : '') : '')].filter(Boolean), slot: null });
+  });
+  const coin = { pp: 'Platinum', gp: 'Gold', ep: 'Electrum', sp: 'Silver', cp: 'Copper' };
+  const purse = Object.keys(coin).map(k => ({ name: coin[k], amount: _atWhole(D.coins[k]) })).filter(r => r.amount > 0 || r.name === 'Gold');
+  return { items, purse };
+}
+
 function atlasSnapshot() {
   if (!currentChar?.id) return null;
   const D = _atlasCollect();
-  return { format: ATLAS_FORMAT, v: 1, id: currentChar.id, template: ATLAS_TEMPLATE_ID, updated: new Date().toISOString(), fields: _atlasFields(D, currentChar) };
+  let book = null;
+  try { book = _atlasBook(D, currentChar); } catch (e) { console.warn('[atlas] inventory not worked out:', e.message); }
+  return { format: ATLAS_FORMAT, v: 1, id: currentChar.id, template: ATLAS_TEMPLATE_ID, updated: new Date().toISOString(), fields: _atlasFields(D, currentChar), book };
 }
 
 const _atlasKey = id => 'atlasSnap:' + id;
@@ -81704,7 +81779,7 @@ async function atlasSyncNow(force, opts) {
   try {
     const snap = atlasSnapshot();
     if (!snap) return null;
-    const body = JSON.stringify(snap.fields);
+    const body = JSON.stringify([snap.fields, snap.book]);
     let last = null; try { last = localStorage.getItem(_atlasKey(id)); } catch (e) {}
     if (!force && last === body) return false;
     const path = `${ATLAS_DIR}/${id}.json`;
