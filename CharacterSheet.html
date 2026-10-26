@@ -81648,10 +81648,11 @@ function _atlasFields(D, c) {
   const AB = { str: 'strength', dex: 'dexterity', con: 'constitution', int: 'intelligence', wis: 'wisdom', cha: 'charisma' };
   // Fantasy Statblocks' shape ([{ wisdom: 3 }]), which Atlas reads too, so the bestiary copy reads them as well
   F.saves = (D.saves || []).map(s => ({ [AB[s.key]]: _atNum(s.val) }));
+  F.save_prof = (D.saves || []).filter(s => s.prof).map(s => AB[s.key]);
   F.skillsaves = [];
   (D.skills || []).forEach(s => {
     const def = (typeof SKILLS !== 'undefined' ? SKILLS : []).find(x => x.key === s.key);
-    const label = (def?.name || _pdfCap(s.key)) + (s.expert ? ' ◆' : s.prof ? ' ●' : '');
+    const label = (def?.name || _pdfCap(s.key)) + (s.expert ? '\u00a0••' : s.prof ? '\u00a0•' : '');
     F.skillsaves.push({ [label]: _atNum(s.val) });
   });
   F.save_notes = (D.saveLines || []).map(l => '- ' + l).join('\n');
