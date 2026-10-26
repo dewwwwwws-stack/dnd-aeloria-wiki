@@ -15314,6 +15314,7 @@ window.confirmGrantFreeSpell = confirmGrantFreeSpell;
 
 function enterApp() {
   _sanitiseCharNames(currentChar);
+  if (typeof atlasSyncSoon === 'function') setTimeout(() => atlasSyncSoon(), 0);   // ATLAS SYNC: publish once on open (skipped when unchanged)
   // A Quick Start left running for a different character must not carry over
   if (typeof _qsActive !== 'undefined' && _qsActive && _qsCharId && _qsCharId !== currentChar?.id && typeof quickStartReset === 'function') quickStartReset();
   // Remember the file as loaded (before any on-load tidying) as the merge
@@ -15729,6 +15730,7 @@ function _saveLanded(sha, sent) {
   _saveRetryDelay = 0;
   if (_saveFailToasted) { _saveFailToasted = false; toast('Saved - your changes are on GitHub now', 'ok'); }
   setSyncStatus('ok', '✓ Saved');
+  if (typeof atlasSyncSoon === 'function') atlasSyncSoon();   // ATLAS SYNC
 }
 function _saveFailed(e) {
   _writeDraft();
@@ -81553,6 +81555,186 @@ function mdExtractBlocks(text, store) {
   }
   return out.join('\n');
 }
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// ATLAS SYNC - a read-only copy of the open character for Atlas VTT.
+// After the character saves, the sheet works out what Atlas shows (the same
+// numbers and texts the PDF export uses: pdfCollectCharacter) and writes it to
+// `atlas/<id>.json` on the data branch, only when something changed. The
+// Character Sheet Sync plugin in the DM's Obsidian copies it into the character's
+// statblock note (template "Dorenia PC"), which Atlas Online shows to the
+// player. Never written from a read-only preview. Nothing private: no PIN
+// hash, no private backstory, no DM note.
+//   atlasSnapshot()          the file's content for the open character
+//   atlasSyncSoon()          after a save (debounced)
+//   atlasSyncNow(force)      write now; force writes even when unchanged
+// ═══════════════════════════════════════════════════════════════════════
+const ATLAS_DIR = 'atlas';
+const ATLAS_TEMPLATE_ID = 'dorenia-pc-d0r3n1';
+const ATLAS_FORMAT = 'dorenia-atlas-character';
+const ATLAS_DELAY_MS = 8000;
+let _atlasTimer = null, _atlasBusy = false, _atlasAgain = false;
+const _atlasSha = {};
+
+const _atNum = v => { const n = parseInt(String(v ?? '').replace(/[−–]/g, '-').replace(/[^\d-]/g, ''), 10); return Number.isFinite(n) ? n : 0; };
+const _atText = s => String(s ?? '').replace(/\{\{[A-Z_]+\}\}/g, '').trim();
+// old text uses " | " for a paragraph break; a real table (lines starting with "|") is left alone
+const _atParas = s => { s = _atText(s); return /(^|\n)\s*\|/.test(s) ? s : s.replace(/\s+\|\s+/g, '\n\n'); };
+// the rows of a summary list (languages, tools): one name each, read from the markup, not the
+// rendered text, so it is right while the panel is hidden too
+const _atRows = id => [...(document.getElementById(id)?.querySelectorAll('.skill-row') || [])].map(r => {
+  const name = r.querySelector('.skill-name');
+  if (!name || /\(owned\)/.test(name.textContent)) return '';
+  const val = (r.querySelector('.skill-val')?.textContent || '').replace('−', '-').trim();
+  return name.textContent.trim() + (/^[+-]\d+$/.test(val) ? ` (${val})` : '');
+}).filter(Boolean);
+const _atJoin = (a, sep = ', ') => (a || []).map(x => String(x ?? '').trim()).filter(Boolean).join(sep);
+const _atWhole = (n, lo = 0) => Math.max(lo, Math.round(Number(n) || 0));
+
+// The pdf collector redraws a few panels first; for a background copy that
+// redraw is skipped (the panels are already current), so nothing on screen moves.
+function _atlasCollect() {
+  const keep = {};
+  const quiet = ['renderSkillsBlock', 'renderSavesBlock', 'renderResourceTracker'];
+  if (Array.isArray(window._pdfFeatureEntries)) quiet.push('populateFeaturesTab');
+  const noop = () => {};
+  quiet.forEach(n => { keep[n] = window[n]; try { window[n] = noop; } catch (e) {} });
+  try { return pdfCollectCharacter(); }
+  finally {
+    quiet.forEach(n => { try { window[n] = keep[n]; } catch (e) {} });
+  }
+}
+
+function _atlasSpellEntries(D) {
+  const byLevel = Array.from({ length: 10 }, () => []);
+  const seen = new Set();
+  (D.spellGroups || []).forEach(g => (g.rows || []).forEach(r => {
+    const lv = Math.min(9, Math.max(0, r.level | 0));
+    if (seen.has(lv + ':' + r.key)) return; seen.add(lv + ':' + r.key);
+    const s = (typeof PHB_SPELL_LIST !== 'undefined' && PHB_SPELL_LIST.find(x => x.key === r.key)) || {};
+    const raw = _atText(s.descFull || s.desc || '');
+    const desc = /<[a-z][\s\S]*>/i.test(raw) ? pdfPlain(raw) : raw;
+    const cls = g.info ? _pdfCap(g.info.cls) : '';
+    const notes = _atJoin([cls, s.school || '', r.save ? r.save + ' save' : '', s.concentration || /concentration/i.test(s.duration || '') ? 'Concentration' : '', s.ritual ? 'Ritual' : '', r.mark === 'P' ? 'Prepared' : '']);
+    byLevel[lv].push({ name: String(r.name || s.name || r.key), desc, time: s.time || '', range: s.range || '', components: s.components || '', duration: s.duration || '', notes });
+  }));
+  return byLevel;
+}
+
+function _atlasFields(D, c) {
+  const F = {};
+  F.name = D.identity.name || c.charName || 'Unnamed';
+  F.level = _atWhole(D.identity.level, 1);
+  F.type = D.identity.species || '';
+  F.size = (typeof getCreatureSizeFor === 'function' ? getCreatureSizeFor(c) : '') || 'Medium';
+  F.summary = _atJoin([D.identity.classLine, D.identity.background ? D.identity.background + ' background' : '', D.identity.alignment], ' · ');
+  F.hp = _atWhole(D.hp.max);
+  F.ac = _atWhole(D.ac.total);
+  F.initiative = _atNum(D.initiative);
+  const walk = String(D.speed.walk || '').trim();
+  F.speed = _atJoin([/^\d+$/.test(walk) ? walk + ' ft.' : walk, D.speed.extra]);
+  F.prof = _atWhole(D.prof);
+  F.passive = _atNum(D.passivePerception);
+  const cur = D.hp.cur === '' || D.hp.cur == null ? D.hp.max : D.hp.cur;
+  F.hp_now = `${_atWhole(cur)} / ${F.hp}` + (D.hp.temp ? ` · ${_atWhole(D.hp.temp)} temp` : '')
+    + (_atWhole(cur) === 0 ? ` · death saves ${D.deathSaves?.successes || 0}✓ ${D.deathSaves?.failures || 0}✗` : '');
+  F.hit_dice = _atJoin((D.hitDice || []).filter(h => h.levels > 0).map(h => `${h.die}: ${Math.max(0, h.levels - h.used)} of ${h.levels} left`));
+  F.status = _atJoin(D.status, ' · ');
+  F.stats = (D.abilities || []).map(a => _atWhole(a.score));
+  const AB = { str: 'strength', dex: 'dexterity', con: 'constitution', int: 'intelligence', wis: 'wisdom', cha: 'charisma' };
+  // Fantasy Statblocks' shape ([{ wisdom: 3 }]), which Atlas reads too, so the bestiary copy reads them as well
+  F.saves = (D.saves || []).map(s => ({ [AB[s.key]]: _atNum(s.val) }));
+  F.skillsaves = [];
+  (D.skills || []).forEach(s => {
+    const def = (typeof SKILLS !== 'undefined' ? SKILLS : []).find(x => x.key === s.key);
+    const label = (def?.name || _pdfCap(s.key)) + (s.expert ? ' ◆' : s.prof ? ' ●' : '');
+    F.skillsaves.push({ [label]: _atNum(s.val) });
+  });
+  F.save_notes = (D.saveLines || []).map(l => '- ' + l).join('\n');
+  F.senses = _atText(String(D.senses || '').replace(/\s*\n\s*/g, ', '));
+  F.languages = _atJoin(_atRows('lang-profs-summary'));
+  F.defences = _atJoin([...(D.resistances || []), ...(D.conditionImmunities || []).map(x => _pdfCap(x) + ' (condition)')]);
+  F.tools = _atJoin(_atRows('tool-profs-summary'));
+  const at = D.armorTraining, wt = D.weaponTraining;
+  const armour = _atJoin(['light', 'medium', 'heavy'].filter(k => at[k]).map(_pdfCap), '/');
+  F.training = _atJoin([armour ? armour + ' armour' : '', at.shields ? 'Shields' : '', wt.simple ? 'Simple weapons' : '', wt.martial ? 'Martial weapons' : '', wt.other]);
+  F.resources = (D.resources || []).filter(r => r.name && Number(r.max) > 0)
+    .map(r => ({ name: String(r.name) + (r.recovery ? ` (${r.recovery})` : ''), max: _atWhole(r.max), used: Math.min(_atWhole(r.max), _atWhole(r.used)), reset: null }));
+  F.spell_slots = [];
+  (D.slots?.levels || []).forEach(l => F.spell_slots.push({ name: `Level ${l.level}`, max: _atWhole(l.max), used: Math.min(_atWhole(l.max), _atWhole(l.used)), reset: null }));
+  if (D.slots?.warlock) F.spell_slots.push({ name: `Pact (level ${D.slots.warlock.slotLevel})`, max: _atWhole(D.slots.warlock.max), used: Math.min(_atWhole(D.slots.warlock.max), _atWhole(D.slots.warlock.used)), reset: null });
+  F.spellcasting = (D.spellClasses || []).map(s => `**${_pdfCap(s.cls)}** (${String(s.ability || '').toUpperCase()}): save DC ${s.dc} · ${_pdfSign(s.atk)} to hit` + (s.prepare ? ` · prepares ${s.prepare}` : '')).join('\n');
+  F.attacks = (D.attacks || []).map(a => ({ name: a.name, desc: _atText(a.notes || ''), hit: a.hit || '', damage: _atJoin([a.dmg, a.type], ' '), range: a.range || '' }));
+  const feat = f => ({ name: f.name || 'Feature', desc: _atParas(f.text || '') });
+  F.class_features = (D.classFeatures || []).map(f => ({ ...feat(f), source: _atText(f.meta || '') }));
+  F.species_traits = (D.racial || []).map(feat);
+  F.feats = (D.feats || []).map(feat);
+  _atlasSpellEntries(D).forEach((list, i) => { F['spells_' + i] = list; });
+  F.magic_items = (D.magicItems || []).map(m => ({ name: m.name, desc: _atParas(m.text || ''), details: m.line || '' }));
+  F.gear = (D.gear || []).map(g => ({ name: String(g.name || 'Item'), desc: '', qty: _atWhole(g.qty ?? 1), weight: g.wt ? String(g.wt) + ' lb' : '' }));
+  F.coins = { pp: _atWhole(D.coins.pp), gp: _atWhole(D.coins.gp), ep: _atWhole(D.coins.ep), sp: _atWhole(D.coins.sp), cp: _atWhole(D.coins.cp) };
+  const N = D.notes || {};
+  const part = (h, t) => t && String(t).trim() ? `**${h}.** ${_atText(pdfPlain(t))}` : '';
+  F.notes = [part('Personality', N.traits), part('Ideals', N.ideals), part('Bonds', N.bonds), part('Flaws', N.flaws), part('Appearance', N.appearance)].filter(Boolean).join('\n\n');
+  // Empty texts and lists are left out, so Atlas hides their blocks
+  Object.keys(F).forEach(k => {
+    const v = F[k];
+    if (v === '' || (Array.isArray(v) && v.length === 0)) F[k] = null;
+  });
+  return F;
+}
+
+function atlasSnapshot() {
+  if (!currentChar?.id) return null;
+  const D = _atlasCollect();
+  return { format: ATLAS_FORMAT, v: 1, id: currentChar.id, template: ATLAS_TEMPLATE_ID, updated: new Date().toISOString(), fields: _atlasFields(D, currentChar) };
+}
+
+const _atlasKey = id => 'atlasSnap:' + id;
+async function atlasSyncNow(force) {
+  if (!currentChar?.id || window._previewMode) return null;
+  if (_atlasBusy) { _atlasAgain = true; return null; }
+  _atlasBusy = true;
+  const id = currentChar.id;
+  try {
+    const snap = atlasSnapshot();
+    if (!snap) return null;
+    const body = JSON.stringify(snap.fields);
+    let last = null; try { last = localStorage.getItem(_atlasKey(id)); } catch (e) {}
+    if (!force && last === body) return false;
+    const path = `${ATLAS_DIR}/${id}.json`;
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(snap, null, 1))));
+    for (let round = 0; round < 2; round++) {
+      try {
+        if (_atlasSha[id] === undefined || round > 0) _atlasSha[id] = await GH.getFileShaAtPath(path);
+        const res = await GH.putBinaryFile(path, b64, _atlasSha[id] || null);
+        _atlasSha[id] = res?.content?.sha || null;
+        try { localStorage.setItem(_atlasKey(id), body); } catch (e) {}
+        return true;
+      } catch (e) {
+        if (round === 0 && (e.status === 409 || e.status === 422)) continue;   // stale sha: read it again
+        throw e;
+      }
+    }
+    return false;
+  } catch (e) {
+    console.warn('[atlas] copy for Atlas not written:', e.message);
+    return null;
+  } finally {
+    _atlasBusy = false;
+    if (_atlasAgain) { _atlasAgain = false; atlasSyncSoon(); }
+  }
+}
+
+function atlasSyncSoon() {
+  if (!currentChar?.id || window._previewMode) return;
+  if (_atlasTimer) clearTimeout(_atlasTimer);
+  _atlasTimer = setTimeout(() => { _atlasTimer = null; atlasSyncNow(false); }, ATLAS_DELAY_MS);
+}
+window.atlasSnapshot = atlasSnapshot;
+window.atlasSyncNow = atlasSyncNow;
+window.atlasSyncSoon = atlasSyncSoon;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
