@@ -14627,43 +14627,8 @@ function openSpellDetailModal(key, name, ctx) {
 // and pipe characters in the detail modal.
 function renderItemMarkdown(text) {
   if (!text) return '';
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const blocks = text.split(/\n\s*\n/); // paragraphs separated by blank lines
-  const html = blocks.map(block => {
-    const lines = block.split('\n').filter(l => l.trim());
-    if (!lines.length) return '';
-
-    // Pipe table: every non-empty line in the block starts with |
-    if (lines.every(l => l.trim().startsWith('|'))) {
-      const rows = lines.map(l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
-      // Drop a markdown separator row like |---|---|
-      const dataRows = rows.filter(r => !r.every(c => /^:?-+:?$/.test(c)));
-      if (!dataRows.length) return '';
-      const [header, ...body] = dataRows;
-      const cell = c => esc(c).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>');
-      return `<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px">
-        <thead><tr>${header.map(h=>`<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase">${cell(h)}</th>`).join('')}</tr></thead>
-        <tbody>${body.map(r=>`<tr>${r.map(c=>`<td style="padding:4px 8px;border-bottom:1px solid var(--border2)">${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody>
-      </table>`;
-    }
-
-    // Bullet list: every line starts with - or *
-    if (lines.every(l => /^[-*]\s+/.test(l.trim()))) {
-      const items = lines.map(l => l.trim().replace(/^[-*]\s+/, ''));
-      const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/_(.+?)_/g,'<i>$1</i>');
-      return `<ul style="margin:4px 0 4px 18px;padding:0">${items.map(i=>`<li style="margin-bottom:2px">${inline(i)}</li>`).join('')}</ul>`;
-    }
-
-    // Regular paragraph
-    const inline = s => esc(s)
-      .replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>')
-      .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
-      .replace(/\*(.+?)\*/g,'<i>$1</i>')
-      .replace(/_(.+?)_/g,'<i>$1</i>')
-      .replace(/~~(.+?)~~/g,'<s>$1</s>');
-    return `<p style="margin:0 0 10px">${lines.map(inline).join('<br>')}</p>`;
-  }).filter(Boolean).join('');
-  return html;
+  // headings, tables, lists etc. - MARKDOWN IN MODALS
+  return mdBlocksToHtml(text);
 }
 
 // Detail view for Valuables and Mounts & Vehicles - both catalogs share
@@ -28542,7 +28507,15 @@ function linkifyGlossaryTerms(html, excludeName) {
   }
   if (!built) return html;
   const segments = html.split(/(<[^>]+>)/);
-  return segments.map((seg, i) => (i % 2 === 1) ? seg : _linkifyText(seg, built)).join('');
+  let _noLink = '';
+  return segments.map((seg, i) => {
+    if (i % 2 === 1) {
+      if (!_noLink) { if (/^<th\b/.test(seg)) _noLink = '</th>'; else if (/^<div[^>]*class="md-h /.test(seg)) _noLink = '</div>'; }
+      else if (seg === _noLink) _noLink = '';
+      return seg;
+    }
+    return _noLink ? seg : _linkifyText(seg, built);
+  }).join('');
 }
 // Same result as seg.replace(pattern, replacer), but looks terms up by their first two
 // letters at each word start instead of trying every term at every position.
@@ -51027,7 +51000,7 @@ function renderResourceTracker() {
   try {   // what the tracker shows, for the PDF export's Limited Features block
     window._pdfResourceRows = visibleDefs.map(def => {
       const eff = def._resClass ? getClassLevelCount(def._resClass) : level;
-      return { id: def.id, name: def.name, max: getResourceMax(def, eff, prof), recovery: def.recovery, partial: !!def.partialShortRest, type: def.type,
+      return { id: def.id, name: def.name, max: getResourceMax(def, eff, prof), recovery: def.recovery, partial: !!def.partialShortRest, type: def.type, linkedField: def.linkedField || null,
         used: def.linkedField ? (parseInt(currentChar[def.linkedField]) || 0) : (parseInt(currentChar.resources[def.id]) || 0) };
     });
   } catch (err) { window._pdfResourceRows = null; }
@@ -56252,8 +56225,9 @@ function formatFeatDescHtml(desc) {
   // <pre> tag. Normalizing here instead means every caller, present and
   // future, gets correct paragraph breaks and bold-label detection
   // without needing to know this distinction exists.
-  const segments = desc
-    .replace(/\\n/g, '\n')
+  // real markdown tables and # headings are rendered first (MARKDOWN IN MODALS)
+  const _mdB = [];
+  const segments = mdExtractBlocks(desc.replace(/\\n/g, '\n'), _mdB)
     .split(/\n|\|/)
     .map(s => s.trim().replace(/^[•]\s*/, ''))
     .filter(Boolean);
@@ -56273,6 +56247,8 @@ function formatFeatDescHtml(desc) {
     .replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
   return segments.map((seg, i) => {
     const marginStyle = i === segments.length - 1 ? '' : 'margin-bottom:8px;';
+    const _mdT = seg.match(/^\u0001MD(\d+)\u0001$/);
+    if (_mdT) return `<div style="${marginStyle}">${_mdB[+_mdT[1]]}</div>`;
     // A label is one or more Title-Case words at the very start of the
     // paragraph ending in a period, with real sentence content after it -
     // this deliberately excludes plain intro/outro sentences like "You
@@ -66567,8 +66543,11 @@ window.qpHP = qpHP;
 function qpUse(id, delta) {                          // +1 = use one, -1 = get one back
   const c = currentChar; c.resources = c.resources || {};
   const r = (window._pdfResourceRows || []).find(x => x.id === id);
-  const used = parseInt(c.resources[id], 10) || 0;
-  c.resources[id] = Math.max(0, Math.min(r ? r.max : used + delta, used + delta));
+  // some trackers keep their count in a field of their own (Wild Shape uses)
+  const lf = r && r.linkedField;
+  const used = parseInt(lf ? c[lf] : c.resources[id], 10) || 0;
+  const v = Math.max(0, Math.min(r ? r.max : used + delta, used + delta));
+  if (lf) c[lf] = v; else c.resources[id] = v;
   try { renderResourceTracker(); } catch (e) {}
   if (typeof debouncedSave === 'function') debouncedSave();
   renderQuickPlay();
@@ -67294,6 +67273,9 @@ function renderQuickPlay() {
     ${extraItems('reaction')}
     ${spellSection('reaction')}`);
   const longer = Q.spells.filter(s => s.bucket === 'longer');
+  // every tracker in one place (the same counters the Resources panel and the cards above use)
+  const resRows = (window._pdfResourceRows || []).filter(r => r && r.max > 0 && r.type !== 'display' && r.type !== 'modal-button');
+  const resCard = resRows.length ? card('Resources', 'tap a dot to use one', resRows.map(r => item(_qpE(r.name), '', pips(r))).join('')) : '';
 
   body.innerHTML = `
     <div class="qp-top"><div class="qp-whobox">${(c.tokenUrl || '').trim() ? `<div class="qp-token" style="background-image:url('${_qpE(String(c.tokenUrl).trim().replace(/'/g, '%27'))}')" role="img" aria-label="${_qpE(c.charName || '')}"></div>` : ''}<div><div class="qp-who">${_qpE(c.charName || '')}</div><div class="qp-dim">${_qpE((c.classes || []).map(x => `${x.class.charAt(0).toUpperCase() + x.class.slice(1)} ${x.levels?.length || 0}${x.subclass ? ' (' + x.subclass + ')' : ''}`).join(' / '))}${_qpRaceLink(c)}</div></div>
@@ -67307,11 +67289,13 @@ function renderQuickPlay() {
       <a href="#" onclick="return qpJump('hit-points')" class="qp-bar-hp">HP <b>${c.hp_current ?? 0}</b>/${c.hp_max}${c.hp_temp ? ` <span class="qp-temp">+${c.hp_temp}</span>` : ''}</a>
       <span class="qp-bar-ac">AC <b>${calcACBreakdown().total}</b></span>
       ${slotRows.length ? `<a href="#" onclick="return qpJump('spell-slots')">Slots</a>` : ''}
+      ${resRows.length ? `<a href="#" onclick="return qpJump('resources')">Resources</a>` : ''}
       ${stored ? `<a href="#" onclick="return qpJump('stored-dice')">Dice</a>` : ''}
       <a href="#" onclick="return qpJump('action')">Action</a>
       <a href="#" onclick="return qpJump('bonus-action')">Bonus</a>
       <a href="#" onclick="return qpJump('reaction')">Reaction</a>
       ${(currentChar.magicItems || []).length ? `<a href="#" onclick="return qpJump('magic-items')">Items</a>` : ''}
+      <a href="#" onclick="return qpJump('saving-throws')">Saves</a>
       <a href="#" onclick="return qpJump('ability-checks')">Checks</a>
     </nav>
     <div class="qp-cols"><div class="qp-side">
@@ -67321,6 +67305,7 @@ function renderQuickPlay() {
       ${card('Saving Throws', '', `<div class="qp-chips">${saves}</div>${saveNotes.map(n => `<div class="qp-note">${n}</div>`).join('')}`)}
     </div>
     ${slotRows.length ? card('Spell Slots', 'tap a dot to use one', `${casterLine}<div class="qp-slotgrid">${slotRows.join('')}</div>`) : ''}
+    ${resCard}
     ${stored ? card('Stored dice', '', stored) : ''}
     ${card('Ability Checks', '\u2605 = Expertise', `${checks}${checkNotes.map(n => `<div class="qp-note">${n}</div>`).join('')}`)}
     </div><div class="qp-main"><div class="qp-mainA">
@@ -73262,10 +73247,10 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
   const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   // pages that have a place in the bottom bar; everything else is reached from More
-  const PAGE_TAB = { quickplay: 'play', 'm-spells': 'spells', 'm-bag': 'bag', 'm-char': 'char', 'm-more': 'more' };
+  const PAGE_TAB = { quickplay: 'play', 'm-spells': 'spells', 'm-bag': 'bag', 'm-char': 'char', 'm-more': 'more', 'm-allies': 'allies' };
   // full pages opened from a tab: which tab they belong to, and what the back bar says
-  const SUB_PARENT = { main: 'm-char', spells: 'm-spells', inventory: 'm-bag', companion: 'quickplay', summon: 'quickplay', wildshape: 'quickplay', forms: 'quickplay' };
-  const PARENT_NAME = { 'm-char': 'Character', 'm-spells': 'Spells', 'm-bag': 'Bag', quickplay: 'Play', 'm-more': 'More' };
+  const SUB_PARENT = { main: 'm-char', spells: 'm-spells', inventory: 'm-bag', companion: 'm-allies', summon: 'm-allies', wildshape: 'm-allies', forms: 'm-allies' };
+  const PARENT_NAME = { 'm-char': 'Character', 'm-spells': 'Spells', 'm-bag': 'Bag', quickplay: 'Play', 'm-more': 'More', 'm-allies': 'Summons' };
   const SUB_TITLES = { features: 'Features', tables: 'Tables', background: 'Background', feats: 'Feats', companion: 'Companion', summon: 'Summons',
     wildshape: 'Wild Shape', forms: 'Forms', 'party-overview': 'Parties', dm: 'DM panel', spells: 'All spells', inventory: 'Inventory', main: 'Full sheet' };
 
@@ -73283,6 +73268,7 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
     chev: '<path d="m9 6 6 6-6 6"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+    allies: '<circle cx="5.5" cy="10.5" r="2"/><circle cx="9.5" cy="5.5" r="2"/><circle cx="14.5" cy="5.5" r="2"/><circle cx="18.5" cy="10.5" r="2"/><path d="M8 17.5c0-3 1.8-5.5 4-5.5s4 2.5 4 5.5c0 1.7-1.6 2.5-4 2.5s-4-.8-4-2.5z"/>',
   };
   const svg = (k, size = 22, w = 1.8) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
 
@@ -73307,7 +73293,7 @@ html.m-ui #spell-detail-glyph svg, html.m-ui #spell-detail-glyph canvas { max-wi
 
 /* top bar */
 html.m-ui #m-top { display: flex; flex: none; flex-direction: column; gap: 8px; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; background: var(--bg2); border-bottom: 1px solid var(--border); font-family: var(--font-ui); }
-#m-top button, #m-nav button, #m-subhead button, #page-m-more button, #page-m-spells button, #page-m-bag button, #m-play-head button, .m-sheet-ui button { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+#m-top button, #m-nav button, #m-subhead button, #page-m-more button, #page-m-spells button, #page-m-bag button, #m-play-head button, #page-m-allies button, .m-sheet-ui button { font: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
 #m-top .m-r1 { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 #m-top .m-who { flex: 1; min-width: 0; }
 #m-top .m-name { font-family: var(--font-title, var(--font-ui)); font-size: 19px; font-weight: 600; color: var(--text-hi); line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -73489,11 +73475,34 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
     let tabs;
     if (hasSheet()) tabs = [['play', 'Play', "switchPage('quickplay')"], ['spells', 'Spells', "switchPage('m-spells')"], ['bag', 'Bag', "switchPage('m-bag')"], ['char', 'Character', "switchPage('m-char')"], ['more', 'More', "switchPage('m-more')"]];
     else tabs = [['party', 'Parties', 'openPartyOverview()']].concat(typeof isDM !== 'undefined' && isDM ? [['dm', 'DM', 'openDMPanelDirect()']] : []).concat([['more', 'More', "switchPage('m-more')"]]);
+    // a Summons / Forms tab only for a character that has a companion, summons or Wild Shape
+    const al = hasSheet() ? alliesLabel() : '';
+    if (al) { PARENT_NAME['m-allies'] = al; tabs.splice(4, 0, ['allies', al, "switchPage('m-allies')"]); }
     const cur = hasSheet() ? (PAGE_TAB[pg] || PAGE_TAB[SUB_PARENT[pg]] || 'more') : (pg === 'dm' ? 'dm' : pg === 'party-overview' ? 'party' : 'more');
-    const sig = tabs.map(t => t[0]).join() + '|' + cur;
+    const sig = tabs.map(t => t[0] + ':' + t[1]).join() + '|' + cur;
     if (nav.dataset.sig === sig) return;
     nav.dataset.sig = sig;
     nav.innerHTML = tabs.map(([k, label, fn]) => `<button class="${k === cur ? 'on' : ''}" onclick="${fn}" ${k === cur ? 'aria-current="page"' : ''}><span class="m-pill">${svg(k)}</span>${label}</button>`).join('');
+  }
+  function alliesLabel() {
+    const sh = id => { const t = $(id); return !!t && t.style.display !== 'none'; };
+    if (sh('tab-summon') || sh('tab-companion')) return 'Summons';
+    if (sh('tab-wildshape') || sh('tab-forms')) return 'Forms';
+    return '';
+  }
+  // the Summons / Forms tab: what's out with you, and the full pages
+  function renderAllies() {
+    const host = $('page-m-allies'); if (!host) return;
+    const sh = id => { const t = $(id); return !!t && t.style.display !== 'none'; };
+    const row = (label, sub, fn) => `<button class="m-li" onclick="${fn}"><span class="m-lt"><span class="m-ln">${esc(label)}</span>${sub ? `<span class="m-lm">${esc(sub)}</span>` : ''}</span>${svg('chev', 18, 2)}</button>`;
+    const rows = [];
+    if (sh('tab-companion')) rows.push(row($('tab-companion').textContent.trim() || 'Companion', 'Statblock, actions and hit points', "switchPage('companion')"));
+    if (sh('tab-summon')) rows.push(row('Summons', 'Statblocks and hit points for your summon spells', "switchPage('summon')"));
+    if (sh('tab-wildshape')) rows.push(row('Wild Shape', 'Beast forms and uses', "switchPage('wildshape')"));
+    if (sh('tab-forms')) rows.push(row('Forms', '', "switchPage('forms')"));
+    const out = withYou();
+    host.innerHTML = (out || `<section class="m-sec2"><div class="m-h2"><h2>With you</h2></div><div class="m-box"><div class="m-empty">Nothing is out with you right now.</div></div></section>`)
+      + (rows.length ? `<section class="m-sec2"><div class="m-h2"><h2>Open</h2></div><div class="m-box">${rows.join('')}</div></section>` : '');
   }
   function renderSubhead() {
     const sh = $('m-subhead'); if (!sh) return;
@@ -73785,10 +73794,11 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
   // ═════════════════════════════════════════════════════════════════
   const css2 = document.createElement('style');
   css2.id = 'phone-layout-css-2';
-  const PLAY_ORDER = ['qp-c-action', 'qp-c-bonus-action', 'qp-c-reaction', 'qp-c-other-limited-abilities', 'qp-c-spell-slots', 'qp-c-stored-dice',
+  const PLAY_ORDER = ['qp-c-action', 'qp-c-bonus-action', 'qp-c-reaction', 'qp-c-other-limited-abilities', 'qp-c-spell-slots', 'qp-c-resources', 'qp-c-stored-dice',
     'qp-c-takes-longer', 'qp-c-magic-items', 'qp-c-saving-throws', 'qp-c-ability-checks', 'qp-c-movement-ac'];
   const PLAY_FILTERS = [['all', 'All', null], ['action', 'Action', ['qp-c-action']], ['bonus', 'Bonus', ['qp-c-bonus-action']],
-    ['reaction', 'React', ['qp-c-reaction']], ['uses', 'Uses', ['qp-c-other-limited-abilities', 'qp-c-spell-slots', 'qp-c-stored-dice']]];
+    ['reaction', 'React', ['qp-c-reaction']], ['resources', 'Resources', ['qp-c-resources', 'qp-c-spell-slots', 'qp-c-stored-dice']],
+    ['checks', 'Checks', ['qp-c-saving-throws', 'qp-c-ability-checks']]];
   css2.textContent = `
 /* shared phone list look */
 .m-sec2 { margin: 0 0 20px; font-family: var(--font-ui); }
@@ -73844,6 +73854,11 @@ html.m-ui #m-backdrop.on { display: block; position: fixed; inset: 0; z-index: 1
 .m-with-row .m-go { font-size: 15px; font-weight: 600; color: var(--accent); }
 #m-play-head { font-family: var(--font-ui); }
 #m-play-head .m-seg { margin-bottom: 14px; }
+html:not(.m-ui) #m-play-head { display: none !important; }
+html.m-ui #m-play-head { position: sticky; top: -12px; z-index: 15; background: var(--bg); margin: -12px -12px 14px; padding: 12px 12px 8px; }
+html.m-ui #m-play-head .m-seg { margin-bottom: 0; overflow-x: auto; scrollbar-width: none; }
+html.m-ui #m-play-head .m-seg::-webkit-scrollbar { display: none; }
+#page-m-allies { font-family: var(--font-ui); }
 
 /* Play: Quick Play as rows */
 html.m-ui #qp-body { display: flex; flex-direction: column; gap: 18px; }
@@ -73882,7 +73897,7 @@ html.m-ui #qp-body .qp-table { width: 100%; }
   document.head.appendChild(css2);
 
   const hpBar = (cur, max) => { const pct = max ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0; return `<span class="m-bar"><span style="width:${pct}%;background:${hpColour(cur, max)}"></span></span>`; };
-  let playFilter = (() => { try { return localStorage.getItem('m_play_filter') || 'all'; } catch (e) { return 'all'; } })();
+  let playFilter = (() => { try { const v = localStorage.getItem('m_play_filter') || 'all'; return PLAY_FILTERS.some(f => f[0] === v) ? v : (v === 'uses' ? 'resources' : 'all'); } catch (e) { return 'all'; } })();
   window.mPlayFilter = function (k) { playFilter = k; try { localStorage.setItem('m_play_filter', k); } catch (e) {} renderPlayHead(); const c = $('content'); if (c) c.scrollTop = 0; };
   function withYou() {
     if (!hasSheet()) return '';
@@ -73915,14 +73930,14 @@ html.m-ui #qp-body .qp-table { width: 100%; }
   }
   window.mUseWildShape = function () {
     try { if (typeof useWildShape === 'function') useWildShape(); } catch (e) { console.warn(e); }
-    renderPlayHead();
+    renderAllies();
   };
   function renderPlayHead() {
     const page = $('page-quickplay'); if (!page || !isOn()) return;
     let h = $('m-play-head');
     if (!h) { h = document.createElement('div'); h.id = 'm-play-head'; page.insertBefore(h, page.firstChild); }
     page.dataset.mf = playFilter;
-    h.innerHTML = `<div class="m-seg" role="group" aria-label="Show">${PLAY_FILTERS.map(([k, l]) => `<button data-m-view class="${k === playFilter ? 'on' : ''}" aria-pressed="${k === playFilter}" onclick="mPlayFilter('${k}')">${l}</button>`).join('')}</div>${withYou()}`;
+    h.innerHTML = `<div class="m-seg" role="group" aria-label="Show">${PLAY_FILTERS.map(([k, l]) => `<button data-m-view class="${k === playFilter ? 'on' : ''}" aria-pressed="${k === playFilter}" onclick="mPlayFilter('${k}')">${l}</button>`).join('')}</div>`;
   }
 
   // tapping a row opens it as a sheet, at that row, with everything on it
@@ -74413,7 +74428,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     queued = true;
     requestAnimationFrame(() => {
       queued = false;
-      try { renderTop(); renderNav(); renderSubhead(); if (activePage() === 'm-more') renderMore(); } catch (e) { console.warn('[phone layout]', e); }
+      try { renderTop(); renderNav(); renderSubhead(); if (activePage() === 'm-more') renderMore(); if (activePage() === 'm-allies') renderAllies(); } catch (e) { console.warn('[phone layout]', e); }
       syncLock();
     });
   }
@@ -74427,7 +74442,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     app.appendChild(nav);
     const sub = document.createElement('div'); sub.id = 'm-subhead';
     content.insertBefore(sub, content.firstChild);
-    ['m-more', 'm-spells', 'm-bag', 'm-char'].forEach(id => { const pg = document.createElement('div'); pg.className = 'page'; pg.id = 'page-' + id; content.appendChild(pg); });
+    ['m-more', 'm-spells', 'm-bag', 'm-char', 'm-allies'].forEach(id => { const pg = document.createElement('div'); pg.className = 'page'; pg.id = 'page-' + id; content.appendChild(pg); });
     const bd = document.createElement('div'); bd.id = 'm-backdrop';
     bd.addEventListener('click', () => { const p = $('pdf-choice'); if (p) p.remove(); const t = $('theme-picker-panel'); if (t && !t.classList.contains('hidden')) t.classList.add('hidden'); syncLock(); });
     document.body.appendChild(bd);
@@ -74455,8 +74470,9 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       if (!was && hasSheet() && (pg === 'main' || pg === 'quickplay' || !pg)) switchPage('quickplay');
     } else if (was) {
       const tp = $('theme-picker-panel'); if (tp && tp._home) tp._home.appendChild(tp);
-      const back = { 'm-more': 'main', 'm-spells': 'spells', 'm-bag': 'inventory', 'm-char': 'main' }[activePage()]; if (back) switchPage(back);
+      const back = { 'm-more': 'main', 'm-spells': 'spells', 'm-bag': 'inventory', 'm-char': 'main', 'm-allies': 'main' }[activePage()]; if (back) switchPage(back);
       const mf = $('page-quickplay'); if (mf) delete mf.dataset.mf;
+      const ph = $('m-play-head'); if (ph) ph.remove();   // the phone Play bar has no use in the full layout
       try { if (typeof applyQuickPlayTab === 'function') applyQuickPlayTab(false); } catch (e) {}
       root.classList.remove('m-modal-open');
     }
@@ -74471,6 +74487,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   wrap('switchPage', page => {
     if (!isOn()) return;
     if (page === 'm-more') renderMore();
+    if (page === 'm-allies') renderAllies();
     if (page === 'm-spells') renderSpells();
     if (page === 'm-bag') renderBag();
     if (page === 'm-char') renderChar();
@@ -74489,7 +74506,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   wrap('renderQuickPlay', () => { if (!isOn()) return; renderPlayHead(); if (detailAt && !$('m-detail-modal')?.classList.contains('hidden')) paintDetail(); });
   wrap('qpSlot', () => { if (isOn() && activePage() === 'm-spells') renderSpells(); });
   ['renderMagicItemsPanel', 'renderUnifiedInventory', 'updateCurrencyTotal'].forEach(fn => wrap(fn, () => { if (isOn() && activePage() === 'm-bag') setTimeout(renderBag, 0); }));
-  ['renderSummonTab', 'renderWildShapeList', 'useWildShape', 'resetWildShapeUses'].forEach(fn => wrap(fn, () => { if (isOn() && activePage() === 'quickplay') setTimeout(renderPlayHead, 0); }));
+  ['renderSummonTab', 'renderWildShapeList', 'useWildShape', 'resetWildShapeUses'].forEach(fn => wrap(fn, () => { if (isOn() && activePage() === 'm-allies') setTimeout(renderAllies, 0); }));
   wrap('closeModal', id => { if (!isOn()) return; if (activePage() === 'm-bag') setTimeout(renderBag, 0); if (activePage() === 'm-spells' && id !== 'spell-detail-modal') setTimeout(renderSpells, 0); });
   ['debouncedSave', 'autoSave', 'renderConditions', 'renderExhaustion', 'recalcAll', 'updateCharSummary', 'renderQuickPlay', 'handleRemoteCharUpdate', 'toggleViewAsPlayer'].forEach(fn => wrap(fn, refresh));
   // Quick Play is the Play tab for everyone in the phone layout
@@ -76907,7 +76924,7 @@ const SPECIES_ADD = {
 "geleton": {
 "name": "Geleton",
 "type": "Humanoid",
-"sizeText": "Medium or Small, chosen when you select this race",
+"sizeText": "Varies",
 "speedText": "30 feet",
 "size": "Medium or Small",
 "speed": 30,
@@ -81393,6 +81410,149 @@ function _spFeatOnlyDec(id) {
   return d;
 }
 window._spFeatOnlyDec = _spFeatOnlyDec;
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// MARKDOWN IN MODALS - headings, pipe tables, lists, rules and quotes in
+// item / feature / feat / spell text (pasted homebrew, DM edits, catalog
+// text). Used by renderItemMarkdown (item, valuables, gear and spell
+// description modals) and formatFeatDescHtml (feature, feat, invocation and
+// class info modals and cards).
+//   mdInline(s, esc)          **bold**, *italic*, ***both***, _italic_, ~~strike~~, `code`, [text](https://link)
+//   mdTableHtml(lines, inl)   a pipe table; |:--:| / |--:| set the column alignment
+//   mdHeadingHtml(n, text, inl)
+//   mdBlocksToHtml(text)      the whole renderer (escapes HTML)
+//   mdExtractBlocks(text, out) for formatFeatDescHtml: swaps real tables
+//                              (with a |---| row) and # headings for tokens,
+//                              so its "|" paragraph splitting leaves them alone
+// ═══════════════════════════════════════════════════════════════════════
+const _mdEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function mdInline(s, esc) {
+  let t = esc === false ? String(s) : _mdEsc(s);
+  const codes = [];
+  t = t.replace(/`([^`\n]+)`/g, (m, c) => { codes.push(c); return '\u0002' + (codes.length - 1) + '\u0002'; });
+  t = t
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, txt, url) => `<a href="${url.replace(/"/g, '%22')}" target="_blank" rel="noopener" style="color:var(--accent)">${txt}</a>`)
+    .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .replace(/(^|[^A-Za-z0-9_])_([^_\n]+)_(?![A-Za-z0-9_])/g, '$1<em>$2</em>')
+    .replace(/~~([^~\n]+)~~/g, '<s>$1</s>');
+  return t.replace(/\u0002(\d+)\u0002/g, (m, i) => `<code style="font-family:monospace;font-size:.92em;background:var(--bg3);padding:0 3px;border-radius:3px">${codes[+i]}</code>`);
+}
+const _mdIsTableLine = l => /^\s*\|/.test(l);
+const _mdIsSep = l => /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(l) && l.includes('-');
+const _mdCells = l => {
+  const t = l.trim().replace(/^\|/, '').replace(/\|$/, '');
+  // a "\|" inside a cell is a literal pipe
+  return t.split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+};
+function mdTableHtml(lines, inl) {
+  inl = inl || (s => mdInline(s));
+  const rows = lines.map(_mdCells);
+  const sepAt = lines.findIndex(_mdIsSep);
+  let align = [];
+  if (sepAt >= 0) align = rows[sepAt].map(c => /^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : 'left');
+  const data = rows.filter((r, i) => i !== sepAt && !_mdIsSep(lines[i]));
+  if (!data.length) return '';
+  const hasHead = sepAt !== 0; // a separator first means no header row
+  const head = hasHead ? data[0] : null;
+  const body = hasHead ? data.slice(1) : data;
+  const cols = Math.max(...data.map(r => r.length));
+  const pad = r => r.concat(Array(Math.max(0, cols - r.length)).fill(''));
+  const plain = s => (s || '').replace(/[*_`~]/g, '');
+  const short = i => (!head || plain(head[i]).length <= 14) && body.every(r => plain(r[i]).length <= 10);
+  const st = i => `text-align:${align[i] || 'left'};${short(i) ? 'white-space:nowrap;width:1%;' : ''}`;
+  return `<div class="md-table-wrap" style="overflow-x:auto;margin:8px 0"><table style="width:100%;border-collapse:collapse;font-size:12px">`
+    + (head ? `<thead><tr>${pad(head).map((h, i) => `<th style="${st(i)}padding:4px 8px;border-bottom:1px solid var(--border);color:var(--text3);font-family:var(--font-ui);font-size:10px;text-transform:uppercase;letter-spacing:.4px;vertical-align:bottom">${inl(h)}</th>`).join('')}</tr></thead>` : '')
+    + `<tbody>${body.map(r => `<tr>${pad(r).map((c, i) => `<td style="${st(i)}padding:4px 8px;border-bottom:1px solid var(--border2);vertical-align:top">${inl(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function mdHeadingHtml(n, text, inl) {
+  inl = inl || (s => mdInline(s));
+  const size = [0, 17, 15, 14, 13, 12, 11][n] || 12;
+  const caps = n >= 4 ? 'text-transform:uppercase;letter-spacing:.6px;' : '';
+  const font = n <= 3 ? 'var(--font-head, var(--font-ui))' : 'var(--font-ui)';
+  return `<div class="md-h md-h${n}" role="heading" aria-level="${Math.min(6, n + 1)}" style="font-family:${font};font-size:${size}px;font-weight:700;color:${n <= 4 ? 'var(--text)' : 'var(--text2)'};${caps}margin:12px 0 4px;line-height:1.3">${inl(text)}</div>`;
+}
+const _mdHead = l => l.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+const _mdUl = l => l.match(/^\s*[-*+•]\s+(.*)$/);
+const _mdOl = l => l.match(/^\s*(\d+)[.)]\s+(.*)$/);
+const _mdHr = l => /^\s*([-*_])(\s*\1){2,}\s*$/.test(l);
+const _mdQuote = l => l.match(/^\s*>\s?(.*)$/);
+function mdBlocksToHtml(text, opts) {
+  if (!text) return '';
+  opts = opts || {};
+  const esc = opts.escape !== false;
+  const inl = s => mdInline(s, esc);
+  const pStyle = opts.pStyle || 'margin:0 0 10px';
+  const blocks = String(text).replace(/\r\n?/g, '\n').split(/\n\s*\n/);
+  const out = [];
+  for (const block of blocks) {
+    const lines = block.split('\n').filter(l => l.trim());
+    let i = 0, para = [];
+    const flush = () => { if (para.length) { out.push(`<p style="${pStyle}">${para.map(inl).join('<br>')}</p>`); para = []; } };
+    while (i < lines.length) {
+      const l = lines[i];
+      let m;
+      if ((m = _mdHead(l))) { flush(); out.push(mdHeadingHtml(m[1].length, m[2], inl)); i++; continue; }
+      if (_mdIsTableLine(l)) {
+        let j = i; while (j < lines.length && _mdIsTableLine(lines[j])) j++;
+        const run = lines.slice(i, j);
+        // a lone "| ..." line inside a paragraph stays text unless it's the whole block
+        if (run.length >= 2 || lines.length === 1) { flush(); out.push(mdTableHtml(run, inl)); i = j; continue; }
+      }
+      if (_mdHr(l)) { flush(); out.push('<hr style="border:0;border-top:1px solid var(--border);margin:10px 0">'); i++; continue; }
+      if (_mdUl(l) || _mdOl(l)) {
+        flush();
+        const ordered = !_mdUl(l);
+        const items = [];
+        while (i < lines.length) {
+          const um = _mdUl(lines[i]), om = _mdOl(lines[i]);
+          if (ordered ? om : um) { items.push(ordered ? om[2] : um[1]); i++; }
+          else if (items.length && /^\s{2,}\S/.test(lines[i]) && !um && !om) { items[items.length - 1] += '<br>' + lines[i].trim(); i++; }
+          else break;
+        }
+        const start = ordered ? +(_mdOl(l)[1]) : 1;
+        const tag = ordered ? 'ol' : 'ul';
+        out.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ''} style="margin:4px 0 8px 20px;padding:0">${items.map(t => `<li style="margin-bottom:2px">${t.split('<br>').map(inl).join('<br>')}</li>`).join('')}</${tag}>`);
+        continue;
+      }
+      if ((m = _mdQuote(l))) {
+        flush();
+        const q = [];
+        while (i < lines.length && (m = _mdQuote(lines[i]))) { q.push(m[1]); i++; }
+        out.push(`<blockquote style="margin:6px 0 10px;padding:4px 10px;border-left:3px solid var(--border);color:var(--text2)">${q.map(inl).join('<br>')}</blockquote>`);
+        continue;
+      }
+      para.push(l); i++;
+    }
+    flush();
+  }
+  return out.join('');
+}
+// formatFeatDescHtml splits text on newlines AND "|" (old data uses "|" as a
+// paragraph break), so real markdown tables and headings are rendered first
+// and stood in for by tokens it passes through untouched.
+function mdExtractBlocks(text, store) {
+  const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i], h = _mdHead(l);
+    if (h) { store.push(mdHeadingHtml(h[1].length, h[2], s => mdInline(s, false))); out.push('\u0001MD' + (store.length - 1) + '\u0001'); continue; }
+    // only a real table: 2+ "|" lines with a |---| row, so old "a | b" text is unchanged
+    if (/^\s*\|/.test(l)) {
+      let j = i; while (j < lines.length && /^\s*\|/.test(lines[j])) j++;
+      const run = lines.slice(i, j);
+      if (run.length >= 2 && run.some(_mdIsSep)) {
+        store.push(mdTableHtml(run, s => mdInline(s, false)));
+        out.push('\u0001MD' + (store.length - 1) + '\u0001');
+        i = j - 1; continue;
+      }
+    }
+    out.push(l);
+  }
+  return out.join('\n');
+}
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
