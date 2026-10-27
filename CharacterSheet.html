@@ -13297,6 +13297,7 @@ const ARC = {
     s+=``;
     s+=`<circle cx="${this.CX}" cy="${this.CY}" r="${this.R+20}" fill="#332a47" stroke="${tc}44" stroke-width="2"/>`;
     s+=`<circle cx="${this.CX}" cy="${this.CY}" r="${this.R-30}" fill="#12122a" stroke="${tc}22" stroke-width="1"/>`;
+    s+=_gScale(this.CX,this.CY,this.R+20,tc,0);
     for(const [school,angle] of Object.entries(this.ANGLES)){
       for(const off of [-22.5,22.5]){
         const a=(angle+off)*Math.PI/180;
@@ -13876,7 +13877,7 @@ const LIN = (() => {
       let s = base(color);
       for (let i = 0; i < pts.length - 1; i++) {
         const { x: x1 } = pts[i], { x: x2 } = pts[i + 1];
-        s += arcSegment(style, x1, x2, segColor(name, color, pts[i+1].school), i * 137 + level);
+        s += _gLinArc(style, x1, x2, CY, MAX_ARC, segColor(name, color, pts[i+1].school), i * 137 + level);
       }
       for (const p of pts) s += renderDot(p.x, p.y, _SC[p.school], p.dot !== null, DOT_R);
       s += labels(name, level, school, style, W, H);
@@ -14070,6 +14071,462 @@ function linePulse(x1,y1,x2,y2, color, seed) {
   return s;
 }
 
+// ── GLYPH LINES & RENDERS REWORK (step 40) ───────────────────────────
+// Injected inside the SpellGlyph closure. Later function declarations win,
+// so these replace the original line styles and node renderer.
+// Every style can follow a straight line or a curve (q = quadratic control
+// point), so Arcane (Short.) arcs and Vortex bends use the same drawing.
+// Colour patterns stay what the theme layer expects: halo strokes are wide
+// and faint, cores are thin and solid, ribbons are solid school-colour fills.
+
+// Sample a straight or quadratic spine: points with tangent, normal, t and length
+function _gSpine(x1, y1, x2, y2, q, step) {
+  const lenEst = q ? Math.hypot(q[0] - x1, q[1] - y1) + Math.hypot(x2 - q[0], y2 - q[1]) : Math.hypot(x2 - x1, y2 - y1);
+  const n = Math.max(8, Math.min(260, Math.ceil(lenEst / (step || 5))));
+  const P = []; let L = 0;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n; let x, y, tx, ty;
+    if (q) {
+      const u = 1 - t;
+      x = u * u * x1 + 2 * u * t * q[0] + t * t * x2; y = u * u * y1 + 2 * u * t * q[1] + t * t * y2;
+      tx = 2 * u * (q[0] - x1) + 2 * t * (x2 - q[0]); ty = 2 * u * (q[1] - y1) + 2 * t * (y2 - q[1]);
+    } else { x = x1 + t * (x2 - x1); y = y1 + t * (y2 - y1); tx = x2 - x1; ty = y2 - y1; }
+    const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    if (i) L += Math.hypot(x - P[i - 1].x, y - P[i - 1].y);
+    P.push({ x, y, tx, ty, nx: -ty, ny: tx, t, L });
+  }
+  P.len = L;
+  return P;
+}
+// +1 / -1 so that the normal points away from the chart centre (consistent "outside")
+function _gSide(P, cx, cy) {
+  const m = P[P.length >> 1]; if (cx == null) return 1;
+  return ((m.x - cx) * m.nx + (m.y - cy) * m.ny) >= 0 ? 1 : -1;
+}
+// Offset a spine along its normals; off(p, i) returns the offset in px
+function _gOffset(P, off) {
+  const out = P.map((p, i) => ({ x: p.x + p.nx * off(p, i), y: p.y + p.ny * off(p, i) }));
+  return out;
+}
+const _gS = x => Math.max(0, Math.sin(x));
+const _gPD = pts => 'M' + pts.map(p => `${f(p.x)},${f(p.y)}`).join(' L');
+// Smooth path through points (Catmull-Rom as cubic Béziers)
+function _gSmooth(pts, ten) {
+  ten = ten == null ? 0.5 : ten;
+  let d = `M${f(pts[0].x)},${f(pts[0].y)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    d += ` C${f(p1.x + (p2.x - p0.x) * ten / 3)},${f(p1.y + (p2.y - p0.y) * ten / 3)} ${f(p2.x - (p3.x - p1.x) * ten / 3)},${f(p2.y - (p3.y - p1.y) * ten / 3)} ${f(p2.x)},${f(p2.y)}`;
+  }
+  return d;
+}
+// Variable-width ribbon (a filled outline) along a centre line with its own normals
+function _gRibbon(C, w) {
+  // C: points {x,y}; normals are recomputed from the points so offsets stay true
+  const N = C.map((p, i) => {
+    const a = C[Math.max(0, i - 1)], b = C[Math.min(C.length - 1, i + 1)];
+    let tx = b.x - a.x, ty = b.y - a.y; const l = Math.hypot(tx, ty) || 1; return [-ty / l, tx / l];
+  });
+  const left = C.map((p, i) => ({ x: p.x + N[i][0] * w(i, C.length) / 2, y: p.y + N[i][1] * w(i, C.length) / 2 }));
+  const right = C.map((p, i) => ({ x: p.x - N[i][0] * w(i, C.length) / 2, y: p.y - N[i][1] * w(i, C.length) / 2 })).reverse();
+  return 'M' + left.concat(right).map(p => `${f(p.x)},${f(p.y)}`).join(' L') + ' Z';
+}
+const _gTaper = (i, n, a, b) => { const t = i / (n - 1); return Math.pow(_gS(Math.PI * Math.min(1, Math.max(0, t))), a == null ? 0.6 : a); };
+const _gHalo = (d, c, w, o) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 10}" stroke-linecap="round" stroke-linejoin="round" opacity="${o || 0.2}"/>`;
+const _gCore = (d, c, w, o, extra) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 2.2}" stroke-linecap="round" stroke-linejoin="round" opacity="${o || 0.95}"${extra || ''}/>`;
+
+// Skilled - one confident, tapered stroke bowing toward the centre, with a fine guide line
+function lineSkilled(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  if (!q) { const mx = (x1 + x2) / 2, my = (y1 + y2) / 2; q = (cx == null) ? null : [mx - (mx - cx) * 0.35, my - (my - cy) * 0.35]; }
+  const P = _gSpine(x1, y1, x2, y2, q, 4); const sd = _gSide(P, cx, cy);
+  const d = _gPD(P);
+  const guide = _gPD(_gOffset(P, p => sd * 7 * Math.sin(Math.PI * p.t)));
+  return _gHalo(d, color, 11, 0.2)
+    + `<path d="${guide}" fill="none" stroke="${color}" stroke-width="0.9" opacity="0.4"/>`
+    + `<path d="${_gRibbon(P, (i, n) => 1.2 + 3.6 * _gTaper(i, n, 0.7))}" fill="${color}" opacity="0.96"/>`;
+}
+
+// Novice - a plain line, drawn twice by a slightly unsteady hand
+function lineNovice(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const rng = seededRng((seed || 0) + 4242);
+  const P = _gSpine(x1, y1, x2, y2, q, 8);
+  const ph = rng.uniform(0, 6.28), a = Math.min(2.2, P.len * 0.006);
+  const sketch = _gPD(_gOffset(P, p => a * Math.sin(p.t * Math.PI) * Math.sin(p.t * 9 + ph) + 1.4 * Math.sin(Math.PI * p.t)));
+  return _gHalo(_gPD(P), color, 9, 0.16)
+    + `<path d="${sketch}" fill="none" stroke="${color}" stroke-width="1" stroke-linecap="round" opacity="0.45"/>`
+    + _gCore(_gPD(P), color, 2, 0.9);
+}
+
+// Chaotic - controlled lightning: a bolt built by midpoint displacement, with a fork or two
+function lineChaotic(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const rng = seededRng((seed || 0) + 9001);
+  const P = _gSpine(x1, y1, x2, y2, q, 4), len = P.len;
+  const at = t => P[Math.round(t * (P.length - 1))];
+  // offsets keyed by t, refined by halving
+  let ts = [0, 1], offs = [0, 0];
+  let amp = Math.min(46, len * 0.11);
+  const depth = Math.max(3, Math.min(6, Math.round(Math.log2(len / 22))));
+  for (let k = 0; k < depth; k++) {
+    const nt = [ts[0]], no = [offs[0]];
+    for (let i = 0; i < ts.length - 1; i++) {
+      const tm = (ts[i] + ts[i + 1]) / 2 + rng.uniform(-0.12, 0.12) * (ts[i + 1] - ts[i]);
+      nt.push(tm, ts[i + 1]); no.push((offs[i] + offs[i + 1]) / 2 + rng.uniform(-amp, amp), offs[i + 1]);
+    }
+    ts = nt; offs = no; amp *= 0.52;
+  }
+  const pts = ts.map((t, i) => { const p = at(t); const e = Math.min(1, Math.sin(Math.PI * t) * 3); return { x: p.x + p.nx * offs[i] * e, y: p.y + p.ny * offs[i] * e }; });
+  const d = _gPD(pts);
+  let out = _gHalo(d, color, 13, 0.28) + _gCore(d, color, 2.3, 0.97);
+  // forks
+  const nf = len > 140 ? Math.min(3, 1 + Math.floor(len / 320)) : 0;
+  for (let k = 0; k < nf; k++) {
+    const i = Math.floor(rng.uniform(0.25, 0.7) * (pts.length - 1)), a = pts[i], b = pts[Math.min(pts.length - 1, i + 1)];
+    let dx = b.x - a.x, dy = b.y - a.y; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    const turn = (rng.next() < 0.5 ? -1 : 1) * rng.uniform(0.45, 0.8), ct = Math.cos(turn), st = Math.sin(turn);
+    const fx = dx * ct - dy * st, fy = dx * st + dy * ct, fl = Math.min(70, len * rng.uniform(0.12, 0.2));
+    const br = [{ x: a.x, y: a.y }]; let px = a.x, py = a.y;
+    for (let j = 1; j <= 3; j++) { px += fx * fl / 3 + (-fy) * rng.uniform(-8, 8); py += fy * fl / 3 + fx * rng.uniform(-8, 8); br.push({ x: px, y: py }); }
+    out += _gCore(_gPD(br), color, 1.2, 0.75);
+  }
+  return out;
+}
+
+// Psionic - circuit traces: hard right-angle routing, a parallel echo and a via at each corner
+function _gFillet(pts, R) {
+  let d = `M${f(pts[0].x)},${f(pts[0].y)}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], k = pts[i], b = pts[i + 1];
+    const l1 = Math.hypot(k.x - a.x, k.y - a.y), l2 = Math.hypot(b.x - k.x, b.y - k.y);
+    const r1 = Math.min(R, l1 * 0.45), r2 = Math.min(R, l2 * 0.45);
+    const p1 = { x: k.x - (k.x - a.x) / (l1 || 1) * r1, y: k.y - (k.y - a.y) / (l1 || 1) * r1 };
+    const p2 = { x: k.x + (b.x - k.x) / (l2 || 1) * r2, y: k.y + (b.y - k.y) / (l2 || 1) * r2 };
+    d += ` L${f(p1.x)},${f(p1.y)} Q${f(k.x)},${f(k.y)} ${f(p2.x)},${f(p2.y)}`;
+  }
+  const z = pts[pts.length - 1]; return d + ` L${f(z.x)},${f(z.y)}`;
+}
+function linePsionic(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  let route;
+  if (q) {
+    // arc formats: a bracket - straight up/down, across, and back
+    const ay = (y1 + y2) / 2 + 0.3 * (q[1] - (y1 + y2) / 2);
+    route = [{ x: x1, y: y1 }, { x: x1, y: ay }, { x: x2, y: ay }, { x: x2, y: y2 }];
+  } else {
+    const segIdx = Math.round((seed || 0) / 137);
+    const dA = Math.hypot(x2 - cx, y1 - cy), dB = Math.hypot(x1 - cx, y2 - cy);
+    const k = dA < dB - 0.5 ? { x: x2, y: y1 } : dB < dA - 0.5 ? { x: x1, y: y2 } : segIdx % 2 ? { x: x1, y: y2 } : { x: x2, y: y1 };
+    route = [{ x: x1, y: y1 }, k, { x: x2, y: y2 }];
+  }
+  route = route.filter((p, i) => !i || Math.hypot(p.x - route[i - 1].x, p.y - route[i - 1].y) > 0.5);
+  if (route.length < 2) return '';
+  const d = _gFillet(route, 16);
+  // echo: the same route nudged toward the centre
+  const ox = cx == null ? 0 : Math.sign(cx - (x1 + x2) / 2) * 7, oy = cy == null ? 0 : Math.sign(cy - (y1 + y2) / 2) * 7;
+  const echo = _gFillet(route.map(p => ({ x: p.x + ox, y: p.y + oy })), 12);
+  let out = _gHalo(d, color, 11, 0.2)
+    + `<path d="${echo}" fill="none" stroke="${color}" stroke-width="0.9" stroke-dasharray="10,6" opacity="0.45"/>`
+    + _gCore(d, color, 2.2, 0.96);
+  for (let i = 1; i < route.length - 1; i++) {
+    const k = route[i];
+    out += `<rect x="${f(k.x - 5)}" y="${f(k.y - 5)}" width="10" height="10" rx="1.5" fill="#ffffff33" stroke="${color}" stroke-width="1.6" opacity="0.95"/>`;
+  }
+  return out;
+}
+
+// Natural - a growing vine: tapered meandering stem with leaves on alternate sides
+function lineNatural(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const rng = seededRng((seed || 0) + 31337);
+  const P = _gSpine(x1, y1, x2, y2, q, 5), len = P.len;
+  const A = Math.min(24, len * 0.07), ph = rng.uniform(0, 6.28), fr = len > 260 ? 1.5 : 1;
+  const C = _gOffset(P, p => A * Math.sin(Math.PI * p.t) * Math.sin(2 * Math.PI * fr * p.t + ph));
+  let out = _gHalo(_gPD(C), color, 10, 0.16)
+    + `<path d="${_gRibbon(C, (i, n) => 1.1 + 3.4 * Math.pow(_gS(Math.PI * Math.min(1, (i / (n - 1)) * 0.85 + 0.08)), 0.8))}" fill="${color}" opacity="0.95"/>`;
+  const nl = Math.max(1, Math.floor(len / 75));
+  for (let k = 1; k <= nl; k++) {
+    const t = k / (nl + 1) + rng.uniform(-0.03, 0.03); const i = Math.round(t * (C.length - 1));
+    const a = C[Math.max(0, i - 1)], b = C[Math.min(C.length - 1, i + 1)], p = C[i];
+    let tx = b.x - a.x, ty = b.y - a.y; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+    const side = k % 2 ? 1 : -1, ang = side * 0.85, ct = Math.cos(ang), st = Math.sin(ang);
+    const dx = tx * ct - ty * st, dy = tx * st + ty * ct, L = rng.uniform(18, 25), W = L * 0.5;
+    const tip = { x: p.x + dx * L, y: p.y + dy * L }, m = { x: p.x + dx * L * 0.5, y: p.y + dy * L * 0.5 };
+    out += `<path d="M${f(p.x)},${f(p.y)} Q${f(m.x - dy * W)},${f(m.y + dx * W)} ${f(tip.x)},${f(tip.y)} Q${f(m.x + dy * W)},${f(m.y - dx * W)} ${f(p.x)},${f(p.y)} Z" fill="${color}" opacity="0.8"/>`;
+  }
+  return out;
+}
+
+// Scriptural - a ruled double line with evenly measured ticks and a central mark
+function lineScriptural(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const P = _gSpine(x1, y1, x2, y2, q, 6), len = P.len, sd = _gSide(P, cx, cy);
+  const d = _gPD(P), rule = _gPD(_gOffset(P, () => sd * 6));
+  let out = _gHalo(d, color, 9, 0.16) + `<path d="${rule}" fill="none" stroke="${color}" stroke-width="1" opacity="0.6"/>` + _gCore(d, color, 2.3, 0.95);
+  const gap = 30, nt = Math.max(1, Math.floor(len / gap) - 1), pad = (len - (nt - 1) * gap) / 2;
+  let ticks = '';
+  for (let k = 0; k < nt; k++) {
+    const L = pad + k * gap; let j = P.findIndex(p => p.L >= L); if (j < 0) j = P.length - 1;
+    const p = P[j], major = k % 3 === 1, a = major ? 11 : 6, b = major ? -5 : 0;
+    ticks += `M${f(p.x + p.nx * sd * a)},${f(p.y + p.ny * sd * a)} L${f(p.x + p.nx * sd * b)},${f(p.y + p.ny * sd * b)} `;
+  }
+  if (ticks) out += `<path d="${ticks}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="butt" opacity="0.85"/>`;
+  if (len > 90) { const m = P[P.length >> 1]; out += `<circle cx="${f(m.x)}" cy="${f(m.y)}" r="4.5" fill="#ffffff33" stroke="${color}" stroke-width="1.5" opacity="0.9"/>`; }
+  return out;
+}
+
+// Calligraphic - a broad-nib pen stroke: width follows the pen angle, with a gentle S
+function lineCalligraphic(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const rng = seededRng((seed || 0) + 777);
+  const P = _gSpine(x1, y1, x2, y2, q, 4), len = P.len;
+  const A = Math.min(20, len * 0.07) * (rng.next() < 0.5 ? -1 : 1);
+  const C = _gOffset(P, p => A * Math.sin(2 * Math.PI * p.t) * Math.sin(Math.PI * p.t));
+  const nib = Math.PI / 4;
+  const w = (i, n) => {
+    const a = C[Math.max(0, i - 1)], b = C[Math.min(n - 1, i + 1)]; const th = Math.atan2(b.y - a.y, b.x - a.x);
+    const t = i / (n - 1), end = Math.min(1, t / 0.1, (1 - t) / 0.06);
+    return (1 + 7 * Math.abs(Math.sin(th - nib))) * Math.pow(Math.max(0, end), 0.55) + 0.6;
+  };
+  return _gHalo(_gPD(C), color, 12, 0.16) + `<path d="${_gRibbon(C, w)}" fill="${color}" opacity="0.94"/>`;
+}
+
+// Dancing - two threads twisting around each other in a smooth rhythm
+function lineDancing(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const rng = seededRng(seed || 0);
+  const P = _gSpine(x1, y1, x2, y2, q, 4), len = P.len;
+  const cyc = Math.max(1.5, Math.round(len / 75)), A = Math.min(13, len * 0.06), ph = rng.uniform(0, 6.28);
+  const env = p => Math.pow(_gS(Math.PI * p.t), 0.8);
+  const a = _gOffset(P, p => A * env(p) * Math.sin(2 * Math.PI * cyc * p.t + ph));
+  const b = _gOffset(P, p => -A * 0.7 * env(p) * Math.sin(2 * Math.PI * cyc * p.t + ph));
+  return _gHalo(_gPD(P), color, 12, 0.16)
+    + `<path d="${_gPD(b)}" fill="none" stroke="${color}" stroke-width="1.1" stroke-linecap="round" opacity="0.5"/>`
+    + `<path d="${_gRibbon(a, (i, n) => 0.8 + 2.4 * Math.pow(_gS(Math.PI * i / (n - 1)), 0.5))}" fill="${color}" opacity="0.95"/>`;
+}
+
+// Constellation - a few four-point stars joined by fine lines that stop short of each star
+function _gStar(x, y, s, color) {
+  const k = s * 0.22;
+  return `<circle cx="${f(x)}" cy="${f(y)}" r="${f(s * 1.5)}" fill="${color}22"/>`
+    + `<path d="M${f(x)},${f(y - s)} Q${f(x + k)},${f(y - k)} ${f(x + s)},${f(y)} Q${f(x + k)},${f(y + k)} ${f(x)},${f(y + s)} Q${f(x - k)},${f(y + k)} ${f(x - s)},${f(y)} Q${f(x - k)},${f(y - k)} ${f(x)},${f(y - s)} Z" fill="${color}" opacity="0.97"/>`;
+}
+function lineConstellation(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const rng = seededRng((seed || 0) + 555);
+  const P = _gSpine(x1, y1, x2, y2, q, 6), len = P.len;
+  const ns = Math.max(1, Math.min(6, Math.round(len / 95)));
+  const S = [{ x: x1, y: y1, end: true }];
+  for (let k = 1; k <= ns; k++) {
+    const t = k / (ns + 1) + rng.uniform(-0.05, 0.05), p = P[Math.round(t * (P.length - 1))], j = rng.uniform(-12, 12);
+    S.push({ x: p.x + p.nx * j, y: p.y + p.ny * j, s: rng.uniform(9, 14) });
+  }
+  S.push({ x: x2, y: y2, end: true });
+  let lines = '', stars = '';
+  for (let i = 0; i < S.length - 1; i++) {
+    const a = S[i], b = S[i + 1], l = Math.hypot(b.x - a.x, b.y - a.y); if (l < 1) continue;
+    const ga = a.end ? 15 : a.s + 5, gb = b.end ? 15 : b.s + 5; if (l <= ga + gb) continue;
+    const ux = (b.x - a.x) / l, uy = (b.y - a.y) / l;
+    lines += `M${f(a.x + ux * ga)},${f(a.y + uy * ga)} L${f(b.x - ux * gb)},${f(b.y - uy * gb)} `;
+  }
+  S.forEach(s => { if (!s.end) stars += _gStar(s.x, s.y, s.s, color); });
+  return (lines ? `<path d="${lines}" fill="none" stroke="${color}" stroke-width="1.3" stroke-linecap="round" opacity="0.78"/>` : '') + stars;
+}
+
+// Pulse - a heartbeat trace: steady baseline with a sharp beat (or a few on long lines)
+function linePulse(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const P = _gSpine(x1, y1, x2, y2, q, 2.5), len = P.len, sd = _gSide(P, cx, cy);
+  const nb = Math.max(1, Math.min(3, Math.round(len / 320))), bw = Math.min(120, len / (nb + 0.4)), H = Math.min(40, len * 0.14);
+  // beat shape over u in [0,1]: P-wave, Q dip, R spike, S dip, T-wave
+  const beat = u => {
+    const g = (c, w, a) => a * Math.exp(-((u - c) * (u - c)) / (2 * w * w));
+    return g(0.12, 0.05, 0.14) + g(0.37, 0.03, -0.18) + g(0.46, 0.035, 1) + g(0.555, 0.032, -0.36) + g(0.8, 0.07, 0.22);
+  };
+  const off = p => {
+    for (let k = 0; k < nb; k++) { const c = len * (k + 0.5) / nb, u = (p.L - (c - bw / 2)) / bw; if (u >= 0 && u <= 1) return sd * H * beat(u); }
+    return 0;
+  };
+  const d = _gPD(_gOffset(P, off));
+  return _gHalo(d, color, 10, 0.2) + _gCore(d, color, 2.1, 0.96);
+}
+
+// Line style dispatcher - now passes an optional curve through to every style
+function applyLineStyle(style, x1, y1, x2, y2, color, seed, cx, cy, q) { return _applyLineStyleInner(style, x1, y1, x2, y2, color, seed, cx, cy, q); }
+function _applyLineStyleInner(style, x1, y1, x2, y2, color, seed, cx, cy, q) {
+  const F = { skilled: lineSkilled, novice: lineNovice, chaotic: lineChaotic, psionic: linePsionic, natural: lineNatural, scriptural: lineScriptural,
+    calligraphic: lineCalligraphic, dancing: lineDancing, constellation: lineConstellation, pulse: linePulse, musical: lineMusical }[style] || lineSkilled;
+  return F(x1, y1, x2, y2, color, seed, cx, cy, q);
+}
+// Arcane (Short.) - every style follows the hop arc (above for forward, below for back)
+function _gLinArc(style, x1, x2, CY, MAX_ARC, color, seed) {
+  const span = Math.abs(x2 - x1); if (!span) return '';
+  const arcH = Math.min(MAX_ARC, span * 0.45), dir = x2 >= x1 ? -1 : 1, mx = (x1 + x2) / 2;
+  return _applyLineStyleInner(style, x1, CY, x2, CY, color, seed, mx, CY - dir * 4000, [mx, CY + dir * arcH * 1.6]);
+}
+// Vortex - bend each line around the centre so it swirls with the arms
+function _gSpiralQ(x1, y1, x2, y2, CX, CY) {
+  const r1 = Math.hypot(x1 - CX, y1 - CY), r2 = Math.hypot(x2 - CX, y2 - CY);
+  let a1 = Math.atan2(y1 - CY, x1 - CX), a2 = Math.atan2(y2 - CY, x2 - CX), da = a2 - a1;
+  while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+  if (Math.abs(da) < 0.05) return null;
+  const am = a1 + da / 2 + 0.25 * Math.sign(da), rm = (r1 + r2) / 2 * 0.55;
+  const q = [CX + rm * Math.cos(am), CY + rm * Math.sin(am)];
+  // keep the bend proportional to the line so short hops don't loop back on themselves
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, ch = Math.hypot(x2 - x1, y2 - y1), vx = q[0] - mx, vy = q[1] - my, vl = Math.hypot(vx, vy), mxd = 0.45 * ch;
+  return vl > mxd ? [mx + vx / vl * mxd, my + vy / vl * mxd] : q;
+}
+
+// Nodes - a solid core in a thin orbit ring with a soft halo; empty slots are quiet rings
+function renderDot(x, y, color, isEndpoint, dotR) {
+  if (isEndpoint) {
+    const r = dotR + 1;
+    return `<circle cx="${f(x)}" cy="${f(y)}" r="${r + 16}" fill="${color}22"/>`
+      + `<circle cx="${f(x)}" cy="${f(y)}" r="${r + 6}" fill="none" stroke="${color}" stroke-width="1.4" opacity="0.6"/>`
+      + `<circle cx="${f(x)}" cy="${f(y)}" r="${r}" fill="${color}"/>`
+      + `<circle cx="${f(x - r * 0.25)}" cy="${f(y - r * 0.25)}" r="${f(r * 0.38)}" fill="white" opacity="0.5"/>`;
+  }
+  return `<circle cx="${f(x)}" cy="${f(y)}" r="${dotR - 2}" fill="#5e5270" stroke="${color}88" stroke-width="1.3"/>`;
+}
+
+// Fine engraved scale just outside a circular plate: a hairline ring and 80 ticks
+// (long ticks every 45 degrees; off = angle of the first long tick, 0 = top)
+function _gScale(cx, cy, r, color, off) {
+  let t = '';
+  for (let i = 0; i < 80; i++) {
+    const a = i / 80 * Math.PI * 2 - Math.PI / 2 + (off || 0) * Math.PI / 180, l = i % 10 === 0 ? 12 : (i % 5 === 0 ? 8 : 4);
+    t += `M${f(cx + (r + 3) * Math.cos(a))},${f(cy + (r + 3) * Math.sin(a))} L${f(cx + (r + 3 + l) * Math.cos(a))},${f(cy + (r + 3 + l) * Math.sin(a))} `;
+  }
+  return `<circle cx="${cx}" cy="${cy}" r="${r + 3}" fill="none" stroke="${color}55" stroke-width="1"/>`
+    + `<path d="${t}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.65"/>`;
+}
+
+// Final polish on any glyph: calmer labels (upright small caps, spaced) and quieter slot pre-draws
+function _gPolish(svg) {
+  if (!svg) return svg;
+  return svg
+    // drop the extra glow circle drawn under every empty slot
+    .replace(/<circle cx="[\d.-]+" cy="[\d.-]+" r="\d+" fill="#[0-9A-Fa-f]{6}1[58]" stroke="none"\/>/g, '')
+    .replace(/<circle cx="[\d.-]+" cy="[\d.-]+" r="\d+" fill="#[0-9A-Fa-f]{6}15"\/>/g, '')
+    // slot discs: a touch smaller and lighter
+    .replace(/(<circle cx="[\d.-]+" cy="[\d.-]+" r=")(\d+)(" fill="#5e5270" stroke="#[0-9A-Fa-f]{6})88" stroke-width="1.5"/g, (m, a, r, b) => `${a}${Math.max(5, +r - 2)}${b}88" stroke-width="1.3"`)
+    // labels: upright, smaller, letter-spaced capitals
+    .replace(/<text([^>]*)>([^<]*)<\/text>/g, (m, at, txt) => {
+      const fs = +((at.match(/font-size="([\d.]+)"/) || [])[1] || 28);
+      at = at.replace(/ font-style="italic"/, '').replace(/font-size="[\d.]+"/, `font-size="${Math.round(fs * 0.72)}" font-weight="600" letter-spacing="${(fs * 0.2).toFixed(1)}"`);
+      return `<text${at}>${txt.toUpperCase()}</text>`;
+    });
+}
+
+// Musical - a five-line stave that follows the path, with notes walking up and down it
+// (beamed pairs, flagged quavers and a bar line at each end)
+function lineMusical(x1, y1, x2, y2, color, seed, cx, cy, q) {
+  if (x1 === x2 && y1 === y2) return '';
+  const rng = seededRng((seed || 0) + 1234);
+  const P = _gSpine(x1, y1, x2, y2, q, 4), len = P.len, sd = _gSide(P, cx, cy), gap = 4.6;
+  // stave fades in from each node so it doesn't pile up on the dots
+  const trim = Math.min(18, len * 0.15), Q = P.filter(p => p.L >= trim && p.L <= len - trim);
+  if (Q.length < 3) return lineNovice(x1, y1, x2, y2, color, seed, cx, cy, q);
+  let staff = '';
+  for (let k = -2; k <= 2; k++) staff += _gPD(Q.map(p => ({ x: p.x + p.nx * k * gap, y: p.y + p.ny * k * gap }))) + ' ';
+  let out = `<path d="${staff}" fill="none" stroke="${color}" stroke-width="0.9" opacity="0.5"/>`;
+  // bar lines
+  const bar = (p, w) => `M${f(p.x + p.nx * 2 * gap)},${f(p.y + p.ny * 2 * gap)} L${f(p.x - p.nx * 2 * gap)},${f(p.y - p.ny * 2 * gap)} `;
+  out += `<path d="${bar(Q[0])}${bar(Q[Q.length - 1])}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.85"/>`;
+  // notes
+  const usable = len - 2 * trim, nn = Math.floor(usable / 62);
+  if (nn < 1) return out;
+  const at = L => { let j = Q.findIndex(p => p.L >= L); return Q[j < 0 ? Q.length - 1 : j]; };
+  let pos = rng.randint(-2, 2); const notes = [];
+  for (let k = 0; k < nn; k++) {
+    const p = at(trim + usable * (k + 0.5) / nn);
+    pos = Math.max(-4, Math.min(4, pos + [-2, -1, -1, 1, 1, 2, 0][rng.randint(0, 6)]));
+    const hx = p.x + p.nx * sd * pos * gap / 2, hy = p.y + p.ny * sd * pos * gap / 2;
+    // stems point "up" the stave (outward) for low notes, "down" for high ones, as in real notation
+    const up = pos <= 0 ? 1 : -1, ang = Math.atan2(p.ty, p.tx) * 180 / Math.PI - 20;
+    const sx = hx + p.tx * 4.6 * up, sy = hy + p.ty * 4.6 * up;   // stem attaches at the side of the head
+    const ex = sx + p.nx * sd * up * 20, ey = sy + p.ny * sd * up * 20;
+    notes.push({ hx, hy, sx, sy, ex, ey, ang, up, p });
+  }
+  let heads = '', stems = '', beams = '';
+  for (let k = 0; k < notes.length; k++) {
+    const n = notes[k];
+    heads += `<path d="M${f(n.hx - 5.6)},${f(n.hy)} a6.6,4.6 0 1,0 13.2,0 a6.6,4.6 0 1,0 -13.2,0 Z" transform="rotate(${f(n.ang)},${f(n.hx)},${f(n.hy)})" fill="${color}" opacity="0.97"/>`;
+    stems += `M${f(n.sx)},${f(n.sy)} L${f(n.ex)},${f(n.ey)} `;
+  }
+  // beam pairs where two neighbours share a stem direction; otherwise a flag on some single notes
+  for (let k = 0; k < notes.length; k++) {
+    const a = notes[k], b = notes[k + 1];
+    if (b && a.up === b.up && rng.next() < 0.4) {
+      beams += `<path d="M${f(a.ex)},${f(a.ey)} L${f(b.ex)},${f(b.ey)}" fill="none" stroke="${color}" stroke-width="3.2" stroke-linecap="butt" opacity="0.95"/>`;
+      k++;
+    } else if (rng.next() < 0.5) {
+      const p = a.p, fx = a.ex + p.tx * 9 - p.nx * sd * a.up * 8, fy = a.ey + p.ty * 9 - p.ny * sd * a.up * 8;
+      const cx2 = a.ex + p.tx * 10 - p.nx * sd * a.up * 1, cy2 = a.ey + p.ty * 10 - p.ny * sd * a.up * 1;
+      beams += `<path d="M${f(a.ex)},${f(a.ey)} Q${f(cx2)},${f(cy2)} ${f(fx)},${f(fy)}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>`;
+    }
+  }
+  return out + `<path d="${stems}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.92"/>` + beams + heads;
+}
+
+const _P_GAP = 1.4, _P_TOT = 39 + 7 * _P_GAP;
+const _pU = (sc, d) => { const si = _SO.indexOf(sc); return si * 5 + (d - 1) + si * _P_GAP; };
+function _pLbl(x, y, sc, rot, anchor) {
+  return `<text x="${f(x)}" y="${f(y)}" text-anchor="${anchor || 'middle'}" dominant-baseline="middle" font-family="Jost,sans-serif" font-size="27" fill="${_SC[sc]}" opacity="0.85"${rot != null ? ` transform="rotate(${f(rot)},${f(x)},${f(y)})"` : ''}>${sc.slice(0, 3)}</text>`;
+}
+function _pPts(notation, pos) {
+  return parseNotation(notation).map((p, i) => { const [x, y] = pos(p.school, p.dot || (i % 5) + 1, i); return { x, y, school: p.school, dot: p.dot }; });
+}
+function _pDraw(name, level, school, pts, style, base, seg, DOT_R) {
+  const color = _SC[school]; let o = base;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1]; if (Math.hypot(b.x - a.x, b.y - a.y) < 1) continue;
+    o += seg(a, b, segColor(name, color, b.school), i * 137 + level, i);
+  }
+  for (const p of pts) o += renderDot(p.x, p.y, _SC[p.school], p.dot !== null, DOT_R || 8);
+  return `<svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">${o}</svg>`;
+}
+const _pAll = fn => { let o = ''; _SO.forEach(sc => { for (let d = 1; d <= 5; d++) o += fn(sc, d); }); return o; };
+
+// Arcane (Short.) - a "piano roll": the schools run across the top like keys and each
+// step of the spell gets its own row going down, so the path reads top to bottom
+function _gLinear(name, level, school, notation, style) {
+  const color = _SC[school], xOf = (sc, d) => 80 + _pU(sc, d) / _P_TOT * 840;
+  const parsed = parseNotation(notation), n = parsed.length;
+  const rowH = n > 1 ? Math.min(200, 700 / (n - 1)) : 0, top = 215 + (700 - (n - 1) * rowH) / 2;
+  const pos = (sc, d, i) => [xOf(sc, d), top + i * rowH];
+  let b = `<rect x="20" y="40" width="960" height="920" rx="30" fill="#12122a" stroke="${color}33" stroke-width="1.5"/>`;
+  _SO.forEach((sc, si) => { const x0 = xOf(sc, 1) - 12, x1 = xOf(sc, 5) + 12;
+    b += `<rect x="${f(x0)}" y="140" width="${f(x1 - x0)}" height="800" rx="10" fill="${si % 2 ? '#161628' : '#141428'}" stroke="${_SC[sc]}22" stroke-width="1"/>`;
+    b += `<rect x="${f(x0)}" y="112" width="${f(x1 - x0)}" height="28" rx="14" fill="#332a47" stroke="${_SC[sc]}66" stroke-width="1.3"/>`;
+    b += _pLbl((x0 + x1) / 2, 80, sc); });
+  for (let i = 0; i < n; i++) b += `<line x1="40" y1="${f(top + i * rowH)}" x2="960" y2="${f(top + i * rowH)}" stroke="#252540" stroke-width="1" stroke-dasharray="2,7"/>`;
+  b += _pAll((sc, d) => renderDot(xOf(sc, d), 126, _SC[sc], false, 6));
+  const P0 = _pPts(notation, pos);
+  if (P0.length) b += `<line x1="${f(P0[0].x)}" y1="140" x2="${f(P0[0].x)}" y2="${f(P0[0].y)}" stroke="${_SC[P0[0].school]}" stroke-width="1.2" stroke-dasharray="3,6" opacity="0.6"/>`;
+  return _pDraw(name, level, school, P0, style, b, (a, c, col, seed) => _applyLineStyleInner(style, a.x, a.y, c.x, c.y, col, seed, null, null));
+}
+
+
+// Tiny thumbnail for spell lists: Arcane ring, bold strokes, no labels or slots.
+// Colours are placeholders the theme layer swaps in (school hexes, PLATEDISC, PLATERING).
+function _gThumb(sp) {
+  if (!sp) return null;
+  let notation = sp.notation || generateNotation(sp); if (!notation) return null;
+  if (sp.name === 'Wish') notation = _SO.map(sc => `${SCHOOL_ABBREV[sc]}:3`).join(' > ');
+  let pts; try { pts = parseNotation(notation).map((p, i) => { const [x, y] = p.dot ? ARC.getDot(p.school, p.dot) : ARC.getPassthrough(p.school, i); return { x: 500 + (x - 500) * 0.92, y: 500 + (y - 500) * 0.92, school: p.school, dot: p.dot }; }); } catch (e) { return null; }
+  const color = _SC[sp.school]; if (!color) return null;
+  let o = `<circle cx="500" cy="500" r="470" fill="PLATEDISC" stroke="PLATERING" stroke-width="40"/>`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1]; if (a.x === b.x && a.y === b.y) continue;
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    o += `<path d="M${f(a.x)},${f(a.y)} Q${f(mx - (mx - 500) * 0.35)},${f(my - (my - 500) * 0.35)} ${f(b.x)},${f(b.y)}" fill="none" stroke="${segColor(sp.name, color, b.school)}" stroke-width="56" stroke-linecap="round"/>`;
+  }
+  for (const p of pts) if (p.dot !== null) o += `<circle cx="${f(p.x)}" cy="${f(p.y)}" r="80" fill="${_SC[p.school]}"/>`;
+  return `<svg viewBox="-20 -20 1040 1040" xmlns="http://www.w3.org/2000/svg">${o}</svg>`;
+}
+
 const _RLABELS={skilled:'Skilled - Elegant & Learned',novice:'Novice - Simple & Direct',
   chaotic:'Chaotic - Raw & Unstable',psionic:'Psionic - Orthogonal & Alien',
   natural:'Natural - Organic & Druidic',scriptural:'Scriptural - Mathematical Notation',
@@ -14105,7 +14562,7 @@ function renderDoubleRing(name,level,school,notation,style){
   const pts=parsed.map(p=>{const[x,y]=p.dot?getOpIp(p.school,p.dot):ip(p.school);return{x,y,school:p.school,dot:p.dot};});
   let s=bgBase;
   // Structural background - outer band, divider ring, inner disc
-  s+=`<circle cx="${CX}" cy="${CY}" r="${OR+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${CX}" cy="${CY}" r="${OR+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;s+=_gScale(CX,CY,OR+18,color,22.5);
   s+=`<circle cx="${CX}" cy="${CY}" r="${IR+10}" fill="#141428" stroke="${color}22" stroke-width="1"/>`;
   s+=`<circle cx="${CX}" cy="${CY}" r="${IR-12}" fill="#12122a" stroke="${color}11" stroke-width="1"/>`;
   // Pre-draw empty dot slots: 4 outer + 1 inner per school
@@ -14158,7 +14615,7 @@ function renderSpokes(name,level,school,notation,style){
   const pts=parsed.map(p=>{const[x,y]=p.dot?spokePt(p.school,p.dot):passthroughPt(p.school);return{x,y,school:p.school,dot:p.dot};});
   let s=bgBase;
   // Structural background - outer disc, inner darker zone
-  s+=`<circle cx="${CX}" cy="${CY}" r="${OUTER+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${CX}" cy="${CY}" r="${OUTER+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;s+=_gScale(CX,CY,OUTER+18,color,22.5);s+=`<circle cx="${CX}" cy="${CY}" r="${OUTER-24}" fill="#141428" stroke="${color}22" stroke-width="1"/>`;
   s+=`<circle cx="${CX}" cy="${CY}" r="${INNER+12}"  fill="#12122a" stroke="${color}22" stroke-width="1"/>`;
   // Pre-draw empty dot slots along spokes
   _SO.forEach(sc=>{
@@ -14224,7 +14681,7 @@ function renderInwardSpiral(name,level,school,notation,style){
   const pts=parsed.map(p=>{const[x,y]=p.dot?dp(p.school,p.dot):pp(p.school);return{x,y,school:p.school,dot:p.dot};});
   let s=bgBase;
   // Structural background - outer ring disc, inner darker zone
-  s+=`<circle cx="${CX}" cy="${CY}" r="${R+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;
+  s+=`<circle cx="${CX}" cy="${CY}" r="${R+18}" fill="#332a47" stroke="${color}44" stroke-width="2"/>`;s+=_gScale(CX,CY,R+18,color,22.5);s+=`<circle cx="${CX}" cy="${CY}" r="${R-24}" fill="#141428" stroke="${color}22" stroke-width="1"/>`;
   s+=`<circle cx="${CX}" cy="${CY}" r="${VORTEX_R+20}" fill="#12122a" stroke="${color}22" stroke-width="1"/>`;
   // Pre-draw empty dot slots on spiral arms
   _SO.forEach(sc=>{
@@ -14279,7 +14736,8 @@ function renderInwardSpiral(name,level,school,notation,style){
     const seed=i*137+lv;
 
     const sc=segColor(name,color,pts[i+1].school);
-    if(style==='skilled'){
+    if(true){ s+=applyLineStyle(style,p1.x,p1.y,p2.x,p2.y,sc,seed,CX,CY,_gSpiralQ(p1.x,p1.y,p2.x,p2.y,CX,CY)); }
+    else if(style==='skilled'){
       // Skilled: quadratic bezier pulled toward canvas centre (same as lineSkilled)
       s+=lineSkilled(p1.x,p1.y,p2.x,p2.y,sc,seed,CX,CY);
 
@@ -14456,7 +14914,7 @@ function renderGlyph(name,level,school,notation,style,fmt){
     case 'divine':  return DIV.render(name,lv,school,notation,style);
     case 'pact':    return PACT.render(name,lv,school,notation,style);
     case 'octagon': return OCT.render(name,lv,school,notation,style);
-    case 'linear':  return LIN.render(name,lv,school,notation,style);
+    case 'linear':  return _gLinear(name,lv,school,notation,style);
     case 'dring':   return renderDoubleRing(name,lv,school,notation,style);
     case 'spokes':  return renderSpokes(name,lv,school,notation,style);
     case 'spiral':  return renderInwardSpiral(name,lv,school,notation,style);
@@ -14488,7 +14946,7 @@ const SCHOOL_ABBREV = {"Evocation": "Ev", "Conjuration": "Co", "Divination": "Di
     style = style || 'skilled';
     fmt = fmt || 'arcane';
     try {
-      return renderGlyph(sp.name, sp.level, sp.school, notation, style, fmt);
+      return _gPolish(renderGlyph(sp.name, sp.level, sp.school, notation, style, fmt));
     } catch (e) {
       return null;
     }
@@ -14496,10 +14954,10 @@ const SCHOOL_ABBREV = {"Evocation": "Ev", "Conjuration": "Co", "Divination": "Di
 
   const FORMATS = ["arcane", "linear", "venn", "divine", "pact", "octagon", "dring", "spokes", "spiral"];
   const FORMAT_LABELS = {"arcane": "Arcane", "linear": "Arcane (Short.)", "venn": "Arcane (Alt.)", "divine": "Divine", "pact": "Pact Magic", "octagon": "Glyphic", "dring": "Orbital", "spokes": "Planar", "spiral": "Vortex"};
-  const STYLES = ["skilled","novice","chaotic","psionic","natural","scriptural","calligraphic","dancing","constellation","pulse"];
-  const STYLE_LABELS = {skilled:"Skilled", novice:"Novice", chaotic:"Chaotic", psionic:"Psionic", natural:"Natural", scriptural:"Scriptural", calligraphic:"Calligraphic", dancing:"Dancing", constellation:"Constellation", pulse:"Pulse"};
+  const STYLES = ["skilled","novice","chaotic","psionic","natural","scriptural","calligraphic","dancing","constellation","pulse","musical"];
+  const STYLE_LABELS = {skilled:"Skilled", novice:"Novice", chaotic:"Chaotic", psionic:"Psionic", natural:"Natural", scriptural:"Scriptural", calligraphic:"Calligraphic", dancing:"Dancing", constellation:"Constellation", pulse:"Pulse", musical:"Musical"};
 
-  return { render, generateNotation, FORMATS, FORMAT_LABELS, STYLES, STYLE_LABELS };
+  return { render, thumb: _gThumb, generateNotation, FORMATS, FORMAT_LABELS, STYLES, STYLE_LABELS };
 })();
 
 function openSpellDetailModal(key, name, ctx) {
@@ -33942,7 +34400,7 @@ function renderKnownSpells() {
       <div class="sp-name${sp.pipType==='ritual-only'?' ritual-only':''}"
         data-tt="${_spTtDesc}" data-tt-name="${sp.name.replace(/"/g,'&quot;')}" data-tt-meta="${_spTtMeta}"
         data-tt-hint="Click row to view full spell details"
-        title="${nameTitle.replace(/"/g,'&quot;')}">${sp.name}</div>
+        title="${nameTitle.replace(/"/g,'&quot;')}">${typeof _sgThumbHtml === 'function' ? _sgThumbHtml(sp.key) : ''}${sp.name}</div>
       <div class="sp-short-desc">${shortDesc}</div>
       <div class="sp-tags">${tags.join('')}${_invocBadges||''}</div>
       ${(() => {
@@ -86258,9 +86716,13 @@ function _sfxPicker(key, idp) {
   if (D.choose) p.push(`<select id="${idp}-choice" class="info-input" style="width:auto;font-size:11px"><option value="">${_sfxEsc(D.choose.label)}…</option>${_sfxChoiceOptions(D).map(x => `<option value="${_sfxEsc(x)}">${_sfxEsc(_SFX_AB.includes(x) ? x.toUpperCase() : x)}</option>`).join('')}</select>`);
   if (D.weapon) p.push(`<select id="${idp}-weapon" class="info-input" style="width:auto;font-size:11px"><option value="">Which weapon…</option>${(currentChar.weapons || []).map(w => `<option value="${_sfxEsc(w.name || w.weaponKey)}">${_sfxEsc(w.name || w.weaponKey)}</option>`).join('')}</select>`);
   if (sp.level > 0) {
+    // Spend the lowest slot available. The level picker only appears when the spell
+    // actually does more at a higher level (it has "Using a Higher-Level Spell Slot" text).
     const lvls = _sfxSlotLevels(sp);
-    p.push(`<select id="${idp}-level" class="info-input" style="width:auto;font-size:11px">${(lvls.length ? lvls : [sp.level]).map(l => `<option value="${l}">Level ${l}</option>`).join('')}</select>`);
-    p.push(`<label style="font-family:var(--font-ui);font-size:10px;color:var(--text2);display:inline-flex;align-items:center;gap:3px"><input type="checkbox" id="${idp}-slot" ${lvls.length ? 'checked' : 'disabled'}> use a slot</label>`);
+    const scales = !!D.up || /higher-level spell slot|slot level above/i.test(sp.descFull || '') || (typeof SPELL_UPCAST !== 'undefined' && !!SPELL_UPCAST[key]);
+    const opts = lvls.length ? lvls : [sp.level];
+    if (scales && opts.length > 1) p.push(`<select id="${idp}-level" class="info-input" style="width:auto;font-size:11px">${opts.map(l => `<option value="${l}">Level ${l}</option>`).join('')}</select>`);
+    else p.push(`<input type="hidden" id="${idp}-level" value="${opts[0]}">`);
   }
   return p.join(' ');
 }
@@ -86268,7 +86730,7 @@ function sfxActivateFrom(key, idp) {
   const g = s => document.getElementById(idp + '-' + s);
   const D = SPELL_FX[key];
   if (D?.choose && !g('choice')?.value) { toast(`Choose ${D.choose.label.toLowerCase()} first`, 'warn'); return; }
-  sfxActivate(key, { form: g('form')?.value, choice: g('choice')?.value || null, weapon: g('weapon')?.value || null, level: g('level')?.value, useSlot: !!g('slot')?.checked });
+  sfxActivate(key, { form: g('form')?.value, choice: g('choice')?.value || null, weapon: g('weapon')?.value || null, level: g('level')?.value, useSlot: true });
 }
 window.sfxActivateFrom = sfxActivateFrom;
 function _sfxPanelHtml() {
@@ -86297,7 +86759,7 @@ function _sfxPickerShow(key) {
   const el = document.getElementById('sfx-add-opts'); if (!el) return;
   if (!key) { el.innerHTML = ''; return; }
   if (key === 'mage_armor') { el.innerHTML = ''; toggleActiveEffect('mage_armor'); return; }
-  el.innerHTML = _sfxPicker(key, 'sfxp') + ` <button class="tbtn" style="font-size:10px;padding:2px 10px;color:var(--accent);border-color:var(--accent)" onclick="sfxActivateFrom('${key}','sfxp')">Activate</button>`;
+  el.innerHTML = `<button type="button" class="tbtn sfx-info" title="Open the spell" aria-label="Open the spell" style="font-size:11px;padding:1px 7px;border-radius:50%;font-family:var(--font-ui);font-weight:700;font-style:italic" onclick="openSpellDetailModal('${key}',(PHB_SPELL_LIST.find(s=>s.key==='${key}')||{}).name)">i</button> ` + _sfxPicker(key, 'sfxp') + ` <button class="tbtn" style="font-size:10px;padding:2px 10px;color:var(--accent);border-color:var(--accent)" onclick="sfxActivateFrom('${key}','sfxp')">Activate</button>`;
 }
 window._sfxPickerShow = _sfxPickerShow;
 (function () {
@@ -86332,7 +86794,7 @@ window._sfxPickerShow = _sfxPickerShow;
       if (st?.on) box.innerHTML = `<span style="font-family:var(--font-ui);font-size:11px;color:var(--accent)">✦ Active on you</span><button class="tbtn" style="font-size:10px;padding:2px 10px;color:var(--red);border-color:var(--red)" onclick="sfxEnd('${sp.key}');renderSpellDetailBody(PHB_SPELL_LIST.find(s=>s.key==='${sp.key}'),${castLevel || sp.level})">End effect</button>`;
       else {
         box.innerHTML = (sp.key === 'mage_armor' ? '' : _sfxPicker(sp.key, 'sfxd')) + ` <button class="tbtn" style="font-size:10px;padding:2px 10px;color:var(--accent);border-color:var(--accent)" onclick="${sp.key === 'mage_armor' ? "toggleActiveEffect('mage_armor')" : `sfxActivateFrom('${sp.key}','sfxd')`};renderSpellDetailBody(PHB_SPELL_LIST.find(s=>s.key==='${sp.key}'),${castLevel || sp.level})">✦ Activate on me</button>`;
-        const lvSel = box.querySelector('#sfxd-level'); if (lvSel && castLevel && [...lvSel.options].some(o => +o.value === castLevel)) lvSel.value = String(castLevel);
+        const lvSel = box.querySelector('#sfxd-level'); if (lvSel && lvSel.options && castLevel && [...lvSel.options].some(o => +o.value === castLevel)) lvSel.value = String(castLevel);
       }
       el.insertBefore(box, el.firstChild);
     } catch (e) {}
@@ -86513,6 +86975,209 @@ function _scDef(key, o) {
   set('create_magen', _scDef('create_magen', { name: 'Create Magen', creatureName: 'Magen', minSlot: 7, fixed: true,
     list: () => (SUMMON_CREATURES.magen || []).slice(),
     note: (lv, c) => `Your Hit Point maximum decreases by its challenge rating${c ? ` (${c.cr === '0' ? 1 : c.cr})` : ''}, minimum 1, until a Wish undoes it. It obeys your commands without question.` }));
+})();
+</script>
+<style>
+/* Spell glyph panel (step 39) - all colours from the active theme */
+#spell-detail-glyph-col.sg-col { gap: 8px; }
+.sg-plate { position: relative; width: 100%; max-width: 300px; padding: 14px; border-radius: 16px; box-sizing: border-box;
+  background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--sg-school, var(--accent)) 16%, transparent) 0%, transparent 62%), var(--bg2);
+  border: 1px solid var(--border); box-shadow: var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--sg-school, var(--accent)) 10%, transparent); }
+.sg-plate.sg-light { background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--sg-school, var(--accent)) 10%, transparent) 0%, transparent 62%), var(--bg2); }
+.sg-plate svg { display: block; width: 100%; height: auto; overflow: visible; }
+.sg-caption { display: flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-ui); font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: var(--text3); }
+.sg-caption .sg-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 6px currentColor; display: inline-block; }
+.sg-pickrow { display: block !important; width: 100%; margin: 0 0 6px !important; }
+.sg-pick { display: grid; grid-template-columns: 52px 28px 1fr 28px; align-items: center; gap: 4px; }
+.sg-pick-label { font-family: var(--font-ui); font-size: 9px; letter-spacing: .8px; text-transform: uppercase; color: var(--text3); }
+.sg-arrow { height: 28px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg3); color: var(--text2); font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
+.sg-arrow:hover { border-color: var(--accent); color: var(--accent); }
+.sg-select { height: 28px; min-width: 0; width: 100%; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-family: var(--font-ui); font-size: 11px; letter-spacing: .4px; padding: 0 6px; }
+.sg-select:focus { outline: none; border-color: var(--accent); }
+</style>
+<script>
+// ═══════════════════════════════════════════════════════════
+// SPELL GLYPH THEME (step 39): the glyph is painted from the active theme.
+// SpellGlyph still decides the shape; this layer re-colours it:
+//  - plate, rings, grid, dots and labels come from the theme's own colours
+//  - the eight school colours keep their hue but take the theme's brightness
+//    (deeper on light themes so white/yellow schools stay readable)
+//  - the thick translucent halo strokes become a real soft glow
+// It also gives the spell window a cleaner glyph panel (plate, caption, two
+// compact pickers with ◀ ▶ instead of nineteen buttons).
+// ═══════════════════════════════════════════════════════════
+const _SG_SCHOOL = { Evocation: '#FF2600', Conjuration: '#0080FF', Divination: '#FFF800', Abjuration: '#F0F0F0', Enchantment: '#6DFF61', Transmutation: '#FF9500', Illusion: '#ED00FF', Necromancy: '#54A173' };
+const _SG_PLATE = { '#332a47': 'ring', '#5e5270': 'dot', '#463a64': 'dot2', '#3a3a5a': 'grid', '#4a4a6a': 'grid', '#252540': 'grid2', '#2a2a48': 'grid2', '#222236': 'grid2', '#1e1e32': 'grid2', '#1e1e38': 'grid2',
+  '#12122a': 'disc', '#141428': 'disc', '#131325': 'disc', '#161628': 'disc2', '#111122': 'disc2', '#0f0f22': 'disc3', '#0f0f1e': 'disc3', '#888': 'label', '#aaa': 'label2' };
+let _sgCtx = null;
+function _sgRGB(c) {
+  if (!_sgCtx) _sgCtx = document.createElement('canvas').getContext('2d');
+  _sgCtx.fillStyle = '#000'; _sgCtx.fillStyle = String(c || '#000');
+  const v = _sgCtx.fillStyle;
+  if (v[0] === '#') return [1, 3, 5].map(i => parseInt(v.slice(i, i + 2), 16));
+  const m = v.match(/[\d.]+/g) || [0, 0, 0]; return m.slice(0, 3).map(Number);
+}
+const _sgHex = rgb => '#' + rgb.map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('');
+const _sgMix = (a, b, t) => _sgHex(_sgRGB(a).map((x, i) => x + (_sgRGB(b)[i] - x) * t));
+const _sgLum = c => { const [r, g, b] = _sgRGB(c).map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+function _sgHSL(c) {
+  let [r, g, b] = _sgRGB(c).map(x => x / 255); const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  return [h, s, l];
+}
+function _sgFromHSL(h, s, l) {
+  h = ((h % 360) + 360) % 360; const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return _sgHex([r, g, b].map(v => (v + m) * 255));
+}
+function _sgVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+// The palette for the current theme (worked out once per theme)
+let _sgPalCache = null;
+function _sgPalette() {
+  const bg = _sgVar('--bg') || '#111', bg2 = _sgVar('--bg2') || bg, bg3 = _sgVar('--bg3') || bg2, border = _sgVar('--border') || '#444', border2 = _sgVar('--border2') || border;
+  const accent = _sgVar('--accent') || '#8a6', text = _sgVar('--text') || '#ccc', text3 = _sgVar('--text3') || '#999', font = _sgVar('--font-ui') || 'sans-serif';
+  const sig = [bg, bg2, bg3, border, border2, accent, text, text3, font].join('|');
+  if (_sgPalCache && _sgPalCache.sig === sig) return _sgPalCache;
+  const light = _sgLum(bg) > 0.35;
+  const [ah] = _sgHSL(accent);
+  const school = {};
+  Object.entries(_SG_SCHOOL).forEach(([k, hex]) => {
+    let [h, s] = _sgHSL(hex);
+    const d = ((ah - h + 540) % 360) - 180; h += d * 0.10;            // a nudge toward the theme's hue
+    if (s < 0.15) { school[k] = light ? _sgMix(_sgMix('#55575e', accent, 0.25), '#000', 0.05) : _sgMix('#eef0f4', accent, 0.18); return; }   // Abjuration
+    school[k] = light ? _sgFromHSL(h, Math.min(0.78, Math.max(0.55, s)), 0.40) : _sgFromHSL(h, Math.min(0.92, Math.max(0.62, s)), 0.62);
+  });
+  const P = light ? {
+    disc: _sgMix(bg2, accent, 0.04), disc2: _sgMix(bg2, accent, 0.08), disc3: _sgMix(bg2, accent, 0.12), discEdge: _sgMix(bg3, accent, 0.10),
+    ring: _sgMix(bg3, accent, 0.12), grid: _sgMix(border, bg2, 0.25), grid2: _sgMix(border, bg2, 0.55),
+    dot: _sgMix(border2, bg2, 0.15), dot2: _sgMix(border2, bg2, 0.35), label: text3, label2: _sgMix(text3, text, 0.4), node: _sgMix(text3, bg2, 0.55),
+  } : {
+    disc: _sgMix(bg, '#000', 0.25), disc2: _sgMix(bg, '#000', 0.15), disc3: _sgMix(bg, '#000', 0.35), discEdge: _sgMix(bg2, accent, 0.10),
+    ring: _sgMix(bg3, accent, 0.14), grid: _sgMix(border, bg, 0.30), grid2: _sgMix(border, bg, 0.60),
+    dot: _sgMix(border2, bg3, 0.20), dot2: _sgMix(border, bg3, 0.30), label: text3, label2: _sgMix(text3, text, 0.4), node: _sgMix(text, bg, 0.65),
+  };
+  _sgPalCache = Object.assign(P, { sig, light, school, accent, bg2, font: font.replace(/"/g, "'") });
+  return _sgPalCache;
+}
+let _sgN = 0;
+function _sgThemeSvg(svg) {
+  if (!svg || typeof svg !== 'string') return svg;
+  const P = _sgPalette(); const id = 'sg' + (++_sgN);
+  // plate colours and labels
+  let s = svg.replace(/(fill|stroke)="(#[0-9a-fA-F]{3,6})"/g, (m, a, hex) => {
+    const k = _SG_PLATE[hex.toLowerCase()]; if (!k) return m;
+    if (a === 'fill' && /^disc/.test(k)) return `fill="url(#${id}-${k})"`;
+    return `${a}="${P[k]}"`;
+  });
+  s = s.replace(/#ffffff33/gi, P.node + (P.light ? '66' : '44'));
+  s = s.replace(/font-family="Jost,sans-serif"/g, `font-family="${P.font}"`);
+  // school colours (with or without an alpha suffix)
+  const map = {}; Object.entries(_SG_SCHOOL).forEach(([k, hex]) => { map[hex.toLowerCase()] = P.school[k]; });
+  s = s.replace(/#(FF2600|0080FF|FFF800|F0F0F0|6DFF61|FF9500|ED00FF|54A173)(?![0-9a-fA-F]{3}\b)/gi, m => map[m.toLowerCase()] || m);
+  // soft glow instead of thick translucent halo strokes; a gentle bloom on the lines themselves
+  const schoolHexes = Object.values(P.school).map(x => x.toLowerCase());
+  s = s.replace(/<(path|line|circle|polygon)\b([^>]*?)(\/?)>/g, (m, tag, attrs, close) => {
+    const st = (attrs.match(/stroke="(#[0-9a-fA-F]{6})/) || [])[1]; const fl = (attrs.match(/fill="(#[0-9a-fA-F]{6})/) || [])[1];
+    const isSchool = c => c && schoolHexes.includes(c.toLowerCase());
+    if (!isSchool(st) && !isSchool(fl)) return m;
+    const sw = parseFloat((attrs.match(/stroke-width="([\d.]+)"/) || [])[1] || '0'); const op = parseFloat((attrs.match(/opacity="([\d.]+)"/) || [])[1] || '1');
+    if (isSchool(st) && sw >= 6 && op <= 0.5) {
+      const nop = Math.min(P.light ? 0.35 : 0.65, op * (P.light ? 1.4 : 2.4));
+      return `<${tag}${attrs.replace(/opacity="[\d.]+"/, `opacity="${nop.toFixed(2)}"`)} filter="url(#${id}-halo)"${close}>`;
+    }
+    if (isSchool(st) && sw > 0 && sw < 6 && op >= 0.7) return `<${tag}${attrs.replace(/stroke-width="([\d.]+)"/, (x, w) => `stroke-width="${(parseFloat(w) * 1.25).toFixed(2)}"`)} filter="url(#${id}-bloom)"${close}>`;
+    if ((tag === 'path' || tag === 'polygon') && isSchool(fl) && !st && op >= 0.7 && !/fill="#[0-9a-fA-F]{8}"/.test(attrs)) return `<${tag}${attrs} filter="url(#${id}-bloom)"${close}>`;
+    if (tag === 'circle' && isSchool(fl) && !/fill="#[0-9a-fA-F]{8}"/.test(attrs)) return `<${tag}${attrs} filter="url(#${id}-bloom)"${close}>`;
+    return m;
+  });
+  const grad = (k, c) => `<radialGradient id="${id}-${k}" cx="50%" cy="46%" r="60%"><stop offset="0%" stop-color="${P.light ? _sgMix(c, '#fff', 0.5) : _sgMix(c, P.bg2, 0.35)}"/><stop offset="78%" stop-color="${c}"/><stop offset="100%" stop-color="${P.discEdge}"/></radialGradient>`;
+  const defs = `<defs>${grad('disc', P.disc)}${grad('disc2', P.disc2)}${grad('disc3', P.disc3)}`
+    + `<filter id="${id}-halo" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="${P.light ? 3 : 5}"/></filter>`
+    + `<filter id="${id}-bloom" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceGraphic" stdDeviation="${P.light ? 1.2 : 2.2}" result="b"/><feComponentTransfer in="b" result="bb"><feFuncA type="linear" slope="${P.light ? 0.45 : 0.9}"/></feComponentTransfer><feMerge><feMergeNode in="bb"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  s = s.replace(/(<svg\b[^>]*>)/, `$1${defs}`);
+  return s;
+}
+(function () {
+  if (typeof SpellGlyph === 'undefined' || typeof SpellGlyph.render !== 'function') return;
+  const _r = SpellGlyph.render;
+  try { SpellGlyph.render = function () { return _sgThemeSvg(_r.apply(this, arguments)); }; } catch (e) {}
+})();
+
+// ── the glyph panel in the spell window ──
+function _sgSchoolOf(sp) { return (sp && sp.school) || ''; }
+(function () {
+  if (typeof renderSpellDetailGlyph !== 'function') return;
+  const _orig = renderSpellDetailGlyph;
+  renderSpellDetailGlyph = function (sp, style, format) {
+    _orig.apply(this, arguments);
+    try {
+      const col = document.getElementById('spell-detail-glyph-col'), g = document.getElementById('spell-detail-glyph');
+      const fmtEl = document.getElementById('spell-detail-fmt-btns'), stEl = document.getElementById('spell-detail-style-btns');
+      if (!col || !g || col.style.display === 'none') return;
+      const P = _sgPalette(); const sc = P.school[_sgSchoolOf(sp)] || P.accent;
+      col.classList.add('sg-col');
+      g.className = 'sg-plate' + (P.light ? ' sg-light' : '');
+      g.style.setProperty('--sg-school', sc);
+      const lvl = sp.level ? `Level ${sp.level}` : 'Cantrip';
+      let cap = document.getElementById('sg-caption');
+      if (!cap) { cap = document.createElement('div'); cap.id = 'sg-caption'; g.insertAdjacentElement('afterend', cap); }
+      cap.className = 'sg-caption';
+      cap.innerHTML = `<span class="sg-dot" style="background:${sc}"></span>${(sp.school || '').replace(/</g, '&lt;')} · ${lvl}${sp.ritual ? ' · Ritual' : ''}${sp.conc ? ' · Concentration' : ''}`;
+      const F = SpellGlyph.FORMATS, S = SpellGlyph.STYLES;
+      const step = (arr, cur, d) => arr[(arr.indexOf(cur) + d + arr.length) % arr.length];
+      const picker = (label, arr, labels, cur, go) => `<div class="sg-pick"><span class="sg-pick-label">${label}</span>`
+        + `<button type="button" class="sg-arrow" title="Previous" onclick="${go(step(arr, cur, -1))}">‹</button>`
+        + `<select class="sg-select" onchange="${go('__V__').replace("'__V__'", 'this.value')}">${arr.map(x => `<option value="${x}" ${x === cur ? 'selected' : ''}>${labels[x]}</option>`).join('')}</select>`
+        + `<button type="button" class="sg-arrow" title="Next" onclick="${go(step(arr, cur, 1))}">›</button></div>`;
+      const fmtGo = v => `setSpellGlyphPrefs('${style}','${v}')`, stGo = v => `setSpellGlyphPrefs('${v}','${format}')`;
+      fmtEl.innerHTML = picker('Render', F, SpellGlyph.FORMAT_LABELS, format, fmtGo);
+      stEl.innerHTML = picker('Lines', S, SpellGlyph.STYLE_LABELS, style, stGo);
+      fmtEl.className = 'sg-pickrow'; stEl.className = 'sg-pickrow';
+      [fmtEl, stEl].forEach(el => { const lab = el.previousElementSibling; if (lab && !lab.id && /Style$/i.test(lab.textContent.trim())) lab.style.display = 'none'; });
+    } catch (e) {}
+  };
+  window.renderSpellDetailGlyph = renderSpellDetailGlyph;
+})();
+// re-draw an open glyph when the theme changes
+(function () {
+  const redraw = () => { try { const m = document.getElementById('spell-detail-modal'); if (!m || m.classList.contains('hidden') || typeof _spellDetailKey === 'undefined') return;
+    const sp = PHB_SPELL_LIST.find(s => s.key === _spellDetailKey); if (!sp) return; const p = resolveSpellGlyphPrefs(); renderSpellDetailGlyph(sp, p.style, p.format); } catch (e) {} };
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'data-custom-theme'] });
+})();
+</script>
+<style>
+.sp-glyph-thumb { width: 26px; height: 26px; vertical-align: -8px; margin-right: 7px; }
+</style>
+<script>
+// ═══════════════════════════════════════════════════════════
+// SPELL GLYPH THUMBNAILS (step 41): a tiny glyph before each spell name in the
+// Spells tab, coloured from the active theme. Drawn as an <img> so a long list
+// stays light; cached per spell and theme.
+// ═══════════════════════════════════════════════════════════
+const _sgThumbCache = new Map();
+function _sgThumbHtml(key) {
+  try {
+    if (typeof SpellGlyph === 'undefined' || !SpellGlyph.thumb || typeof _sgPalette !== 'function') return '';
+    const P = _sgPalette(), ck = key + '|' + P.sig;
+    if (!_sgThumbCache.has(ck)) {
+      const sp = PHB_SPELL_LIST.find(s => s.key === key);
+      let svg = sp && SpellGlyph.thumb(sp);
+      if (!svg) { _sgThumbCache.set(ck, ''); return ''; }
+      const map = {}; Object.entries(_SG_SCHOOL).forEach(([k, hex]) => { map[hex.toLowerCase()] = P.school[k]; });
+      svg = svg.replace(/#(FF2600|0080FF|FFF800|F0F0F0|6DFF61|FF9500|ED00FF|54A173)/gi, m => map[m.toLowerCase()] || m)
+        .replace(/PLATEDISC/g, P.light ? P.disc2 : _sgMix(P.ring, P.disc, 0.45)).replace(/PLATERING/g, P.light ? P.ring : _sgMix(P.ring, '#ffffff', 0.08));
+      _sgThumbCache.set(ck, `<img class="sp-glyph-thumb" alt="" aria-hidden="true" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}">`);
+    }
+    return _sgThumbCache.get(ck);
+  } catch (e) { return ''; }
+}
+window._sgThumbHtml = _sgThumbHtml;
+// re-colour the list when the theme changes
+(function () {
+  let last = '';
+  new MutationObserver(() => { try { const s = _sgPalette().sig; if (s !== last) { last = s; if (document.querySelector('.sp-glyph-thumb') && typeof renderKnownSpells === 'function') renderKnownSpells(); } } catch (e) {} })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'data-custom-theme'] });
 })();
 </script>
 <script>
