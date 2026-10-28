@@ -25,7 +25,7 @@
   "hd_used_by_class": {
     "sorcerer": 0
   },
-  "ac": 20,
+  "ac": 27,
   "speed": 30,
   "inspiration": false,
   "proficiencies": "",
@@ -34,39 +34,44 @@
   "attacks": [],
   "equipment": [
     {
-      "name": "Arcane Focus (Crystal)",
+      "name": "Crystal",
       "qty": 1,
-      "weight": "",
-      "desc": "An Arcane Focus takes a specific form and is bejeweled or carved to channel arcane magic. A Sorcerer, Warlock, or Wizard can use such an item as a Spellcasting Focus. Multiple variations of this item exist, as listed below: CrystalOrbRodStaffWand",
-      "_clsGranted": true
+      "weight": "1 lb.",
+      "_clsGranted": true,
+      "key": "crystal",
+      "_uid": "g_hozi12ag"
     },
     {
       "name": "Dungeoneer's Pack",
       "qty": 1,
       "weight": "55 lb.",
-      "desc": "A Dungeoneer's Pack contains the following items: Backpack, Caltrops, Crowbar, 2 flasks of Oil, 10 days of Rations, Rope, Tinderbox, 10 Torches, and Waterskin.",
-      "_clsGranted": true
+      "_clsGranted": true,
+      "key": "dungeoneer_s_pack",
+      "_uid": "g_74j2k120"
     },
     {
       "name": "Navigator's Tools",
       "qty": 1,
       "weight": "2 lb.",
-      "desc": "Ability: Wisdom Utilize: Plot a course (DC 10), or determine position by stargazing (DC 15) Tool. If you have proficiency with a tool, add your Proficiency Bonus to any ability check you make that uses the tool. If you have proficiency in a skill that's used with that check, you have Advantage on the check too.",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "key": "navigator_s_tools",
+      "_uid": "g_s43gb9g1"
     },
     {
       "name": "Pouch",
       "qty": 2,
       "weight": "1 lb.",
-      "desc": "A Pouch holds up to 6 pounds within one-fifth of a cubic foot.",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "key": "pouch",
+      "_uid": "g_qwhk2yhf"
     },
     {
       "name": "Traveler's Clothes",
       "qty": 1,
       "weight": "4 lb.",
-      "desc": "Traveler's Clothes are resilient garments designed for travel in various environments.",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "key": "traveler_s_clothes",
+      "_uid": "g_gavkzknl"
     }
   ],
   "magic_items": [],
@@ -346,7 +351,7 @@
       }
     }
   },
-  "_darkvision": 60,
+  "_darkvision": 120,
   "_dmgres": [
     "Necrotic",
     "Radiant"
@@ -413,7 +418,7 @@
     "bg-allies": 0,
     "bg-notes": 0,
     "fi-holdings": 0,
-    "sp-notes": 0,
+    "sp-notes": 80,
     "gear-edit-desc": 0,
     "bc-edit-desc": 0,
     "add-res-desc": 0,
@@ -504,7 +509,7 @@
       "_uid": "mi_lxv8fc9k"
     },
     {
-      "key": "red_dragon_mask",
+      "key": "dragon_mask",
       "name": "Red Dragon Mask",
       "rarity": "legendary",
       "type": "wondrous item",
@@ -518,7 +523,6 @@
       "effects": null,
       "rarityByBonus": null,
       "maxBonus": null,
-      "tiers": null,
       "resistanceOptions": null,
       "resistanceIsDragonColor": false,
       "resistanceVulnBackfire": false,
@@ -533,7 +537,28 @@
       "armourKey": null,
       "equipped": false,
       "ammoType": null,
-      "_uid": "mi_k7330jne"
+      "_uid": "mi_k7330jne",
+      "itemVersion": "Red Dragon Mask",
+      "itemBase": null,
+      "_baseName": "Dragon Mask",
+      "_baseDesc": "This horned mask of glossy ebony has horns and a skull-like mien. The mask reshapes to fit a wearer attuned to it. While you are wearing the mask and attuned to it, you can access the following properties.\n\nDamage Absorption. You have resistance to acid damage. If you already have damage resistance to acid from another source, you gain immunity to acid damage. If you already have immunity to acid damage from another source, you regain hit points equal to half of any acid damage you are dealt.\n\nDraconic Majesty. While you are wearing no armor, you can add your Charisma bonus to your Armor Class.\n\nDragon Breath. If you have a breath weapon that requires rest to recharge, it gains a recharge of 6.\n\nDragon Sight. You gain darkvision with a radius of 60 feet, or an additional 60 feet of darkvision if you already have that sense. Once per day, you can gain blindsight out to a range of 30 feet for 5 minutes.\n\nDragon Tongue. You can speak and understand Draconic. You also have advantage on any Charisma check you make against Black dragons.\n\nLegendary Resistance. (1/Day) If you fail a saving throw, you can choose to succeed instead.\n\nWater Breathing. You can breathe underwater.",
+      "attunementNote": null,
+      "_choiceMade": true,
+      "grantedResources": [
+        {
+          "name": "Legendary Resistance",
+          "desc": "If you fail a saving throw, you can choose to succeed instead.",
+          "usesMax": 1,
+          "recovery": "dawn"
+        },
+        {
+          "name": "Dragon Sight: Blindsight",
+          "desc": "Blindsight out to 30 feet for 5 minutes.",
+          "usesMax": 1,
+          "recovery": "dawn"
+        }
+      ],
+      "_ifxMaskRes": true
     }
   ],
   "customResources": [
@@ -546,6 +571,24 @@
       "desc": "Reroll a d20 after seeing the result, before the DM says whether it succeeds. Granted situationally by the DM - starts unavailable until they grant it; reset it yourself when you gain or spend it.",
       "recovery": "",
       "recoveryNote": ""
+    },
+    {
+      "id": "gr_mi_k7330jne_legendary_resistance",
+      "name": "Legendary Resistance",
+      "desc": "If you fail a saving throw, you can choose to succeed instead.",
+      "max": 1,
+      "recovery": "dawn",
+      "recoveryNote": "",
+      "_fromMagicItem": "mi_k7330jne"
+    },
+    {
+      "id": "gr_mi_k7330jne_dragon_sight_blindsight",
+      "name": "Dragon Sight: Blindsight",
+      "desc": "Blindsight out to 30 feet for 5 minutes.",
+      "max": 1,
+      "recovery": "dawn",
+      "recoveryNote": "",
+      "_fromMagicItem": "mi_k7330jne"
     }
   ],
   "skill_profs": {
@@ -646,7 +689,8 @@
       "race": "Race (Aasimar (PHB24))"
     },
     "fire": {
-      "subclass": "Draconic Sorcery (Elemental Affinity)"
+      "subclass": "Draconic Sorcery (Elemental Affinity)",
+      "spellfx": "Red Dragon Mask"
     }
   },
   "_autoGrantedConditionImmunities": [],
@@ -662,7 +706,7 @@
   "_glance": {
     "init": 3,
     "pp": 10,
-    "ac": 20,
+    "ac": 27,
     "mods": {
       "str": -1,
       "dex": 3,
