@@ -19280,6 +19280,12 @@ function applyLineStyle(style, x1, y1, x2, y2, color, seed, cx, cy, q) { return 
 function _applyLineStyleInner(style, x1, y1, x2, y2, color, seed, cx, cy, q) {
   const F = { skilled: lineSkilled, novice: lineNovice, chaotic: lineChaotic, psionic: linePsionic, natural: lineNatural, scriptural: lineScriptural,
     calligraphic: lineCalligraphic, dancing: lineDancing, constellation: lineConstellation, pulse: linePulse, musical: lineMusical }[style] || lineSkilled;
+  if (_gTK) {
+    // thumbnail weight: draw the line shrunk towards the centre, then scale it back up, so the same style comes out ~1/_gTK times bolder
+    const T = v => v == null ? v : 500 + (v - 500) * _gTK;
+    const o = F(T(x1), T(y1), T(x2), T(y2), color, seed, T(cx), T(cy), q ? [T(q[0]), T(q[1])] : q);
+    return o ? `<g transform="translate(500 500) scale(${(1 / _gTK).toFixed(3)}) translate(-500 -500)">${o}</g>` : '';
+  }
   return F(x1, y1, x2, y2, color, seed, cx, cy, q);
 }
 // Arcane (Short.) - every style follows the hop arc (above for forward, below for back)
@@ -19303,6 +19309,7 @@ function _gSpiralQ(x1, y1, x2, y2, CX, CY) {
 
 // Nodes - a solid core in a thin orbit ring with a soft halo; empty slots are quiet rings
 function renderDot(x, y, color, isEndpoint, dotR) {
+  if (_gTK) return isEndpoint ? `<circle cx="${f(x)}" cy="${f(y)}" r="62" fill="${color}"/>` : '';   // thumbnail: solid nodes, no empty slots
   if (isEndpoint) {
     const r = dotR + 1;
     return `<circle cx="${f(x)}" cy="${f(y)}" r="${r + 16}" fill="${color}22"/>`
@@ -19432,6 +19439,17 @@ function _gLinear(name, level, school, notation, style) {
 }
 
 
+// Thumbnail in the character's own layout and line style: the full glyph at thumbnail weight
+// (bold lines, solid nodes), without labels or empty slots
+let _gTK = 0;
+function _gThumbOf(sp, style, fmt) {
+  if (!sp) return null;
+  let svg = null;
+  _gTK = ({ constellation: 0.22 })[style] || 0.1;   // Constellation's stars grow with the line, so it is drawn less bold
+  try { svg = render(sp, style, fmt); } catch (e) { svg = null; } finally { _gTK = 0; }
+  if (!svg) return null;
+  return svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g, '');
+}
 // Tiny thumbnail for spell lists: Arcane ring, bold strokes, no labels or slots.
 // Colours are placeholders the theme layer swaps in (school hexes, PLATEDISC, PLATERING).
 function _gThumb(sp) {
@@ -19880,7 +19898,7 @@ const SCHOOL_ABBREV = {"Evocation": "Ev", "Conjuration": "Co", "Divination": "Di
   const STYLES = ["skilled","novice","chaotic","psionic","natural","scriptural","calligraphic","dancing","constellation","pulse","musical"];
   const STYLE_LABELS = {skilled:"Skilled", novice:"Novice", chaotic:"Chaotic", psionic:"Psionic", natural:"Natural", scriptural:"Scriptural", calligraphic:"Calligraphic", dancing:"Dancing", constellation:"Constellation", pulse:"Pulse", musical:"Musical"};
 
-  return { render, thumb: _gThumb, generateNotation, FORMATS, FORMAT_LABELS, STYLES, STYLE_LABELS };
+  return { render, thumb: _gThumb, thumbOf: _gThumbOf, generateNotation, FORMATS, FORMAT_LABELS, STYLES, STYLE_LABELS };
 })();
 
 function openSpellDetailModal(key, name, ctx) {
@@ -92097,28 +92115,105 @@ function _sgSchoolOf(sp) { return (sp && sp.school) || ''; }
 // stays light; cached per spell and theme.
 // ═══════════════════════════════════════════════════════════
 const _sgThumbCache = new Map();
+// The thumbnail follows the glyph layout and line style the character uses for its spells
+// (its own choice, else the DM's default for its class, else Arcane / Skilled)
+function _sgThumbPrefs() {
+  try { if (typeof resolveSpellGlyphPrefs === 'function') return resolveSpellGlyphPrefs(); } catch (e) {}
+  return { style: 'skilled', format: 'arcane' };
+}
+// Speed: a full glyph is a big SVG with blur filters - painting dozens of them on every list redraw lags.
+// Each thumbnail is drawn once into a small bitmap (2x for sharp screens) and the bitmap is reused, also
+// across visits (browser storage, best effort). Until its bitmap is ready a row shows an empty space.
+const _SG_PX = 52, _SG_STORE = 'sgThumbs.v1';
+let _sgStore = null;
+function _sgStoreGet() {
+  if (_sgStore) return _sgStore;
+  try { _sgStore = JSON.parse(localStorage.getItem(_SG_STORE) || '{}') || {}; } catch (e) { _sgStore = {}; }
+  return _sgStore;
+}
+let _sgStoreTimer = null;
+function _sgStoreSave() {
+  clearTimeout(_sgStoreTimer);
+  _sgStoreTimer = setTimeout(() => {
+    try {
+      const st = _sgStoreGet(), keys = Object.keys(st);
+      if (keys.length > 1500) keys.slice(0, keys.length - 1500).forEach(k => delete st[k]);   // keep it small
+      localStorage.setItem(_SG_STORE, JSON.stringify(st));
+    } catch (e) {}
+  }, 800);
+}
+const _sgPending = new Map();
+function _sgRaster(ck, svg) {
+  if (_sgPending.has(ck)) return;
+  _sgPending.set(ck, true);
+  const im = new Image();
+  im.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = _SG_PX;
+      c.getContext('2d').drawImage(im, 0, 0, _SG_PX, _SG_PX);
+      const url = c.toDataURL('image/png');
+      _sgThumbCache.set(ck, url); _sgStoreGet()[ck] = url; _sgStoreSave();
+      document.querySelectorAll('img.sp-glyph-thumb[data-sgk]').forEach(el => { if (el.dataset.sgk === ck) el.src = url; });
+    } catch (e) {}
+    _sgPending.delete(ck);
+  };
+  im.onerror = () => _sgPending.delete(ck);
+  im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+const _SG_BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+let _sgMemo = null;
 function _sgThumbHtml(key) {
   try {
-    if (typeof SpellGlyph === 'undefined' || !SpellGlyph.thumb || typeof _sgPalette !== 'function') return '';
-    const P = _sgPalette(), ck = key + '|' + P.sig;
-    if (!_sgThumbCache.has(ck)) {
-      const sp = PHB_SPELL_LIST.find(s => s.key === key);
-      let svg = sp && SpellGlyph.thumb(sp);
-      if (!svg) { _sgThumbCache.set(ck, ''); return ''; }
-      const map = {}; Object.entries(_SG_SCHOOL).forEach(([k, hex]) => { map[hex.toLowerCase()] = P.school[k]; });
-      svg = svg.replace(/#(FF2600|0080FF|FFF800|F0F0F0|6DFF61|FF9500|ED00FF|54A173)/gi, m => map[m.toLowerCase()] || m)
-        .replace(/PLATEDISC/g, P.light ? P.disc2 : _sgMix(P.ring, P.disc, 0.45)).replace(/PLATERING/g, P.light ? P.ring : _sgMix(P.ring, '#ffffff', 0.08));
-      _sgThumbCache.set(ck, `<img class="sp-glyph-thumb" alt="" aria-hidden="true" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}">`);
+    if (typeof SpellGlyph === 'undefined' || typeof _sgPalette !== 'function') return '';
+    // theme colours and glyph choice are read once per list redraw, not once per row
+    const now = performance.now();
+    if (!_sgMemo || now - _sgMemo.t > 300) _sgMemo = { t: now, P: _sgPalette(), G: _sgThumbPrefs() };
+    const P = _sgMemo.P, G = _sgMemo.G, ck = key + '|' + P.sig + '|' + G.style + '|' + G.format;
+    let url = _sgThumbCache.get(ck);
+    if (url === undefined) {
+      const st = _sgStoreGet()[ck];
+      if (st) { url = st; _sgThumbCache.set(ck, st); }
     }
-    return _sgThumbCache.get(ck);
+    if (url === undefined) {
+      const sp = PHB_SPELL_LIST.find(s => s.key === key);
+      let svg = sp && (SpellGlyph.thumbOf ? SpellGlyph.thumbOf(sp, G.style, G.format) : SpellGlyph.thumb(sp));
+      if (!svg) { _sgThumbCache.set(ck, ''); return ''; }
+      svg = typeof _sgThemeSvg === 'function' ? _sgThemeSvg(svg) : svg;
+      _sgRaster(ck, svg);
+      url = _SG_BLANK;
+    }
+    if (!url) return '';
+    return `<img class="sp-glyph-thumb" alt="" aria-hidden="true" data-sgk="${ck.replace(/"/g, '&quot;')}" src="${url}">`;
   } catch (e) { return ''; }
 }
 window._sgThumbHtml = _sgThumbHtml;
 // re-colour the list when the theme changes
 (function () {
   let last = '';
-  new MutationObserver(() => { try { const s = _sgPalette().sig; if (s !== last) { last = s; if (document.querySelector('.sp-glyph-thumb') && typeof renderKnownSpells === 'function') renderKnownSpells(); } } catch (e) {} })
+  new MutationObserver(() => { try { const s = _sgPalette().sig; if (s !== last) { last = s; _sgMemo = null; if (document.querySelector('.sp-glyph-thumb') && typeof renderKnownSpells === 'function') renderKnownSpells(); } } catch (e) {} })
     .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'data-custom-theme'] });
+})();
+
+// a new layout or line style (or the DM's class default arriving) redraws the list's thumbnails
+(function () {
+  const redraw = () => { try { if (document.querySelector('.sp-glyph-thumb') && typeof renderKnownSpells === 'function') renderKnownSpells(); } catch (e) {} };
+  if (typeof setSpellGlyphPrefs === 'function') {
+    const _o = setSpellGlyphPrefs;
+    setSpellGlyphPrefs = function () { const r = _o.apply(this, arguments); _sgMemo = null; redraw(); return r; };
+    window.setSpellGlyphPrefs = setSpellGlyphPrefs;
+  }
+  if (typeof ensureDMGlyphDefaultsLoaded === 'function') {
+    const _e = ensureDMGlyphDefaultsLoaded;
+    ensureDMGlyphDefaultsLoaded = async function () {
+      const before = JSON.stringify(_sgThumbPrefs());
+      const r = await _e.apply(this, arguments);
+      if (JSON.stringify(_sgThumbPrefs()) !== before) { _sgMemo = null; redraw(); }
+      return r;
+    };
+    window.ensureDMGlyphDefaultsLoaded = ensureDMGlyphDefaultsLoaded;
+  }
+  // the DM's per-class defaults are otherwise only fetched when a spell window opens
+  setTimeout(() => { try { if (typeof ensureDMGlyphDefaultsLoaded === 'function') ensureDMGlyphDefaultsLoaded(); } catch (e) {} }, 3000);
 })();
 </script>
 <script>
