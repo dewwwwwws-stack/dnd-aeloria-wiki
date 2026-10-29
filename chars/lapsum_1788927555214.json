@@ -39,35 +39,40 @@
       "qty": 1,
       "weight": "",
       "desc": "Tool (Musical Instrument). If you have proficiency with a tool, add your Proficiency Bonus to any ability check you make that uses the tool. If you have proficiency in a skill that's used with that check, you have Advantage on the check too. Multiple variations of this item exist, as listed below: BandoreCitternYarting",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "custom": true
     },
     {
-      "name": "Costumes",
+      "name": "Costume",
       "qty": 2,
       "weight": "4 lb.",
-      "desc": "While wearing a Costume, you have Advantage on any ability check you make to impersonate the person or type of person it represents.",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "key": "costume",
+      "_uid": "g_csmimqjr"
     },
     {
       "name": "Mirror",
       "qty": 1,
       "weight": "½ lb.",
-      "desc": "A handheld steel Mirror is useful for personal cosmetics but also for peeking around corners and reflecting light as a signal.",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "key": "mirror",
+      "_uid": "g_j0ujxzya"
     },
     {
       "name": "Perfume",
       "qty": 1,
       "weight": "",
-      "desc": "Perfume comes in a 4-ounce vial. For 1 hour after applying Perfume to yourself, you have Advantage on Charisma (Persuasion) checks made to influence an Indifferent Humanoid within 5 feet of yourself.",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "key": "perfume",
+      "_uid": "g_j5t1ehnx"
     },
     {
       "name": "Traveler's Clothes",
       "qty": 1,
       "weight": "4 lb.",
-      "desc": "Traveler's Clothes are resilient garments designed for travel in various environments.",
-      "_bgGranted": true
+      "_bgGranted": true,
+      "key": "traveler_s_clothes",
+      "_uid": "g_nrofenfv"
     }
   ],
   "magic_items": [],
@@ -201,7 +206,8 @@
       "protection_from_evil_and_good"
     ],
     "spellbook": [],
-    "featSpells": {}
+    "featSpells": {},
+    "featSpellNames": {}
   },
   "spell_notes": "",
   "class_choices": {
@@ -262,7 +268,6 @@
   "_darkvision": 60,
   "_dmgres": [
     "Necrotic",
-    "Radiant",
     "Poison"
   ],
   "_customSpeed": false,
@@ -366,7 +371,7 @@
   "magicItems": [
     {
       "key": "au_thayan_sword",
-      "name": "Thayan Sword",
+      "name": "Thayan Greatsword",
       "rarity": "rare",
       "type": "weapon (any)",
       "desc": "Thayan Swords are often awarded to premier Thayan knights when they complete their training.\n\nYou gain a +1 bonus to attack rolls and damage rolls made with this magic weapon.\n\nKnight of the Arcane. The sword has 4 charges and regains 1d4 charges daily at dawn. While holding the sword, you can expend 1 charge to cast one of the following spells (save DC 15):\n\n| Charge | Spell |\n|:-:|:-:|\n| 1 | Searing Smite  |\n| 1 | Thunderous Smite |\n| 1 | Wrathful Smite |\n\nResurgent Warrior. If you're reduced to 0 Hit Points but not killed outright while holding this sword, you can drop to 1 Hit Point instead. Once used, this property can't be used again until the next dawn.",
@@ -440,7 +445,13 @@
           "usesMax": 1,
           "recovery": "dawn"
         }
-      ]
+      ],
+      "itemVersion": null,
+      "itemBase": "Greatsword",
+      "_baseName": "Thayan Sword",
+      "_baseDesc": "Thayan Swords are often awarded to premier Thayan knights when they complete their training.\n\nYou gain a +1 bonus to attack rolls and damage rolls made with this magic weapon.\n\nKnight of the Arcane. The sword has 4 charges and regains 1d4 charges daily at dawn. While holding the sword, you can expend 1 charge to cast one of the following spells (save DC 15):\n\n- Searing Smite\n- Thunderous Smite\n- Wrathful Smite\n\nResurgent Warrior. If you're reduced to 0 Hit Points but not killed outright while holding this sword, you can drop to 1 Hit Point instead. Once used, this property can't be used again until the next dawn.",
+      "attunementNote": null,
+      "_choiceMade": true
     }
   ],
   "customResources": [
@@ -471,6 +482,15 @@
       "recovery": "dawn",
       "recoveryNote": "",
       "_fromMagicItem": "mi_nhvrd1yh"
+    },
+    {
+      "id": "featgrant_pcrace_tmvsulygt_harming_hands",
+      "name": "Harming Hands",
+      "desc": "",
+      "max": 3,
+      "recovery": "long",
+      "recoveryNote": "",
+      "_fromFeatGrant": "pcrace:tmvsulygt"
     }
   ],
   "skill_profs": {
@@ -507,7 +527,6 @@
   "boonsCurses": [],
   "damageStates": {
     "necrotic": "resistant",
-    "radiant": "resistant",
     "poison": "resistant"
   },
   "conditionStates": {
@@ -517,7 +536,7 @@
   "weapons": [
     {
       "weaponKey": "greatsword",
-      "name": "Thayan Sword",
+      "name": "Thayan Greatsword",
       "attackBonus": 1,
       "damageBonus": 1,
       "customDamage": null,
@@ -597,9 +616,7 @@
     "necrotic": {
       "race": "Race (Aasimar (PHB24))"
     },
-    "radiant": {
-      "race": "Race (Aasimar (PHB24))"
-    },
+    "radiant": {},
     "poison": {
       "race": "Race (Aasimar (PHB24))"
     }
@@ -625,7 +642,6 @@
   "_raceDarkvision": 60,
   "_autoGrantedResistances": [
     "necrotic",
-    "radiant",
     "poison"
   ],
   "_bgSkills": [
@@ -635,7 +651,7 @@
   "_bgToolProfs": [],
   "_pendingToolChoices": [
     {
-      "text": "Musical Instrument (choice)",
+      "text": "Choose one kind of Musical Instrument",
       "_fromBg": true
     }
   ],
@@ -836,5 +852,9 @@
   },
   "_spOvCondAuto": {
     "Poisoned": "immune"
-  }
+  },
+  "_featHpBonus": 0,
+  "_featClimb": false,
+  "_spellFx": {},
+  "_tremorsense": 0
 }
