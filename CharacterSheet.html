@@ -20155,9 +20155,11 @@ function calcConcentrationSave() {
   const isProficient = !!currentChar.save_profs?.con;
   const exPen = exhaustionD20Penalty();
   const drunkPen = typeof getDrunkennessConcentrationPenalty === 'function' ? getDrunkennessConcentrationPenalty() : 0;
-  let total = mod + (isProficient ? prof : 0) - exPen - drunkPen + getMagicItemSaveBonus();
+  const _aura = typeof getAuraOfProtectionBonus === 'function' ? getAuraOfProtectionBonus() : 0;
+  let total = mod + (isProficient ? prof : 0) - exPen - drunkPen + getMagicItemSaveBonus() + _aura;
   const bonusSources = [];
   if (drunkPen > 0) bonusSources.push(`Drunkenness \u2212${drunkPen}`);
+  if (_aura) bonusSources.push(`Aura of Protection +${_aura}`);
   if (isEffectActive('bladesong')) {
     const intMod = abilityMod(abs.int);
     total += intMod;
@@ -27906,15 +27908,15 @@ const CLASS_WEAPON_PROFS = {
   cleric:    { simple:true, martial:false, specific:[] },
   druid:     { simple:true, martial:false, specific:[] },
   fighter:   { simple:true, martial:true, specific:[] },
-  monk:      { simple:false, martial:false, monkWeapon:true, specific:[] },
+  monk:      { simple:true, martial:false, martialLight:true, specific:[] },
   paladin:   { simple:true, martial:true, specific:[] },
   ranger:    { simple:true, martial:true, specific:[] },
-  rogue:     { simple:true, martial:false, specific:['rapier','shortsword','hand_crossbow','scimitar','whip'] },
-  sorcerer:  { simple:false, martial:false, specific:['dagger','dart','sling','quarterstaff','light_crossbow'] },
+  rogue:     { simple:true, martial:false, martialFinesseOrLight:true, specific:[] },
+  sorcerer:  { simple:true, martial:false, specific:[] },
   warlock:   { simple:true, martial:false, specific:[] },
   psion:     { simple:true, martial:false, specific:[] },
   artificer: { simple:true, martial:false, specific:[] },
-  wizard:    { simple:false, martial:false, specific:['dagger','dart','sling','quarterstaff','light_crossbow'] },
+  wizard:    { simple:true, martial:false, specific:[] },
 };
 
 // Monk Martial Arts die by monk class level
@@ -29929,7 +29931,7 @@ function calcMulticlassHPMax(method) {
   const plan = currentChar.levelPlan || {};
   const classes = getAllClasses();
   const total = getLevel();
-  const toughBonus = (currentChar._toughBonus || 0) + getSpeciesHpBonus() + (currentChar._featHpBonus || 0) + (typeof _sfxHpNow === 'function' ? _sfxHpNow() : 0);   // incl. species per-level HP (Dwarven Toughness) and feats (Boon of Fortitude)
+  const toughBonus = (currentChar._toughBonus || 0) + getSpeciesHpBonus() + getSubclassHpBonus() + (currentChar._featHpBonus || 0) + (typeof _sfxHpNow === 'function' ? _sfxHpNow() : 0);   // incl. species per-level HP (Dwarven Toughness) and feats (Boon of Fortitude)
   const hpMaxAdjust = (currentChar.hpMaxAdjust || 0) - (parseInt(currentChar._magenHpReduction, 10) || 0);   // incl. Create Magen's permanent reduction
 
   if (m === 'maximum') {
@@ -30560,6 +30562,15 @@ function getConditionSaveEffect(abilityKey) {
 }
 window.getConditionSaveEffect = getConditionSaveEffect;
 
+// Aura of Protection: your own saves (you are always in your aura); off while Incapacitated
+function getAuraOfProtectionBonus() {
+  if (!currentChar || getClassLevelCount('paladin') < 6) return 0;
+  const inc = typeof cxEffective === 'function' ? (cxEffective().list || []).includes('Incapacitated') : (currentChar.conditions || []).includes('Incapacitated');
+  if (inc) return 0;
+  return Math.max(1, abilityMod(getAbilities().cha));
+}
+window.getAuraOfProtectionBonus = getAuraOfProtectionBonus;
+
 function renderSavesBlock() {
   const block = document.getElementById('saves-block');
   if (!block) return;
@@ -30575,7 +30586,8 @@ function renderSavesBlock() {
     const isProficient = !!currentChar.save_profs[s.key];
     const drunkPen      = getDrunkennessSavePenalty(s.key);
     const itemSaveBonus = getMagicItemSaveBonusByAbility(s.key);
-    const total        = mod + (isProficient ? prof : 0) - exPen - drunkPen + getMagicItemSaveBonus() + itemSaveBonus;
+    const itemAllBonus = getMagicItemSaveBonus(), auraBonus = getAuraOfProtectionBonus();
+    const total        = mod + (isProficient ? prof : 0) - exPen - drunkPen + itemAllBonus + itemSaveBonus + auraBonus;
     const totalStr     = (total >= 0 ? '+' : '') + total;
     const condEffect   = getConditionSaveEffect(s.key);
     const itemAdvSources = getSaveAdvantageSources(s.key);
@@ -30588,6 +30600,8 @@ function renderSavesBlock() {
     if (exPen > 0)    parts.push(`Exh \u2212${exPen}`);
     if (drunkPen > 0) parts.push(`Drunk \u2212${drunkPen}`);
     if (itemSaveBonus) parts.push(`Item ${itemSaveBonus >= 0 ? '+' : ''}${itemSaveBonus}`);
+    if (itemAllBonus) parts.push(`Item ${itemAllBonus >= 0 ? '+' : ''}${itemAllBonus}`);
+    if (auraBonus) parts.push(`Aura of Protection +${auraBonus}`);
     let formula = parts.join(' + ').replace('+ \u2212', '\u2212') + ` = ${totalStr}`;
     if (condEffect.autoFail) formula += ` · Auto-fails - ${condEffect.sources.join(', ')}`;
     else if (condEffect.disadvantage) formula += ` · Disadvantage - ${condEffect.sources.join(', ')}`;
@@ -31133,13 +31147,14 @@ const CLASS_WEAPON_ARMOR_GRANTS = {
   'cleric':    { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons'] },
   'druid':     { armor: ['Light Armor','Shields'], weapons: ['Simple Weapons'] },
   'fighter':   { armor: ['Light Armor','Medium Armor','Heavy Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
-  'monk':      { armor: [], weapons: ['Simple Melee Weapons','Scimitars','Shortswords'] },
+  'monk':      { armor: [], weapons: ['Simple Weapons','Martial Weapons (Light)'] },
   'paladin':   { armor: ['Light Armor','Medium Armor','Heavy Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
   'ranger':    { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons','Martial Weapons'] },
-  'rogue':     { armor: ['Light Armor'], weapons: ['Simple Weapons','Hand Crossbows','Rapiers','Scimitars','Shortswords','Whips'] },
-  'sorcerer':  { armor: [], weapons: ['Daggers','Darts','Slings','Quarterstaffs','Light Crossbows'] },
+  'rogue':     { armor: ['Light Armor'], weapons: ['Simple Weapons','Martial Weapons (Finesse or Light)'] },
+  'sorcerer':  { armor: [], weapons: ['Simple Weapons'] },
   'warlock':   { armor: ['Light Armor'], weapons: ['Simple Weapons'] },
-  'wizard':    { armor: [], weapons: ['Daggers','Darts','Slings','Quarterstaffs','Light Crossbows'] },
+  'wizard':    { armor: [], weapons: ['Simple Weapons'] },
+  'psion':     { armor: [], weapons: ['Simple Weapons'] },
   'artificer': { armor: ['Light Armor','Medium Armor','Shields'], weapons: ['Simple Weapons'] },
 };
 
@@ -31209,9 +31224,13 @@ function applyClassWeaponArmorGrants() {
   const choices = currentChar.class_choices || {};
 
   const grants = [];
-  entries.forEach(e => {
+  const _mcNames = mc => mc ? {
+    armor: [['light', 'Light Armor'], ['medium', 'Medium Armor'], ['heavy', 'Heavy Armor'], ['shield', 'Shields']].filter(([k]) => mc.armor?.[k]).map(([, n]) => n),
+    weapons: [['simple', 'Simple Weapons'], ['martial', 'Martial Weapons']].filter(([k]) => mc.weapon?.[k]).map(([, n]) => n) } : null;
+  entries.forEach((e, i) => {
     const clsKey = (e.class||'').toLowerCase();
-    if (CLASS_WEAPON_ARMOR_GRANTS[clsKey]) grants.push(CLASS_WEAPON_ARMOR_GRANTS[clsKey]);
+    const _g = i === 0 ? CLASS_WEAPON_ARMOR_GRANTS[clsKey] : (typeof MULTICLASS_PROFICIENCIES !== 'undefined' ? _mcNames(MULTICLASS_PROFICIENCIES[clsKey]) : CLASS_WEAPON_ARMOR_GRANTS[clsKey]);
+    if (_g) grants.push(_g);
     const subKey = e.subclass ? getSubclassKey(e.class, e.subclass) : null;
     if (subKey && CLASS_WEAPON_ARMOR_GRANTS_SUBCLASS[subKey]) grants.push(CLASS_WEAPON_ARMOR_GRANTS_SUBCLASS[subKey]);
     if (clsKey === 'cleric' && choices.divine_order === 'protector') {
@@ -32081,7 +32100,8 @@ function calcSpeed() {
   // Oath of Glory's Aura of Alacrity (level 7): "Your Speed increases by 10 feet."
   const _gloryEntry = getAllClasses().find(e => (e.class||'').toLowerCase().trim() === 'paladin' && /oath of glory/i.test(e.subclass||''));
   const alacrityBonus = (_gloryEntry?.levels?.length || 0) >= 7 ? 10 : 0;
-  let final = Math.max(0, base + featBonus + mutableFormSpeedBonus + infiltratorSpeedBonus + unarmoredMovementBonus + fastMovementBonus + rovingBonus + alacrityBonus - penalty);
+  const _armStrPen = (_umArmorData && _umArmorData.strReq && (getAbilities().str || 10) < _umArmorData.strReq) ? 10 : 0;
+  let final = Math.max(0, base + featBonus + mutableFormSpeedBonus + infiltratorSpeedBonus + unarmoredMovementBonus + fastMovementBonus + rovingBonus + alacrityBonus - penalty - _armStrPen);
 
   // Drunkenness (level 5+): "Speed halved" - applied as a final multiplier
   // after flat bonuses/penalties, same convention as other halving effects.
@@ -32154,7 +32174,7 @@ function calcSpeed() {
 
   // Build all speed parts
   const parts = [];
-  if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: [exLevel > 0 ? `−${penalty} exh` : '', drunkLevel >= 5 ? 'halved - Drunk' : '', unarmoredMovementBonus > 0 ? `+${unarmoredMovementBonus} Unarmored Movement` : '', fastMovementBonus > 0 ? '+10 Fast Movement' : '', rovingBonus > 0 ? '+10 Roving' : ''].filter(Boolean).map(s=>` (${s})`).join('') });
+  if (final > 0)       parts.push({ label: 'Walk',   val: final,            note: [exLevel > 0 ? `−${penalty} exh` : '', drunkLevel >= 5 ? 'halved - Drunk' : '', unarmoredMovementBonus > 0 ? `+${unarmoredMovementBonus} Unarmored Movement` : '', fastMovementBonus > 0 ? '+10 Fast Movement' : '', rovingBonus > 0 ? '+10 Roving' : '', _armStrPen ? `−10 ${_umArmorData.name}: needs STR ${_umArmorData.strReq}` : ''].filter(Boolean).map(s=>` (${s})`).join('') });
   if (overrides.climb || superiorStride || rovingActive || glovesClimb || pantherClimb || raceClimb) parts.push({ label: 'Climb',  val: (superiorStride || rovingActive) ? final : (overrides.climb || glovesClimb || pantherClimb || raceClimb),  note: superiorStride && !overrides.climb ? ' (Superior Stride)' : (rovingActive && !overrides.climb ? ' (Roving)' : (glovesClimb && !overrides.climb ? ' (Gloves of Swimming and Climbing)' : (pantherClimb && !overrides.climb ? ' (Panther Aspect)' : (raceClimb && !overrides.climb ? (featClimb && !(_spdRaceData?.climbEqualsSpeed || _spdRaceData?.climbSpeed) ? ' (Athlete)' : ' (Racial)') : '')))) });
   if (overrides.swim  || superiorStride || rovingActive || mantaRaySwim || glovesSwim || salmonSwim || stormSeaSwim || seaSwim || raceSwim) parts.push({ label: 'Swim',   val: (superiorStride || rovingActive) ? final : (overrides.swim || mantaRaySwim || glovesSwim || salmonSwim || stormSeaSwim || seaSwim || raceSwim),   note: superiorStride && !overrides.swim  ? ' (Superior Stride)' : (rovingActive && !overrides.swim  ? ' (Roving)' : (overrides.swim ? '' : (mantaRaySwim ? ' (Cloak of the Manta Ray)' : (glovesSwim ? ' (Gloves of Swimming and Climbing)' : (salmonSwim ? ' (Salmon Aspect)' : (stormSeaSwim ? ' (Storm Soul)' : (seaSwim ? ' (Aquatic Affinity)' : (raceSwim ? ' (Racial)' : '')))))))) });
   if (flySpeed > 0)    parts.push({ label: 'Fly',    val: flySpeed,         note: flySource + (canHover ? ' (hover)' : '') });
@@ -32478,7 +32498,7 @@ function calcAC() {
   }
 
   // Unarmored options - always computed, take highest applicable
-  const bsBonus = (isEffectActive('bladesong') && !currentChar.ac_armor_key) ? abilityMod(abs.int) : 0;
+  const bsBonus = (isEffectActive('bladesong') && !currentChar.ac_armor_key && !shield) ? Math.max(1, abilityMod(abs.int)) : 0;
   candidates.push(10 + dex + bsBonus);                          // base / bladesong
 
   // Mage Armor: 13 + DEX when not wearing physical armor (Bladesong stacks on top)
@@ -32493,7 +32513,7 @@ function calcAC() {
       candidates.push(10 + dex + abilityMod(abs.con));            // Unarmored Defense (CON)
     if (!shield && (hasClass('monk') || monkSub.includes('mercy') || monkSub.includes('open hand') || monkSub.includes('shadow') || monkSub.includes('four elements') || monkSub.includes('kensei') || monkSub.includes('drunken') || monkSub.includes('long death') || monkSub.includes('sun soul') || monkSub.includes('astral self')))   // a Monk's Unarmored Defense needs no Shield
       candidates.push(10 + dex + abilityMod(abs.wis));            // Unarmored Defense (WIS)
-    if (sorcSub.includes('draconic') || palSub.includes('noble genies'))
+    if ((sorcSub.includes('draconic') && getClassLevelCount('sorcerer') >= 3) || palSub.includes('noble genies'))
       candidates.push(10 + dex + abilityMod(abs.cha));            // Unarmored Defense (CHA)
     getSubclassUnarmoredDefenses(!!shield).forEach(u => candidates.push(10 + dex + abilityMod(abs[u.ab])));
   }
@@ -32564,7 +32584,7 @@ function calcACBreakdown() {
   const monkSub2 = (getClassEntry('monk')?.subclass || '').toLowerCase();
   const sorcSub2 = (getClassEntry('sorcerer')?.subclass || '').toLowerCase();
   const palSub2  = (getClassEntry('paladin')?.subclass || '').toLowerCase();
-  const bsBonus = (isEffectActive('bladesong') && !currentChar.ac_armor_key) ? intM : 0;
+  const bsBonus = (isEffectActive('bladesong') && !currentChar.ac_armor_key && !shield) ? Math.max(1, intM) : 0;
 
   const candidates = []; // { val, label }
   const s = v => v >= 0 ? `+${v}` : `${v}`;
@@ -32595,7 +32615,7 @@ function calcACBreakdown() {
 
   // Unarmored base
   const baseLabel = bsBonus
-    ? `10 + DEX ${s(dex)} + INT ${s(intM)} (Bladesong)`
+    ? `10 + DEX ${s(dex)} + INT ${s(bsBonus)} (Bladesong)`
     : `10 + DEX ${s(dex)}`;
   candidates.push({ val: 10 + dex + bsBonus, label: baseLabel });
 
@@ -32604,7 +32624,7 @@ function calcACBreakdown() {
       candidates.push({ val: 10 + dex + con, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CON ${s(con)}` });
     if (!shield && (hasClass('monk') || monkSub2.includes('mercy') || monkSub2.includes('open hand') || monkSub2.includes('shadow') || monkSub2.includes('four elements') || monkSub2.includes('kensei') || monkSub2.includes('drunken') || monkSub2.includes('long death') || monkSub2.includes('sun soul') || monkSub2.includes('astral self')))
       candidates.push({ val: 10 + dex + wis, label: `Unarmored Defense: 10 + DEX ${s(dex)} + WIS ${s(wis)}` });
-    if (sorcSub2.includes('draconic') || palSub2.includes('noble genies'))
+    if ((sorcSub2.includes('draconic') && getClassLevelCount('sorcerer') >= 3) || palSub2.includes('noble genies'))
       candidates.push({ val: 10 + dex + cha, label: `Unarmored Defense: 10 + DEX ${s(dex)} + CHA ${s(cha)}` });
     getSubclassUnarmoredDefenses(!!shield).forEach(u => { const m = abilityMod(abs[u.ab]); candidates.push({ val: 10 + dex + m, label: `${u.feature}: 10 + DEX ${s(dex)} + ${u.ab.toUpperCase()} ${s(m)}` }); });
   }
@@ -32615,7 +32635,7 @@ function calcACBreakdown() {
   // Mage Armor: 13 + DEX when not wearing physical armor (Bladesong stacks on top)
   if (isEffectActive('mage_armor') && !isWearingArmor) {
     const maLabel = bsBonus
-      ? `Mage Armor: 13 + DEX ${s(dex)} + INT ${s(intM)} (Bladesong)`
+      ? `Mage Armor: 13 + DEX ${s(dex)} + INT ${s(bsBonus)} (Bladesong)`
       : `Mage Armor: 13 + DEX ${s(dex)}`;
     candidates.push({ val: 13 + dex + bsBonus, label: maLabel });
   }
@@ -32842,7 +32862,7 @@ function calcHPMax(method) {
   const hd     = getHitDie();
   const conMod = abilityMod(getAbilities().con);
   const m      = method || currentChar.hp_method || 'average';
-  const toughBonus = (currentChar._toughBonus || 0) + getSpeciesHpBonus() + (currentChar._featHpBonus || 0) + (typeof _sfxHpNow === 'function' ? _sfxHpNow() : 0);   // incl. species per-level HP (Dwarven Toughness) and feats (Boon of Fortitude)
+  const toughBonus = (currentChar._toughBonus || 0) + getSpeciesHpBonus() + getSubclassHpBonus() + (currentChar._featHpBonus || 0) + (typeof _sfxHpNow === 'function' ? _sfxHpNow() : 0);   // incl. species per-level HP (Dwarven Toughness) and feats (Boon of Fortitude)
   const hpMaxAdjust = (currentChar.hpMaxAdjust || 0) - (parseInt(currentChar._magenHpReduction, 10) || 0);   // incl. Create Magen's permanent reduction
 
   switch (m) {
@@ -32874,6 +32894,15 @@ function calcHPMax(method) {
 
 // Species traits that raise the hit point maximum each level
 // (Dwarf: "increases by 1, and it increases by 1 again whenever you gain a level").
+// Subclass features that raise the Hit Point maximum: Draconic Resilience (Sorcerer 3: +3, then +1 per Sorcerer level)
+function getSubclassHpBonus() {
+  if (!currentChar) return 0;
+  const e = getAllClasses().find(x => (x.class || '').toLowerCase().trim() === 'sorcerer');
+  const lv = getClassLevelCount('sorcerer');
+  return (e && /draconic/i.test(e.subclass || '') && lv >= 3) ? lv : 0;
+}
+window.getSubclassHpBonus = getSubclassHpBonus;
+
 function getSpeciesHpBonus() {
   const rd = (typeof getRaceData === 'function' && currentChar) ? getRaceData(currentChar.race) : null;
   return rd?.hpPerLevel ? rd.hpPerLevel * getLevel() : 0;
@@ -32888,9 +32917,9 @@ function hpMethodFormula(method) {
   const toughBonus = currentChar._toughBonus || 0;
   const hpMaxAdjust = currentChar.hpMaxAdjust || 0;
   const _magenRed = parseInt(currentChar._magenHpReduction, 10) || 0;
-  const _speciesHp = getSpeciesHpBonus();
+  const _speciesHp = getSpeciesHpBonus(), _subHp = getSubclassHpBonus();
   const _featHp = currentChar._featHpBonus || 0;
-  const toughStr = (toughBonus ? ` + Tough(${toughBonus})` : '') + (_featHp ? ` + Feat(${_featHp})` : '') + (_speciesHp ? ` + Species(${_speciesHp})` : '') + (hpMaxAdjust ? ` + Adj(${hpMaxAdjust>0?'+':''}${hpMaxAdjust})` : '') + (_magenRed ? ` \u2212 Magen(${_magenRed})` : '');
+  const toughStr = (toughBonus ? ` + Tough(${toughBonus})` : '') + (_featHp ? ` + Feat(${_featHp})` : '') + (_speciesHp ? ` + Species(${_speciesHp})` : '') + (_subHp ? ` + Draconic Resilience(${_subHp})` : '') + (hpMaxAdjust ? ` + Adj(${hpMaxAdjust>0?'+':''}${hpMaxAdjust})` : '') + (_magenRed ? ` \u2212 Magen(${_magenRed})` : '');
 
   if (isMulticlass()) {
     const classes = getAllClasses();
@@ -36301,13 +36330,13 @@ function renderSpellStats() {
 
   if (dcEl) {
     dcEl.textContent = ability ? dc : '-';
-    if (dcFormula) dcEl.title = dcFormula;
+    dcEl.title = (ability && dcFormula) ? dcFormula : '';
     dcEl.style.color = dcBonus ? 'var(--accent2)' : '';
   }
   if (atkEl) {
     const atkStr = ability ? (atk >= 0 ? '+' : '') + atk : '-';
     atkEl.textContent = spellAtkAdv ? atkStr + ' (Adv)' : atkStr;
-    if (atkFormula) atkEl.title = spellAtkAdv ? atkFormula + ' + Advantage on spell attacks' : atkFormula;
+    atkEl.title = (ability && atkFormula) ? (spellAtkAdv ? atkFormula + ' + Advantage on spell attacks' : atkFormula) : '';
     atkEl.style.color = (atkBonus || spellAtkAdv) ? 'var(--accent2)' : '';
   }
 
@@ -36332,6 +36361,18 @@ function renderSpellStats() {
   const featNoteEl = document.getElementById('sp-feat-stats-note');
   if (featNoteEl) {
     const featLines = typeof getFeatSpellStatLines === 'function' ? getFeatSpellStatLines(ability) : [];
+    try {   // multiclass: each other spellcasting class that casts with another ability
+      const _p = getProf(), _abs = getAbilities(), _ex = typeof exhaustionD20Penalty === 'function' ? exhaustionD20Penalty() : 0;
+      const _seen = new Set([ability]), _mc = [];
+      getAllSpellcastingClasses().forEach(sc => {
+        if (!sc.ability || !ability || _seen.has(sc.ability)) return;
+        _seen.add(sc.ability);
+        const m = abilityMod(_abs[sc.ability] ?? 10), d = 8 + _p + m + (dcBonus || 0), a = _p + m + (atkBonus || 0) - _ex;
+        const nm = (PHB_CLASSES[sc.cls]?.name || sc.cls.charAt(0).toUpperCase() + sc.cls.slice(1)) + (sc.type === 'third' && sc.sub ? ' (' + sc.sub + ')' : '');
+        _mc.push(`${nm} spells (${sc.ability.toUpperCase()}): DC ${d} · ${a >= 0 ? '+' : ''}${a} to hit`);
+      });
+      featLines.unshift(..._mc);
+    } catch (e) {}
     featNoteEl.innerHTML = featLines.map(t => t.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))).join('<br>');
     featNoteEl.style.display = featLines.length ? '' : 'none';
   }
@@ -39614,6 +39655,9 @@ function isWeaponProficient(weaponKey, weaponType) {
     if (prof.martialMelee && weaponType === 'Martial' && wList==='melee') return true;
     if (prof.martialRanged && weaponType === 'Martial' && wList==='ranged') return true;
     if (prof.monkWeapon   && isMonkWeapon)                                return true;
+    const _props = phbWeapon?.properties || [];
+    if (prof.martialLight && weaponType === 'Martial' && _props.includes('light'))                                   return true;
+    if (prof.martialFinesseOrLight && weaponType === 'Martial' && (_props.includes('light') || _props.includes('finesse'))) return true;
     if (prof.specific?.includes(weaponKey))                               return true;
     return false;
   };
@@ -55663,6 +55707,7 @@ function renderResourceTracker() {
       if (eLv < Math.max(3, f.level||1)) return;
       const id = 'scfeat_' + eSubKey.replace(/[^a-z0-9]/g,'_') + '_' + f.name.replace(/[^a-z0-9]/gi,'_').toLowerCase();
       if (allDefs.find(d => d.id === id)) return;
+      if (f.requiresChoice && !f.requiresChoice.anyOf.includes((currentChar.class_choices?.[f.requiresChoice.id] || '').toLowerCase())) return;
       // DM override wins outright - a flat corrected number/recovery,
       // bypassing the formula resolution below entirely.
       const _nativeOv = _dmNativeResourceOverride(`subclass:${eSubKey}:${f.name}`);
@@ -55674,7 +55719,7 @@ function renderResourceTracker() {
         : typeof f.usages === 'string' ? (() => { try { const abs=getAbilities(); const level=eLv,prof2=prof; return Math.max(1, Number(new Function('level','prof','int_mod','str_mod','dex_mod','con_mod','wis_mod','cha_mod','return '+f.usages)(eLv,prof,abilityMod(abs.int),abilityMod(abs.str),abilityMod(abs.dex),abilityMod(abs.con),abilityMod(abs.wis),abilityMod(abs.cha)))||1); } catch(e){return 1;} })()
         : 1;
       const recoveryVal = _nativeOv ? _nativeOv.recovery : f.recovery;
-      if (usagesVal > 0) allDefs.push({ id, name: f.name, _max: usagesVal, recovery: recoveryVal, desc: f.desc });
+      if (usagesVal > 0) allDefs.push({ id, name: f.resourceLabel || f.name, featureName: f.name, _max: usagesVal, recovery: recoveryVal, desc: f.desc });
     });
   });
 
@@ -56362,7 +56407,7 @@ function renderResourceEntry(def, level, prof) {
   } else if (isDisplay) {
     html += `<div style="font-family:var(--font-body);font-size:12px;color:var(--text3)">${def.desc||''}</div>`;
   } else if (isPool) {
-    const poolVal = parseInt(currentChar.resources[def.id]) ?? max;
+    const _pv = parseInt(currentChar.resources[def.id]); const poolVal = Number.isFinite(_pv) ? _pv : max;
     html += `<div class="resource-pool-row">
       <input type="number" class="resource-pool-input" min="0" max="${max}" value="${poolVal}"
         oninput="currentChar.resources['${def.id}']=parseInt(this.value)||0"/>
@@ -56945,8 +56990,9 @@ function doDawnReset() {
   for (const def of allDefs) {
     const rec = (def.recovery || '').toLowerCase().trim();
     if (rec.startsWith('dawn') && (currentChar.resources[def.id] || 0) > 0) {
-      currentChar.resources[def.id] = 0;
-      restored.push(def.name || def.id);
+      const _rg = _restRegain(def, parseInt(currentChar.resources[def.id]) || 0);
+      currentChar.resources[def.id] = _rg.used;
+      restored.push((def.name || def.id) + _rg.note);
     }
   }
   renderResourceTracker();
@@ -56967,8 +57013,9 @@ function doDuskReset() {
   for (const def of allDefs) {
     const rec = (def.recovery || '').toLowerCase().trim();
     if (rec.startsWith('dusk') && (currentChar.resources[def.id] || 0) > 0) {
-      currentChar.resources[def.id] = 0;
-      restored.push(def.name || def.id);
+      const _rg = _restRegain(def, parseInt(currentChar.resources[def.id]) || 0);
+      currentChar.resources[def.id] = _rg.used;
+      restored.push((def.name || def.id) + _rg.note);
     }
   }
   renderResourceTracker();
@@ -94747,6 +94794,84 @@ if (typeof toggleCondition === 'function') {
   };
   window.toggleCondition = toggleCondition;
 }
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// REST & USES AUDIT (step 51): limited-use subclass features that had no tracker.
+// Each entry names its feature (featureName), so the tracker shows the feature's
+// own text. Counts and rests as the feature text says; nothing else changes.
+// ═══════════════════════════════════════════════════════════════════════════
+(function () {
+  const ADD = {
+    'wizard/illusionist': [
+      { id: 'sc_illus_phantasmal_free', name: 'Phantasmal Creatures (each spell once)', featureName: 'Phantasmal Creatures', _max: 2, recovery: 'long rest', minLevel: 6 },
+    ],
+    'sorcerer/ancestral': [
+      { id: 'sc_ancestral_disruption_free', name: 'Superior Spell Disruption (each spell once)', featureName: 'Superior Spell Disruption', _max: 2, recovery: 'long rest', minLevel: 6 },
+    ],
+    'sorcerer/defiled sorcery': [
+      { id: 'sc_defiled_life_steal', name: 'Life Steal', featureName: 'Defile and Empower', _max: 1, recovery: 'long rest', minLevel: 3,
+        recoveryNote: 'or expend 3 Sorcery Points to restore it' },
+    ],
+    'bard/college of spirits': [
+      { id: 'sc_spirits_guardians_free', name: 'Spirit Guardians without a slot', featureName: 'Empowered Channeling', _max: 1, recovery: 'long rest', minLevel: 6 },
+      { id: 'sc_spirits_worldly_guard', name: 'Spirit Guardians: Half Cover', featureName: 'Empowered Channeling', _max: 1, recovery: 'short rest', minLevel: 6 },
+    ],
+    'artificer/reanimator': [
+      { id: 'sc_reanim_companion', name: 'Reanimated Companion', featureName: 'Reanimated Companion', _max: 1, recovery: 'long rest', minLevel: 3,
+        recoveryNote: 'or expend a spell slot to create one' },
+    ],
+    'rogue/house agent': [
+      { id: 'sc_house_insignia', name: 'Insignia Spells (each spell once)', featureName: 'House Insignia', type: 'formula', maxFormula: 'level<5?1:level<9?2:3', recovery: 'long rest', minLevel: 3 },
+    ],
+    'wizard/imaskarcanist': [
+      { id: 'sc_imaskar_lore', name: 'Imaskarcana Lore (attune)', featureName: 'Secrets of Deep Imaskar', _max: 1, recovery: 'long rest', minLevel: 10 },
+      { id: 'sc_imaskar_glyph', name: 'Imaskar Seals (Glyph of Warding)', featureName: 'Secrets of Deep Imaskar', _max: 1, recovery: 'long rest', minLevel: 10 },
+      { id: 'sc_imaskar_doom', name: 'Doom of Unlight', featureName: 'Doom of Unlight', _max: 1, recovery: 'long rest', minLevel: 14,
+        recoveryNote: 'or expend a level 6+ spell slot' },
+    ],
+    'sorcerer/lunar sorcery': [
+      { id: 'sc_lunar_phenomenon', name: 'Lunar Phenomenon (each benefit once)', featureName: 'Lunar Phenomenon', _max: 3, recovery: 'long rest', minLevel: 18,
+        recoveryNote: 'or spend 5 Sorcery Points to use one again' },
+    ],
+    'warlock/the hexblade': [
+      { id: 'sc_hex_explosive', name: 'Explosive Hex', featureName: 'Masterful Hex', _max: 1, recovery: 'long rest', minLevel: 14,
+        recoveryNote: 'or expend a Pact Magic slot to restore it' },
+    ],
+    // Dread Incarnate (Cutthroat): regain one expended use of Bloodthirst on a Short Rest from Rogue level 17
+    'rogue/scion of the three': [
+      { id: 'scfeat_rogue_scion_of_the_three_bloodthirst', name: 'Bloodthirst', featureName: 'Bloodthirst', type: 'formula', maxFormula: 'Math.max(1,int_mod)',
+        recovery: 'long rest', srFrom: { cls: 'rogue', one: 17 }, minLevel: 3 },
+    ],
+  };
+  for (const [key, list] of Object.entries(ADD)) {
+    if (typeof PHB_SUBCLASSES !== 'undefined' && !PHB_SUBCLASSES[key]) continue;
+    const arr = SUPPLEMENTAL_SUBCLASS_RESOURCES[key] || (SUPPLEMENTAL_SUBCLASS_RESOURCES[key] = []);
+    for (const r of list) if (!arr.some(x => x.id === r.id || x.name === r.name)) arr.push(r);
+  }
+})();
+
+// Dawn / Dusk: how many uses come back. A recovery note like "regains 1d6+4" is rolled (never more than were
+// used); "regains all", or no number, gives everything back. Returns the new used count and a note for the message.
+function _restRegain(def, used) {
+  let note = def.recoveryNote;
+  if (!note && Array.isArray(currentChar?.customResources)) note = (currentChar.customResources.find(r => r.id === def.id) || {}).recoveryNote;
+  note = String(note || '');
+  if (/regains?\s+all|starts with/i.test(note)) return { used: 0, note: '' };
+  const m = note.match(/regains?\s+(\d+)\s*d\s*(\d+)(?:\s*([+-])\s*(\d+))?/i) || note.match(/regains?\s+(\d+)\b(?!\s*d)/i);
+  if (!m) return { used: 0, note: '' };
+  let n, txt;
+  if (m.length > 3 && m[2]) {
+    const cnt = parseInt(m[1]), sides = parseInt(m[2]); n = 0;
+    for (let i = 0; i < cnt; i++) n += 1 + Math.floor(Math.random() * sides);
+    if (m[3]) n += (m[3] === '-' ? -1 : 1) * parseInt(m[4]);
+    txt = `${cnt}d${sides}${m[3] ? ' ' + m[3] + ' ' + m[4] : ''}`;
+  } else { n = parseInt(m[1]); txt = String(n); }
+  n = Math.max(0, n);
+  const back = Math.min(used, n);
+  return { used: used - back, note: ` (+${back}: ${txt} = ${n})` };
+}
+window._restRegain = _restRegain;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
