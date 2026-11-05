@@ -95815,7 +95815,7 @@ function cfSync() {
     if (!f || !f.key || !f.name || !_cfVisible(f)) return;
     if (PHB_FEATS[f.key] && !PHB_FEATS[f.key]._cf) return;   // never over a real feat
     const nm = _feCodeKey(f.name);
-    PHB_FEATS[f.key] = { name: f.name, type: f.type || 'general', prereq: f.prereq || '', minLevel: null, source: 'DM', desc: f.desc || '', asi: {}, skills: [], _cf: true };
+    PHB_FEATS[f.key] = { name: f.name, type: f.type || 'general', prereq: f.prereq || '', minLevel: null, source: 'DM', desc: _cfFixText(f.desc), asi: {}, skills: [], _cf: true };
     FEAT_ENGINE[f.key] = _cfEngine(f);
     _FE_BY_NAME[_feClean(f.name)] = f.key;
     const e = FEAT_ENGINE[f.key];
@@ -95885,15 +95885,19 @@ function _cfFromExisting(key) {
 function _cfTextToEditor(t) { return String(t || '').split(' | ').join('\n\n'); }
 function _cfTextFromEditor(t) {
   const blocks = String(t || '').replace(/\r/g, '').split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
-  let out = '';
+  let out = '', prev = '';
   blocks.forEach(b => {
     if (!out) out = b;
     else if (b.startsWith('|')) out += '\n\n' + b;
     else if (b.startsWith('#')) out += '\n' + b;
+    else if (prev.startsWith('|')) out += '\n' + b;   // text after a table: its own line (a " | " would be read as one more cell)
     else out += ' | ' + b;
+    prev = b;
   });
   return out;
 }
+// text saved before that fix: "…last row.| | Next paragraph" back to "…last row.|\nNext paragraph"
+function _cfFixText(t) { return String(t || '').replace(/\|( \| )(?=[^|\n]*(?:\n|$))/g, '|\n'); }
 // ── the editor ─────────────────────────────────────────
 let _cfEdit = null, _cfChars = null;
 function _cfBlank() { return { key: null, name: '', type: 'general', prereq: '', desc: '', access: { mode: 'chars', chars: [] }, mech: { asi: [], abilities: [], spells: [], res: [] } }; }
@@ -95953,7 +95957,7 @@ function _cfRender() {
     </div>
     ${_cfLbl('Prerequisite', '(optional)')}<input class="info-input" value="${_cfEsc(f.prereq)}" oninput="_cfEdit.prereq=this.value" placeholder="e.g. Level 4+">
     ${_cfLbl('Text', '(what the player reads - a blank line starts a new paragraph; tables in the |1d8|Behavior| form, as in the other feats)')}
-    <textarea class="info-input" style="min-height:220px;font-family:var(--font-body);line-height:1.5" oninput="_cfEdit.desc=_cfTextFromEditor(this.value)">${_cfEsc(_cfTextToEditor(f.desc))}</textarea>
+    <textarea class="info-input" style="min-height:220px;font-family:var(--font-body);line-height:1.5" oninput="_cfEdit.desc=_cfTextFromEditor(this.value)">${_cfEsc(_cfTextToEditor(_cfFixText(f.desc)))}</textarea>
 
     ${_cfLbl('Who can take it')}
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-family:var(--font-ui);font-size:12px;color:var(--text)">
