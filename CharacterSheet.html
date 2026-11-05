@@ -19858,7 +19858,7 @@ function openMagicItemDetailModal(keyOrItem) {
   const rarityColor = RARITY_COLOURS[effRarity] || 'var(--text2)';
   const metaParts = [
     `<span class="meta-pill" style="text-transform:capitalize;color:${rarityColor};border:1px solid ${rarityColor}44">${rarityLabel(effRarity || 'common')}</span>`,
-    `<span class="meta-pill">${item.type || 'wondrous item'}</span>`,
+    `<span class="meta-pill" style="text-transform:capitalize">${item.type || 'wondrous item'}</span>`,
   ];
   if (item.attunement) metaParts.push('<span class="meta-pill" style="color:var(--gold)">Requires Attunement</span>');
   metaEl.innerHTML = metaParts.join('');
@@ -44802,17 +44802,17 @@ function openWeaponDetail(idx) {
   const rangeTxt = phb?.thrown_range ? `${phb.range} (thrown ${phb.thrown_range})` : (phb?.range || entry.range || '');
 
   const pills = [
-    phb?.type ? `<span class="meta-pill">${phb.type}</span>` : '',
+    phb?.type ? `<span class="meta-pill" style="text-transform:capitalize">${phb.type}</span>` : '',
     `<span class="meta-pill">${calc.isRanged ? 'Ranged' : 'Melee'}</span>`,
     calc.abilityKey ? `<span class="meta-pill">Ability: ${calc.abilityKey.toUpperCase()}</span>` : '',
     calc.dmgStr ? `<span class="meta-pill">Damage: ${calc.dmgStr}</span>` : '',
     phb?.versatile_die ? `<span class="meta-pill">Versatile: 1d${phb.versatile_die}</span>` : '',
     rangeTxt ? `<span class="meta-pill">Range: ${rangeTxt}</span>` : '',
     (entry.weight || phb?.weight) ? `<span class="meta-pill">Weight: ${entry.weight || phb.weight}</span>` : '',
-    properties ? `<span class="meta-pill">${properties}</span>` : '',
-    phb?.mastery ? `<span class="meta-pill" style="color:var(--gold)">Mastery: ${phb.mastery}</span>` : '',
+    properties ? `<span class="meta-pill" style="text-transform:capitalize">${properties}</span>` : '',
+    phb?.mastery ? `<span class="meta-pill" style="color:var(--gold);text-transform:capitalize">Mastery: ${phb.mastery}</span>` : '',
     !calc.isProficient ? `<span class="meta-pill" style="color:var(--red)">Not Proficient</span>` : '',
-    linkedItem?.rarity ? `<span class="meta-pill" style="color:var(--gold)">${linkedItem.rarity}</span>` : '',
+    linkedItem?.rarity ? `<span class="meta-pill" style="color:var(--gold);text-transform:capitalize">${linkedItem.rarity}</span>` : '',
     linkedItem?.attunement ? `<span class="meta-pill" style="color:${linkedItem.attuned?'var(--accent)':'var(--red)'}">${linkedItem.attuned?'Attuned':'Requires Attunement'}</span>` : '',
   ].filter(Boolean);
   document.getElementById('weapon-detail-pills').innerHTML = pills.join('');
@@ -45157,12 +45157,12 @@ function openArmorDetail(idx) {
   const ac = entry.customAC || phb?.ac;
 
   const pills = [
-    phb?.type ? `<span class="meta-pill">${phb.type} Armor</span>` : '',
+    phb?.type ? `<span class="meta-pill" style="text-transform:capitalize">${phb.type} Armor</span>` : '',
     ac ? `<span class="meta-pill">AC ${ac}${phb?.type === 'medium' ? ' + DEX (max 2)' : phb?.type === 'light' ? ' + DEX' : ''}</span>` : '',
     phb?.stealthDisadv ? `<span class="meta-pill" style="color:var(--amber)">Stealth Disadvantage</span>` : '',
     phb?.strReq ? `<span class="meta-pill">Str ${phb.strReq} Required</span>` : '',
     (entry.weight || phb?.weight) ? `<span class="meta-pill">Weight: ${entry.weight || phb.weight}</span>` : '',
-    linkedItem?.rarity ? `<span class="meta-pill" style="color:var(--gold)">${linkedItem.rarity}</span>` : '',
+    linkedItem?.rarity ? `<span class="meta-pill" style="color:var(--gold);text-transform:capitalize">${linkedItem.rarity}</span>` : '',
     linkedItem?.attunement ? `<span class="meta-pill" style="color:${linkedItem.attuned?'var(--accent)':'var(--red)'}">${linkedItem.attuned?'Attuned':'Requires Attunement'}</span>` : '',
   ].filter(Boolean);
   document.getElementById('armor-detail-pills').innerHTML = pills.join('');
@@ -46811,7 +46811,8 @@ function getEffectiveItemDesc(item) {
     if (spell) {
       const lv = item.scrollSpellLevel ?? spell.level;
       const lvLabel = lv === 0 ? 'Cantrip' : `${lv}${lv===1?'st':lv===2?'nd':lv===3?'rd':'th'}-Level`;
-      const spellText = spell.descFull || spell.desc || '';
+      let spellText = spell.descFull || spell.desc || '';
+      if (spell.level && lv > spell.level && typeof highlightSpellUpcast === 'function') { try { spellText = String(highlightSpellUpcast(spellText, spell, lv) || spellText).replace(/<span[^>]*>([^<]*)<\/span>/g, '**$1**').replace(/<[^>]+>/g, ''); } catch (e) {} }
       return `${base}\n\n---\n\n**${spell.name}** (${lvLabel} ${spell.school})\n\n${spellText}`;
     }
   }
@@ -79946,7 +79947,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     return { who: name, char_id: c.id, campaign: c._campaign || '', dm: false };
   }
   function rowOf(r, s) {
-    return { id: r.id, campaign: s.campaign || '', char_id: s.char_id, who: s.who, label: String(r.label).slice(0, 200), expr: String(r.expr).slice(0, 120),
+    return { id: r.id, campaign: s.campaign || '', char_id: s.char_id, who: s.who, label: String(r.label + (r.tableHit ? ' \u2192 ' + r.tableHit : '')).slice(0, 200), expr: String(r.expr).slice(0, 120),
       kind: r.kind, total: r.total, detail: fmtDetail(r).slice(0, 400), crit: r.crit, at: new Date(r.at).toISOString() };
   }
   async function insertRow(row) {
@@ -80070,7 +80071,9 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
     // tool checks
     el = t.closest('#tool-profs-summary .skill-row');
     if (el && t.closest('.skill-name, .skill-val')) { const v = el.querySelector('.skill-val'); return { expr: '1d20' + sign(num(v?.textContent)).replace('−', '-'), opt: { test: true, kind: 'check', label: cleanName(el.querySelector('.skill-name')) + ' check', rowAdv: advFrom(el).adv } }; }
-    // dice written in text
+    // dice written in text (a dice table's heading rolls on the table)
+    el = t.closest('.dr-dice[data-table]');
+    if (el) { const tr = tableRoll(el); if (tr) return tr; }
     el = t.closest('.dr-dice');
     if (el) return { expr: el.dataset.expr, opt: { kind: el.dataset.kind || 'damage', label: el.dataset.label || el.dataset.expr } };
     el = t.closest('.dr-satk');
@@ -80230,6 +80233,7 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
   }
   function wrapIn(root) {
     if (!root || root.dataset.drBusy) return;
+    try { markDiceTables(root); } catch (e) {}
     const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => (!n.nodeValue || !/\dd\d|spell attack|[+\-−]\s?\d/i.test(n.nodeValue) || n.parentElement?.closest(SKIP)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
     const nodes = []; while (tw.nextNode()) nodes.push(tw.currentNode);
     if (!nodes.length && !root.querySelector('.dr-dice:not([data-trail])')) return;
@@ -80283,6 +80287,63 @@ html.m-ui body.preview-readonly [data-m-view-input] { cursor: text !important; }
       }
     });
     delete root.dataset.drBusy;
+  }
+  // ── dice tables: "1d8 | Effect" with rows "1", "2-3"… ────────────────
+  function _dtRange(s, die) {
+    s = String(s || '').replace(/[\u2012-\u2015\u2212]/g, '-').replace(/\s+/g, '').replace(/\*/g, '');
+    const big = v => (v === '00' || v === '000') && die >= 100 ? die : parseInt(v, 10);
+    let m = /^(\d+)$/.exec(s); if (m) { const v = big(m[1]); return [v, v]; }
+    m = /^(\d+)-(\d+)$/.exec(s); if (m) { const a = big(m[1]); let b = big(m[2]); if (b === 0 && die >= 100) b = die; return b >= a ? [a, b] : null; }
+    m = /^(\d+)\+$/.exec(s); if (m) return [parseInt(m[1], 10), Infinity];
+    return null;
+  }
+  function markDiceTables(root) {
+    const tbls = root.matches && root.matches('table') ? [root] : [...root.querySelectorAll('table:not([data-drt])')];
+    tbls.forEach(tb => {
+      if (tb.dataset.drt) return; tb.dataset.drt = '0';
+      const th = tb.querySelector('thead tr > th:first-child'); if (!th) return;
+      const hm = /^\s*(\d*)\s*d\s*(\d+|%)\s*$/i.exec(th.textContent); if (!hm) return;
+      const n = parseInt(hm[1] || '1', 10), die = hm[2] === '%' ? 100 : parseInt(hm[2], 10);
+      const rows = [...tb.querySelectorAll('tbody tr')]; if (rows.length < 2) return;
+      if (!rows.every(tr => tr.cells.length > 1 && _dtRange(tr.cells[0].textContent, die * n))) return;
+      tb.dataset.drt = '1';
+      const expr = n + 'd' + die;
+      let sp = th.querySelector('.dr-dice');
+      if (!sp) { sp = document.createElement('span'); sp.className = 'dr-dice'; sp.textContent = th.textContent.trim(); th.textContent = ''; th.appendChild(sp); }
+      sp.dataset.expr = expr; sp.dataset.table = '1'; sp.dataset.trail = '1';
+      sp.title = 'Roll ' + expr + ' on this table';
+    });
+  }
+  // the table's name: a heading just above it, else the first words of the paragraph above ("Ominous Will."), else the feat / spell name
+  function _dtName(tb, sp) {
+    const wrap = tb.closest('.md-table-wrap') || tb;
+    let n = wrap; for (let i = 0; n && !n.previousElementSibling && i < 3; i++) n = n.parentElement;   // each block can sit in its own box
+    const prev = n && n.previousElementSibling;
+    const h = prev && (prev.classList.contains('md-h') ? prev : prev.querySelector('.md-h'));
+    if (h && h.textContent.trim() === prev.textContent.trim()) return h.textContent.trim().slice(0, 60);
+    const txt = prev ? prev.textContent.trim() : '';
+    const m = /^([^.:!?]{2,40})[.:]/.exec(txt);
+    if (m && m[1].split(/\s+/).length <= 5) return m[1].trim();
+    return labelFor({ parentElement: sp }) || 'Table';
+  }
+  function tableRoll(sp) {
+    const tb = sp.closest('table'); if (!tb) return null;
+    const die = (+sp.dataset.expr.split('d')[0] || 1) * (+sp.dataset.expr.split('d')[1] || 0);
+    const rows = [...tb.querySelectorAll('tbody tr')].map(tr => ({ tr, r: _dtRange(tr.cells[0].textContent, die), text: [...tr.cells].slice(1).map(c => c.textContent.trim()).filter(Boolean).join(' \u2014 ') }));
+    const name = _dtName(tb, sp);
+    return { expr: sp.dataset.expr, opt: { kind: 'other', label: name + ' (' + sp.dataset.expr + ')', table: { rows, tb } } };
+  }
+  function tableResult(r, o) {
+    const t = o.table; if (!t) return;
+    const hit = t.rows.find(x => x.r && r.total >= x.r[0] && r.total <= x.r[1]);
+    r.tableHit = hit ? hit.text : 'No row for ' + r.total + ' on this table';
+    r.opt = Object.assign({}, r.opt || o, { note: '\u2192 ' + r.tableHit, table: null });
+    const light = () => {
+      if (r.pending) { setTimeout(light, 150); return; }
+      t.tb.querySelectorAll('tr.dr-tblhit').forEach(x => x.classList.remove('dr-tblhit'));
+      if (hit) { hit.tr.classList.add('dr-tblhit'); try { hit.tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {} }
+    };
+    light();
   }
   // spell window: a "Roll attack" pill when the spell makes a spell attack
   function spellPill() {
@@ -80395,6 +80456,9 @@ html.m-ui #dr-panel{left:0;right:0;bottom:0;width:auto;max-width:none;max-height
 .dr-crit{margin-top:6px;font-size:12px;font-weight:700;letter-spacing:.4px;padding:4px 8px;border-radius:7px;display:inline-block}
 .dr-crit.s{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)} .dr-crit.f{background:color-mix(in srgb,var(--red) 22%,transparent);color:var(--red)}
 .dr-note{font-size:11px;color:var(--gold);margin-top:4px}
+.dr-note.dr-tblres{font-size:13px;color:var(--text);line-height:1.45;margin-top:8px;padding:6px 8px;border-left:2px solid var(--accent);background:var(--bg3, rgba(127,127,127,.08));border-radius:4px;text-align:left;max-width:320px}
+tr.dr-tblhit > td{background:color-mix(in srgb, var(--accent) 18%, transparent);transition:background .3s}
+table[data-drt="1"] thead th:first-child .dr-dice{cursor:pointer}
 .dr-fol{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .dr-fol button{flex:1 1 40%;min-height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:12px;font-weight:600;padding:4px 8px}
 .dr-fol button.hot{border-color:var(--accent);color:var(--accent)}
@@ -80528,6 +80592,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
     const critTxt = critText(r), fol = follow(r).filter(f => !f.done).map(f => `<button type="button" data-fol="${f.k}" class="${f.hot ? 'hot' : ''}">${esc(f.t)}</button>`).join('');
     c.className = r.crit === 'success' ? 'crit-s' : r.crit === 'fail' ? 'crit-f' : '';
     c.innerHTML = `<div class="l">${esc(r.label)}${r.adv ? ' \u00b7 ' + (r.adv === 'adv' ? 'Advantage' : 'Disadvantage') : ''}</div><div class="t">${r.total}</div><div class="d">${esc(r.expr)} \u00b7 ${fmtDetail(r, true)}</div>
+      ${r.tableHit ? `<div class="dr-note dr-tblres">${esc('\u2192 ' + r.tableHit)}</div>` : ''}
       ${critTxt ? `<div class="dr-crit ${r.crit === 'success' ? 's' : 'f'}" style="margin-top:6px">${critTxt}</div>` : ''}${unthrown(r) ? `<div class="d">${unthrown(r)} more dice not thrown — all are in the total</div>` : ''}${fol ? `<div class="dr-fol">${fol}</div>` : ''}
       <div class="x">Tap to dismiss \u00b7 <button type="button" data-act="openroller" style="border:0;background:none;color:var(--accent);font:inherit;cursor:pointer;padding:0">Open the roller</button></div>`;
     c.hidden = false; clearTimeout(cardT);
@@ -80561,7 +80626,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
         <div class="dr-tot"><b>${r.pending ? '\u2026' : r.total}</b><span class="dr-det">${r.pending ? 'Rolling\u2026' : esc(r.expr) + ' \u00b7 ' + fmtDetail(r, true)}</span></div>
         ${critTxt ? `<div class="dr-crit ${r.crit === 'success' ? 's' : 'f'}">${critTxt}</div>` : ''}
         ${!r.pending && r.minned ? `<div class="dr-note">Reliable Talent: the d20 (${r.natural}) counts as ${r.min}.</div>` : ''}
-        ${r.opt?.note ? `<div class="dr-note">${esc(r.opt.note)}</div>` : ''}
+        ${r.opt?.note && !(r.tableHit && r.pending) ? `<div class="dr-note${r.tableHit ? ' dr-tblres' : ''}">${esc(r.opt.note)}</div>` : ''}
         ${fol ? `<div class="dr-fol">${fol}</div>` : ''}
       </div>`;
     } else res = `<div class="dr-help">${esc(HELP)}</div>`;
@@ -80608,7 +80673,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
         out.push({ k: 'crit', t: 'Crit damage', hot: r.crit === 'success' });
       }
       if (r.opt?.guidance) out.push(r.guided ? { t: 'Guidance added', done: true } : { k: 'guide', t: '+1d4 Guidance' });
-    } else if (!r.twice) out.push({ k: 'twice', t: 'Roll twice, keep higher' });
+    } else if (!r.twice && !r.tableHit) out.push({ k: 'twice', t: 'Roll twice, keep higher' });
     return out;
   }
   function panelClick(e) {
@@ -80679,6 +80744,7 @@ html.m-ui #dr-log{left:0;right:0;top:0;bottom:0;width:auto;border-radius:0;z-ind
       const r2 = runRoll(expr, o), hi = r2.total > r.total ? r2 : r, lo = hi === r ? r2 : r;
       r = Object.assign({}, hi, { twice: true, other: lo.total, dice: hi.dice.concat(lo.dice.map(d => Object.assign({}, d, { kept: false, term: 100 + d.term }))), label: (o.label || expr) + ' (rolled twice, kept the higher)' });
     }
+    if (o.table) tableResult(r, o);
     finish(r, false);
     return r;
   }
