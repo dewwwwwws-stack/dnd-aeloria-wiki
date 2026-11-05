@@ -2831,6 +2831,20 @@ body.preview-readonly #mi-detail-edit-row * {
 #page-tabs #tab-calendar { margin-left: auto; position: relative; }
 #page-tabs #tab-calendar::before { content: ''; position: absolute; left: -6px; top: 22%; bottom: 22%; width: 1px; background: var(--border); }
 </style>
+<style>
+/* evolve window: the DM's own property */
+#evo-modal .evo-sec { margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg3); padding: 0 8px; }
+#evo-modal .evo-sec[open] { padding-bottom: 8px; }
+#evo-modal .evo-sec > summary { cursor: pointer; padding: 7px 0; font-family: var(--font-label); font-size: 11px; letter-spacing: .5px; color: var(--text); }
+#evo-modal .evo-rowbox { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg2); padding: 6px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+#evo-modal .evo-eff { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--font-ui); font-size: 11px; color: var(--text2); padding: 3px 0; border-bottom: 1px dashed var(--border); }
+#evo-modal .evo-eff > span:first-child { min-width: 170px; color: var(--text); }
+#evo-modal .evo-eff input[type=number] { width: 58px !important; }
+#evo-modal .evo-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+#evo-modal .evo-chip { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-ui); font-size: 10px; color: var(--text2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; cursor: pointer; background: var(--bg2); }
+#evo-modal .evo-chip input { display: none; }
+#evo-modal .evo-chip.on { color: var(--gold); border-color: var(--gold); background: var(--accent-bg); }
+</style>
 </head>
 <body>
 
@@ -6760,6 +6774,7 @@ body.preview-readonly #mi-detail-edit-row * {
 {"key":"arcane_eye","notation":"Di:4 > Il:1 > Ab:2 > En:3 > Co:4 > Di:1","name":"Arcane Eye","level":4,"school":"Divination","time":"1 a","range":"30 ft","duration":"Conc, 1 h","components":"V,S,M","material":"a bit of bat fur","conc":true,"classes":["artificer","wizard","psion"],"desc":"Create Invisible, invulnerable hovering eye; see through it in any direction, Darkvision 60ft; bns move 30ft","tags":[],"descFull":"You create an Invisible, invulnerable eye within range that hovers for the duration. You mentally receive visual information from the eye, which can see in every direction. It also has Darkvision with a range of 30 feet.\n\nAs a Bonus Action, you can move the eye up to 30 feet in any direction. A solid barrier blocks the eye's movement, but the eye can pass through an opening as small as 1 inch in diameter.","source":"PHB'24"},
 {"key":"aura_of_life","notation":"Ab:4 > Il:1 > Di:2 > Ne:3 > Co:4 > Ab:2","name":"Aura of Life","level":4,"school":"Abjuration","time":"1 a","range":"S:30-ft rad","duration":"Conc, 10 min","components":"V","conc":true,"classes":["cleric","paladin"],"desc":"Me + allies in area resist Necrotic dmg & no max HP reduction; at turn start, 0 HP ally heal 1 HP","tags":[],"descFull":"An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Necrotic damage, and your Hit Point maximums can't be reduced. If an ally with 0 Hit Points starts its turn in the aura, that ally regains 1 Hit Point.","source":"PHB'24"},
 {"key":"aura_of_purity","notation":"Ab:2 > Il:2 > Di:3 > En:4 > Co:5 > Ab:4","name":"Aura of Purity","level":4,"school":"Abjuration","time":"1 a","range":"S:30-ft rad","duration":"Conc, 10 min","components":"V","conc":true,"classes":["cleric","paladin"],"desc":"Me + allies in area resist Poison, adv. on saves vs. Blind/Charm/Deaf/Frightened/Paralyze/Poison/Stun","tags":[],"descFull":"An aura radiates from you in a 30-foot Emanation for the duration. While in the aura, you and your allies have Resistance to Poison damage and Advantage on saving throws to avoid or end effects that include the Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned, or Stunned condition.","source":"PHB'24"},
+{"key":"divine_shield","notation":"Ab:5 > Ne:1 > Di:2 > Co:3 > Di:4 > Ab:1","name":"Divine Shield","level":4,"school":"Abjuration","time":"1 rea","range":"Self","duration":"1 round","components":"V","conc":false,"classes":["paladin"],"desc":"When you take damage: Immunity to all damage (incl. the trigger) until start of next turn; Speed can't be reduced; can't be moved against your will","tags":[],"descFull":"You have Immunity to all damage until the start of your next turn, including the triggering damage. For the duration, your Speed can’t be reduced, any current reductions to your Speed are suspended, and no effect can move you against your will.","source":"WoW"},
 {"key":"banishment","notation":"Ab:3 > Il:4 > Di:5 > En:1 > Ne:2 > Ab:1","name":"Banishment","level":4,"school":"Abjuration","time":"1 a","range":"30 ft","duration":"Conc, 1 min","components":"V,S,M","material":"a pentacle","conc":true,"classes":["cleric","paladin","sorcerer","warlock","wizard","psion"],"desc":"1+1/SL crea save or banished; aberration/celestial/elemental/fey/fiend don't return if spell lasts 1 min","tags":[],"descFull":"One creature that you can see within range must succeed on a Charisma saving throw or be transported to a harmless demiplane for the duration. While there, the target has the Incapacitated condition. When the spell ends, the target reappears in the space it left or in the nearest unoccupied space if that space is occupied.\n\nIf the target is an Aberration, a Celestial, an Elemental, a Fey, or a Fiend, the target doesn't return if the spell lasts for 1 minute. The target is instead transported to a random location on a plane (DM's choice) associated with its creature type.\n\nUsing a Higher-Level Spell Slot. You can target one additional creature for each spell slot level above 4.","source":"PHB'24"},
 {"key":"blight","notation":"Ne:2 > Ab:1 > Ev:2 > Ab:3 > En:4 > Ne:1","name":"Blight","level":4,"school":"Necromancy","time":"1 a","range":"30 ft","duration":"Instantaneous","components":"V,S","conc":false,"classes":["druid","sorcerer","warlock","wizard"],"desc":"Kill nonmagical plant or target 1 crea for 8d8+1d8/SL Necrotic dmg; save halves; plant crea auto fails","tags":[],"descFull":"A creature that you can see within range makes a Constitution saving throw, taking 8d8 Necrotic damage on a failed save or half as much damage on a successful one. A Plant creature automatically fails the save.\n\nAlternatively, target a nonmagical plant that isn't a creature, such as a tree or shrub. It doesn't make a save; it simply withers and dies.\n\nUsing a Higher-Level Spell Slot. The damage increases by 1d8 for each spell slot level above 4.","source":"PHB'24"},
 {"key":"charm_monster","notation":"En:4 > Ne:1 > Di:2 > Ev:3 > Ne:4 > En:3","name":"Charm Monster","level":4,"school":"Enchantment","time":"1 a","range":"30 ft","duration":"1 h","components":"V,S","conc":false,"classes":["bard","druid","sorcerer","warlock","wizard","psion"],"desc":"1+1/SL crea save or Charmed & Friendly; adv. on save if fighting me/ally; ends if we dmg it","tags":[],"descFull":"One creature you can see within range makes a Wisdom saving throw. It does so with Advantage if you or your allies are fighting it. On a failed save, the target has the Charmed condition until the spell ends or until you or your allies damage it. The Charmed creature is Friendly to you. When the spell ends, the target knows it was Charmed by you.\n\nUsing a Higher-Level Spell Slot. You can target one additional creature for each spell slot level above 4.","source":"PHB'24"},
@@ -14903,7 +14918,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: 'WPN', color: rarityColor,
         name: getItemDisplayName(item),
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
-        weight: '', onEdit, imgKey: item.key, onEvolve: (typeof evoOpen === 'function' && !item.isCustom) ? `evoOpen('${charId}','${charName}',${idx})` : null,
+        weight: '', onEdit, imgKey: item.key, onEvolve: (typeof evoOpen === 'function') ? `evoOpen('${charId}','${charName}',${idx})` : null,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     } else if (item.isArmour) {
@@ -14911,7 +14926,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: isShieldItemType(item.type)?'SHLD':'ARM', color: rarityColor,
         name: getItemDisplayName(item),
         sub: [rarityLabel, item.equipped?'Equipped':'', attuneSub].filter(Boolean).join(' · '),
-        weight: '', onEdit, imgKey: item.key, onEvolve: (typeof evoOpen === 'function' && !item.isCustom) ? `evoOpen('${charId}','${charName}',${idx})` : null,
+        weight: '', onEdit, imgKey: item.key, onEvolve: (typeof evoOpen === 'function') ? `evoOpen('${charId}','${charName}',${idx})` : null,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     } else {
@@ -14919,7 +14934,7 @@ function buildDMInventoryHTML(c, charId) {
         badge: (effRarity||'ITEM').slice(0,4).toUpperCase(), color: rarityColor,
         name: getItemDisplayName(item),
         sub: attuneSub,
-        weight: '', onEdit, imgKey: item.key, onEvolve: (typeof evoOpen === 'function' && !item.isCustom) ? `evoOpen('${charId}','${charName}',${idx})` : null,
+        weight: '', onEdit, imgKey: item.key, onEvolve: (typeof evoOpen === 'function') ? `evoOpen('${charId}','${charName}',${idx})` : null,
         onRemove: `dmRemoveInventoryItem('${charId}','magic',${idx})`,
       });
     }
@@ -77914,8 +77929,14 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
     return res.json();
   }
 
+  // spells built into this page (not custom spells) that the file doesn't have yet
+  const _builtIn = PHB_SPELL_LIST.filter(sp => !sp._custom && !sp.isCustom).map(sp => sp);
   function applySpells(list) {
     window._sharedSpellKeys = new Set(list.map(sp => sp.key));
+    const extra = _builtIn.filter(sp => !window._sharedSpellKeys.has(sp.key));
+    window._builtInOnlySpells = extra.map(sp => sp.key);
+    if (extra.length) console.info('[spell list] built into the sheet but not in ' + SPELL_FILE + ': ' + extra.map(sp => sp.name).join(', '));
+    list = list.concat(extra);
     PHB_SPELL_LIST.splice(0, PHB_SPELL_LIST.length, ...list);
     try { _spellDatalistPopulated = false; } catch (e) { /* not defined in this build */ }
     if (typeof injectCustomSpellsIntoCatalog === 'function') injectCustomSpellsIntoCatalog();
@@ -90939,6 +90960,7 @@ const SPELL_FX = {
   aura_of_purity: { resist: ['Poison'], lines: ['Advantage on saves against Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned and Stunned'] },
   conjure_minor_elementals: { lines: ['Attacks against creatures in the 15-ft Emanation: +2d8 Acid, Cold, Fire or Lightning (+1d8 per slot level above 4)'] },
   death_ward: { lines: ['The first time you would drop to 0 HP you drop to 1 instead; negates one instant-kill effect'] },
+  divine_shield: { immuneAll: true, lines: ['Immunity to all damage until the start of your next turn, including the triggering damage', "Your Speed can't be reduced (current reductions are suspended)", 'No effect can move you against your will'] },
   fire_shield: { forms: { 'Warm shield': { resist: ['Cold'], lines: ['A creature within 5 ft that hits you with a melee attack takes 2d8 Fire'] }, 'Chill shield': { resist: ['Fire'], lines: ['A creature within 5 ft that hits you with a melee attack takes 2d8 Cold'] } } },
   fount_of_moonlight: { resist: ['Radiant'], wDice: [2, 6, 'Radiant'], melee: true, lines: ['Reaction when damaged: the attacker makes a CON save or is Blinded'] },
   freedom_of_movement: { swim: 'walk', condImm: ['paralyzed', 'restrained'], lines: ['Ignore Difficult Terrain; magic can\'t reduce your Speed', 'Spend 5 ft to escape nonmagical restraints or a grapple'] },
@@ -94001,7 +94023,7 @@ function _evoComplexCheck(item, def, rar) {
   return { ok: true, why: `${kind} that requires Attunement, isn't cursed, ${_evoCap(rar)}` };
 }
 // What the DM can do with this copy: { rarity, next, cant, opts:[{kind, rarity, vid?, name?, why}], why:[...] }
-function evoOptions(item, allowAny) {
+function _evoOptionsBook(item, allowAny) {
   const def = _evoDef(item), E = EVOLVING_ITEMS;
   const R = { def, rarity: _evoRarity(item), opts: [], why: [] };
   if (!def) { R.cant = 'Only items from the catalogue can evolve; this is a custom item.'; return R; }
@@ -94031,6 +94053,16 @@ function evoOptions(item, allowAny) {
   else { R.why.push(cx.why); R.canOverride = true; }
   return R;
 }
+// the DM's own property: any item (custom items, Legendary ones, items off the eligible list); rarity up a step or kept
+function evoOptions(item, allowAny) {
+  const R = _evoOptionsBook(item, allowAny);
+  if (R.def && R.rarity === 'var') return R;              // pick its version first
+  const i = EVO_RARITIES.indexOf(R.rarity), next = i >= 0 ? EVO_RARITIES[i + 1] || null : null;
+  if (R.cant) { R.why.unshift(R.cant); delete R.cant; }
+  R.opts.push({ kind: 'custom', rarity: next || R.rarity || '', canRaise: !!next,
+    why: 'Your own property: its name and rules text, spells it casts, uses to track, and what it does while active' });
+  return R;
+}
 window.evoOptions = evoOptions;
 
 // ── applying to a character object (the DM writes it to the player's file) ──
@@ -94042,7 +94074,7 @@ function _evoStrip(name, prefix) { name = String(name || ''); return prefix && n
 // pick = { prop, choice, newName, look } (complex) or { look } (stage / simple)
 function evoApply(c, idx, opt, pick) {
   const item = c?.magicItems?.[idx]; if (!item) throw new Error('Item not found');
-  const def = _evoDef(item); if (!def) throw new Error('Not a catalogue item');
+  const def = _evoDef(item); if (!def && opt.kind !== 'custom') throw new Error('Not a catalogue item');
   pick = pick || {};
   const prev = {}; _EVO_SNAP.forEach(k => { prev[k] = _evoClone(item[k]); });
   const rec = { id: 'ev' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), kind: opt.kind, from: _evoRarity(item), to: opt.rarity,
@@ -94051,6 +94083,8 @@ function evoApply(c, idx, opt, pick) {
   if (opt.kind === 'stage' || opt.kind === 'simple') {
     itemApplyChoice(item, def, opt.vid, item.itemBase);
     rec.vid = opt.vid;
+  } else if (opt.kind === 'custom') {
+    _evoApplyCustom(c, item, opt, rec, _evoCleanCustom(pick.custom));
   } else {
     const P = _evoProp(pick.prop); if (!P) throw new Error('Pick a property');
     if (P.rarity !== opt.rarity) throw new Error(`${P.name} is a ${_evoCap(P.rarity)} property`);
@@ -94084,6 +94118,84 @@ function evoApply(c, idx, opt, pick) {
   return rec;
 }
 window.evoApply = evoApply;
+// ── the DM's own property ──
+const _EVO_RECOV = { dawn: 'each dawn', long: 'Long Rest', short: 'Short Rest', dusk: 'each dusk', none: 'never (until you reset it)' };
+const _EVO_COND = ['blinded', 'charmed', 'deafened', 'exhaustion', 'frightened', 'grappled', 'incapacitated', 'invisible', 'paralyzed', 'petrified', 'poisoned', 'prone', 'restrained', 'stunned', 'unconscious'];
+const _EVO_DMG = ['Acid', 'Bludgeoning', 'Cold', 'Fire', 'Force', 'Lightning', 'Necrotic', 'Piercing', 'Poison', 'Psychic', 'Radiant', 'Slashing', 'Thunder'];
+const _EVO_SENSES = ['darkvision', 'blindsight', 'tremorsense', 'truesight', 'telepathy'];
+const _EVO_MOVES = ['fly', 'climb', 'swim', 'burrow'];
+const _EVO_NUMS = ['ac', 'wBonus', 'allAtk', 'spellAtk', 'spellDC', 'saveBonus', 'init', 'speed', 'hpMax'];
+const _evoInt = v => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; };
+function _evoSpellKnown(name) { return (typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []).find(s => s.name.toLowerCase() === String(name || '').trim().toLowerCase()) || null; }
+// tidy what the form holds into what is stored on the evolution
+function _evoCleanCustom(C) {
+  C = C || {};
+  const name = String(C.name || '').trim(), text = String(C.text || '').trim();
+  if (!name) throw new Error('Give the property a name');
+  if (!text) throw new Error('Write what the property does (its rules text)');
+  const out = { name, text, prefix: C.prefix !== false, keepRarity: !!C.keepRarity, spells: [], trackers: [], p: {}, notes: [] };
+  (C.spells || []).forEach(s => {
+    const sp = _evoSpellKnown(s.spellName); if (!String(s.spellName || '').trim()) return;
+    if (!sp) throw new Error(`"${s.spellName}" isn't a spell on the sheet's list`);
+    const g = { spellName: sp.name, how: s.how === 'atWill' ? 'atWill' : 'limited' };
+    if (g.how === 'limited') { g.usesMax = Math.max(1, _evoInt(s.usesMax) || 1); g.recovery = _EVO_RECOV[s.recovery] ? s.recovery : 'dawn'; }
+    if (_evoInt(s.fixedDC)) g.fixedDC = _evoInt(s.fixedDC);
+    if (String(s.fixedAtk ?? '').trim() !== '' && Number.isFinite(parseInt(s.fixedAtk, 10))) g.fixedAtk = _evoInt(s.fixedAtk);
+    if (String(s.note || '').trim()) g.note = String(s.note).trim();
+    out.spells.push(g);
+  });
+  (C.trackers || []).forEach(t => {
+    const n = String(t.name || '').trim(); if (!n) return;
+    out.trackers.push({ name: n, usesMax: Math.max(1, _evoInt(t.usesMax) || 1), recovery: _EVO_RECOV[t.recovery] ? t.recovery : 'dawn', desc: String(t.desc || '').trim() });
+  });
+  const P = C.p || {}, p = out.p;
+  _EVO_NUMS.forEach(k => { if (_evoInt(P[k])) p[k] = _evoInt(P[k]); });
+  _EVO_MOVES.forEach(k => { if (_evoInt(P[k]) > 0) p[k] = _evoInt(P[k]); });
+  ['resist', 'immune', 'vuln'].forEach(k => { if ((P[k] || []).length) p[k] = [...new Set(P[k])].filter(t => _EVO_DMG.includes(t)); });
+  if ((P.condImm || []).length) p.condImm = [...new Set(P.condImm)].filter(t => _EVO_COND.includes(t));
+  if ((P.advSaves || []).length) p.advSaves = [...new Set(P.advSaves)].filter(a => _EVO_AB[a]);
+  if ((P.skillAdv || []).length) p.skillAdv = [...new Set(P.skillAdv)];
+  if (P.initAdv) p.initAdv = true;
+  const se = {}; _EVO_SENSES.forEach(k => { if (_evoInt((P.senses || {})[k]) > 0) se[k] = _evoInt(P.senses[k]); }); if (Object.keys(se).length) p.senses = se;
+  if (P.wDiceN && _evoInt(P.wDiceN) > 0 && [4, 6, 8, 10, 12].includes(_evoInt(P.wDiceD))) p.wDice = [_evoInt(P.wDiceN), _evoInt(P.wDiceD), _EVO_DMG.includes(P.wDiceT) ? P.wDiceT : ''];
+  if (P.scoreAb && _EVO_AB[P.scoreAb] && _evoInt(P.scoreN)) p.scoreInc = { [P.scoreAb]: [_evoInt(P.scoreN), Math.max(_evoInt(P.scoreMax) || 20, 1)] };
+  out.notes = String(C.notes || '').split('\n').map(x => x.trim()).filter(Boolean);
+  return out;
+}
+window._evoCleanCustom = _evoCleanCustom;
+function _evoApplyCustom(c, item, opt, rec, C) {
+  rec.custom = C;
+  if (C.prefix) {
+    const old = item.evoPrefix;
+    item.name = C.name + ' ' + _evoStrip(item.name, old);
+    if (item.customName) item.customName = C.name + ' ' + _evoStrip(item.customName, old);
+    item.evoPrefix = C.name;
+  }
+  if (!C.keepRarity && opt.canRaise) { item.evoRarity = opt.rarity; item.rarity = opt.rarity; rec.to = opt.rarity; }
+  else rec.to = rec.from;
+  const uid = item._uid || ('mi_' + Math.random().toString(36).slice(2, 10)); item._uid = uid;
+  if (!Array.isArray(c.customResources)) c.customResources = [];
+  if (C.spells.length) {
+    item.grantedSpells = Array.isArray(item.grantedSpells) ? item.grantedSpells : [];
+    C.spells.forEach(s => {
+      const g = { spellName: s.spellName, _evo: rec.id };
+      if (s.fixedDC) g.fixedDC = s.fixedDC;
+      if (s.fixedAtk != null) g.fixedAtk = s.fixedAtk;
+      if (s.note) g.note = s.note;
+      if (s.how === 'atWill') g.grantType = 'atWill';
+      else {
+        const rid = `evo_${uid}_${rec.id}_${_evoSlug(s.spellName)}`;
+        c.customResources.push({ id: rid, name: `${C.name}: ${s.spellName}`, desc: C.text, max: s.usesMax, recovery: s.recovery, _fromMagicItem: uid, _evo: rec.id });
+        Object.assign(g, { grantType: 'limited', usesMax: s.usesMax, recovery: s.recovery, _resourceId: rid });
+      }
+      item.grantedSpells.push(g);
+    });
+  }
+  if (C.trackers.length) {
+    item.grantedResources = Array.isArray(item.grantedResources) ? item.grantedResources : [];
+    C.trackers.forEach(t => item.grantedResources.push({ name: t.name, desc: t.desc || C.text, usesMax: t.usesMax, recovery: t.recovery, _evo: rec.id }));
+  }
+}
 function evoUndo(c, idx) {
   const item = c?.magicItems?.[idx]; const rec = item?.evolutions?.pop(); if (!rec) return null;
   // resources the evolution brought (its own spells and trackers, and spells a new stage's catalogue entry added since)
@@ -94099,7 +94211,20 @@ function evoUndo(c, idx) {
 window.evoUndo = evoUndo;
 
 // ── what an evolved copy does (complex evolutions; stages and +N come from the catalogue versions) ──
+function _evoMergeCustom(out, C) {
+  const p = C.p || {};
+  Object.entries(p).forEach(([k, v]) => {
+    if (_EVO_NUMS.includes(k)) out.p[k] = (out.p[k] || 0) + v;
+    else if (_EVO_MOVES.includes(k)) out.p[k] = Math.max(typeof out.p[k] === 'number' ? out.p[k] : 0, v);
+    else if (Array.isArray(v) && k !== 'wDice') out.p[k] = [...new Set([...(out.p[k] || []), ...v])];
+    else if (k === 'senses') { out.p.senses = { ...(out.p.senses || {}) }; Object.entries(v).forEach(([s, ft]) => { out.p.senses[s] = Math.max(out.p.senses[s] || 0, ft); }); }
+    else if (k === 'scoreInc') { out.p.scoreInc = { ...(out.p.scoreInc || {}) }; Object.entries(v).forEach(([a, x]) => { const cur = out.p.scoreInc[a]; out.p.scoreInc[a] = cur ? [cur[0] + x[0], Math.max(cur[1], x[1])] : x; }); }
+    else out.p[k] = v;
+  });
+  (C.notes || []).forEach(n => { const t = `${C.name}: ${n}`; if (!out.notes.includes(t)) out.notes.push(t); });
+}
 function _evoMerge(out, rec) {
+  if (rec.kind === 'custom') { if (rec.custom) _evoMergeCustom(out, rec.custom); return; }
   const P = _evoProp(rec.prop); if (!P) return;
   Object.entries(P.p || {}).forEach(([k, v]) => {
     if (k === 'skillAdv') out.p.skillAdv = [...new Set([...(out.p.skillAdv || []), ...v])];
@@ -94120,7 +94245,7 @@ function _evoMerge(out, rec) {
   itemFx = function (item, def) {
     const r = _o.apply(this, arguments);
     try {
-      const evs = (item?.evolutions || []).filter(e => e.kind === 'complex');
+      const evs = (item?.evolutions || []).filter(e => e.kind === 'complex' || e.kind === 'custom');
       if (!evs.length) return r;
       const out = { ...r, p: { ...r.p }, u: { ...r.u }, notes: [...(r.notes || [])] };
       evs.forEach(e => _evoMerge(out, e));
@@ -94128,6 +94253,19 @@ function _evoMerge(out, rec) {
     } catch (e) { return r; }
   };
   window.itemFx = itemFx;
+}
+if (typeof itemFxOn === 'function') {
+  const _o = itemFxOn;
+  itemFxOn = function (item) {
+    if (item && item.isCustom && (item.evolutions || []).some(e => e.kind === 'custom')) {
+      if (typeof isAntimagicActive === 'function' && isAntimagicActive()) return false;
+      if (item.attunement && !item.attuned) return false;
+      if ((item.isWeapon && !item.isAmmo) || item.isArmour) return !!item.equipped;
+      return true;
+    }
+    return _o.apply(this, arguments);
+  };
+  window.itemFxOn = itemFxOn;
 }
 // Telepathy from an item (Psionic): the spell-effects senses list has no telepathy
 if (typeof _sfxSenses === 'function') {
@@ -94164,7 +94302,8 @@ if (typeof _sfxSenses === 'function') {
 }
 // the property text joins the item's text (item window, PDF, Atlas)
 function _evoTextFor(item) {
-  return (item?.evolutions || []).filter(e => e.kind === 'complex').map(e => {
+  return (item?.evolutions || []).filter(e => e.kind === 'complex' || e.kind === 'custom').map(e => {
+    if (e.kind === 'custom') return e.custom ? `${e.custom.name}. ${e.custom.text}` : '';
     const P = _evoProp(e.prop); if (!P) return '';
     return `${P.name}. ${P.text}` + (e.choice ? `\n\n${P.choose === 'ability' ? 'Ability' : 'Damage type'} (DM's choice): ${_evoChoiceLabel(P, e.choice)}.` : '');
   }).filter(Boolean).join('\n\n');
@@ -94196,7 +94335,8 @@ function _evoSyncTrackers(ch) {
     ch.customResources = ch.customResources || [];
     (item.grantedSpells || []).forEach(g => {
       if (!g._evo || !g._resourceId || ch.customResources.some(r => r.id === g._resourceId)) return;
-      ch.customResources.push({ id: g._resourceId, name: `${(_evoProp((item.evolutions || []).find(e => e.id === g._evo)?.prop) || {}).name || 'Evolved'}: ${g.spellName}`, desc: '', max: 1, recovery: 'dawn', _fromMagicItem: item._uid, _evo: g._evo });
+      const ev = (item.evolutions || []).find(e => e.id === g._evo);
+      ch.customResources.push({ id: g._resourceId, name: `${ev?.custom?.name || (_evoProp(ev?.prop) || {}).name || 'Evolved'}: ${g.spellName}`, desc: ev?.custom?.text || '', max: g.usesMax || 1, recovery: g.recovery || 'dawn', _fromMagicItem: item._uid, _evo: g._evo });
       n++;
     });
   });
@@ -94213,9 +94353,9 @@ function _evoHistoryHtml(item, dm) {
   const evs = item?.evolutions || []; if (!evs.length) return '';
   return `<div class="evo-history">${evs.map((e, i) => {
     const P = e.kind === 'complex' ? _evoProp(e.prop) : null;
-    const what = P ? `${_evoE(P.name)}${e.choice ? ' (' + _evoE(_evoChoiceLabel(P, e.choice)) + ')' : ''}` : e.kind === 'stage' ? 'next stage' : 'next bonus';
+    const what = e.kind === 'custom' ? `${_evoE(e.custom?.name || 'own property')} <span style="color:var(--text3)">(your own)</span>` : P ? `${_evoE(P.name)}${e.choice ? ' (' + _evoE(_evoChoiceLabel(P, e.choice)) + ')' : ''}` : e.kind === 'stage' ? 'next stage' : 'next bonus';
     return `<div style="font-family:var(--font-ui);font-size:11px;color:var(--text2);line-height:1.5;margin-top:${i ? 4 : 0}px">
-      <span style="color:var(--gold)">✦</span> ${_evoE(_evoCap(e.from))} → <b>${_evoE(_evoCap(e.to))}</b>: ${what} <span style="color:var(--text3)">· ${_evoE(e.name || '')} · ${_evoE(_evoDate(e.date))}</span>
+      <span style="color:var(--gold)">✦</span> ${e.from === e.to ? `<b>${_evoE(_evoCap(e.to))}</b>` : `${_evoE(_evoCap(e.from))} → <b>${_evoE(_evoCap(e.to))}</b>`}: ${what} <span style="color:var(--text3)">· ${_evoE(e.name || '')} · ${_evoE(_evoDate(e.date))}</span>
       ${e.look ? `<div style="color:var(--text3);font-style:italic;margin-left:14px">${_evoE(e.look)}</div>` : ''}</div>`;
   }).join('')}</div>`;
 }
@@ -94274,8 +94414,9 @@ function _evoRender() {
     h += `<div style="${lab};margin-top:10px;color:var(--amber)">${_evoE(R.cant)}</div>`;
     body.innerHTML = h; return;
   }
-  if (!R.opts.length) {
-    h += `<div style="${lab};margin-top:10px;color:var(--amber)">Not eligible for evolution:</div><ul style="${lab};margin:2px 0 0 16px;padding:0">${R.why.map(w => `<li>${_evoE(w)}</li>`).join('')}</ul>
+  const nBook = R.opts.filter(o => o.kind !== 'custom').length;
+  if (!nBook) {
+    h += `<div style="${lab};margin-top:10px;color:var(--amber)">Not eligible for the book's evolution:</div><ul style="${lab};margin:2px 0 0 16px;padding:0">${R.why.map(w => `<li>${_evoE(w)}</li>`).join('')}</ul>
       <div style="${lab};margin-top:6px;color:var(--text3)">Eligible: ${(RU.eligible || []).map(_evoE).join('; ')}</div>`;
   }
   if (R.canOverride || S.allowAny) h += `<label style="${lab};display:flex;gap:6px;align-items:flex-start;margin-top:6px;cursor:pointer"><input type="checkbox" ${S.allowAny ? 'checked' : ''} onchange="evoSet('allowAny', this.checked)" style="margin-top:2px">
@@ -94285,11 +94426,11 @@ function _evoRender() {
   if (S.pick.opt == null || S.pick.opt >= R.opts.length) S.pick.opt = 0;
   const opt = R.opts[S.pick.opt];
   h += `<div class="field-label" style="margin-top:10px">How it evolves</div>` + R.opts.map((o, i) => {
-    const t = o.kind === 'complex' ? `New property → ${_evoCap(o.rarity)}` : `${o.name} (${_evoCap(o.rarity)})`;
+    const t = o.kind === 'custom' ? 'Your own property' : o.kind === 'complex' ? `New property → ${_evoCap(o.rarity)}` : `${o.name} (${_evoCap(o.rarity)})`;
     return `<label style="display:flex;gap:6px;align-items:flex-start;padding:5px 8px;margin-top:4px;border:1px solid ${i === S.pick.opt ? 'var(--gold)' : 'var(--border)'};border-radius:var(--radius);cursor:pointer;${lab}">
       <input type="radio" name="evo-opt" ${i === S.pick.opt ? 'checked' : ''} onchange="evoSet('opt', ${i})" style="margin-top:2px"><span><b>${_evoE(t)}</b><br><span style="color:var(--text3)">${_evoE(o.why)}</span></span></label>`;
   }).join('');
-  if (R.why.length && R.opts.length) h += `<div style="${lab};color:var(--text3);margin-top:4px">${R.why.map(_evoE).join(' ')}</div>`;
+  if (R.why.length && nBook) h += `<div style="${lab};color:var(--text3);margin-top:4px">${R.why.map(_evoE).join(' ')}</div>`;
   let ready = true;
   if (opt.kind === 'complex') {
     const list = (EVOLVING_ITEMS.props || []).filter(p => p.rarity === opt.rarity);
@@ -94316,6 +94457,10 @@ function _evoRender() {
     } else ready = false;
     const bon = /\((If the magic item grants a bonus.*)\)\s*$/.exec(RU.steps?.[2] || '');
     if (bon) h += `<div style="${lab};color:var(--text3);margin-top:6px">${_evoE(bon[1])}</div>`;
+  } else if (opt.kind === 'custom') {
+    const C = S.pick.custom = S.pick.custom || { name: '', text: '', prefix: true, keepRarity: !opt.canRaise, spells: [], trackers: [], p: {}, notes: '' };
+    h += _evoCustomForm(item, opt, C);
+    if (!String(C.name || '').trim() || !String(C.text || '').trim()) ready = false;
   } else {
     h += `<div class="field-label" style="margin-top:10px">New name</div><div style="${lab}">${_evoE(opt.name)}${item.customName ? ` <span style="color:var(--text3)">(shown as “${_evoE(item.customName)}”, the player's own name)</span>` : ''}</div>`;
   }
@@ -94324,10 +94469,102 @@ function _evoRender() {
     <div style="${lab};color:var(--text3);margin-top:6px">${_evoE(RU.attune || '')}</div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="tbtn" onclick="closeModal('evo-modal')">Close</button>
-      <button class="tbtn" id="evo-go" style="color:var(--gold);border-color:var(--gold)" onclick="evoConfirm()" ${ready && !S.busy ? '' : 'disabled'}>✦ Evolve to ${_evoE(_evoCap(opt.rarity))}</button></div>
+      <button class="tbtn" id="evo-go" style="color:var(--gold);border-color:var(--gold)" onclick="evoConfirm()" ${ready && !S.busy ? '' : 'disabled'}>✦ ${opt.kind === 'custom' && (S.pick.custom?.keepRarity || !opt.canRaise) ? 'Add the property' : 'Evolve to ' + _evoE(_evoCap(opt.rarity))}</button></div>
     <div id="evo-status" style="${lab};text-align:right;margin-top:4px"></div>`;
   body.innerHTML = h;
 }
+// the form for the DM's own property; every field writes to _evoState.pick.custom (evoC)
+function _evoCustomForm(item, opt, C) {
+  const lab = 'font-family:var(--font-ui);font-size:11px;color:var(--text2);line-height:1.5';
+  const sm = 'font-family:var(--font-ui);font-size:10px;color:var(--text3)';
+  const P = C.p = C.p || {};
+  const inp = (path, v, ph, w, type) => `<input class="info-input" type="${type || 'text'}" value="${_evoE(v ?? '')}" placeholder="${_evoE(ph || '')}" oninput="evoC('${path}', this.value)" style="${w ? 'width:' + w + ';' : ''}padding:4px 6px;font-size:12px">`;
+  const num = (path, v, ph) => inp(path, v, ph, '64px', 'number');
+  const sel = (path, v, opts) => `<select class="choice-select" style="width:auto;display:inline-block;font-size:11px;padding:3px 6px" onchange="evoC('${path}', this.value)">${opts.map(([k, t]) => `<option value="${_evoE(k)}" ${String(v ?? '') === String(k) ? 'selected' : ''}>${_evoE(t)}</option>`).join('')}</select>`;
+  const chips = (path, list, cur, label) => `<div class="evo-chips">${list.map(([k, t]) => `<label class="evo-chip${(cur || []).includes(k) ? ' on' : ''}"><input type="checkbox" ${(cur || []).includes(k) ? 'checked' : ''} onchange="evoCToggle('${path}', '${_evoE(k)}', this.checked)">${_evoE(t || label(k))}</label>`).join('')}</div>`;
+  const recov = Object.entries(_EVO_RECOV).map(([k, t]) => [k, t === 'never (until you reset it)' ? 'never' : t]);
+  const isWpn = item.isWeapon && !item.isAmmo;
+  const count = (C.spells || []).length + (C.trackers || []).length + Object.keys(P).filter(k => { const v = P[k]; return Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.values(v).some(Boolean) : v; }).length;
+  const base = _evoStrip(item.customName || item.name, item.evoPrefix);
+  let h = `<div class="evo-own">
+    <div class="field-label" style="margin-top:10px">Property name</div>
+    ${inp('name', C.name, 'e.g. Stormborn', '100%')}
+    <label style="${lab};display:flex;gap:6px;align-items:center;margin-top:4px;cursor:pointer"><input type="checkbox" ${C.prefix !== false ? 'checked' : ''} onchange="evoC('prefix', this.checked, 1)">
+      Add it to the item's name <span id="evo-own-name" style="color:var(--text3)">${C.prefix !== false && String(C.name || '').trim() ? '→ ' + _evoE(String(C.name).trim() + ' ' + base) : ''}</span></label>
+    <div class="field-label" style="margin-top:10px">What it does (shown in the item's text)</div>
+    <textarea class="info-input" rows="3" placeholder="The rules text players read, e.g. While holding this weapon, you can cast Call Lightning (save DC 15) once each dawn." oninput="evoC('text', this.value)" style="resize:vertical;font-size:12px">${_evoE(C.text || '')}</textarea>
+    <div style="${lab};margin-top:8px">Rarity: ${opt.canRaise ? sel('keepRarity', C.keepRarity ? '1' : '', [['', `goes up to ${_evoCap(opt.rarity)}`], ['1', `stays ${_evoCap(_evoRarity(item))}`]]) : `<b>stays ${_evoE(_evoCap(_evoRarity(item)) || 'as it is')}</b>`}</div>
+    <div style="${sm};margin-top:8px">Wire it up below (all optional) - the sheet then casts the spells, tracks the uses and applies the effects for the player.${count ? ` <b style="color:var(--gold)">${count} set</b>` : ''}</div>`;
+  // spells
+  h += `<details class="evo-sec" ${(C.spells || []).length || C._open === 'spells' ? 'open' : ''}><summary>Spells it lets you cast${(C.spells || []).length ? ` (${C.spells.length})` : ''}</summary>
+    <datalist id="evo-spell-list">${(typeof PHB_SPELL_LIST !== 'undefined' ? PHB_SPELL_LIST : []).map(s => `<option value="${_evoE(s.name)}">`).join('')}</datalist>
+    ${(C.spells || []).map((s, i) => {
+      const ok = !String(s.spellName || '').trim() || _evoSpellKnown(s.spellName);
+      return `<div class="evo-rowbox">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input class="info-input" list="evo-spell-list" value="${_evoE(s.spellName || '')}" placeholder="Spell name" oninput="evoC('spells.${i}.spellName', this.value)" onchange="evoC('spells.${i}.spellName', this.value, 1)" style="flex:1;min-width:150px;padding:4px 6px;font-size:12px;${ok ? '' : 'border-color:var(--red)'}">
+          <button class="tbtn" style="font-size:10px;color:var(--red);border-color:var(--red)" onclick="evoCDel('spells', ${i})" title="Remove">✕</button></div>
+        <div style="${lab};display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">
+          ${sel(`spells.${i}.how`, s.how || 'limited', [['limited', 'Limited uses'], ['atWill', 'At will']])}
+          ${s.how === 'atWill' ? '' : `${num(`spells.${i}.usesMax`, s.usesMax ?? 1, '1')} per ${sel(`spells.${i}.recovery`, s.recovery || 'dawn', recov)}`}
+          <span>Save DC ${num(`spells.${i}.fixedDC`, s.fixedDC, 'yours')}</span><span>Attack ${num(`spells.${i}.fixedAtk`, s.fixedAtk, 'yours')}</span></div>
+        ${ok ? '' : `<div style="${sm};color:var(--red)">Not on the sheet's spell list - pick one from the suggestions.</div>`}
+        ${inp(`spells.${i}.note`, s.note, 'Note (optional), e.g. targeting yourself only', '100%')}</div>`;
+    }).join('')}
+    <button class="tbtn" style="font-size:11px;margin-top:4px" onclick="evoCAdd('spells')">+ Add a spell</button>
+    <div style="${sm};margin-top:4px">Leave Save DC and Attack empty to use the caster's own.</div></details>`;
+  // trackers
+  h += `<details class="evo-sec" ${(C.trackers || []).length ? 'open' : ''}><summary>Uses to track${(C.trackers || []).length ? ` (${C.trackers.length})` : ''}</summary>
+    ${(C.trackers || []).map((t, i) => `<div class="evo-rowbox">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${inp(`trackers.${i}.name`, t.name, 'Name, e.g. Storm Surge', '')}
+          <span style="${lab}">${num(`trackers.${i}.usesMax`, t.usesMax ?? 1, '1')} per ${sel(`trackers.${i}.recovery`, t.recovery || 'dawn', recov)}</span>
+          <button class="tbtn" style="font-size:10px;color:var(--red);border-color:var(--red);margin-left:auto" onclick="evoCDel('trackers', ${i})" title="Remove">✕</button></div>
+        ${inp(`trackers.${i}.desc`, t.desc, 'What a use does (optional - the property text is used otherwise)', '100%')}</div>`).join('')}
+    <button class="tbtn" style="font-size:11px;margin-top:4px" onclick="evoCAdd('trackers')">+ Add a tracker</button></details>`;
+  // effects
+  const row = (label, body) => `<div class="evo-eff"><span>${label}</span><span>${body}</span></div>`;
+  const AB = Object.entries(_EVO_AB);
+  const SK = (typeof SKILLS !== 'undefined' ? SKILLS : []).map(s => [s.name.toLowerCase(), s.name]);
+  h += `<details class="evo-sec" ${Object.keys(P).length ? 'open' : ''}><summary>Effects while it's active</summary>
+    <div style="${sm};margin-bottom:6px">Active while the character has it${item.attunement ? ' and is attuned' : ''}${(item.isWeapon && !item.isAmmo) || item.isArmour ? ' and it is equipped' : ''} - the same rule as the item's other effects.</div>
+    ${row('Armour Class', '+' + num('p.ac', P.ac, '0'))}
+    ${isWpn ? row("This weapon's attack and damage", '+' + num('p.wBonus', P.wBonus, '0')) : ''}
+    ${isWpn ? row('Extra damage on a hit', `${num('p.wDiceN', P.wDiceN, '0')} d ${sel('p.wDiceD', P.wDiceD || 6, [[4, 4], [6, 6], [8, 8], [10, 10], [12, 12]])} ${sel('p.wDiceT', P.wDiceT || '', [['', 'same type']].concat(_EVO_DMG.map(t => [t, t])))}`) : ''}
+    ${row('All weapon attacks and damage', '+' + num('p.allAtk', P.allAtk, '0'))}
+    ${row('Spell attack rolls', '+' + num('p.spellAtk', P.spellAtk, '0'))}
+    ${row('Spell save DC', '+' + num('p.spellDC', P.spellDC, '0'))}
+    ${row('All saving throws', '+' + num('p.saveBonus', P.saveBonus, '0'))}
+    ${row('Initiative', '+' + num('p.init', P.init, '0') + ` <label style="margin-left:8px;cursor:pointer"><input type="checkbox" ${P.initAdv ? 'checked' : ''} onchange="evoC('p.initAdv', this.checked, 1)"> Advantage</label>`)}
+    ${row('Hit Point maximum', '+' + num('p.hpMax', P.hpMax, '0'))}
+    ${row('Speed', '+' + num('p.speed', P.speed, '0') + ' ft')}
+    ${row('Other movement (ft)', _EVO_MOVES.map(k => `${_evoCap(k)} ${num('p.' + k, P[k], '-')}`).join(' '))}
+    ${row('Senses (ft)', _EVO_SENSES.map(k => `${_evoCap(k)} ${num('p.senses.' + k, (P.senses || {})[k], '-')}`).join(' '))}
+    ${row('Ability score', `${sel('p.scoreAb', P.scoreAb || '', [['', '-']].concat(AB))} +${num('p.scoreN', P.scoreN, '2')} max ${num('p.scoreMax', P.scoreMax, '20')}`)}
+    <div class="field-label" style="margin-top:8px">Resistance</div>${chips('p.resist', _EVO_DMG.map(t => [t, t]), P.resist)}
+    <div class="field-label" style="margin-top:6px">Immunity</div>${chips('p.immune', _EVO_DMG.map(t => [t, t]), P.immune)}
+    <div class="field-label" style="margin-top:6px">Condition immunity</div>${chips('p.condImm', _EVO_COND.map(t => [t, _evoCap(t)]), P.condImm)}
+    <div class="field-label" style="margin-top:6px">Advantage on saving throws</div>${chips('p.advSaves', AB, P.advSaves)}
+    <div class="field-label" style="margin-top:6px">Advantage on skill checks</div>${chips('p.skillAdv', SK, P.skillAdv)}
+    <div class="field-label" style="margin-top:8px">Anything else (one line each, shown under Active Effects)</div>
+    <textarea class="info-input" rows="2" placeholder="e.g. You can breathe underwater" oninput="evoC('notes', this.value)" style="resize:vertical;font-size:12px">${_evoE(C.notes || '')}</textarea>
+  </details></div>`;
+  return h;
+}
+function _evoCPath(path) { const S = _evoState; if (!S?.pick?.custom) return null; const ks = String(path).split('.'); let o = S.pick.custom; for (let i = 0; i < ks.length - 1; i++) { const k = ks[i]; if (o[k] == null) o[k] = /^\d+$/.test(ks[i + 1]) ? [] : {}; o = o[k]; } return [o, ks[ks.length - 1]]; }
+// redraw=1: redraw the window (choices that change what is shown); typing never redraws, so the cursor stays
+function evoC(path, v, redraw) {
+  const t = _evoCPath(path); if (!t) return;
+  if (path === 'keepRarity') { t[0][t[1]] = !!v; redraw = 1; } else t[0][t[1]] = v;
+  if (/^spells\.\d+\.how$/.test(path)) redraw = 1;
+  if (redraw) { _evoRender(); return; }
+  const C = _evoState.pick.custom, item = _evoItem();
+  if (path === 'name') { const el = document.getElementById('evo-own-name'); if (el && item) el.textContent = C.prefix !== false && String(v).trim() ? '→ ' + String(v).trim() + ' ' + _evoStrip(item.customName || item.name, item.evoPrefix) : ''; }
+  const go = document.getElementById('evo-go'); if (go) go.disabled = !String(C.name || '').trim() || !String(C.text || '').trim() || _evoState.busy;
+}
+function evoCToggle(path, k, on) { const t = _evoCPath(path); if (!t) return; const a = new Set(t[0][t[1]] || []); on ? a.add(k) : a.delete(k); t[0][t[1]] = [...a]; _evoRender(); }
+function evoCAdd(list) { const C = _evoState?.pick?.custom; if (!C) return; (C[list] = C[list] || []).push(list === 'spells' ? { how: 'limited', usesMax: 1, recovery: 'dawn' } : { usesMax: 1, recovery: 'dawn' }); _evoRender(); }
+function evoCDel(list, i) { const C = _evoState?.pick?.custom; if (!C?.[list]) return; C[list].splice(i, 1); _evoRender(); }
+Object.assign(window, { evoC, evoCToggle, evoCAdd, evoCDel });
 // quiet: typing in a text box doesn't redraw (keeps the cursor), except the name preview
 function evoSet(k, v, quiet) {
   if (!_evoState) return;
