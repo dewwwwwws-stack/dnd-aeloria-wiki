@@ -98849,6 +98849,7 @@ function _vSourcesPage() {
         return `<button class="vt-src${n === L.length ? ' on' : n ? ' part' : ''}" data-g="${g}" title="Turn this whole group on or off" onclick="vaultSrcGroupFlip(this.dataset.g)">${gl}</button>`; }).join('')}</span>
       <button class="vt-give" style="flex:none;padding:6px 16px" onclick="vaultSrcSave()">Save (${on} of ${names.length} books)</button>
       ${_vaultSources ? '<button class="tbtn" onclick="vaultSrcReset()">Allow everything again</button>' : ''}<span id="vt-src-status" style="font-size:12px;color:var(--text3)"></span></div>
+    <p style="font-size:12px;color:var(--text3);margin-top:2px">${typeof packStatus === 'function' ? _itE(packStatus()) : ''}</p>
     ${groups}</div>`;
 }
 function vaultDraw(part) {
@@ -98880,7 +98881,7 @@ function vaultClear() { const st = _vS(); st.q = ''; st.f = {}; st.open = {}; st
 function vaultSelect(k) { _vS().sel = k || null; vaultDraw('detail'); }
 function vaultOpenGroup(r) { const st = _vS(); st.open[r] = !st.open[r]; st.more[r] = 0; vaultDraw('keep'); }
 function vaultMore(r) { const st = _vS(); st.more[r] = (st.more[r] || 120) + 120; vaultDraw('keep'); }
-function vaultTab(t) { if (!isDM && !VAULT_PLAYER_TABS.includes(t)) return; _V.tab = t; if (t === 'sources') _V.srcDraft = null; if (t === 'chars') { _V.chars = null; delete _V.rows.chars; } if (VAULT_LEGACY[t]) { _vOrigSwitch(t); } vaultDraw(); }
+function vaultTab(t) { if ((!isDM || _V.lib) && !VAULT_PLAYER_TABS.includes(t)) return; _V.tab = t; if (t === 'sources') _V.srcDraft = null; if (t === 'chars') { _V.chars = null; delete _V.rows.chars; } if (VAULT_LEGACY[t]) { _vOrigSwitch(t); } vaultDraw(); }
 function vaultSrcFlip(v) { _V.srcDraft[v] = !_V.srcDraft[v]; vaultDraw('keep'); }
 function vaultSrcGroupFlip(g) { const L = Object.keys(_V.srcDraft || {}).filter(s => vaultSourceGroup(s) === g); vaultSrcAll(!L.every(s => _V.srcDraft[s]), g); }
 function vaultSrcAll(on, g) { Object.keys(_V.srcDraft || {}).forEach(s => { if (!g || vaultSourceGroup(s) === g) _V.srcDraft[s] = on; }); vaultDraw('keep'); }
@@ -98893,33 +98894,34 @@ async function vaultSrcSave(reset) {
   } catch (e) { if (st) { st.style.color = 'var(--red)'; st.textContent = 'Not saved: ' + (e && e.message || e); } }
 }
 function vaultSrcReset() { return vaultSrcSave(true); }
-function vaultOpen(tab) {
+function vaultOpen(tab, lib) {
   let root = document.getElementById('vault-root');
-  const mode = isDM ? 'dm' : 'player';
+  _V.lib = !isDM || !!lib;                          // library = the seven reference pages only (always so for players)
+  const mode = !isDM ? 'player' : _V.lib ? 'dmlib' : 'dm';
   if (!root) { root = document.createElement('div'); root.id = 'vault-root'; document.body.appendChild(root); }
   if (root.dataset.mode !== mode) {   // the bar differs: the DM gets every tab, a player the library pages
     root.dataset.mode = mode; _V.rows = {};
-    const tabs = VAULT_TABS.filter(([t]) => isDM || VAULT_PLAYER_TABS.includes(t));
-    root.innerHTML = `<div class="vt-top"><span class="vt-brand">${isDM ? 'Vault' : 'Library'}</span>
+    const tabs = VAULT_TABS.filter(([t]) => !_V.lib || VAULT_PLAYER_TABS.includes(t));
+    root.innerHTML = `<div class="vt-top"><span class="vt-brand">${_V.lib ? 'Library' : 'Vault'}</span>
         ${tabs.map(([t, l]) => `<button class="vt-tab" data-t="${t}" onclick="vaultTab(this.dataset.t)">${l}</button>`).join('')}
         <span style="flex:1"></span><button class="tbtn" onclick="vaultClose()">← Back to Sheet</button></div>
       <div class="vt-bar"><span id="vt-title" class="vt-title"></span><span id="vt-count" class="vt-count"></span></div>
       <div class="vt-body"><div id="vt-side" class="vt-side"></div><div id="vt-main" class="vt-main"></div><div id="vt-detail" class="vt-detail"></div></div>`;
   }
   if (tab) _V.tab = tab;
-  if (!isDM && !VAULT_PLAYER_TABS.includes(_V.tab)) _V.tab = 'spells';
+  if (_V.lib && !VAULT_PLAYER_TABS.includes(_V.tab)) _V.tab = 'spells';
   const was = root.style.display === 'flex';
   _V.rows = {}; root.style.display = 'flex'; document.body.classList.add('vault-on');
   if (!was) vaultLoadSources(true).then(() => { if (!VAULT_LEGACY[_V.tab]) { _V.rows = {}; vaultDraw('keep'); } }).catch(() => {});
   vaultDraw();
 }
 // The topbar's Library button: players get the library; the DM gets the Vault on a library page.
-function vaultLibrary() { if (isDM) { openDMPanelDirect(); vaultTab(VAULT_PLAYER_TABS.includes(_V.tab) ? _V.tab : 'spells'); } else vaultOpen(); }
+function vaultLibrary() { vaultOpen(null, true); }   // the same seven pages for everyone; the DM's other tabs are only behind the DM PIN (DM Panel button)
 function _vHide() { const r = document.getElementById('vault-root'); if (r) r.style.display = 'none'; document.body.classList.remove('vault-on', 'vault-legacy'); }
 function vaultClose() { const dm = isDM && document.getElementById('page-dm') && document.getElementById('page-dm').classList.contains('active'); _vHide(); if (dm && typeof exitDMPanel === 'function') exitDMPanel(); }
 // The Vault replaces the DM panel: every way into a DM tab lands in the Vault, every way out closes it.
 const _vOrigSwitch = switchDMTab;
-switchDMTab = function (tab) { const x = _vOrigSwitch.apply(this, arguments); try { if (isDM) vaultOpen(tab); } catch (e) { console.error('vault', e); } return x; };
+switchDMTab = function (tab) { const x = _vOrigSwitch.apply(this, arguments); try { if (isDM) vaultOpen(tab, false); } catch (e) { console.error('vault', e); } return x; };
 window.switchDMTab = switchDMTab;
 { const _sp = switchPage;
   switchPage = function (p) { if (p !== 'dm') { try { _vHide(); } catch (e) {} } return _sp.apply(this, arguments); };
@@ -98931,6 +98933,63 @@ Object.assign(window, { vaultLibrary, vaultOpen, vaultClose, vaultDraw, vaultSea
   dmRenderItemsList = function () { const x = _r.apply(this, arguments); try { const v = document.getElementById('vault-root'); if (v && v.style.display !== 'none' && _V.tab === 'magic') vaultRefresh(); } catch (e) {} return x; };
   window.dmRenderItemsList = dmRenderItemsList;
 }
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// 5E.TOOLS PACK (step 76) - automatic sync without rebuilding the sheet.
+// A weekly job (tooling/sync5e, GitHub Action) writes chars/_5etools_pack.json on the data branch: everything
+// 5e.tools has that this build of the sheet does not. The sheet loads it on start (and every 30 minutes) and
+// ADDS it: an entry whose key or name the sheet already has is skipped, so nothing existing ever changes.
+// Big packs are split: { parts: ['_5etools_pack_1.json', ...] } (GitHub's file API stops at 1 MB).
+// ═══════════════════════════════════════════════════════════════════
+const PACK_FILE = '_5etools_pack.json';
+const _PACK = { at: 0, v: null, built: null, added: {}, error: null, applied: {} };
+function _packApply(P) {
+  const add = { magic: 0, gear: 0, weapons: 0, armour: 0, val: 0, mnt: 0 };
+  const nk = n => String(n || '').toLowerCase().replace(/[^a-z0-9+]+/g, '');
+  const into = (L, items, kind) => { if (!Array.isArray(items) || !Array.isArray(L)) return;
+    const keys = new Set(L.map(x => x.key)), names = new Set(L.map(x => nk(x.name)));
+    items.forEach(it => { if (!it || !it.key || !it.name || keys.has(it.key) || names.has(nk(it.name)) || _PACK.applied[kind + ':' + it.key]) return;
+      it._pack = true; L.push(it); keys.add(it.key); names.add(nk(it.name)); _PACK.applied[kind + ':' + it.key] = 1; add[kind]++; }); };
+  if (typeof ensureDmgItems === 'function') ensureDmgItems();
+  if (P.magic) { const alias = typeof ITEM_KEY_ALIASES !== 'undefined' ? ITEM_KEY_ALIASES : {}, au = new Set(AU_MAGIC_ITEMS.map(x => x.key));
+    into(DMG_MAGIC_ITEMS, P.magic.filter(it => it && !Object.prototype.hasOwnProperty.call(alias, it.key) && !au.has(it.key)), 'magic'); }
+  into(PHB_GEAR, P.gearAdd, 'gear'); into(PHB_WEAPONS, P.newWeapons, 'weapons'); into(PHB_ARMOUR, P.newArmour, 'armour');
+  into(VALUABLES_CATALOG, P.valAdd, 'val'); into(MOUNTS_VEHICLES_CATALOG, P.mntAdd, 'mnt');
+  if (P.bases && typeof ITEM_BASES !== 'undefined') Object.entries(P.bases).forEach(([k, v]) => { if (!Object.prototype.hasOwnProperty.call(ITEM_BASES, k)) ITEM_BASES[k] = v; });
+  if (P.img && typeof ITEM_5E_IMG !== 'undefined') Object.entries(P.img).forEach(([k, v]) => { if (!Object.prototype.hasOwnProperty.call(ITEM_5E_IMG, k)) ITEM_5E_IMG[k] = v; });
+  if (P.src && typeof VAULT_SRC_META !== 'undefined') Object.entries(P.src).forEach(([k, v]) => { if (!VAULT_SRC_META[k] && Array.isArray(v)) VAULT_SRC_META[k] = v; });
+  return add;
+}
+async function packLoad(force) {
+  if (!force && Date.now() - _PACK.at < 30 * 60000) return _PACK;
+  _PACK.at = Date.now();
+  try {
+    const { content } = await GH.getFile(PACK_FILE);
+    if (!content || typeof content !== 'object') throw new Error('pack is not an object');
+    const parts = [content];
+    for (const name of (content.parts || []).slice(0, 12)) { if (/^_5etools_pack_\d+\.json$/.test(name)) parts.push((await GH.getFile(name)).content); }
+    const tot = { magic: 0, gear: 0, weapons: 0, armour: 0, val: 0, mnt: 0 };
+    parts.forEach(p => { const a = _packApply(p || {}); Object.keys(a).forEach(k => { tot[k] += a[k]; }); });
+    _PACK.v = content.v || null; _PACK.built = content.built || null; _PACK.error = null;
+    Object.keys(tot).forEach(k => { _PACK.added[k] = (_PACK.added[k] || 0) + tot[k]; });
+    if (Object.values(tot).some(Boolean)) {   // something new arrived: lists that are open redraw once
+      try { if (typeof _V !== 'undefined') _V.rows = {}; } catch (e) {}
+      ['renderMagicItemBrowser', 'renderGearBrowser', 'dmRenderItemsList', 'vaultDraw'].forEach(f => { try { if (typeof window[f] === 'function') window[f](f === 'vaultDraw' ? 'keep' : undefined); } catch (e) {} });
+    }
+  } catch (e) { if (!(e && e.status === 404)) { _PACK.error = String(e && e.message || e); console.warn('[5e.tools pack]', _PACK.error); } }
+  return _PACK;
+}
+function packStatus() {
+  const n = Object.values(_PACK.added).reduce((a, b) => a + b, 0);
+  if (_PACK.error) return '5e.tools sync: could not read the pack (' + _PACK.error + ')';
+  if (!_PACK.built) return '5e.tools sync: no pack found yet; the sheet is showing what it was built with.';
+  return `5e.tools sync: pack built ${_PACK.built}; ${n} entr${n === 1 ? 'y' : 'ies'} added on top of this build.`;
+}
+Object.assign(window, { packLoad, packStatus, _PACK });
+{ const _l = loadDMItemOverrides;
+  loadDMItemOverrides = async function () { try { packLoad(); } catch (e) {} return _l.apply(this, arguments); };
+  window.loadDMItemOverrides = loadDMItemOverrides; }
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
