@@ -1,0 +1,65 @@
+# Weekly 5e.tools sync for the Character Sheet.
+# Builds chars/_5etools_pack.json on the `data` branch: everything 5e.tools has that the sheet does not (add-only).
+# The sheet reads the pack when it opens. A red run = something needs a look; the old pack stays in place.
+name: 5e.tools sync
+on:
+  schedule:
+    - cron: '17 3 * * 1'        # Mondays 03:17 UTC
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  issues: write
+concurrency: { group: 5etools-sync, cancel-in-progress: false }
+env:
+  DATA_BRANCH: data
+  DATA_DIR: chars
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Get the 5e.tools data
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/5etools-mirror-3/5etools-src.git _5e/src
+          git -C _5e/src sparse-checkout set --no-cone '/*' '!/data/adventure/' '!/data/book/' '!/test/' '!/node/' '!/audio/'
+          git clone --depth 1 https://github.com/TheGiddyLimit/homebrew.git _5e/brew
+          git clone --depth 1 https://github.com/TheGiddyLimit/unearthed-arcana.git _5e/ua
+          git clone --depth 1 --filter=blob:none --no-checkout https://github.com/5etools-mirror-3/5etools-img.git _5e/img
+      - name: Install the browser the export uses
+        run: |
+          pip install playwright==1.* 
+          python -m playwright install --with-deps chromium
+      - name: Build the pack
+        id: build
+        run: python sync5e/run.py --site _5e/src --brew _5e/brew --ua _5e/ua --img _5e/img --out _out
+      - name: Publish the pack to the data branch
+        if: success()
+        run: |
+          git config user.name "5e.tools sync"; git config user.email "actions@users.noreply.github.com"
+          git fetch origin "$DATA_BRANCH" --depth 1
+          git worktree add _data "origin/$DATA_BRANCH"
+          mkdir -p "_data/$DATA_DIR"
+          rm -f "_data/$DATA_DIR"/_5etools_pack_*.json
+          cp _out/_5etools_pack*.json _out/_5etools_report.md "_data/$DATA_DIR/"
+          cd _data
+          git add -A "$DATA_DIR"/_5etools_pack*.json
+          if git diff --cached --quiet; then echo "5e.tools has nothing new since the last pack."; exit 0; fi
+          git add "$DATA_DIR/_5etools_report.md"
+          git commit -m "5e.tools sync: $(date -u +%F)"
+          git push origin "HEAD:$DATA_BRANCH"
+      - name: Keep the report with the run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: 5etools-report, path: _out/_5etools_report.md, if-no-files-found: ignore }
+      - name: Open an issue when something needs a look
+        if: always() && (failure() || steps.build.outputs.status == 'warn')
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          title="5e.tools sync: $([ '${{ steps.build.outputs.status }}' = 'warn' ] && echo 'needs a look' || echo 'FAILED') ($(date -u +%F))"
+          if [ -f _out/_5etools_report.md ]; then head -c 60000 _out/_5etools_report.md > _body.md; else echo "The run failed before a report was written. See the run log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > _body.md; fi
+          gh issue create --title "$title" --body-file _body.md || true
