@@ -98528,7 +98528,16 @@ function vaultSourceName(s) { if (VAULT_SRC_META[s]) return VAULT_SRC_META[s][0]
 // every homebrew and playtest book (names and counts, no contents): chars/_5etools_books.json, from the weekly sync.
 // A homebrew book's contents are stored by the sync only once the DM approves it (either list).
 const _VC = { books: null, tried: false };
-function _vCatLoad() { if (_VC.tried) return; _VC.tried = true; GH.getFile('_5etools_books.json').then(x => { _VC.books = (x.content && x.content.books) || {}; if (_V.tab === 'sources') { _V.srcDraft = null; vaultDraw('keep'); } }).catch(() => {}); }
+function _vCatLoad() { if (_VC.tried) return; _VC.tried = true; GH.getFile('_5etools_books.json').then(x => { _VC.books = (x.content && x.content.books) || {}; if (_V.tab === 'sources') { _V.srcDraft = null; vaultDraw('keep'); } }).catch(() => { setTimeout(() => { _VC.tried = false; }, 60000); }); }   // not there yet (first sync still running): try again in a minute
+// a sync finished: forget the indexes and book list read so far, so the new ones are read (Sources, Bestiary, 5e.tools, new for the sheet)
+function vaultAfterSync() {
+  _VC.tried = false; _VC.books = null;
+  if (!_VB.loading) { _VB.idx = null; _VB.books = {}; _VB.idxTry = false; }
+  if (typeof _VR !== 'undefined' && !_VR.loading) { _VR.idx = null; _VR.files = {}; _VR.idxTry = false; }
+  try { _V.rows = {}; } catch (e) {}
+  if (typeof spLoad === 'function') return spLoad(true);
+}
+window.vaultAfterSync = vaultAfterSync;
 function _vStored(s) {   // are this book's contents stored (in the sheet itself or in a pack)?
   if (VAULT_SRC_META[s] && !(_VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew')) return true;
   if (_VB.idx && _VB.idx.counts && _VB.idx.counts[s]) return true;
@@ -99802,7 +99811,7 @@ function packStatus() {
   const n = Object.values(_PACK.added).reduce((a, b) => a + b, 0);
   if (_PACK.error) return '5e.tools sync: could not read the pack (' + _PACK.error + ')';
   if (!_PACK.built) return '5e.tools sync: no pack found yet; the sheet is showing what it was built with.';
-  return `5e.tools sync: pack built ${_PACK.built}; ${n} entr${n === 1 ? 'y' : 'ies'} added on top of this build.`;
+  return `5e.tools sync: last run ${_PACK.built}; ${n} new item${n === 1 ? '' : 's'} on top of this sheet (creatures, the 5e.tools library and new spells, feats and so on are counted on their own pages).`;
 }
 Object.assign(window, { packLoad, packStatus, _PACK });
 { const _l = loadDMItemOverrides;
@@ -99863,6 +99872,7 @@ function _syncFollow(prevId) {
       if (r.conclusion === 'success') {
         _SYNC.msg = 'Finished. Loading the new pack…'; _syncShow();
         await packLoad(true);
+        try { if (typeof vaultAfterSync === 'function') await vaultAfterSync(); } catch (e) {}
         _SYNC.msg = 'Finished. ' + packStatus().replace(/^5e\.tools sync: /, '');
         try { if (typeof _V !== 'undefined' && _V.tab === 'sources') { _V.srcDraft = null; vaultDraw('keep'); } } catch (e) {}
         try { const d = document.getElementById('vt-sync-changes'); if (d) { d.open = true; syncChangesLoad(d, true); } } catch (e) {}
