@@ -24,6 +24,13 @@ with a readable `chars/_5etools_report.md` beside it. If your data folder or bra
 - **Needs a look** (for example a weapon with no weapon type): the pack is still published and an issue is opened with the list.
 - **Failed** (5e.tools changed shape, a download failed): the run is red, an issue is opened, and **the old pack stays in place**.
 
+## Reports: what changed in each sync
+
+- **In the sheet:** Vault → Sources → "📄 What changed in recent syncs" lists each run (newest first) with the new entries by kind and book. The last 20 runs are kept.
+- **On GitHub:** each run writes `chars/_5etools_report.md` on the `data` branch (a readable report that starts with "What changed since the last sync"), shows the same report on the run's summary page, and keeps it as a download on the run.
+- **Notifications:** when a run finds something new it opens an issue titled "5e.tools sync: N new (date)" with the report, so GitHub notifies you (by email if your GitHub notifications are on). Problems open a "needs a look" or "FAILED" issue.
+- **Run it now:** Vault → Sources → "↻ Run 5e.tools sync now" (or Actions → 5e.tools sync → Run workflow on GitHub).
+
 ## What it covers
 
 Magic items, gear, valuables, mounts and vehicles, the weapon and armour types new items need, item pictures and book names.

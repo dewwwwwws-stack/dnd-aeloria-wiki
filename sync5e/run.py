@@ -16,6 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ap = argparse.ArgumentParser()
 for a in ('site', 'brew', 'ua', 'img', 'out'): ap.add_argument('--' + a, required=True)
 ap.add_argument('--work', default=os.path.join(HERE, '_work')); ap.add_argument('--reuse-export', action='store_true')
+ap.add_argument('--prev', default=None, help='folder holding the previous _5etools_pack.json (+ parts) and _5etools_changes.json, to report what changed')
 ap.add_argument('--baseline', default=os.path.join(HERE, 'baseline', 'live.json'))
 A = ap.parse_args()
 W = os.path.abspath(A.work); OUT = os.path.abspath(A.out); os.makedirs(W, exist_ok=True); os.makedirs(OUT, exist_ok=True)
@@ -122,7 +123,30 @@ def write(pack):
     open(os.path.join(OUT, '_5etools_pack.json'), 'w', encoding='utf-8').write(dump(pack))
     return len(parts)
 
-res = None
+KINDS = (('magic', 'Magic items'), ('gearAdd', 'Gear'), ('valAdd', 'Valuables'), ('mntAdd', 'Mounts & vehicles'), ('newWeapons', 'Weapons'), ('newArmour', 'Armour'))
+def _load_pack(d):
+    try:
+        P = json.load(open(os.path.join(d, '_5etools_pack.json'), encoding='utf-8'))
+        for n in P.get('parts', []): P['magic'] = P.get('magic', []) + json.load(open(os.path.join(d, n), encoding='utf-8')).get('magic', [])
+        return P
+    except Exception: return None
+def _entries(P): return {f"{k}:{x['key']}": {'kind': lbl, 'name': x.get('name'), 'source': x.get('source')} for k, lbl in KINDS for x in (P or {}).get(k, []) if x.get('key')}
+def diff_with_prev(pack):
+    prev = _load_pack(A.prev) if A.prev else None
+    now, was = _entries(pack), _entries(prev)
+    new = [now[k] for k in now if k not in was]; gone = [was[k] for k in was if k not in now]
+    hist = []
+    try: hist = json.load(open(os.path.join(A.prev, '_5etools_changes.json'), encoding='utf-8')).get('runs', []) if A.prev else []
+    except Exception: hist = []
+    run = {'date': datetime.date.today().isoformat(), 'built': pack.get('built'), 'first': prev is None, 'new': new, 'gone': gone, 'total': len(now)}
+    if prev is None or new or gone: hist = [run] + hist
+    json.dump({'runs': hist[:20]}, open(os.path.join(OUT, '_5etools_changes.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    return run
+def _bybook(L): 
+    by = {}
+    for x in L: by.setdefault(f"{x['kind']}", []).append(f"{x['name']} ({x['source']})")
+    return [f"- **{k}** ({len(v)}): " + ', '.join(sorted(v)[:300]) + (' …' if len(v) > 300 else '') for k, v in by.items()]
+res = None; change = None
 try: res = main()
 except Exception as e: errors.append(str(e))
 L = [f'# 5e.tools sync — {datetime.date.today().isoformat()}', '']
@@ -130,9 +154,15 @@ if errors or not res:
     L += ['## FAILED — no pack written, the previous one stays in place', ''] + [f'- {e}' for e in errors] + ['']
 else:
     pack, rep, new_books = res
+    change = diff_with_prev(pack)
     c = {k: len(pack[k]) for k in ('magic', 'gearAdd', 'valAdd', 'mntAdd', 'newWeapons', 'newArmour')}; all_magic = list(pack['magic']); nparts = write(pack)
     L += [f"**{c['magic']} magic items, {c['gearAdd']} gear, {c['valAdd']} valuables, {c['mntAdd']} mounts/vehicles, {c['newWeapons']} weapons, {c['newArmour']} armour** on top of the sheet as last built"
           + (f' (split over {nparts} extra files).' if nparts else '.'), '', 'From: ' + ', '.join(f'{k} {v}' for k, v in pack['from'].items()), '']
+    if change['first']: L += ['## What changed', '', 'First sync: everything in the pack is new to the sheet.', '']
+    elif not change['new'] and not change['gone']: L += ['## What changed', '', 'Nothing new since the last sync.', '']
+    else:
+        L += [f"## New since the last sync ({len(change['new'])})", ''] + (_bybook(change['new']) or ['None.']) + ['']
+        if change['gone']: L += [f"## No longer in the pack ({len(change['gone'])})", '', 'Usually because the sheet was rebuilt with them built in; otherwise 5e.tools removed or renamed them.', ''] + _bybook(change['gone']) + ['']
     if new_books: L += ['## New books (switched OFF for players until you turn them on in Vault > Sources)', '', ', '.join(new_books), '']
     if all_magic: L += ['## Magic items in the pack', '', ', '.join(f"{x['name']} ({x.get('source')})" for x in all_magic[:400]) + (' …' if len(all_magic) > 400 else ''), '']
     for k, v in rep.items():
@@ -141,5 +171,5 @@ if warns: L += ['## Needs a look', ''] + [f'- {w}' for w in warns] + ['']
 if notes: L += ['## Notes', ''] + [f'- {n}' for n in notes] + ['']
 text = '\n'.join(L); open(os.path.join(OUT, '_5etools_report.md'), 'w', encoding='utf-8').write(text); print(text[:3000])
 if os.environ.get('GITHUB_STEP_SUMMARY'): open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write(text[:60000])
-if os.environ.get('GITHUB_OUTPUT'): open(os.environ['GITHUB_OUTPUT'], 'a').write(f"status={'failed' if errors or not res else 'warn' if warns else 'ok'}\n")
+if os.environ.get('GITHUB_OUTPUT'): open(os.environ['GITHUB_OUTPUT'], 'a').write(f"status={'failed' if errors or not res else 'warn' if warns else 'ok'}\nnew_count={len(change['new']) if change and not change['first'] else 0}\n")
 sys.exit(1 if errors or not res else 0)
