@@ -98410,7 +98410,7 @@ body.vault-on #page-dm > div > div:first-child,body.vault-on #dm-content > div:f
 .vt-tools{display:flex;gap:6px;align-items:center}.vt-bar{align-items:center!important}
 .vt-toolpanel{padding:10px 20px;border-bottom:1px solid var(--border);background:var(--bg2);max-height:45vh;overflow:auto}
 .vt-have{color:var(--green)!important;border-color:var(--green)!important;font-weight:600}.vt-libbtn{width:100%;margin:6px 0 4px;padding:12px}
-.vt-links{padding:10px 16px 2px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}.vt-lrow{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
+.vt-links{margin-top:14px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;font-family:var(--font-ui)}.vt-more{display:inline}.vt-more summary{display:inline;cursor:pointer;font-size:11px;color:var(--text3);list-style:none}.vt-more summary::-webkit-details-marker{display:none}.vt-more[open] summary{display:none}.vt-more[open]{display:contents}.vt-lrow{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
 .vt-lab{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-right:4px;font-weight:600}
 .vt-wl{font-size:12px;color:var(--c,var(--accent));border-bottom:1px dotted currentColor;cursor:pointer;text-decoration:none}.vt-wl:hover{border-bottom-style:solid}
 a.vt-pill.vt-wl{border-bottom:1px solid var(--accent)}
@@ -98418,6 +98418,9 @@ a.vt-pill.vt-wl{border-bottom:1px solid var(--accent)}
 .vt-rich > div{margin:0 0 8px}.vt-rich table{border-collapse:collapse;margin:6px 0;font-size:12.5px}.vt-rich td,.vt-rich th{border:1px solid var(--border);padding:3px 7px}
 .vt-qbar{width:min(340px,42vw);margin-left:14px;padding:7px 12px!important}
 @media (max-width:820px){.vt-qbar{order:5;width:100%;margin:6px 0 0}}
+.tbtn.vt-on{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
+.vt-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border2);border-radius:5px;padding:2px 8px;font-size:12px}.vt-chip a{cursor:pointer}.vt-chip a+a{color:var(--text3)}.vt-chip.on{border-color:var(--accent);color:var(--accent)}
+.vt-gl{width:100%;height:100%;object-fit:contain;position:relative;z-index:1;display:block}
 .vt-danger{background:var(--red)!important}.vt-filterbtn{display:none}
 @media (max-width:1100px){.vt-side{width:220px}.vt-body{position:relative}.vt-detail{position:absolute;right:0;top:0;bottom:0;width:min(400px,100%);z-index:5;box-shadow:var(--shadow-lg)}}
 @media (max-width:820px){.vt-top{flex-wrap:nowrap!important;padding:6px 10px}.vt-top .vt-tab,.vt-top .tbtn{white-space:nowrap;flex:none}.vt-filterbtn{display:inline-block}.vt-side{position:absolute;left:0;top:0;bottom:0;z-index:6;width:min(280px,88%);background:var(--bg);box-shadow:var(--shadow-lg);transform:translateX(-105%);transition:transform .15s}
@@ -98574,7 +98577,30 @@ function _vFeatures(L, keyOf) {
     by[lv].map(f => { const k = keyOf ? keyOf(f) : null;
       return `<details class="vt-ver"><summary>${_itE(f.name)}${k && _vEdited(k) ? ' <span class="vt-tag vt-ch">DM edited</span>' : ''}<span class="vt-fbtns">${k ? _vEditBtn(k, f.name) + _vHideBtn(k, f.name) : ''}</span></summary>${_vText(k ? _vOv(k, f.desc) : f.desc)}</details>`; }).join('')).join('');
 }
-function _vIcon(r, size) { return r.thumb ? itemThumbImg(r.thumb, size) || '' : r.svg ? r.svg() : r.pic ? _vImg(r.pic) : ''; }
+// Spell glyphs on cards: each is drawn once (in idle time) and shown as an image, so scrolling only moves pictures.
+// A glyph is ~55 KB of SVG with blur filters; dozens of live ones on screen made the Spells page lag.
+const _vGlyphUrl = new Map(); let _vGlyphQ = [], _vGlyphBusy = false;
+function _vGlyphKey(d) { let p = {}; try { p = resolveSpellGlyphPrefs(); } catch (e) {} return d.key + '|' + p.style + '|' + p.format; }
+function _vGlyphImg(d) { const k = _vGlyphKey(d), u = _vGlyphUrl.get(k);
+  return `<img class="vt-gl" data-gk="${_itE(k)}" data-sk="${_itE(d.key)}" decoding="async" alt="" ${u ? `src="${u}"` : ''}>`; }
+function _vGlyphPump() {
+  if (_vGlyphBusy) return; _vGlyphBusy = true;
+  const run = deadline => {
+    const imgs = [...document.querySelectorAll('#vault-root img.vt-gl:not([src])')];
+    let n = 0;
+    for (const img of imgs) {
+      if (deadline && deadline.timeRemaining && deadline.timeRemaining() < 3 && n) break;
+      if (n++ > 12) break;
+      const k = img.dataset.gk; let u = _vGlyphUrl.get(k);
+      if (!u) { const d = PHB_SPELL_LIST.find(s => s.key === img.dataset.sk); const svg = d ? _vSpellSvg(d) : '';
+        u = svg ? URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })) : 'data:image/gif;base64,R0lGODlhAQABAAAAACw='; _vGlyphUrl.set(k, u); }
+      document.querySelectorAll(`#vault-root img.vt-gl[data-gk="${CSS.escape(k)}"]:not([src])`).forEach(i => { i.src = u; });
+    }
+    if (document.querySelector('#vault-root img.vt-gl:not([src])')) (window.requestIdleCallback || (f => setTimeout(f, 16)))(run, { timeout: 120 }); else _vGlyphBusy = false;
+  };
+  (window.requestIdleCallback || (f => setTimeout(f, 0)))(run, { timeout: 60 });
+}
+function _vIcon(r, size) { return r.thumb ? itemThumbImg(r.thumb, size) || '' : r.gl ? _vGlyphImg(r.gl) : r.svg ? r.svg() : r.pic ? _vImg(r.pic) : ''; }
 function _vHead(r, glyph, col, sub) {
   col = r.col || col;
   return `<div class="vt-dhead"><div class="vt-dico" data-g="${glyph}" style="border-color:${col}66;color:${col}">${_vIcon(r, 52)}</div>
@@ -98668,7 +98694,7 @@ const VAULT_MAGIC = {
       ${r.sp.length ? `<div class="vt-onsheet"><b>Casts:</b> ${_itE(r.sp.map(s => s.spellName).join(', '))}</div>` : ''}
       ${_vText(d.desc)}
       ${vs.length ? `<div class="vt-fh" style="margin-top:14px">Versions (${vs.length})</div>` + vs.map(v => `<details class="vt-ver"><summary>${_itE(v.name || v.label || v.id)}${v.rarity ? ` <span style="color:${RARITY_COLOURS[String(v.rarity).toLowerCase()] || 'inherit'}">· ${_itE(rarityLabel(v.rarity))}</span>` : ''}</summary>${_vText(v.desc)}</details>`).join('') : ''}
-      ${d.bases && d.bases.length ? `<div class="vt-fh" style="margin-top:14px">Fits (${d.bases.length})</div><p style="color:var(--text3)">${_itE(d.bases.join(', '))}</p>` : ''}
+      ${d.bases && d.bases.length ? (d.bases.length > 12 ? `<details class="vt-ver" style="margin-top:12px"><summary>Fits ${d.bases.length} weapon or armour types</summary><p style="color:var(--text3)">${_itE(d.bases.join(', '))}</p></details>` : `<div class="vt-fh" style="margin-top:14px">Fits (${d.bases.length})</div><p style="color:var(--text3)">${_itE(d.bases.join(', '))}</p>`) : ''}
     </div>
     <div class="vt-dfoot"><button class="vt-give" data-k="${k}" onclick="openGrantItemModal(this.dataset.k,'magic')">Give to a character…</button>
       <button class="tbtn" data-k="${k}" onclick="openMagicItemDetailModal(this.dataset.k)">Full window</button>
@@ -98711,8 +98737,8 @@ const VAULT_ITEMS = {
 const _V_LVL = ['Cantrip', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 const _vTime = t => /bns/.test(t) ? 'Bonus action' : /rea/.test(t) ? 'Reaction' : /^1 a/.test(t) ? 'Action' : 'Longer';
 const VAULT_SPELLS = {
-  title: 'Spells', noun: 'spells', chunk: 24,   // each card draws a glyph: smaller helpings keep scrolling smooth
-  rows() { return PHB_SPELL_LIST.map(d => ({ d, key: d.key, name: d.name, group: _V_LVL[d.level] || 'Cantrip', glyph: '✨', col: _vSchoolCol(d.school), svg: () => _vSpellSvg(d), ov: 'spell:' + d.key,
+  title: 'Spells', noun: 'spells', chunk: 48,   // each card draws a glyph: smaller helpings keep scrolling smooth
+  rows() { return PHB_SPELL_LIST.map(d => ({ d, key: d.key, name: d.name, group: _V_LVL[d.level] || 'Cantrip', glyph: '✨', col: _vSchoolCol(d.school), gl: d, svg: () => _vSpellSvg(d), ov: 'spell:' + d.key,
     f: { src: [vaultSrc('spells', d.key, d.source)], lvl: [_V_LVL[d.level] || 'Cantrip'], school: [d.school || 'Unknown'], cls: (d.classes || []).map(_vCap), time: [_vTime(d.time || '')],
       has: [d.conc ? 'Concentration' : null, d.ritual ? 'Ritual' : null, (d.tags || []).includes('aoe') ? 'Area' : null, (d.tags || []).includes('atk') ? 'Attack roll' : null, d.material ? 'Material component' : null].filter(Boolean) },
     search: (d.name + ' ' + (d.school || '')).toLowerCase(), body: () => (d.descFull || d.desc || '') })); },
@@ -98764,6 +98790,22 @@ const VAULT_FEATS = {
 
 // ───────── Classes and subclasses ─────────
 const _vCaster = d => d.spellcasting && d.spellcasting.type && d.spellcasting.type !== 'none' ? _vCap(d.spellcasting.type) + ' caster' : 'No spellcasting';
+// Subclass bonus spells, read the way the sheet reads them (getSubclassBonusSpells): a list of spell keys, each
+// unlocked at the class level that can cast its spell level (subclassSpellMinClassLevel), names from the spell list.
+function _vBonusList(subKey, keys) {
+  const ck = subKey.split('/')[0], c = PHB_CLASSES[ck] || {}, cast = (c.spellcasting && c.spellcasting.type) || 'full', d = PHB_SUBCLASSES[subKey] || {};
+  const start = Math.min(3, ...(d.features || []).map(f => f.level || 3));
+  return (keys || []).map(raw => { const sp = PHB_SPELL_LIST.find(s => s.key === raw) || PHB_SPELL_LIST.find(s => s.name.toLowerCase() === String(raw).toLowerCase()) || PHB_SPELL_LIST.find(s => s.key === String(raw).toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+    const lv = sp ? sp.level : 1, min = (start === 1 && cast === 'full') ? Math.max(1, lv * 2 - 1) : (typeof subclassSpellMinClassLevel === 'function' ? subclassSpellMinClassLevel(lv, cast) : lv * 2 - 1);
+    return { key: sp ? sp.key : raw, name: sp ? sp.name : String(raw).replace(/_/g, ' ').replace(/\b\w/g, x => x.toUpperCase()), min, sp }; });
+}
+function _vBonusSpellsHtml(subKey, d) {
+  const block = (L, title) => { if (!L.length) return ''; const by = {}; L.forEach(x => (by[x.min] = by[x.min] || []).push(x));
+    return (title ? `<p style="margin:8px 0 2px"><i>${_itE(title)}</i></p>` : '') + Object.keys(by).sort((a, b) => a - b).map(m => `<p><b>${_itE((PHB_CLASSES[subKey.split('/')[0]] || {}).name || 'Class')} ${m}.</b> ${by[m].map(x => x.sp ? `<a class="vt-wl" data-k="${_itE(x.key)}" onclick="vaultPeek('spells',this.dataset.k)">${_itE(x.name)}</a>` : _itE(x.name)).join(', ')}</p>`).join(''); };
+  let h = Array.isArray(d.bonusSpells) ? block(_vBonusList(subKey, d.bonusSpells)) : '';
+  if (d.bonusSpellsByChoice) h += Object.entries(d.bonusSpellsByChoice).map(([k, L]) => block(_vBonusList(subKey, L), 'If you choose ' + _vCap(k))).join('');
+  return h;
+}
 const VAULT_CLASSES = {
   title: 'Classes', noun: 'classes',
   rows() {
@@ -98794,7 +98836,7 @@ const VAULT_CLASSES = {
     if (r.cls) return _vHead(r, '🎓', r.col, 'Class') + `<div class="vt-stats" style="padding-top:4px">${_vStat('Hit die', 'd' + d.die)}${_vStat('Saves', (d.saves || []).join(', ').toUpperCase())}${_vStat('Primary', (d.primaryAbility || []).join(' / '))}</div>
       <div class="vt-dbody">${_vImg(r.pic, 'vt-big')}<p><b>Skills.</b> ${_itE(d.skillsText || '—')}</p>${_vCaster(d) !== 'No spellcasting' ? `<p><b>Spellcasting.</b> ${_itE(_vCaster(d))}, ${_itE(String(d.spellcasting.ability || '').toUpperCase())}</p>` : ''}
         <p><b>Subclasses.</b> ${_itE((d.subclasses || []).join(', '))}</p>${_vFeatures(d.features, f => `class:${r.key}:${f.name}`)}</div>`;
-    const bs = d.bonusSpells && typeof d.bonusSpells === 'object' ? Object.entries(d.bonusSpells).map(([lv, L]) => `<p><b>Level ${_itE(lv)}.</b> ${_itE([].concat(L).map(x => typeof x === 'string' ? x : (x && x.name) || '').join(', '))}</p>`).join('') : '';
+    const bs = _vBonusSpellsHtml(r.key, d);
     return _vHead(r, '📘', r.col, r.f.cls[0] + ' subclass · ' + vaultSourceName(r.f.src[0])) + `<div class="vt-dbody" style="border-top:1px solid var(--border)">${_vImg(r.pic, 'vt-big')}${d.tagline ? `<p><i>${_itE(d.tagline)}</i></p>` : ''}${_vText(d.intro)}
       ${bs ? '<div class="vt-fh" style="margin-top:14px">Bonus spells</div>' + bs : ''}${_vFeatures(d.features, f => `subclass:${r.key}:${f.name}`)}</div>`; },
 };
@@ -98911,16 +98953,16 @@ function vaultPickMagic() {
     state(r) { return (currentChar.magicItems || []).some(i => i.key === r.key) ? 'Owned' : null; },
     label(r) { return r.pstate ? '+ Add another' : '+ Add item'; }, act(r) { addMagicItem(r.key); } });
 }
-function vaultPickItems(kind) {
-  vaultPick({ tab: 'itemlib', title: 'Equipment for ' + _vWho(), stay: true, preset: kind ? { kind: { [kind]: true } } : {},
+function vaultPickItems(kind, extra) {
+  vaultPick(Object.assign({ tab: 'itemlib', title: 'Equipment for ' + _vWho(), stay: true, preset: kind ? { kind: { [kind]: true } } : {},
     label(r) { return r.group === 'Weapons' || r.group === 'Armour' ? '+ Add (opens the sheet’s window)' : '+ Add'; },
     act(r) { const k = r.d.key;
-      if (r.group === 'Weapons') { openAddWeapon(); document.getElementById('wm-weapon-key').value = k; onWeaponModalKeyChange(); }
-      else if (r.group === 'Armour') { openAddArmor(); document.getElementById('am-armor-key').value = k; onArmorModalKeyChange(); }
+      if (r.group === 'Weapons') { _vOldForm('weapon'); document.getElementById('wm-weapon-key').value = k; onWeaponModalKeyChange(); }
+      else if (r.group === 'Armour') { _vOldForm('armor'); document.getElementById('am-armor-key').value = k; onArmorModalKeyChange(); }
       else if (r.group === 'Gear') addGearFromCatalog(k);
       else if (r.group === 'Valuables') addValuable(k);
       else addMountVehicle(k);
-      if (r.group !== 'Weapons' && r.group !== 'Armour' && typeof toast === 'function') toast(r.name + ' added', 'ok'); } });
+      if (r.group !== 'Weapons' && r.group !== 'Armour' && typeof toast === 'function') toast(r.name + ' added', 'ok'); } }, extra || {}));
 }
 function vaultPickSpecies() {
   vaultPick({ tab: 'species', title: 'Choose a species', state(r) { return String(currentChar.race || '').toLowerCase() === r.key ? 'Your species' : null; },
@@ -99062,6 +99104,62 @@ _vWrap('buildClassDropdown', _vWireClassSelects); _vWrap('buildSubclassDropdown'
 _vWrap('renderFeatsList', _vWireFeatRows);
 { const _oi = openInvocationsModal; openInvocationsModal = function () { if (window._invOldModal) return _oi.apply(this, arguments); vaultPickInvocations(); }; window.openInvocationsModal = openInvocationsModal; }
 { const _af = addFeat; addFeat = function () { const x = _af.apply(this, arguments); try { const i = (currentChar.feats || []).length - 1; if (i >= 0 && !currentChar.feats[i].name) setTimeout(() => vaultPickFeatRow(i), 0); } catch (e) {} return x; }; window.addFeat = addFeat; }
+// ── Add Weapon / Add Armor: the library first (plus "+ Custom"), then the sheet's own form, filled in.
+let _vOldFormOn = false;
+function _vOldForm(kind) { _vOldFormOn = true; try { kind === 'weapon' ? openAddWeapon() : openAddArmor(); } finally { _vOldFormOn = false; } }
+function vaultCustomItem(kind) { vaultClose(); _vOldForm(kind); }
+{ const _ow = openAddWeapon, _oa = openAddArmor;
+  openAddWeapon = function () { if (_vOldFormOn) return _ow.apply(this, arguments); vaultPickItems('Weapons', { stay: false, title: 'Add a weapon', tools: '<button class="tbtn" onclick="vaultCustomItem(\'weapon\')">+ Custom weapon</button>', label: () => 'Add this weapon…' }); };
+  openAddArmor = function () { if (_vOldFormOn) return _oa.apply(this, arguments); vaultPickItems('Armour', { stay: false, title: 'Add armour', tools: '<button class="tbtn" onclick="vaultCustomItem(\'armor\')">+ Custom armour</button>', label: () => 'Add this armour…' }); };
+  window.openAddWeapon = openAddWeapon; window.openAddArmor = openAddArmor; }
+// 📚 beside the form's own Weapon / Armor dropdown: the form steps aside while you browse.
+function vaultPickFormBase(kind) {
+  const modal = document.getElementById(kind === 'weapon' ? 'weapon-edit-modal' : 'armor-edit-modal'), sel = document.getElementById(kind === 'weapon' ? 'wm-weapon-key' : 'am-armor-key');
+  if (!modal || !sel) return; const keys = new Set([...sel.options].map(o => o.value).filter(Boolean));
+  modal.style.visibility = 'hidden';
+  vaultPickItems(kind === 'weapon' ? 'Weapons' : 'Armour', { stay: false, title: kind === 'weapon' ? 'Choose the weapon' : 'Choose the armour', label: () => 'Use this one',
+    keep: r => keys.has(r.d.key) && r.group === (kind === 'weapon' ? 'Weapons' : 'Armour'), state: r => sel.value === r.d.key ? 'Current' : null,
+    act(r) { sel.value = r.d.key; kind === 'weapon' ? onWeaponModalKeyChange() : onArmorModalKeyChange(); }, done() { modal.style.visibility = ''; } });
+}
+['wm-weapon-key', 'am-armor-key'].forEach(id => { const s = document.getElementById(id); if (!s) return; const w = document.createElement('div'); w.style.cssText = 'display:flex;gap:6px;align-items:center';
+  s.parentNode.insertBefore(w, s); w.appendChild(s); s.style.flex = '1'; w.appendChild(_vLibBtn('Browse in the library', () => vaultPickFormBase(id === 'wm-weapon-key' ? 'weapon' : 'armor'))); });
+
+// ── The class spell chooser ("Spells" window): the library, fed by the chooser's own list and rules.
+function _vLuScrape() {
+  const q = document.getElementById('lu-spell-search'), f = document.getElementById('lu-spell-level-filter'); if (q) q.value = ''; if (f) f.value = '';
+  renderLevelUpSpellList(); renderLuCurrentList();
+  const out = new Map();
+  document.querySelectorAll('#lu-spell-body [onclick^="openSpellDetailModal("]').forEach(el => {
+    const m = el.getAttribute('onclick').match(/^openSpellDetailModal\('((?:\\'|[^'])*)'/); if (!m) return;
+    const key = m[1].replace(/\\'/g, "'"), row = el.parentElement, btn = row.querySelector('button[onclick*="luAddSpell"]');
+    const tail = [...row.children].filter(c => c !== el && c !== btn).map(c => c.textContent.trim()).filter(Boolean).join(' ');
+    out.set(key, { add: btn ? btn.textContent.trim() : null, note: btn ? '' : (tail || 'Not available') });
+  });
+  return (_V._lu = out);
+}
+function _vLuName(k) { return (PHB_SPELL_LIST.find(s => s.key === k) || {}).name || k; }
+function vaultLuRefresh() { delete _V.rows.spells; vaultDraw('keep'); }
+function vaultPickLevelUpSpells() {
+  const cls = () => getAllSpellcastingClasses(), cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  vaultPick({ tab: 'spells', title: 'Spells for ' + _vWho(), stay: true, again: true,
+    prep() { return _vLuScrape(); }, keep(r, m) { return m.has(r.key); },
+    state(r, m) { const x = m.get(r.key); return x && !x.add && /^✓/.test(x.note) ? cap(x.note.replace(/^✓\s*/, '').toLowerCase()) + ' (granted)' : null; },
+    disabled(r) { const x = (_V._lu || new Map()).get(r.key); return !x ? 'Not available' : x.add ? '' : /^✓/.test(x.note) ? '' : x.note; },
+    label(r) { const x = (_V._lu || new Map()).get(r.key); return x && x.add ? (/^add$/i.test(x.add) ? '+ Add spell' : x.add) : 'Already granted'; },
+    act(r) { const x = (_V._lu || new Map()).get(r.key); if (x && x.add) luAddSpell(r.key); },
+    tools() { const L = cls(); return (L.length > 1 ? L.map(c => `<button class="tbtn${c.cls === _luSelectedClass ? ' vt-on' : ''}" onclick="setLuClass('${c.cls}');vaultLuRefresh()">${cap(c.cls)}</button>`).join('') + '<span style="width:10px"></span>' : '') +
+      `<button class="tbtn${_luMode === 'spell' ? ' vt-on' : ''}" onclick="setLuMode('spell');vaultLuRefresh()">Spells</button><button class="tbtn${_luMode === 'cantrip' ? ' vt-on' : ''}" onclick="setLuMode('cantrip');vaultLuRefresh()">Cantrips</button>`; },
+    panel() { let sub = ''; try { sub = _getLuSubtitle(); } catch (e) {}
+      const cur = _getLuCurrentSpells();
+      return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px"><span style="color:var(--text3);margin-right:6px">${_itE(String(sub || '').replace(/<[^>]*>/g, ''))}</span>
+        ${_luReplaceKey ? `<span class="vt-tag vt-att">Replacing ${_itE(_vLuName(_luReplaceKey))}: choose the spell to swap in</span><button class="tbtn" onclick="luSetReplace('${String(_luReplaceKey).replace(/'/g, "\\'")}');vaultLuRefresh()">Cancel</button>` : ''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px"><span class="vt-lab">Your current ${_luMode === 'cantrip' ? 'cantrips' : 'spells'} (click to replace)</span>
+        ${cur.map(s => `<span class="vt-chip${s.key === _luReplaceKey ? ' on' : ''}"><a data-k="${_itE(s.key)}" onclick="luSetReplace(this.dataset.k);vaultLuRefresh()">${_itE(s.name)}</a><a title="Remove" data-k="${_itE(s.key)}" onclick="luRemoveSpell(this.dataset.k);vaultLuRefresh()">✕</a></span>`).join('') || '<span style="color:var(--text3)">None yet</span>'}</div>`; } });
+}
+{ const _ol = openLevelUpSpellModal;
+  openLevelUpSpellModal = function () { const x = _ol.apply(this, arguments); if (window._luOldModal) return x; try { closeModal('levelup-spell-modal'); vaultPickLevelUpSpells(); } catch (e) { console.error('vault spells', e); openModal('levelup-spell-modal'); } return x; };
+  window.openLevelUpSpellModal = openLevelUpSpellModal; }
+Object.assign(window, { vaultPickFormBase, vaultCustomItem, vaultPickLevelUpSpells, vaultLuRefresh });
 Object.assign(window, { vaultPickPills, vaultPickSelect, vaultPickChoiceList, vaultPickInvocations, vaultPickClassSel, vaultPickFeatRow, vaultPickValuables, vaultPickMounts });
 Object.assign(window, { vaultPick, vaultPickAct, vaultPickSpells, vaultPickMagic, vaultPickItems, vaultPickSpecies, vaultPickBackground, vaultPickFeat });
 { // a 📚 button beside every feat slot's search box
@@ -99121,9 +99219,16 @@ function _vLinksFor(tab, r) {
     else { add('Class', 'classes', [L.cls.get(r.ck)]);
       if (d.bonusSpells && typeof d.bonusSpells === 'object') add('Bonus spells', 'spells', [...new Set(Object.values(d.bonusSpells).flat().map(x => L.spell.get(_vNk(typeof x === 'string' ? x : x && (x.name || x.key)))))]); } }
   if (!out.length) return '';
-  return `<div class="vt-links">${out.map(([label, t, rows]) => `<div class="vt-lrow"><span class="vt-lab">${_itE(label)}</span>${rows.slice(0, 80).map(x => `<a class="vt-wl" style="--c:${x.col || 'var(--accent)'}" data-t="${t}" data-k="${_itE(x.key)}" onclick="vaultPeek(this.dataset.t,this.dataset.k)">${_itE(x.name)}</a>`).join('')}${rows.length > 80 ? `<span class="vt-lab">+${rows.length - 80} more</span>` : ''}</div>`).join('')}</div>`;
+  const chip = (x, t) => `<a class="vt-wl" style="--c:${x.col || 'var(--accent)'}" data-t="${t}" data-k="${_itE(x.key)}" onclick="vaultPeek(this.dataset.t,this.dataset.k)">${_itE(x.name)}</a>`;
+  return `<div class="vt-links">${out.map(([label, t, rows]) => `<div class="vt-lrow"><span class="vt-lab">${_itE(label)}</span>${rows.slice(0, rows.length > 10 ? 8 : 10).map(x => chip(x, t)).join('')}${rows.length > 10 ? `<details class="vt-more"><summary>+${rows.length - 8} more</summary>${rows.slice(8, 300).map(x => chip(x, t)).join('')}</details>` : ''}</div>`).join('')}</div>`;
 }
 // Following a link shows that entry right here in the detail panel (with a way back), on any page and in any mode.
+function _vWithLinks(h, links) {
+  if (!links) return h;
+  const t = document.createElement('template'); t.innerHTML = h; const b = t.content.querySelector('.vt-dbody');
+  if (b) b.insertAdjacentHTML('beforeend', links); else { const f = t.content.querySelector('.vt-dfoot'); f ? f.insertAdjacentHTML('beforebegin', links) : t.content.appendChild(document.createRange().createContextualFragment(links)); }
+  return t.innerHTML;
+}
 function vaultPeek(tab, key) { (_V.peek = _V.peek || []).push([tab, key]); _vPeekDraw(); }
 function vaultPeekBack() { (_V.peek || []).pop(); _vPeekDraw(); }
 function vaultPeekOpen() { const [t, k] = (_V.peek || []).slice(-1)[0] || []; _V.peek = []; if (!t) return; if (t !== _V.tab) vaultTab(t); const st = _vS(); if (t === 'classes') { const rr = _vRows().find(x => x.key === k); st.cls = rr && !rr.cls ? rr.ck : null; vaultDraw(); } vaultSelect(k); }
@@ -99189,6 +99294,7 @@ function _vAppend(k) {
     const part = L.slice(S.off, S.off + k);
     grid.insertAdjacentHTML('beforeend', part.map(r => C.card(r)).join(''));
     S.off += part.length; S.shown += part.length; k -= part.length; done += part.length;
+    if (part.some(r => r.gl)) _vGlyphPump();
     if (S.off >= L.length) { S.gi++; S.off = 0; }
   }
   return done;
@@ -99207,7 +99313,7 @@ function _vDetail() {
     _V.curName = r.name; let h;
     try { h = C.detail(r); } finally { _V.curName = ''; }
     const i = h.lastIndexOf('<div class="vt-dfoot">'); if (i >= 0) h = h.slice(0, i);
-    h = h.replace('<div class="vt-dbody"', `${_vLinksFor(t, r)}<div class="vt-dbody"`);
+    h = _vWithLinks(h, _vLinksFor(t, r));
     const canOpen = !_V.pick && (isDM && !_V.lib ? true : VAULT_PLAYER_TABS.includes(t));
     return `<div class="vt-peekbar"><a onclick="vaultPeekBack()">← Back</a><span>${_itE((VAULT_TABS.find(x => x[0] === t) || [0, ''])[1])}</span></div>` + h +
       `<div class="vt-dfoot">${canOpen ? `<button class="tbtn" onclick="vaultPeekOpen()">Open on its page</button>` : ''}${t === 'spells' ? `<button class="tbtn" data-k="${_itE(r.key)}" data-n="${_itE(r.name)}" onclick="openSpellDetailModal(this.dataset.k,this.dataset.n)">Full window</button>` : ''}${t === 'magic' ? `<button class="tbtn" data-k="${_itE(r.key)}" onclick="openMagicItemDetailModal(this.dataset.k)">Full window</button>` : ''}</div>`;
@@ -99216,12 +99322,13 @@ function _vDetail() {
   if (!r) return '<div class="vt-empty" style="margin-top:60px">Pick a card to see it here.</div>';
   _V.curName = r.name; let h;
   try { h = _vC().detail(r); } finally { _V.curName = ''; }
-  h = h.replace('<div class="vt-dbody"', `${_vLinksFor(_V.tab, r)}<div class="vt-dbody"`);
+  h = _vWithLinks(h, _vLinksFor(_V.tab, r));
   const pk = _vPk();
   if (pk) {   // choosing for the character: the sheet's own add button
     const i = h.lastIndexOf('<div class="vt-dfoot">'); if (i >= 0) h = h.slice(0, i);
     const lab = pk.label ? pk.label(r) : '+ Add';
-    h += `<div class="vt-dfoot">${r.pstate && !pk.again ? `<button class="vt-give" disabled style="opacity:.55;cursor:default">✓ ${_itE(r.pstate)}</button>` : `<button class="vt-give" data-k="${_itE(r.key)}" onclick="vaultPickAct(this.dataset.k)">${_itE(lab)}</button>`}
+    const dis = pk.disabled ? pk.disabled(r) : '';
+    h += `<div class="vt-dfoot">${dis ? `<button class="vt-give" disabled style="opacity:.55;cursor:default">${_itE(dis)}</button>` : r.pstate && !pk.again ? `<button class="vt-give" disabled style="opacity:.55;cursor:default">✓ ${_itE(r.pstate)}</button>` : `<button class="vt-give" data-k="${_itE(r.key)}" onclick="vaultPickAct(this.dataset.k)">${_itE(lab)}</button>`}
       ${_V.tab === 'magic' ? `<button class="tbtn" data-k="${_itE(r.key)}" onclick="openMagicItemDetailModal(this.dataset.k)">Full window</button>` : ''}${_V.tab === 'spells' ? `<button class="tbtn" data-k="${_itE(r.key)}" data-n="${_itE(r.name)}" onclick="openSpellDetailModal(this.dataset.k,this.dataset.n)">Full window</button>` : ''}</div>`;
     return h;
   }
@@ -99273,7 +99380,10 @@ function vaultDraw(part) {
   side.style.display = ''; det.style.display = st.sel ? '' : 'none';
   document.getElementById('vt-title').textContent = C.title;
   const tools = document.getElementById('vt-tools'), tp = document.getElementById('vt-toolpanel');
-  if (tools) tools.innerHTML = isDM && C.tools ? C.tools() : '';
+  const _pk = _vPk();
+  if (tools) tools.innerHTML = _pk && _pk.tools ? (typeof _pk.tools === 'function' ? _pk.tools() : _pk.tools) : (isDM && C.tools && !_V.pick ? C.tools() : '');
+  if (tp && _pk && _pk.panel) { tp.innerHTML = _pk.panel(); tp.style.display = tp.innerHTML ? 'block' : 'none'; }
+  else if (tp && _V.pick) tp.style.display = 'none';
   if (tp && !(isDM && (_V.tab === 'magic' || _V.tab === 'itemlib'))) tp.style.display = 'none';
   if (part !== 'detail') {
     const top = main.scrollTop, was = part === 'keep' && _V.stream && _V.stream.tab === _V.tab ? _V.stream.shown : 0;
