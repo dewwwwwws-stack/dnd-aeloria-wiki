@@ -18,6 +18,9 @@ for a in ('site', 'brew', 'ua', 'img', 'out'): ap.add_argument('--' + a, require
 ap.add_argument('--work', default=os.path.join(HERE, '_work')); ap.add_argument('--reuse-export', action='store_true')
 ap.add_argument('--prev', default=None, help='folder holding the previous _5etools_pack.json (+ parts) and _5etools_changes.json, to report what changed')
 ap.add_argument('--baseline', default=os.path.join(HERE, 'baseline', 'live.json'))
+ap.add_argument('--approvals', default=None, help="the DM's chars/_dm_sources.json: homebrew contents are stored only for books approved there")
+ap.add_argument('--chars', default=None, help='folder of character files: books their kept 5e.tools entries came from are stored too')
+ap.add_argument('--all-brew', action='store_true', help='store every homebrew book (testing only)')
 A = ap.parse_args()
 W = os.path.abspath(A.work); OUT = os.path.abspath(A.out); os.makedirs(W, exist_ok=True); os.makedirs(OUT, exist_ok=True)
 FT = os.path.join(HERE, 'fivetools'); IA = os.path.join(HERE, 'items_audit')
@@ -154,6 +157,75 @@ if errors or not res:
     L += ['## FAILED — no pack written, the previous one stays in place', ''] + [f'- {e}' for e in errors] + ['']
 else:
     pack, rep, new_books = res
+    # homebrew: contents are stored only for books the DM approved (either list on Vault > Sources), plus books that
+    # characters still use entries from; every other homebrew book only gets a line in the book list
+    allow, kept_books, approvals_ok = set(), set(), False
+    if A.approvals and os.path.exists(A.approvals):
+        try:
+            ap_ = json.load(open(A.approvals, encoding='utf-8')); approvals_ok = True
+            allow |= {k for k, v in (ap_.get('approved') or {}).items() if v} | {k for k, v in (ap_.get('sync') or {}).items() if v}
+        except Exception as e: warns.append('Could not read the approvals (_dm_sources.json): ' + str(e)[:200])
+    if A.chars and os.path.isdir(A.chars):
+        for fn in os.listdir(A.chars):
+            if not fn.endswith('.json') or fn.startswith('_'): continue
+            try: kept_books |= set((json.load(open(os.path.join(A.chars, fn), encoding='utf-8')).get('imports_5e') or {}).values())
+            except Exception: pass
+    allow |= kept_books
+    allow_file = os.path.join(W, 'brew_allow.json'); json.dump(sorted(allow), open(allow_file, 'w'))
+    BREW_ENV = dict(os.environ, ALL_BREW='1')
+    if not A.all_brew: BREW_ENV['BREW_ALLOW'] = allow_file
+    books = None
+    try:
+        r = json.loads(run(['node', '--max-old-space-size=8000', os.path.join(FT, 'books_catalog.cjs'), A.brew, A.ua, os.path.join(FT, 'brew_files.json'), os.path.join(W, 'sources.json2abv.json'), os.path.join(OUT, '_5etools_books.json')]).strip().splitlines()[-1])
+        cat = json.load(open(os.path.join(OUT, '_5etools_books.json'), encoding='utf-8'))['books']
+        brew = [a for a, b in cat.items() if b[2] == 'homebrew']
+        books = {'listed': len(cat), 'brew': len(brew), 'stored': sorted(a for a in brew if A.all_brew or a in allow), 'kept': sorted(kept_books - {k for k in allow if k not in kept_books}), 'approvals': approvals_ok}
+    except Exception as e:
+        warns.append('Book list not built this run: ' + str(e).splitlines()[0][:300])
+    # bestiary pack (independent of the items: a problem here is reported, never blocks the items)
+    best = None
+    try:
+        bo = os.path.join(OUT, '_bestiary'); j2a = os.path.join(W, 'sources.json2abv.json')
+        r = json.loads(run(['node', '--max-old-space-size=6000', os.path.join(FT, 'bestiary_pack.cjs'), A.site, A.brew, os.path.join(FT, 'brew_files.json'), j2a, bo, A.ua], env=BREW_ENV).strip().splitlines()[-1])   # every homebrew book with creatures
+        I = json.load(open(os.path.join(bo, 'index.json'), encoding='utf-8')); prevI = None
+        try: prevI = json.load(open(os.path.join(A.prev, '_bestiary_index.json'), encoding='utf-8')) if A.prev else None
+        except Exception: prevI = None
+        newX = set(a for a in I.get('extra', []) if prevI is not None and a not in prevI.get('counts', {}))   # reported on their own line
+        changed = sorted(a for a in I['counts'] if a not in newX and (not prevI or [x['h'] for x in I['files'][a]] != [x['h'] for x in prevI.get('files', {}).get(a, [])]))
+        best = {'total': I['total'], 'books': len(I['counts']), 'fails': r.get('fails', 0), 'changed': changed, 'first': prevI is None,
+                'added': {a: I['counts'][a] - ((prevI or {}).get('counts', {}).get(a, 0)) for a in changed},
+                'extra': len(I.get('extra', [])), 'extraN': sum(I['counts'].get(a, 0) for a in I.get('extra', [])),
+                'newExtra': [f"{I['names'][a][0]} ({a}, {I['counts'][a]})" for a in I.get('extra', []) if prevI is not None and a not in prevI.get('counts', {})]}
+        if r.get('fails'): warns.append(f"Bestiary: {r['fails']} creatures could not be built (usually a homebrew book that copies from one that isn't loaded), e.g. " + '; '.join(I.get('fails', [])[:3]))
+    except Exception as e:
+        warns.append('Bestiary pack not built this run: ' + str(e).splitlines()[0][:300])
+    # raw 5e.tools library (DM's Vault > 5e.tools): every other category, shown as 5e.tools has it; never touches the sheet's lists
+    raw = None
+    try:
+        ro = os.path.join(OUT, '_5etools_raw'); j2a = os.path.join(W, 'sources.json2abv.json')
+        r = json.loads(run(['node', '--max-old-space-size=8000', os.path.join(FT, 'raw_pack.cjs'), A.site, A.brew, A.ua, os.path.join(FT, 'brew_files.json'), j2a, ro], env=BREW_ENV).strip().splitlines()[-1])
+        RI = json.load(open(os.path.join(ro, 'index.json'), encoding='utf-8')); prevR = None
+        try: prevR = json.load(open(os.path.join(A.prev, '_5etools_raw_index.json'), encoding='utf-8')) if A.prev else None
+        except Exception: prevR = None
+        grew = {c: v['n'] - ((prevR or {}).get('cats', {}).get(c, {}).get('n', 0)) for c, v in RI['cats'].items()}
+        raw = {'total': RI['total'], 'cats': {c: v['n'] for c, v in RI['cats'].items()}, 'labels': {c: v['label'] for c, v in RI['cats'].items()}, 'first': prevR is None,
+               'grew': {c: n for c, n in grew.items() if n and prevR is not None}, 'fails': r.get('fails', 0)}
+        if r.get('fails', 0) > 300: warns.append(f"5e.tools library: {r['fails']} entries could not be built, e.g. " + '; '.join(RI.get('fails', [])[:3]))
+    except Exception as e:
+        warns.append('5e.tools library not built this run: ' + str(e).splitlines()[0][:300])
+    # new for the sheet: spells, feats, species, backgrounds, classes, subclasses, class options it does not have yet
+    sheet = None
+    try:
+        so = os.path.join(OUT, '_5etools_sheet'); j2a = os.path.join(W, 'sources.json2abv.json')
+        r = json.loads(run(['node', '--max-old-space-size=8000', os.path.join(FT, 'sheet_pack.cjs'), A.site, A.brew, A.ua, os.path.join(FT, 'brew_files.json'), j2a, A.baseline, so], env=BREW_ENV).strip().splitlines()[-1])
+        SI = json.load(open(os.path.join(so, 'index.json'), encoding='utf-8')); prevS = None
+        try: prevS = json.load(open(os.path.join(A.prev, '_5etools_sheet_index.json'), encoding='utf-8')) if A.prev else None
+        except Exception: prevS = None
+        off = set(SI.get('official', []))
+        sheet = {'total': SI['total'], 'kinds': {k: v['n'] for k, v in SI['kinds'].items()}, 'official': {k: sum(n for a, n in v['counts'].items() if a in off) for k, v in SI['kinds'].items()}, 'first': prevS is None,
+                 'newBooks': sorted(a for a in off if prevS is not None and a not in set(prevS.get('official', []))), 'fails': r.get('fails', 0)}
+    except Exception as e:
+        warns.append('New-for-the-sheet pack not built this run: ' + str(e).splitlines()[0][:300])
     change = diff_with_prev(pack)
     c = {k: len(pack[k]) for k in ('magic', 'gearAdd', 'valAdd', 'mntAdd', 'newWeapons', 'newArmour')}; all_magic = list(pack['magic']); nparts = write(pack)
     L += [f"**{c['magic']} magic items, {c['gearAdd']} gear, {c['valAdd']} valuables, {c['mntAdd']} mounts/vehicles, {c['newWeapons']} weapons, {c['newArmour']} armour** on top of the sheet as last built"
@@ -163,6 +235,24 @@ else:
     else:
         L += [f"## New since the last sync ({len(change['new'])})", ''] + (_bybook(change['new']) or ['None.']) + ['']
         if change['gone']: L += [f"## No longer in the pack ({len(change['gone'])})", '', 'Usually because the sheet was rebuilt with them built in; otherwise 5e.tools removed or renamed them.', ''] + _bybook(change['gone']) + ['']
+    if best:
+        L += ['## Bestiary', '', f"{best['total']:,} creatures from {best['books']} books." + (' First bestiary pack.' if best['first'] else (f" Changed books: {', '.join(best['changed'][:40])}" + (' …' if len(best['changed']) > 40 else '') if best['changed'] else ' Nothing changed since the last sync.')), '']
+        if best['extra']: L += [f"Of these, {best['extraN']:,} come from {best['extra']} homebrew books in the full 5e.tools homebrew collection. Each stays off until you turn it on in Vault > Sources.", '']
+        if best['newExtra']: L += ['New homebrew books with creatures: ' + ', '.join(best['newExtra'][:60]) + (' …' if len(best['newExtra']) > 60 else ''), '']
+        more = {a: n for a, n in best['added'].items() if n > 0 and not best['first']}
+        if more: L += ['New creatures by book: ' + ', '.join(f'{a} +{n}' for a, n in sorted(more.items())), '']
+    if books:
+        L += ['## Homebrew', '', f"{books['brew']:,} homebrew books are listed on Vault > Sources (names and what each has, no contents). Contents are stored for the {len(books['stored'])} you approved" + (f" or that characters still use ({', '.join(books['kept'][:20])})" if books['kept'] else '') + ': ' + (', '.join(books['stored'][:80]) or 'none') + '.', '']
+        if not books['approvals']: L += ['No approvals were found (chars/_dm_sources.json), so no homebrew contents were stored.', '']
+    if sheet:
+        K = {'spell': 'spells', 'feat': 'feats', 'background': 'backgrounds', 'race': 'species', 'class': 'classes', 'subclass': 'subclasses', 'invocation': 'invocations', 'maneuver': 'maneuvers', 'metamagic': 'metamagic options', 'arcaneshot': 'Arcane Shots', 'rune': 'runes'}
+        L += ['## New for the sheet', '', 'Added to the sheet\'s own lists from official books: ' + (', '.join(f"{n} {K.get(k, k)}" for k, n in sheet['official'].items() if n) or 'nothing') + '. Playtest and homebrew books add theirs once you tick them "Add to the sheet" in Vault > Sources (available: ' + ', '.join(f"{n:,} {K.get(k, k)}" for k, n in sheet['kinds'].items()) + ').', '',
+              'Check them in Vault > New from 5e.tools: each shows what was wired automatically and what is still text only.', '']
+        if sheet['newBooks']: L += ['New official books with new content: ' + ', '.join(sheet['newBooks']), '']
+    if raw:
+        L += ['## 5e.tools library (DM only)', '', f"{raw['total']:,} entries: " + ', '.join(f"{raw['labels'][c]} {n:,}" for c, n in raw['cats'].items()) + '.' + (' First library pack.' if raw['first'] else ''), '']
+        if raw['grew']: L += ['Change since last sync: ' + ', '.join(f"{raw['labels'][c]} {'+' if n > 0 else ''}{n}" for c, n in raw['grew'].items()), '']
+        if raw['fails']: L += [f"{raw['fails']} entries could not be built (mostly homebrew that copies from a book that is not loaded).", '']
     if new_books: L += ['## New books (switched OFF for players until you turn them on in Vault > Sources)', '', ', '.join(new_books), '']
     if all_magic: L += ['## Magic items in the pack', '', ', '.join(f"{x['name']} ({x.get('source')})" for x in all_magic[:400]) + (' …' if len(all_magic) > 400 else ''), '']
     for k, v in rep.items():

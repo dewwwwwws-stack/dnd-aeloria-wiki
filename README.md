@@ -47,3 +47,38 @@ pack's items folded in, replace this file with the new one that comes with it; t
 python3 sync5e/run.py --site 5etools-src --brew homebrew --ua unearthed-arcana --img 5etools-img --out out
 ```
 Needs Python 3.10+, `pip install playwright && python -m playwright install chromium`, and Node 18+.
+
+## Bestiary
+
+Each run also builds the creatures from every 5e.tools book and from the whole 5e.tools homebrew collection (about 28,000 creatures in all, about 66 MB on the `data` branch). Homebrew books from the full collection stay off, and are not downloaded by the sheet or the plugin, until you turn them on in Vault > Sources (there is a "Find a homebrew book" box). The 26 homebrew books the sheet already used behave as before. It writes them to `chars/_bestiary/` on the `data` branch: `index.json` plus one file per book, with large books split. The "## Bestiary" part of the report gives the count and lists any creature that could not be built. Those are usually homebrew that copies a creature from a book that isn't loaded.
+
+- **The sheet:** the DM sees them in Vault > Bestiary, in the books ticked on Vault > Sources. Players see a "Creatures" page with only the creatures the DM marked "Players can see", plus their character's own familiars, summons and Wild Shape forms.
+- **Obsidian:** the Character Sheet Sync plugin (1.11.0 or later) has the command "Sync bestiary from the character sheet". It writes the notes and tokens into the vault.
+
+## 5e.tools library (DM only)
+
+Each run also builds everything else in 5e.tools from the official books, the playtest (Unearthed Arcana) collection and the whole homebrew collection. That covers spells, classes and subclasses with their features, species, backgrounds, feats, class options, items, rules, conditions, deities, tables and more, about 85,000 entries in 38 categories. It goes into `chars/_5etools_raw/` on the `data` branch, about 120 MB.
+
+The sheet shows it on the DM's Vault > 5e.tools page, as 5e.tools has it. It is kept apart from the sheet's own lists and never changes a character. A category downloads when you first open it. Homebrew from the full collection only appears once its book is turned on in Vault > Sources. Players never see this page.
+
+The first run after installing this pushes about 190 MB (library plus bestiary). Later runs only push the files that changed.
+
+## New for the sheet
+
+Each run also converts the spells, feats, species, backgrounds, classes, subclasses and class options (invocations, maneuvers, metamagic, Arcane Shots, Rune Knight runes) that the sheet doesn't have yet into the sheet's own format, in `chars/_5etools_sheet/`. It is add-only: anything the sheet already has, by name or by a newer printing, is left out, so the sheet's own versions and house rules win.
+
+- **Which books:** every sheet adds the new entries from official books when it opens. Playtest and homebrew books add theirs once you tick them on Vault > Sources > "Add to the sheet". That list is separate from "Players may browse".
+- **Wired automatically:** feat ability score increases, spells and uses; subclass features, bonus spells and uses; background ability scores, skills, tools, origin feat and equipment; species speed, size, darkvision and resistances; invocation spells and prerequisites; spell class lists.
+- **Review list:** everything else is listed on the DM's Vault > New from 5e.tools page. Mark entries "wired" or "not needed" and add notes there (`chars/_dm_review.json`). Claude reads the same list in later sessions to wire the rest.
+- **A book switched off later:** a character keeps anything it already took from that book. It's marked ⚠ on its sheet, the book is named in the tooltip, and a note shows when the character opens. The character records which books its entries came from, so they still load.
+- **After a sheet rebuild:** regenerate `baseline/live.json` (`fivetools/dump.py NEW_SHEET`). It now also lists the sheet's spells, feats and so on, so things the sheet gains natively drop out of the pack.
+
+## Homebrew: stored only once approved
+
+The sync keeps a list of every homebrew and playtest book in `chars/_5etools_books.json`: its name, author and how many spells, creatures, items and so on it has. Your Vault > Sources page uses that list. A homebrew book's contents (creatures, library entries, new-for-the-sheet entries) are stored only if:
+- you approved it on either Sources list ("Players may browse" or "Add to the sheet"), or
+- a character still uses something from it.
+
+When you approve a book that isn't stored yet, it shows ⏳ and saving starts the sync, so its contents arrive a few minutes later. Turning a book off removes its contents at the next run, unless a character still uses something from it.
+
+Playtest (Unearthed Arcana) books are small and always stored. The 26 homebrew books that the item import already used still feed new items as before.
