@@ -39,11 +39,18 @@ jobs:
           mkdir -p _prev
           if git fetch origin "$DATA_BRANCH" --depth 1; then
             for f in $(git ls-tree --name-only "origin/$DATA_BRANCH" "$DATA_DIR/" | grep -E '/_5etools_(pack(_[0-9]+)?|changes)\.json$'); do git show "origin/$DATA_BRANCH:$f" > "_prev/$(basename "$f")"; done
+            git show "origin/$DATA_BRANCH:$DATA_DIR/_bestiary/index.json" > _prev/_bestiary_index.json 2>/dev/null || rm -f _prev/_bestiary_index.json
+            git show "origin/$DATA_BRANCH:$DATA_DIR/_5etools_raw/index.json" > _prev/_5etools_raw_index.json 2>/dev/null || rm -f _prev/_5etools_raw_index.json
+            git show "origin/$DATA_BRANCH:$DATA_DIR/_5etools_sheet/index.json" > _prev/_5etools_sheet_index.json 2>/dev/null || rm -f _prev/_5etools_sheet_index.json
+            # the DM's approvals, and the characters (books their kept 5e.tools entries came from): only those homebrew books are stored
+            git show "origin/$DATA_BRANCH:$DATA_DIR/_dm_sources.json" > _prev/_dm_sources.json 2>/dev/null || rm -f _prev/_dm_sources.json
+            mkdir -p _prev/chars
+            for f in $(git ls-tree --name-only "origin/$DATA_BRANCH" "$DATA_DIR/" | grep -E '\.json$' | grep -vE '/_'); do git show "origin/$DATA_BRANCH:$f" > "_prev/chars/$(basename "$f")" || true; done
           fi
           ls -la _prev
       - name: Build the pack
         id: build
-        run: python sync5e/run.py --site _5e/src --brew _5e/brew --ua _5e/ua --img _5e/img --out _out --prev _prev
+        run: python sync5e/run.py --site _5e/src --brew _5e/brew --ua _5e/ua --img _5e/img --out _out --prev _prev --approvals _prev/_dm_sources.json --chars _prev/chars
       - name: Publish the pack to the data branch
         if: success()
         run: |
@@ -53,10 +60,19 @@ jobs:
           mkdir -p "_data/$DATA_DIR"
           rm -f "_data/$DATA_DIR"/_5etools_pack_*.json
           cp _out/_5etools_pack*.json _out/_5etools_report.md _out/_5etools_changes.json "_data/$DATA_DIR/"
+          if [ -f _out/_5etools_books.json ]; then cp _out/_5etools_books.json "_data/$DATA_DIR/"; fi
           cd _data
+          if [ -d ../_out/_bestiary ]; then rm -rf "$DATA_DIR/_bestiary"; cp -r ../_out/_bestiary "$DATA_DIR/_bestiary"; fi
+          if [ -d ../_out/_5etools_raw ]; then rm -rf "$DATA_DIR/_5etools_raw"; cp -r ../_out/_5etools_raw "$DATA_DIR/_5etools_raw"; fi
+          if [ -d ../_out/_5etools_sheet ]; then rm -rf "$DATA_DIR/_5etools_sheet"; cp -r ../_out/_5etools_sheet "$DATA_DIR/_5etools_sheet"; fi
           git add -A "$DATA_DIR"/_5etools_pack*.json
+          if [ -d "$DATA_DIR/_bestiary" ]; then git add -A "$DATA_DIR/_bestiary"; fi
+          if [ -d "$DATA_DIR/_5etools_raw" ]; then git add -A "$DATA_DIR/_5etools_raw"; fi
+          if [ -d "$DATA_DIR/_5etools_sheet" ]; then git add -A "$DATA_DIR/_5etools_sheet"; fi
+          if [ -f "$DATA_DIR/_5etools_books.json" ]; then git add "$DATA_DIR/_5etools_books.json"; fi
           if git diff --cached --quiet; then echo "5e.tools has nothing new since the last pack."; exit 0; fi
           git add "$DATA_DIR/_5etools_report.md" "$DATA_DIR/_5etools_changes.json"
+          if [ -f "$DATA_DIR/_5etools_books.json" ]; then git add "$DATA_DIR/_5etools_books.json"; fi
           git commit -m "5e.tools sync: $(date -u +%F)"
           git push origin "HEAD:$DATA_BRANCH"
       - name: Keep the report with the run
