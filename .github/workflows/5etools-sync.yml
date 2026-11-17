@@ -34,9 +34,16 @@ jobs:
         run: |
           pip install playwright==1.* 
           python -m playwright install --with-deps chromium
+      - name: Fetch the previous pack (to report what changed)
+        run: |
+          mkdir -p _prev
+          if git fetch origin "$DATA_BRANCH" --depth 1; then
+            for f in $(git ls-tree --name-only "origin/$DATA_BRANCH" "$DATA_DIR/" | grep -E '/_5etools_(pack(_[0-9]+)?|changes)\.json$'); do git show "origin/$DATA_BRANCH:$f" > "_prev/$(basename "$f")"; done
+          fi
+          ls -la _prev
       - name: Build the pack
         id: build
-        run: python sync5e/run.py --site _5e/src --brew _5e/brew --ua _5e/ua --img _5e/img --out _out
+        run: python sync5e/run.py --site _5e/src --brew _5e/brew --ua _5e/ua --img _5e/img --out _out --prev _prev
       - name: Publish the pack to the data branch
         if: success()
         run: |
@@ -45,17 +52,23 @@ jobs:
           git worktree add _data "origin/$DATA_BRANCH"
           mkdir -p "_data/$DATA_DIR"
           rm -f "_data/$DATA_DIR"/_5etools_pack_*.json
-          cp _out/_5etools_pack*.json _out/_5etools_report.md "_data/$DATA_DIR/"
+          cp _out/_5etools_pack*.json _out/_5etools_report.md _out/_5etools_changes.json "_data/$DATA_DIR/"
           cd _data
           git add -A "$DATA_DIR"/_5etools_pack*.json
           if git diff --cached --quiet; then echo "5e.tools has nothing new since the last pack."; exit 0; fi
-          git add "$DATA_DIR/_5etools_report.md"
+          git add "$DATA_DIR/_5etools_report.md" "$DATA_DIR/_5etools_changes.json"
           git commit -m "5e.tools sync: $(date -u +%F)"
           git push origin "HEAD:$DATA_BRANCH"
       - name: Keep the report with the run
         if: always()
         uses: actions/upload-artifact@v4
         with: { name: 5etools-report, path: _out/_5etools_report.md, if-no-files-found: ignore }
+      - name: Tell me when something new arrives
+        if: success() && steps.build.outputs.new_count != '0' && steps.build.outputs.new_count != ''
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          head -c 60000 _out/_5etools_report.md > _new.md
+          gh issue create --title "5e.tools sync: ${{ steps.build.outputs.new_count }} new ($(date -u +%F))" --body-file _new.md || true
       - name: Open an issue when something needs a look
         if: always() && (failure() || steps.build.outputs.status == 'warn')
         env: { GH_TOKEN: '${{ github.token }}' }
