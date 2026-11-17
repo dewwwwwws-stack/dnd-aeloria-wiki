@@ -53261,9 +53261,10 @@ function getSubclassChoiceDefs(cls, sub, clsLevel) {
     if (subLower.includes('gladiator')) _sk('gladiator_bonus_skill', 'Combat Theatrics - Bonus Proficiency', ['Acrobatics','Athletics','Deception','Intimidation','Performance'], 'Bonus Proficiency. You gain proficiency in one of these skills of your choice: Acrobatics, Athletics, Deception, Intimidation, or Performance.');
     if (subLower.includes('hell knight')) _sk('hell_knight_talent_skill', "Diabolical Gift - Devil's Talents", ['Deception','Performance','Sleight of Hand'], 'You also gain proficiency in one of these skills of your choice: Deception, Performance, or Sleight of Hand.');
     if (subLower.includes('rune knight')) {
-      const _runeLv = {"Cloud Rune": 3, "Fire Rune": 3, "Frost Rune": 3, "Hill Rune": 7, "Stone Rune": 3, "Storm Rune": 7}, _runeDesc = {"Cloud Rune": "Cloud Rune. This rune emulates the deceptive magic used by some cloud giants. While wearing or carrying an object inscribed with this rune, you have advantage on Dexterity (Sleight of Hand) checks and Charisma (Deception) checks. In addition, when you or a creature you can see within 30 feet of you is hit by an attack roll, you can use your reaction to invoke the rune and choose a different creature within 30 feet of you, other than the attacker. The chosen creature becomes the target of the attack, using the same roll. This magic can transfer the attack's effects regardless of the attack's range. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Fire Rune": "Fire Rune. This rune's magic channels the masterful craftsmanship of great smiths. While wearing or carrying an object inscribed with this rune, your proficiency bonus is doubled for any ability check you make that uses your proficiency with a tool. In addition, when you hit a creature with an attack using a weapon, you can invoke the rune to summon fiery shackles: the target takes an extra 2d6 fire damage, and it must succeed on a Strength saving throw or be restrained for 1 minute. While restrained by the shackles, the target takes 2d6 fire damage at the start of each of its turns. The target can repeat the saving throw at the end of each of its turns, banishing the shackles on a success. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Frost Rune": "Frost Rune. This rune's magic evokes the might of those who survive in the wintry wilderness, such as frost giants. While wearing or carrying an object inscribed with this rune, you have advantage on Wisdom (Animal Handling) checks and Charisma (Intimidation) checks. In addition, you can invoke the rune as a bonus action to increase your sturdiness. For 10 minutes, you gain a +2 bonus to all ability checks and saving throws that use Strength or Constitution. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Hill Rune": "Hill Rune (7th Level or Higher). This rune's magic bestows a resilience reminiscent of a hill giant. While wearing or carrying an object that bears this rune, you have advantage on saving throws against being poisoned, and you have resistance against poison damage. In addition, you can invoke the rune as a bonus action, gaining resistance to bludgeoning, piercing, and slashing damage for 1 minute. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Stone Rune": "Stone Rune. This rune's magic channels the judiciousness associated with stone giants. While wearing or carrying an object inscribed with this rune, you have advantage on Wisdom (Insight) checks, and you have darkvision out to a range of 120 feet. In addition, when a creature you can see ends its turn within 30 feet of you, you can use your reaction to invoke the rune and force the creature to make a Wisdom saving throw. Unless the save succeeds, the creature is charmed by you for 1 minute. While charmed in this way, the creature has a speed of 0 and is incapacitated, descending into a dreamy stupor. The creature repeats the saving throw at the end of each of its turns, ending the effect on a success. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Storm Rune": "Storm Rune (7th Level or Higher). Using this rune, you can glimpse the future like a storm giant seer. While wearing or carrying an object inscribed with this rune, you have advantage on Intelligence (Arcana) checks, and you can't be surprised as long as you aren't incapacitated. In addition, you can invoke the rune as a bonus action to enter a prophetic state for 1 minute or until you're incapacitated. Until the state ends, when you or another creature you can see within 60 feet of you makes an attack roll, a saving throw, or an ability check, you can use your reaction to cause the roll to have advantage or disadvantage. Once you invoke this rune, you can't do so again until you finish a short or long rest."};
+      // RUNE_EXTRA: runes added from 5e.tools (step 77), { name: { lv, desc } }
+      const _runeX = window.RUNE_EXTRA || {}, _runeLv = Object.assign({"Cloud Rune": 3, "Fire Rune": 3, "Frost Rune": 3, "Hill Rune": 7, "Stone Rune": 3, "Storm Rune": 7}, Object.fromEntries(Object.entries(_runeX).map(([n, r]) => [n, r.lv]))), _runeDesc = Object.assign({"Cloud Rune": "Cloud Rune. This rune emulates the deceptive magic used by some cloud giants. While wearing or carrying an object inscribed with this rune, you have advantage on Dexterity (Sleight of Hand) checks and Charisma (Deception) checks. In addition, when you or a creature you can see within 30 feet of you is hit by an attack roll, you can use your reaction to invoke the rune and choose a different creature within 30 feet of you, other than the attacker. The chosen creature becomes the target of the attack, using the same roll. This magic can transfer the attack's effects regardless of the attack's range. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Fire Rune": "Fire Rune. This rune's magic channels the masterful craftsmanship of great smiths. While wearing or carrying an object inscribed with this rune, your proficiency bonus is doubled for any ability check you make that uses your proficiency with a tool. In addition, when you hit a creature with an attack using a weapon, you can invoke the rune to summon fiery shackles: the target takes an extra 2d6 fire damage, and it must succeed on a Strength saving throw or be restrained for 1 minute. While restrained by the shackles, the target takes 2d6 fire damage at the start of each of its turns. The target can repeat the saving throw at the end of each of its turns, banishing the shackles on a success. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Frost Rune": "Frost Rune. This rune's magic evokes the might of those who survive in the wintry wilderness, such as frost giants. While wearing or carrying an object inscribed with this rune, you have advantage on Wisdom (Animal Handling) checks and Charisma (Intimidation) checks. In addition, you can invoke the rune as a bonus action to increase your sturdiness. For 10 minutes, you gain a +2 bonus to all ability checks and saving throws that use Strength or Constitution. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Hill Rune": "Hill Rune (7th Level or Higher). This rune's magic bestows a resilience reminiscent of a hill giant. While wearing or carrying an object that bears this rune, you have advantage on saving throws against being poisoned, and you have resistance against poison damage. In addition, you can invoke the rune as a bonus action, gaining resistance to bludgeoning, piercing, and slashing damage for 1 minute. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Stone Rune": "Stone Rune. This rune's magic channels the judiciousness associated with stone giants. While wearing or carrying an object inscribed with this rune, you have advantage on Wisdom (Insight) checks, and you have darkvision out to a range of 120 feet. In addition, when a creature you can see ends its turn within 30 feet of you, you can use your reaction to invoke the rune and force the creature to make a Wisdom saving throw. Unless the save succeeds, the creature is charmed by you for 1 minute. While charmed in this way, the creature has a speed of 0 and is incapacitated, descending into a dreamy stupor. The creature repeats the saving throw at the end of each of its turns, ending the effect on a success. Once you invoke this rune, you can't do so again until you finish a short or long rest.", "Storm Rune": "Storm Rune (7th Level or Higher). Using this rune, you can glimpse the future like a storm giant seer. While wearing or carrying an object inscribed with this rune, you have advantage on Intelligence (Arcana) checks, and you can't be surprised as long as you aren't incapacitated. In addition, you can invoke the rune as a bonus action to enter a prophetic state for 1 minute or until you're incapacitated. Until the state ends, when you or another creature you can see within 60 feet of you makes an attack roll, a saving throw, or an ability check, you can use your reaction to cause the roll to have advantage or disadvantage. Once you invoke this rune, you can't do so again until you finish a short or long rest."}, Object.fromEntries(Object.entries(_runeX).map(([n, r]) => [n, r.desc])));
       defs.push({ id: 'rune_knight_runes', label: 'Rune Carver - Runes Known', minLevel: 3, type: 'multi-select',
-        options: ["Cloud Rune", "Fire Rune", "Frost Rune", "Hill Rune", "Stone Rune", "Storm Rune"].filter(r => level >= _runeLv[r]), optionDescs: _runeDesc,
+        options: ["Cloud Rune", "Fire Rune", "Frost Rune", "Hill Rune", "Stone Rune", "Storm Rune"].concat(Object.keys(_runeX)).filter(r => level >= _runeLv[r]), optionDescs: _runeDesc,
         maxCount: level >= 15 ? 5 : level >= 10 ? 4 : level >= 7 ? 3 : 2,
         desc: 'You learn two runes of your choice, from among the runes described below, and each time you gain a level in this class, you can replace one rune you know with a different one from this feature. When you reach certain levels in this class, you learn additional runes, as shown in the Runes Known table.', wires: ['display'] });
     }
@@ -98376,6 +98377,25 @@ window._it5eUsed = window._it5eUsed || {};
 .vt-sgh{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);padding:8px 4px 2px;font-weight:600}
 .vt-pillgrid{display:flex;flex-wrap:wrap;gap:5px}.vt-quick{display:inline-flex;gap:0;margin:0 6px}.vt-quick .vt-src{border-radius:0;margin-left:-1px}.vt-quick .vt-src:first-child{border-radius:4px 0 0 4px}.vt-quick .vt-src:last-child{border-radius:0 4px 4px 0}
 .vt-src{font:inherit;font-size:12.5px;padding:3px 9px;border:1px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text2);cursor:pointer;white-space:nowrap}
+.sp-off{display:inline-block;flex:none;align-self:center;margin-left:5px;color:#e0b341;font-size:.9em;cursor:help}
+select.sp-off-sel{outline:1px solid #e0b341;outline-offset:1px}
+.vt-pend{font-size:.85em}
+.vt-srcmode{display:flex;gap:6px;margin:0 0 10px}
+.vt-src.vt-lock{opacity:.75;cursor:default}
+.r5body ul.vt-wl-list{margin:0 0 8px 18px}.r5body ul.vt-wl-list.ok li::marker{content:'✓ ';color:#57ab5a}.r5body ul.vt-wl-list.todo li::marker{content:'• ';color:#e0b341}
+.vt-note{width:100%;box-sizing:border-box;background:transparent;color:inherit;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;font-size:13px}
+.vt-rawbar{padding:4px 2px 12px;display:flex;flex-direction:column;gap:6px}
+.vt-rawnote{font-size:12.5px;color:var(--text3);margin-bottom:2px}
+.vt-rawgrp{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.vt-rawg{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);min-width:92px}
+.r5body p{margin:0 0 7px}.r5body ul{margin:0 0 8px 18px;padding:0}.r5body li{margin:0 0 3px}
+.r5body .r5h0{font-weight:700;font-size:14.5px;margin:12px 0 5px;color:var(--accent)}
+.r5body .r5h1{font-weight:700;margin:10px 0 4px}.r5body .r5h2{font-weight:600;font-style:italic;margin:8px 0 3px}
+.r5body .r5c{margin:0 0 3px}.r5body .r5box,.r5body blockquote{border-left:3px solid var(--border);padding:4px 10px;margin:6px 0 10px;background:rgba(127,127,127,.06)}
+.r5body .r5ref{margin:4px 0 8px 8px}.r5body .r5cap{font-weight:600;margin:8px 0 3px}
+.r5body table.r5t{border-collapse:collapse;margin:4px 0 10px;font-size:12.5px;width:100%}.r5body .r5t td,.r5body .r5t th{border:1px solid var(--border);padding:3px 6px;text-align:left;vertical-align:top}
+.r5body a.r5{color:var(--accent);cursor:pointer;text-decoration:underline dotted}
+.vt-srcfind{margin-left:auto;padding:4px 10px;border-radius:14px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit;font-size:12.5px;min-width:200px}
 .vt-srcn{font-size:10px;opacity:.65;font-weight:400;margin-left:3px}.vt-src:hover{border-color:var(--accent)}.vt-src.on{background:#337ab7;border-color:#2e6da4;color:#fff;font-weight:600}.vt-src.part{border-color:#337ab7;color:#337ab7}
 .vt-hp{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;flex:none;margin:6px 0}.vt-hp div{height:100%}.vt-card .vt-sum+.vt-tags,.vt-card .vt-hp+.vt-tags{margin-top:auto}
 /* the Vault is the DM panel: old tabs show the DM page under the Vault's bar */
@@ -98421,6 +98441,9 @@ a.vt-pill.vt-wl{border-bottom:1px solid var(--accent)}
 .tbtn.vt-on{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
 .vt-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border2);border-radius:5px;padding:2px 8px;font-size:12px}.vt-chip a{cursor:pointer}.vt-chip a+a{color:var(--text3)}.vt-chip.on{border-color:var(--accent);color:var(--accent)}
 .vt-gl{width:100%;height:100%;object-fit:contain;position:relative;z-index:1;display:block}
+.vt-sb{font-family:var(--font-body);font-size:13px;line-height:1.5}.vt-sbl{margin:1px 0}.vt-sbab{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin:8px 0;text-align:center;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:6px 0}.vt-sbab div{display:flex;flex-direction:column;font-size:12px}.vt-sbab b{font-size:10px;letter-spacing:1px;color:var(--text3)}
+.vt-sbh{font-family:var(--font-ui);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);border-bottom:1px solid var(--border);margin:12px 0 6px;padding-bottom:2px;font-weight:600}.vt-sbe{margin:0 0 6px}.vt-sbe .vt-rich>div{margin:0 0 4px}.vt-sbi{color:var(--text3);font-size:12px}
+.vt-token{max-height:220px}
 .vt-danger{background:var(--red)!important}.vt-filterbtn{display:none}
 @media (max-width:1100px){.vt-side{width:220px}.vt-body{position:relative}.vt-detail{position:absolute;right:0;top:0;bottom:0;width:min(400px,100%);z-index:5;box-shadow:var(--shadow-lg)}}
 @media (max-width:820px){.vt-top{flex-wrap:nowrap!important;padding:6px 10px}.vt-top .vt-tab,.vt-top .tbtn{white-space:nowrap;flex:none}.vt-filterbtn{display:inline-block}.vt-side{position:absolute;left:0;top:0;bottom:0;z-index:6;width:min(280px,88%);background:var(--bg);box-shadow:var(--shadow-lg);transform:translateX(-105%);transition:transform .15s}
@@ -98439,6 +98462,7 @@ a.vt-pill.vt-wl{border-bottom:1px solid var(--accent)}
 const VAULT_SRC_FILE = '_dm_sources.json';
 let _vaultSources = null;          // null = no list saved: everything allowed. Else { approved: {SRC: true} }
 let _vaultSourcesSHA = null, _vaultSourcesAt = 0;
+let _vaultSync = {};               // books the DM ticked "Add to the sheet" (official books are always added; step 77)
 function vaultSourceOf(def) { return !def ? 'Unknown' : def.homebrew ? 'Homebrew' : (def.source || 'Unknown'); }
 function vaultSourceOk(def) {
   if (!_vaultSources || !_vaultSources.approved) return true;
@@ -98452,11 +98476,13 @@ async function vaultLoadSources(force) {
     const before = JSON.stringify(_vaultSources);
     _vaultSources = content && content.approved ? { approved: content.approved } : null;
     _vaultSourcesSHA = sha;
+    { const was = JSON.stringify(_vaultSync); _vaultSync = (content && content.sync) || {}; if (was !== JSON.stringify(_vaultSync) && typeof spLoad === 'function' && typeof _SP !== 'undefined' && _SP.idx) spLoad(true); }
     if (before !== JSON.stringify(_vaultSources)) ['renderMagicItemBrowser', 'renderSpellBrowser', 'renderGearBrowser'].forEach(f => { try { if (typeof window[f] === 'function') window[f](); } catch (e) {} });
   } catch (e) { if (e && e.status === 404) { _vaultSources = null; _vaultSourcesSHA = null; } }
 }
-async function vaultSaveSources(approved) {
-  const body = approved ? { approved } : {};
+async function vaultSaveSources(approved, sync) {
+  if (sync) _vaultSync = sync;
+  const body = Object.assign(approved ? { approved } : {}, Object.keys(_vaultSync).length ? { sync: _vaultSync } : {});
   try { await GH.putFile(VAULT_SRC_FILE, body, _vaultSourcesSHA); }
   catch (e) {
     if (e.status !== 422 && e.status !== 409) throw e;
@@ -98466,7 +98492,7 @@ async function vaultSaveSources(approved) {
   _vaultSources = approved ? { approved } : null;
   try { const { sha } = await GH.getFile(VAULT_SRC_FILE); _vaultSourcesSHA = sha; } catch (e) {}
 }
-window.vaultSourceOk = vaultSourceOk; window.vaultSourceOf = vaultSourceOf; window.vaultLoadSources = vaultLoadSources; window.vaultSaveSources = vaultSaveSources;
+window.vaultSrcMode = typeof vaultSrcMode === 'function' ? vaultSrcMode : null; window.vaultSourceOk = vaultSourceOk; window.vaultSourceOf = vaultSourceOf; window.vaultLoadSources = vaultLoadSources; window.vaultSaveSources = vaultSaveSources;
 { // players pick the list up with the DM's item edits (same timer), at most every 5 minutes
   const _l = loadDMItemOverrides;
   loadDMItemOverrides = async function () { try { vaultLoadSources(); } catch (e) {} return _l.apply(this, arguments); };
@@ -98497,13 +98523,38 @@ function vaultOkSubclass(cls, name) {
   return !e || vaultOk('subclasses', e[0], e[1].source);
 }
 Object.assign(window, { vaultSrc, vaultOk, vaultOkFeat, vaultOkSubclass });
-function vaultSourceName(s) { return (VAULT_SRC_META[s] || [s])[0] || s; }
-function vaultSourceGroup(s) { return (VAULT_SRC_META[s] || [s, 'homebrew'])[1]; }
+function vaultSourceName(s) { if (VAULT_SRC_META[s]) return VAULT_SRC_META[s][0] || s; const n = typeof _vBrewName === 'function' && _vBrewName(s); return n ? n[0] : s; }
+// homebrew that only the bestiary brings (the full 5e.tools homebrew collection): off until the DM turns the book on
+// every homebrew and playtest book (names and counts, no contents): chars/_5etools_books.json, from the weekly sync.
+// A homebrew book's contents are stored by the sync only once the DM approves it (either list).
+const _VC = { books: null, tried: false };
+function _vCatLoad() { if (_VC.tried) return; _VC.tried = true; GH.getFile('_5etools_books.json').then(x => { _VC.books = (x.content && x.content.books) || {}; if (_V.tab === 'sources') { _V.srcDraft = null; vaultDraw('keep'); } }).catch(() => {}); }
+function _vStored(s) {   // are this book's contents stored (in the sheet itself or in a pack)?
+  if (VAULT_SRC_META[s] && !(_VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew')) return true;
+  if (_VB.idx && _VB.idx.counts && _VB.idx.counts[s]) return true;
+  if (typeof _VR !== 'undefined' && _VR.idx && Object.values(_VR.idx.cats || {}).some(c => c.counts && c.counts[s])) return true;
+  if (typeof _SP !== 'undefined' && _SP.idx && Object.values(_SP.idx.kinds || {}).some(k => k.counts && k.counts[s])) return true;
+  return false;
+}
+function _vPending(draftOn) {   // homebrew books turned on whose contents the sync has not stored yet
+  if (!_VC.books) return [];
+  return Object.keys(_VC.books).filter(a => _VC.books[a][2] === 'homebrew' && draftOn(a) && !_vStored(a));
+}
+function vaultExtraBrew(s) {
+  if (_VC.books && _VC.books[s]) return !!_VC.books[s][4];
+  if (typeof _VB === 'undefined') return false;
+  const a = _VB.idx && _VB.idx.extra, b = typeof _VR !== 'undefined' && _VR.idx && _VR.idx.extra;
+  if (!a && !b) return false;
+  if (!_VB.extraSet || _VB.extraSet._a !== a || _VB.extraSet._b !== b) { _VB.extraSet = new Set([...(a || []), ...(b || [])]); _VB.extraSet._a = a; _VB.extraSet._b = b; }
+  return _VB.extraSet.has(s);
+}
+function _vBrewName(s) { const n = (typeof _VB !== 'undefined' && _VB.idx && _VB.idx.names && _VB.idx.names[s]) || (typeof _VR !== 'undefined' && _VR.idx && _VR.idx.names && _VR.idx.names[s]); if (n) return n; const c = typeof _VC !== 'undefined' && _VC.books && _VC.books[s]; return c ? [c[0], c[1], '', c[2]] : null; }
+function vaultSourceGroup(s) { if (VAULT_SRC_META[s]) return VAULT_SRC_META[s][1]; const n = typeof _vBrewName === 'function' && _vBrewName(s); return n && n[3] === 'playtest' ? 'playtest' : 'homebrew'; }
 const VAULT_LEGACY = { party: 1, keystats: 1, summons: 1, campaigns: 1, calendar: 1, worldmap: 1, admin: 1 };
-const VAULT_PLAYER_TABS = ['spells', 'featlib', 'itemlib', 'magic', 'classes', 'species', 'bgs'];
+const VAULT_PLAYER_TABS = ['spells', 'featlib', 'itemlib', 'magic', 'classes', 'species', 'bgs', 'bestiary'];
 const VAULT_LEGACY_NOTE = { party: 'live HP, rests and the full party cards', keystats: 'the numbers you ask for most, side by side', items: 'add your own items or change any book item', feats: 'custom feats, feat text and what feats grant',
   summons: 'pictures and notes for summoned creatures', campaigns: 'groups, colours and levelling', calendar: 'the world calendar', worldmap: 'the world map', admin: 'PIN, characters, languages and defaults' };
-const VAULT_TABS = [['party', 'Party'], ['chars', 'Characters'], ['spells', 'Spells'], ['featlib', 'Feats'], ['itemlib', 'Items'], ['magic', 'Magic Items'], ['classes', 'Classes'], ['species', 'Species'], ['bgs', 'Backgrounds'], ['keystats', 'Key Stats'], ['summons', 'Summons'], ['campaigns', 'Campaigns'], ['calendar', 'Calendar'], ['worldmap', 'World Map'], ['sources', 'Sources'], ['admin', 'Admin']];
+const VAULT_TABS = [['party', 'Party'], ['chars', 'Characters'], ['spells', 'Spells'], ['featlib', 'Feats'], ['itemlib', 'Items'], ['magic', 'Magic Items'], ['classes', 'Classes'], ['species', 'Species'], ['bgs', 'Backgrounds'], ['bestiary', 'Bestiary'], ['raw', '5e.tools'], ['keystats', 'Key Stats'], ['summons', 'Summons'], ['campaigns', 'Campaigns'], ['calendar', 'Calendar'], ['worldmap', 'World Map'], ['sources', 'Sources'], ['admin', 'Admin']];
 const VAULT_RARITIES = ['common', 'uncommon', 'rare', 'very rare', 'legendary', 'artifact', 'primeval vestige', 'var', 'unknown'];
 const VAULT_RAR_NOTE = { common: '≈100 GP · level 1+', uncommon: '≈400 GP · level 1+', rare: '≈4,000 GP · level 5+', 'very rare': '≈40,000 GP · level 11+',
   legendary: '≈200,000 GP · level 17+', artifact: 'priceless · one of a kind', var: 'tier depends on the version' };
@@ -99159,6 +99210,7 @@ function vaultPickLevelUpSpells() {
 { const _ol = openLevelUpSpellModal;
   openLevelUpSpellModal = function () { const x = _ol.apply(this, arguments); if (window._luOldModal) return x; try { closeModal('levelup-spell-modal'); vaultPickLevelUpSpells(); } catch (e) { console.error('vault spells', e); openModal('levelup-spell-modal'); } return x; };
   window.openLevelUpSpellModal = openLevelUpSpellModal; }
+Object.assign(window, { vaultCreatureVisible });
 Object.assign(window, { vaultPickFormBase, vaultCustomItem, vaultPickLevelUpSpells, vaultLuRefresh });
 Object.assign(window, { vaultPickPills, vaultPickSelect, vaultPickChoiceList, vaultPickInvocations, vaultPickClassSel, vaultPickFeatRow, vaultPickValuables, vaultPickMounts });
 Object.assign(window, { vaultPick, vaultPickAct, vaultPickSpells, vaultPickMagic, vaultPickItems, vaultPickSpecies, vaultPickBackground, vaultPickFeat });
@@ -99176,7 +99228,191 @@ Object.assign(window, { vaultPick, vaultPickAct, vaultPickSpells, vaultPickMagic
 { const _gb = openGearBrowser;
   openGearBrowser = function (replaceRowIdx) { if (replaceRowIdx !== undefined && replaceRowIdx !== null) return _gb.apply(this, arguments); vaultPickItems('Gear'); };
   window.openGearBrowser = openGearBrowser; }
-const VAULT_LIB = { opts: VAULT_OPTS, species: VAULT_SPECIES, bgs: VAULT_BGS, chars: VAULT_CHARS, spells: VAULT_SPELLS, featlib: VAULT_FEATS, itemlib: VAULT_ITEMS, magic: VAULT_MAGIC, classes: VAULT_CLASSES };
+// ───────── Bestiary (DM) / Creatures (players) ─────────
+// Data: chars/_bestiary/index.json + one file per book, written by the weekly 5e.tools sync. Loaded on first visit,
+// book by book (approved books only for players). Players see only creatures the DM marks, plus what their own
+// character can use: familiars, creatures summoned by spells they have, and Wild Shape beasts within their limits.
+const _VB = { idx: null, books: {}, loading: false, err: null, vis: null, visSHA: null, want: 0, got: 0 };
+const VAULT_CREATURE_FILE = '_dm_creatures.json';
+const _vCrNum = c => { const t = String(c == null ? '' : c); if (!t || t === 'Unknown') return null; const f = t.match(/^(\d+)\/(\d+)$/); return f ? f[1] / f[2] : parseFloat(t); };
+const _V_CRBAND = [['CR 0 – 1/4', 0, 0.25], ['CR 1/2 – 1', 0.5, 1], ['CR 2 – 4', 2, 4], ['CR 5 – 10', 5, 10], ['CR 11 – 16', 11, 16], ['CR 17+', 17, 99]];
+const _vCrBand = n => n == null ? 'CR unknown' : (_V_CRBAND.find(([, a, b]) => n >= a && n <= b) || ['CR unknown'])[0];
+const _vTokUrl = tk => !tk ? '' : /^https?:/.test(tk) ? tk : encodeURI('https://raw.githubusercontent.com/5etools-mirror-3/5etools-img/main/' + tk);
+async function _vBeastLoad() {
+  if (_VB.loading) return; _VB.loading = true; _VB.err = null;
+  try {
+    if (!_VB.idx) _VB.idx = (await GH.getFile('_bestiary/index.json')).content;
+    try { const v = await GH.getFile(VAULT_CREATURE_FILE); _VB.vis = (v.content && v.content.visible) || {}; _VB.visSHA = v.sha; } catch (e) { _VB.vis = {}; }
+    const on = a => !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[a]);
+    const books = Object.keys(_VB.idx.files).filter(a => vaultExtraBrew(a) ? on(a) : (isDM || !_vaultSources || !_vaultSources.approved || on(a)));
+    const files = books.flatMap(a => _VB.idx.files[a].map(f => [a, f.f])).filter(([, f]) => !_VB.books[f]);
+    _VB.want = files.length; _VB.got = 0;
+    let last = 0;
+    const one = async ([a, f]) => { try { _VB.books[f] = (await GH.getFile('_bestiary/' + f)).content || []; } catch (e) { _VB.books[f] = []; } _VB.got++;
+      if (Date.now() - last > 700 && _V.tab === 'bestiary') { last = Date.now(); delete _V.rows.bestiary; vaultDraw('keep'); } };
+    for (let i = 0; i < files.length; i += 6) await Promise.all(files.slice(i, i + 6).map(one));   // six at a time
+  } catch (e) { _VB.err = e && e.status === 404 ? 'No bestiary yet: it is added by the 5e.tools sync (run it from Vault > Sources).' : 'Could not load the bestiary: ' + (e.message || e); }
+  _VB.loading = false; _V.lx = null; if (_V.tab === 'bestiary') { delete _V.rows.bestiary; vaultDraw('keep'); }
+}
+// What the open character can use (players' Creatures page, and a filter for the DM)
+function _vCharCreatureCtx() {
+  if (typeof currentChar === 'undefined' || !currentChar) return null;
+  const has = n => { const sp = PHB_SPELL_LIST.find(s => s.name.toLowerCase() === String(n).toLowerCase()); return sp && typeof isSpellKnownOrPrepared === 'function' && isSpellKnownOrPrepared(sp.key); };
+  let chain = false; try { chain = parseInvocations().some(e => /Pact of the Chain/.test(e.name)); } catch (e) {}
+  const dl = typeof getClassLevelCount === 'function' ? getClassLevelCount('druid') : 0;
+  const moon = dl && (currentChar.classes || []).some(c => c.class === 'druid' && /moon/i.test(c.subclass || ''));
+  const wsCr = dl >= 8 ? 1 : dl >= 4 ? 0.5 : dl >= 2 ? 0.25 : -1;
+  return { fam: has('Find Familiar') || chain, chain, has, dl, wsCr: moon ? Math.max(wsCr, Math.floor(dl / 3)) : wsCr, wsFly: dl >= 8 };
+}
+const _V_CHAIN = ['imp', 'pseudodragon', 'quasit', 'skeleton', 'slaad tadpole', 'sphinx of wonder', 'sprite', 'venomous snake'];
+function _vWhyCan(e, c) {
+  const out = []; if (!c) return out;
+  if (c.fam && (e.fam || (c.chain && _V_CHAIN.includes(e.n.toLowerCase())))) out.push('Familiar');
+  if (e.sum && c.has(e.sum)) out.push('Summoned by your spell');
+  if (c.wsCr >= 0 && e.t === 'beast' && _vCrNum(e.cr) != null && _vCrNum(e.cr) <= c.wsCr && (c.wsFly || !/fly/i.test(String(e.sb.speed || '')))) out.push('Wild Shape');
+  return out;
+}
+function _vStatblock(sb) {
+  const mod = v => { const m = Math.floor((v - 10) / 2); return (m >= 0 ? '+' : '') + m; };
+  const ab = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
+  const lst = L => (L || []).map(o => Object.entries(o).map(([k, v]) => _vCap(k) + ' ' + (v >= 0 ? '+' : '') + v).join('')).join(', ');
+  const line = (l, v) => v != null && v !== '' && !(Array.isArray(v) && !v.length) ? `<div class="vt-sbl"><b>${l}</b> ${_itE(Array.isArray(v) ? v.join(', ') : v)}</div>` : '';
+  const sect = (title, L, intro) => (L && L.length) ? `<div class="vt-sbh">${title}</div>${intro ? `<p class="vt-sbi">${_itE(intro)}</p>` : ''}` + L.map(x => `<div class="vt-sbe">${_vSbText((x.name ? `${x.name}. ` : '') + (x.desc || ''))}</div>`).join('') : '';
+  return `<div class="vt-sb">${line('Armor Class', sb.ac + (sb.ac_class ? ` (${sb.ac_class})` : ''))}${line('Hit Points', sb.hp + (sb.hit_dice ? ` (${sb.hit_dice})` : ''))}${line('Speed', sb.speed)}${line('Initiative', sb.initiative_text)}
+    ${sb.stats ? `<div class="vt-sbab">${sb.stats.map((v, i) => `<div><b>${ab[i]}</b><span>${v} (${mod(v)})</span></div>`).join('')}</div>` : ''}
+    ${line('Saving Throws', lst(sb.saves))}${line('Skills', lst(sb.skillsaves))}${line('Vulnerabilities', sb.damage_vulnerabilities)}${line('Resistances', sb.damage_resistances)}${line('Immunities', [sb.damage_immunities, sb.condition_immunities].filter(Boolean).join('; '))}
+    ${line('Senses', sb.senses)}${line('Languages', sb.languages)}${line('Challenge', sb.cr)}${line('Habitat', sb.habitat)}
+    ${sect('Traits', sb.traits)}${sect('Actions', sb.actions)}${sect('Bonus Actions', sb.bonus_actions)}${sect('Reactions', sb.reactions)}${sect('Legendary Actions', sb.legendary_actions, sb.legendary_description)}${sect('Mythic Actions', sb.mythic_actions, sb.mythic_description)}</div>`;
+}
+function _vSbText(t) {   // statblock text: the sheet's formatter and rules links; [[Tools/Spells/X|Y]] become links that open the spell here
+  const L = [];
+  t = String(t || '').replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (m, path, shown) => { L.push([path.split('/').pop(), shown || path.split('/').pop()]); return `\u27e6${L.length - 1}\u27e7`; });
+  return _vText(t).replace(/\u27e6(\d+)\u27e7/g, (m, i) => { const [n, shown] = L[+i]; const sp = PHB_SPELL_LIST.find(s => s.name.toLowerCase() === n.toLowerCase());
+    return sp ? `<a class="vt-wl" data-k="${_itE(sp.key)}" onclick="vaultPeek('spells',this.dataset.k)">${_itE(shown)}</a>` : _itE(shown); });
+}
+async function vaultCreatureVisible(key, on) {
+  if (!isDM) return; const vis = Object.assign({}, _VB.vis || {}); if (on) vis[key] = true; else delete vis[key];
+  try { await GH.putFile(VAULT_CREATURE_FILE, { visible: vis }, _VB.visSHA); }
+  catch (e) { if (e.status !== 409 && e.status !== 422) { toast && toast('Not saved: ' + e.message, 'warn'); return; } const { sha } = await GH.getFile(VAULT_CREATURE_FILE).catch(() => ({})); await GH.putFile(VAULT_CREATURE_FILE, { visible: vis }, sha); }
+  _VB.vis = vis; try { _VB.visSHA = (await GH.getFile(VAULT_CREATURE_FILE)).sha; } catch (e) {}
+  delete _V.rows.bestiary; vaultDraw('keep');
+}
+const VAULT_BEAST = {
+  title: 'Bestiary', noun: 'creatures', async: true,
+  ready() { return !_VB.loading && !!_VB.idx; },
+  rows() {
+    if (!_VB.idx || (!_VB.loading && _VB.want && _VB.got < _VB.want && !_VB.err) || (!_VB.loading && !Object.keys(_VB.books).length && !_VB.err)) { if (!_VB.loading) _vBeastLoad(); }
+    const L = Object.values(_VB.books).flat(), keys = new Set(L.map(e => e.k)), ok = a => isDM || !_vaultSources || !_vaultSources.approved || !!_vaultSources.approved[a];
+    const byKey = new Map(L.map(e => [e.k, e])), ctx = _vCharCreatureCtx(), out = [];
+    for (const e of L) {
+      if (!ok(e.a)) continue;
+      if (e.rp && keys.has(e.rp) && ok((byKey.get(e.rp) || {}).a)) continue;   // the newest printing wins (among books in use)
+      const why = _vWhyCan(e, ctx), shown = !!(_VB.vis || {})[e.k];
+      if (!isDM && !shown && !why.length) continue;
+      const crn = _vCrNum(e.cr), sb = e.sb || {};
+      out.push({ d: e, key: e.k, name: e.n, group: _vCrBand(crn), glyph: '🐉', col: _vHue(e.t), pic: _vTokUrl(e.tk),
+        f: { src: [e.a], cr: [_vCrBand(crn)], type: [_vCap(e.t || 'unknown')], size: String(e.sz || '').split(' or '), env: (e.env || []).map(_vCap),
+          has: [e.fam ? 'Can be a familiar' : null, e.sum ? 'Summoned by a spell' : null, sb.legendary_actions ? 'Legendary actions' : null, /fly/i.test(String(sb.speed || '')) ? 'Flying' : null,
+            (sb.actions || []).concat(sb.traits || []).some(a => /spellcasting/i.test(a.name || '')) ? 'Spellcasting' : null, e.npc ? 'NPC' : null].filter(Boolean),
+          why: why.length ? why : isDM && shown ? ['Shown to players by you'] : [], pv: shown ? ['Players can see'] : ['DM only'] },
+        search: (e.n + ' ' + (e.t || '') + ' ' + (sb.subtype || '')).toLowerCase(), body: () => (sb.traits || []).concat(sb.actions || []).map(x => x.name + ' ' + x.desc).join(' '), crn });
+    }
+    return out;
+  },
+  groups: [..._V_CRBAND.map(x => x[0]), 'CR unknown'], groupColour: g => ['#57ab5a', '#4fb8a8', '#5b8def', '#e0b341', '#f0883e', '#e5534b', '#8b949e'][[..._V_CRBAND.map(x => x[0]), 'CR unknown'].indexOf(g)] || 'var(--accent)',
+  groupNote: () => _VB.loading ? `loading books… ${_VB.got}/${_VB.want}` : '',
+  facets: [{ id: 'why', label: 'For this character', values: ['Familiar', 'Summoned by your spell', 'Wild Shape', 'Shown to players by you'] }, _vSrcFacet, { id: 'cr', label: 'Challenge', values: [..._V_CRBAND.map(x => x[0]), 'CR unknown'] },
+    { id: 'type', label: 'Type', dot: v => _vHue(v.toLowerCase()) }, { id: 'size', label: 'Size', values: ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'] }, { id: 'env', label: 'Habitat' },
+    { id: 'has', label: 'Has', values: ['Can be a familiar', 'Summoned by a spell', 'Legendary actions', 'Spellcasting', 'Flying', 'NPC'], every: true }, { id: 'pv', label: 'Players', values: ['Players can see', 'DM only'], dmOnly: true }],
+  empty() { return _VB.err || (_VB.loading ? `Loading the bestiary… ${_VB.got}/${_VB.want} books` : isDM ? 'No creatures match.' : 'No creatures to show yet: your DM can share some, and familiars, summons and Wild Shape forms you can use appear here.'); },
+  card(r) { const e = r.d, sb = e.sb || {};
+    return _vCardShell(r, '🐉', r.col, `${e.sz || ''} ${e.t || ''} · CR ${e.cr == null ? '?' : e.cr} · ${e.a}`.trim(), `<div class="vt-sum vt-mono">AC ${_itE(sb.ac)} · HP ${_itE(sb.hp)} · ${_itE(String(sb.speed || '').slice(0, 60))}</div>`,
+      r.f.why.filter(w => w !== 'Shown to players by you').map(w => _vTag(w, 'vt-have')).join('') + (isDM && r.f.pv[0] === 'Players can see' ? _vTag('Players can see', 'vt-ch') : '') + (e.fam ? _vTag('Familiar') : '') + (sb.legendary_actions ? _vTag('Legendary', 'vt-att') : ''), (e.al || '').slice(0, 24)); },
+  detail(r) { const e = r.d, sb = e.sb || {};
+    return _vHead(r, '🐉', r.col, `${e.sz || ''} ${e.t || ''}${sb.subtype ? ' (' + sb.subtype + ')' : ''}, ${e.al || ''} · ${vaultSourceName(e.a)}`) +
+      `<div class="vt-pills"><span class="vt-pill">CR ${_itE(e.cr == null ? '?' : e.cr)}</span>${r.f.why.map(w => `<span class="vt-pill vt-have">${_itE(w)}</span>`).join('')}</div>
+      <div class="vt-dbody" style="border-top:1px solid var(--border)">${r.pic ? `<img class="vt-big vt-token" loading="lazy" src="${_itE(r.pic)}" onerror="this.remove()">` : ''}${_vStatblock(sb)}</div>
+      ${isDM ? `<div class="vt-dfoot"><label class="vt-chk${(_VB.vis || {})[e.k] ? ' on' : ''}" style="flex:1"><input type="checkbox" ${(_VB.vis || {})[e.k] ? 'checked' : ''} data-k="${_itE(e.k)}" onchange="vaultCreatureVisible(this.dataset.k,this.checked)"> <span class="vt-lbl" style="text-transform:none">Players can see this creature</span></label></div>` : ''}`; },
+};
+
+// ───────── 5e.tools library (DM only): the raw 5e.tools data, every category, apart from the sheet's own lists ─────────
+// Built by the weekly sync into chars/_5etools_raw (index.json + r_<category>_<n>.json, whole books per file). A category
+// is downloaded when it is first opened; homebrew from the full collection only for books turned on in Vault > Sources.
+const _VR = { idx: null, files: {}, loading: null, want: 0, got: 0, err: null, back: [] };
+const _V_RAWGLYPH = { Magic: '✨', Character: '🧝', Items: '🗡️', Rules: '📜', World: '🌍' };
+const _V_RAWGROUPS = ['Cantrip', ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => 'Level ' + n)];
+async function _vRawIndex() { if (!_VR.idx) _VR.idx = (await GH.getFile('_5etools_raw/index.json')).content; return _VR.idx; }
+function _vRawOn(a) { return !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[a]); }
+async function _vRawLoad(cat) {
+  if (_VR.loading) return; _VR.loading = cat; _VR.err = null;
+  try {
+    const I = await _vRawIndex(), ci = I.cats[cat]; if (!ci) throw new Error('This category is not in the 5e.tools library yet.');
+    const files = ci.files.filter(f => (!f.x || (f.b || []).some(_vRawOn)) && !_VR.files[f.f]);
+    _VR.want = files.length; _VR.got = 0; let last = 0;
+    const one = async f => { try { _VR.files[f.f] = (await GH.getFile('_5etools_raw/' + f.f)).content || []; } catch (e) { _VR.files[f.f] = []; } _VR.got++;
+      if (Date.now() - last > 700 && _V.tab === 'raw') { last = Date.now(); delete _V.rows.raw; vaultDraw('keep'); } };
+    for (let i = 0; i < files.length; i += 6) await Promise.all(files.slice(i, i + 6).map(one));
+  } catch (e) { _VR.err = e && e.status === 404 ? 'No 5e.tools library yet: it is added by the 5e.tools sync (run it from Vault > Sources).' : 'Could not load the 5e.tools library: ' + (e.message || e); }
+  _VR.loading = null; if (_V.tab === 'raw') { delete _V.rows.raw; vaultDraw('keep'); }
+}
+function _vRawCat() { const st = _vS('raw'); return st.rc || 'spell'; }
+function _vRawSafe(h) {   // the pack is plain HTML we build; still, nothing active gets through
+  return String(h || '').replace(/<(?!\/?(p|b|i|ul|li|table|tr|td|th|div|a|blockquote|hr|br)\b)[^>]*>/gi, '').replace(/\son\w+\s*=/gi, ' data-x=').replace(/javascript:/gi, '');
+}
+function vaultRawCat(c) { const st = _vS('raw'); if (st.rc === c) return; st.rc = c; st.f = {}; st.sel = null; st.q = ''; _VR.back = []; delete _V.rows.raw; vaultDraw(); }
+// a link inside an entry: open that entry (its category is loaded if needed), with a way back
+async function vaultRawGo(t, n) {
+  const st = _vS('raw'); const [name, src] = String(n || '').split('|');
+  _VR.back.push({ rc: _vRawCat(), sel: st.sel, q: st.q, f: st.f });
+  if (t !== _vRawCat()) { st.rc = t; st.f = {}; delete _V.rows.raw; }
+  st.q = ''; st.sel = null; vaultDraw();
+  let g = 0; while ((_VR.loading || !_VR.idx) && g++ < 600) await new Promise(r => setTimeout(r, 100));
+  const R = _vRows(), lc = name.toLowerCase(), sc = (src || '').toLowerCase();
+  const hit = R.find(r => r.name.toLowerCase() === lc && (!sc || String(r.d.s).toLowerCase() === sc)) || R.find(r => r.name.toLowerCase() === lc) || R.find(r => r.name.toLowerCase().startsWith(lc));
+  if (hit) { st.sel = hit.key; vaultDraw(); const c = document.querySelector(`#vt-main .vt-card[data-k="${CSS.escape(hit.key)}"]`); if (c) c.scrollIntoView({ block: 'nearest' }); }
+  else { st.q = name; vaultDraw(); }
+}
+function vaultRawBack() { const b = _VR.back.pop(); if (!b) return; const st = _vS('raw'); if (b.rc !== _vRawCat()) { st.rc = b.rc; delete _V.rows.raw; } st.q = b.q; st.f = b.f; st.sel = b.sel; vaultDraw(); }
+const VAULT_RAW = {
+  title: '5e.tools', noun: 'entries', async: true,
+  ready() { return !_VR.loading && !!_VR.idx && !_VR.err; },
+  rows() {
+    const cat = _vRawCat();
+    const ci = _VR.idx && _VR.idx.cats[cat];
+    if (!_VR.loading && !_VR.err && (!ci || ci.files.some(f => (!f.x || (f.b || []).some(_vRawOn)) && !_VR.files[f.f]))) _vRawLoad(cat);
+    if (!ci) return [];
+    const L = ci.files.filter(f => _VR.files[f.f]).flatMap(f => _VR.files[f.f]).filter(e => !e.x || _vRawOn(e.a));
+    const keys = new Map(L.map(e => [e.k, e])), grp = ci.group, out = [];
+    for (const e of L) {
+      if (e.rp && keys.has(e.rp)) continue;   // the newest printing wins
+      const f = Object.assign({}, e.f || {}); f.src = [e.a];
+      const g = f.lvl ? f.lvl[0] : f.cls ? f.cls[0] : f.cat ? f.cat[0] : f.typ ? f.typ[0] : (/[a-z]/i.test(e.n[0]) ? e.n[0].toUpperCase() : '#');
+      out.push({ d: e, key: e.k, name: e.n, group: g, glyph: _V_RAWGLYPH[grp] || '📜', col: _vHue(String(g).toLowerCase()), f,
+        search: (e.n + ' ' + (e.m || '')).toLowerCase(), body: () => String(e.h || '').replace(/<[^>]+>/g, ' ') });
+    }
+    return out;
+  },
+  groups: _V_RAWGROUPS,
+  groupNote: () => _VR.loading ? `loading… ${_VR.got}/${_VR.want}` : '',
+  facets: [_vSrcFacet, { id: 'lvl', label: 'Level', values: _V_RAWGROUPS }, { id: 'sch', label: 'School' }, { id: 'cls', label: 'Class' }, { id: 'cat', label: 'Kind' }, { id: 'typ', label: 'Type' },
+    { id: 'rar', label: 'Rarity', values: ['Common', 'Uncommon', 'Rare', 'Very Rare', 'Legendary', 'Artifact', 'Varies'] }, { id: 'sz', label: 'Size' }, { id: 'has', label: 'Has', every: true }],
+  crumb() {
+    const I = _VR.idx, cur = _vRawCat();
+    if (!I) return `<div class="vt-rawbar"><span class="vt-gnote">${_VR.err ? _itE(_VR.err) : 'Loading the 5e.tools library…'}</span></div>`;
+    const by = {}; Object.entries(I.cats).forEach(([c, ci]) => (by[ci.group] = by[ci.group] || []).push([c, ci]));
+    return `<div class="vt-rawbar"><div class="vt-rawnote">Everything in 5e.tools, as 5e.tools has it: official books, playtest material and homebrew. Only you can see this, and nothing here changes a character or the sheet's own lists. Homebrew from the full collection appears once its book is turned on in Sources.</div>
+      ${Object.entries(by).map(([g, L]) => `<div class="vt-rawgrp"><span class="vt-rawg">${_V_RAWGLYPH[g] || ''} ${_itE(g)}</span>${L.map(([c, ci]) => { const xs = new Set(I.extra || []), n = Object.entries(ci.counts || {}).reduce((t, [a, k]) => t + (!xs.has(a) || _vRawOn(a) ? k : 0), 0);
+        return `<button class="vt-src${c === cur ? ' on' : ''}" data-c="${c}" title="${ci.n.toLocaleString()} counting homebrew that is switched off" onclick="vaultRawCat(this.dataset.c)">${_itE(ci.label)} <span class="vt-srcn">${n.toLocaleString()}</span></button>`; }).join('')}</div>`).join('')}</div>`;
+  },
+  empty() { return _VR.err || (_VR.loading ? `Loading ${(_VR.idx && _VR.idx.cats[_vRawCat()] || {}).label || ''}… ${_VR.got}/${_VR.want} files` : 'Nothing matches.'); },
+  card(r) { const e = r.d;
+    return _vCardShell(r, r.glyph, r.col, `${e.m || (_VR.idx.cats[_vRawCat()] || {}).label || ''} · ${e.a}`, `<div class="vt-sum">${_itE(String(e.h || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150))}</div>`,
+      e.x ? _vTag('Homebrew') : '', ''); },
+  detail(r) { const e = r.d;
+    return (_VR.back.length ? `<div class="vt-peekbar"><a onclick="vaultRawBack()">← Back</a></div>` : '') + _vHead(r, r.glyph, r.col, `${e.m ? e.m + ' · ' : ''}${vaultSourceName(e.a)}${e.p ? ' p.' + e.p : ''}`) +
+      `<div class="vt-dbody vt-rich r5body" style="border-top:1px solid var(--border)" onclick="const a=event.target.closest('a.r5');if(a){event.preventDefault();vaultRawGo(a.dataset.t,a.dataset.n);}">${_vRawSafe(e.h)}</div>`; },
+};
+const VAULT_LIB = { raw: VAULT_RAW, bestiary: VAULT_BEAST, opts: VAULT_OPTS, species: VAULT_SPECIES, bgs: VAULT_BGS, chars: VAULT_CHARS, spells: VAULT_SPELLS, featlib: VAULT_FEATS, itemlib: VAULT_ITEMS, magic: VAULT_MAGIC, classes: VAULT_CLASSES };
 
 // ───────── the shared page: filters, groups, detail ─────────
 function _vC() { return VAULT_LIB[_V.tab]; }
@@ -99239,7 +99475,7 @@ function _vRows() {
   if (!isDM) R = R.filter(r => !r.d.dmOnly && !r.d.baseOnly && (!_vaultSources || !_vaultSources.approved || !r.f.src || !!_vaultSources.approved[r.f.src[0]]));   // players: approved books only
   const pk = _vPk();
   if (pk) { const ctx = pk.prep ? pk.prep() : null; if (pk.keep) R = R.filter(r => pk.keep(r, ctx)); R.forEach(r => { r.f.mine = pk.tags ? pk.tags(r, ctx) : []; r.pstate = pk.state ? pk.state(r, ctx) : null; }); }
-  if (!_vC().async || _V.chars) _V.rows[t] = R;
+  if (!_vC().async || (_vC().ready ? _vC().ready() : _V.chars)) _V.rows[t] = R;
   return R;
 }
 function _vPk() { return _V.pick && _V.pick.tab === _V.tab ? _V.pick : null; }
@@ -99339,21 +99575,42 @@ function _vDetail() {
   }
   return h;
 }
+function vaultSrcFind(v) {   // filter the homebrew pills in place (no redraw)
+  _V.srcFind = v; const q = v.trim().toLowerCase();
+  document.querySelectorAll('.vt-sgroup[data-g="homebrew"] .vt-src').forEach(b => { b.style.display = !q || (b.dataset.n || '').includes(q) ? '' : 'none'; });
+}
 function _vSourcesPage() {
   const cnt = {}; ['magic', 'itemlib', 'spells', 'featlib', 'classes', 'species', 'bgs'].forEach(t => (_V.rows[t] || (_V.rows[t] = VAULT_LIB[t].rows().sort((a, b) => a.name.localeCompare(b.name)))).forEach(r => { const s = r.f.src[0]; cnt[s] = (cnt[s] || 0) + 1; }));
-  if (!_V.srcDraft) { _V.srcDraft = {}; Object.keys(cnt).forEach(s => { _V.srcDraft[s] = _vaultSources ? !!_vaultSources.approved[s] : true; }); }
+  if (_VB.idx) Object.entries(_VB.idx.counts || {}).forEach(([a, n]) => { cnt[a] = (cnt[a] || 0) + n; });
+  else if (!_VB.idxTry) { _VB.idxTry = true; GH.getFile('_bestiary/index.json').then(x => { _VB.idx = x.content; if (_V.tab === 'sources') { _V.srcDraft = null; vaultDraw('keep'); } }).catch(() => {}); }
+  if (_VR.idx) Object.values(_VR.idx.cats || {}).forEach(ci => Object.entries(ci.counts || {}).forEach(([a, n]) => { cnt[a] = (cnt[a] || 0) + n; }));
+  else if (!_VR.idxTry) { _VR.idxTry = true; _vRawIndex().then(() => { if (_V.tab === 'sources') { _V.srcDraft = null; vaultDraw('keep'); } }).catch(() => {}); }
+  const sync = _V.srcMode === 'sync';
+  _vCatLoad();
+  if (_VC.books) Object.entries(_VC.books).forEach(([a, b]) => { if (!cnt[a]) cnt[a] = Object.values(b[3] || {}).reduce((t, n) => t + n, 0); });
+  if (typeof _SP !== 'undefined' && _SP.idx) Object.values(_SP.idx.kinds || {}).forEach(k => Object.keys(k.counts || {}).forEach(a => { if (!cnt[a]) cnt[a] = 0; }));
+  if (!_V.srcDraft) { _V.srcDraft = {}; Object.keys(cnt).forEach(s => { _V.srcDraft[s] = sync ? (_vSrcOfficial(s) || !!_vaultSync[s]) : _vaultSources ? !!_vaultSources.approved[s] : !vaultExtraBrew(s); }); }
   const names = Object.keys(cnt), on = names.filter(s => _V.srcDraft[s]).length;
   const groups = VAULT_SRC_GROUPS.map(([g, gl]) => {
     const L = names.filter(s => vaultSourceGroup(s) === g).sort((a, b) => vaultSourceName(a).localeCompare(vaultSourceName(b)));
     if (!L.length) return '';
     const n = L.filter(s => _V.srcDraft[s]).length;
-    return `<div class="vt-sgroup"><div class="vt-sghead"><span class="vt-gname">${gl}</span><span class="vt-gnote">${n} of ${L.length} on</span>
+    const find = g === 'homebrew' && L.length > 40 ? `<input class="vt-srcfind" placeholder="Find a homebrew book…" value="${_itE(_V.srcFind || '')}" oninput="vaultSrcFind(this.value)">` : '';
+    return `<div class="vt-sgroup" data-g="${g}"><div class="vt-sghead"><span class="vt-gname">${gl}</span><span class="vt-gnote">${n} of ${L.length} on</span>${find}
         <button class="tbtn" data-g="${g}" onclick="vaultSrcAll(true,this.dataset.g)">All</button><button class="tbtn" data-g="${g}" onclick="vaultSrcAll(false,this.dataset.g)">None</button></div>
-      <div class="vt-pillgrid">${L.map(s => `<button class="vt-src${_V.srcDraft[s] ? ' on' : ''}" title="${_itE(s)} · ${cnt[s]} entr${cnt[s] === 1 ? 'y' : 'ies'}" data-v="${_itE(s)}" onclick="vaultSrcFlip(this.dataset.v)">${_itE(vaultSourceName(s))} <span class="vt-srcn">${cnt[s]}</span></button>`).join('')}</div></div>`;
+      <div class="vt-pillgrid">${L.map(s => `<button class="vt-src${_V.srcDraft[s] ? ' on' : ''}${sync && _vSrcOfficial(s) ? ' vt-lock' : ''}" title="${_V.srcDraft[s] && _VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew' && !_vStored(s) ? '⏳ Its contents arrive with the next 5e.tools sync · ' : ''}${_VC.books && _VC.books[s] ? _itE(Object.entries(_VC.books[s][3] || {}).map(([k, n]) => n + ' ' + k).join(', ')) + ' · ' : ''}${sync && _vSrcOfficial(s) ? 'Official: always added to the sheet · ' : ''}${_itE(s)} · ${cnt[s]} entr${cnt[s] === 1 ? 'y' : 'ies'}${vaultExtraBrew(s) && (_vBrewName(s) || [])[1] ? ' · by ' + _itE(_vBrewName(s)[1]) : ''}" data-v="${_itE(s)}" data-n="${_itE((vaultSourceName(s) + ' ' + s + ' ' + ((_vBrewName(s) || [])[1] || '')).toLowerCase())}"${_V.srcFind && g === 'homebrew' && !(vaultSourceName(s) + ' ' + s + ' ' + ((_vBrewName(s) || [])[1] || '')).toLowerCase().includes(_V.srcFind.toLowerCase()) ? ' style="display:none"' : ''} onclick="vaultSrcFlip(this.dataset.v)">${_itE(vaultSourceName(s))}${_V.srcDraft[s] && _VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew' && !_vStored(s) ? ' <span class="vt-pend">⏳</span>' : ''} <span class="vt-srcn">${cnt[s]}</span></button>`).join('')}</div></div>`;
   }).join('');
-  return `<div class="vt-srcpage"><h3>Books players may browse</h3>
+  const modeBar = `<div class="vt-srcmode"><button class="vt-src${sync ? '' : ' on'}" onclick="vaultSrcMode('browse')">Players may browse</button><button class="vt-src${sync ? ' on' : ''}" onclick="vaultSrcMode('sync')">Add to the sheet</button></div>`;
+  if (sync) return `<div class="vt-srcpage">${modeBar}<h3>Books whose new content is added to the sheet</h3>
+    <p>The weekly 5e.tools sync adds spells, feats, species, backgrounds, classes, subclasses and class options the sheet does not have yet. Official books are always added (locked). Tick the playtest and homebrew books you want added too; their new entries then appear in the sheet's own pickers and in Vault > New from 5e.tools for checking. Whether players can browse a book is the other list ("Players may browse"). Switching a book off here takes its new entries out again; a character keeps any name it already chose.</p>
+    <div class="vt-srcbar"><button class="tbtn" onclick="vaultSrcAll(false)">None</button>
+      <button class="vt-give" style="flex:none;padding:6px 16px" onclick="vaultSrcSave()">Save (${names.filter(x => _V.srcDraft[x] && !_vSrcOfficial(x)).length} books ticked)</button><span id="vt-src-status" data-m="sync" style="font-size:12px;color:var(--text3)"></span></div>
+    <p style="font-size:12px;color:var(--text3);margin-top:2px">${typeof spStatus === 'function' ? _itE(spStatus()) : ''}</p><p style="font-size:12px;color:var(--text3);margin-top:2px">Homebrew is only stored once you approve a book on either list: until then the sync keeps just its name and what it has. A newly approved book (⏳) arrives with the next sync; saving starts one.</p>
+    ${groups}</div>`;
+  return `<div class="vt-srcpage">${modeBar}${'<p style="font-size:12px;color:var(--text3);margin-top:2px">Homebrew is only stored once you approve a book on either list: until then the sync keeps just its name and what it has. A newly approved book (⏳) arrives with the next sync; saving starts one.</p>'}<h3>Books players may browse</h3>
     <p>Players can only pick spells, feats, subclasses, items and magic items from the highlighted books. The rest stay in your Vault only, and you can still give them to a character. Anything a character already has is never hidden or removed. The number on each book is how many entries it has across all lists.
-      ${_vaultSources ? 'A book that arrives in a later import starts switched off.' : '<b>No list is saved yet, so players see every book.</b>'}</p>
+      ${_vaultSources ? 'A book that arrives in a later import starts switched off.' : '<b>No list is saved yet, so players see every book.</b>'}
+      Homebrew from the full 5e.tools collection (creatures only, for now) stays off until you turn a book on; only books that are on are downloaded, for you and for players.</p>
     <div class="vt-srcbar"><button class="tbtn" onclick="vaultSrcAll(true)">All</button><button class="tbtn" onclick="vaultSrcAll(false)">None</button>
       <span class="vt-quick">${VAULT_SRC_GROUPS.filter(([g]) => names.some(s => vaultSourceGroup(s) === g)).map(([g, gl]) => { const L = names.filter(s => vaultSourceGroup(s) === g), n = L.filter(s => _V.srcDraft[s]).length;
         return `<button class="vt-src${n === L.length ? ' on' : n ? ' part' : ''}" data-g="${g}" title="Turn this whole group on or off" onclick="vaultSrcGroupFlip(this.dataset.g)">${gl}</button>`; }).join('')}</span>
@@ -99402,18 +99659,40 @@ function vaultToggle(g, v) { const st = _vS(); (st.f[g] = st.f[g] || {})[v] = !s
 function vaultClear() { const st = _vS(); st.q = ''; { const q = document.getElementById('vt-q'); if (q) q.value = ''; } st.f = {}; st.open = {}; st.more = {}; vaultDraw(); }
 function vaultSelect(k) { _V.peek = []; const st = _vS(), C = _vC(); if (k && C && C.onPick) { const r = _vRows().find(x => x.key === k); if (r && C.onPick(r, st)) return; } st.sel = k || null; vaultDraw('detail'); }
 function vaultTab(t) { if (_V.pick && t !== _V.pick.tab) return; if ((!isDM || _V.lib) && !VAULT_PLAYER_TABS.includes(t)) return; _V.tab = t; _V.peek = []; _V.lx = null; _V.peekRows = {}; delete _V.rows[t];   /* fresh each visit: new feats, DM edits and pack items show at once */ if (t === 'sources') _V.srcDraft = null; if (t === 'chars') { _V.chars = null; delete _V.rows.chars; } if (VAULT_LEGACY[t]) { _vOrigSwitch(t); } vaultDraw(); }
-function vaultSrcFlip(v) { _V.srcDraft[v] = !_V.srcDraft[v]; vaultDraw('keep'); }
+function _vSrcOfficial(s) { if (typeof spOfficial === 'function' && spOfficial(s)) return true; return !_vBrewName(s) && !['homebrew', 'playtest'].includes(vaultSourceGroup(s)) && s !== 'Homebrew' && s !== 'DM'; }
+function vaultSrcMode(m) { if ((_V.srcMode || 'browse') === m) return; _V.srcMode = m; _V.srcDraft = null; vaultDraw(); }
+function vaultSrcFlip(v) { if (_V.srcMode === 'sync' && _vSrcOfficial(v)) return; _V.srcDraft[v] = !_V.srcDraft[v]; vaultDraw('keep'); }
 function vaultSrcGroupFlip(g) { const L = Object.keys(_V.srcDraft || {}).filter(s => vaultSourceGroup(s) === g); vaultSrcAll(!L.every(s => _V.srcDraft[s]), g); }
-function vaultSrcAll(on, g) { Object.keys(_V.srcDraft || {}).forEach(s => { if (!g || vaultSourceGroup(s) === g) _V.srcDraft[s] = on; }); vaultDraw('keep'); }
+function vaultSrcAll(on, g) {   // the top "All" leaves the full homebrew collection alone; the Homebrew group's All/None follows "Find a homebrew book"
+  const q = g === 'homebrew' ? (_V.srcFind || '').trim().toLowerCase() : '';
+  Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcMode === 'sync' && _vSrcOfficial(s)) return; if (g ? vaultSourceGroup(s) === g && (!q || (vaultSourceName(s) + ' ' + s + ' ' + ((_vBrewName(s) || [])[1] || '')).toLowerCase().includes(q)) : !(on && vaultExtraBrew(s))) _V.srcDraft[s] = on; });
+  vaultDraw('keep');
+}
 async function vaultSrcSave(reset) {
   const st = document.getElementById('vt-src-status'); if (st) st.textContent = 'Saving…';
   try {
-    const ap = {}; Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcDraft[s]) ap[s] = true; });
+    if (_V.srcMode === 'sync') {
+      const was = _vOnNow(); const sy = {}; Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcDraft[s] && !_vSrcOfficial(s)) sy[s] = true; });
+      await vaultSaveSources(_vaultSources ? _vaultSources.approved : null, sy); _V.srcDraft = null;
+      if (typeof spLoad === 'function') await spLoad(true);
+      const pend = _vPending(a => (!!sy[a] || !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[a])) && !was.has(a));
+      vaultDraw(); const s2 = document.getElementById('vt-src-status'); if (s2) s2.textContent = pend.length ? `Saved. ${_vFetchMsg(pend)}` : 'Saved. Their new entries are in the sheet now (other sheets within 30 minutes).';
+      return;
+    }
+    const was = _vOnNow(); const ap = {}; Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcDraft[s]) ap[s] = true; });
     await vaultSaveSources(reset ? null : ap); _V.srcDraft = null; vaultDraw();
-    const s2 = document.getElementById('vt-src-status'); if (s2) s2.textContent = reset ? 'Saved: players see every book.' : 'Saved. Players pick this up within 5 minutes.';
+    const pend = reset ? [] : _vPending(a => (!!ap[a] || !!_vaultSync[a]) && !was.has(a));
+    const s2 = document.getElementById('vt-src-status'); if (s2) s2.textContent = reset ? 'Saved: players see every book.' : 'Saved. Players pick this up within 5 minutes.' + (pend.length ? ' ' + _vFetchMsg(pend) : '');
   } catch (e) { if (st) { st.style.color = 'var(--red)'; st.textContent = 'Not saved: ' + (e && e.message || e); } }
 }
 function vaultSrcReset() { return vaultSrcSave(true); }
+// newly approved homebrew: its contents are not stored yet, so start the sync (it fetches only approved books)
+function _vOnNow() { return new Set([...Object.keys((_vaultSources && _vaultSources.approved) || {}), ...Object.keys(_vaultSync || {})]); }   // books on (either list) before a save
+function _vFetchMsg(pend) {
+  const n = pend.length, what = n === 1 ? vaultSourceName(pend[0]) : `${n} newly approved homebrew books`;
+  if (typeof syncRunNow === 'function' && !(typeof _SYNC !== 'undefined' && _SYNC.busy)) { try { syncRunNow(); } catch (e) {} return `${what}: contents arrive with the 5e.tools sync, which is starting now (a few minutes; progress below).`; }
+  return `${what}: contents arrive with the next 5e.tools sync.`;
+}
 function vaultOpen(tab, lib) {
   let root = document.getElementById('vault-root');
   if (!_V.picking) _V.pick = null;
@@ -99425,7 +99704,7 @@ function vaultOpen(tab, lib) {
     (_V.toolNodes || []).forEach(n => { try { n.remove(); } catch (e) {} });   // kept in memory, re-attached when the tools open again
     const tabs = VAULT_TABS.filter(([t]) => _V.pick ? t === _V.pick.tab : (!_V.lib || VAULT_PLAYER_TABS.includes(t)));
     root.innerHTML = `<div class="vt-top"><span class="vt-brand">${_V.pick ? _itE(_V.pick.title) : _V.lib ? 'Library' : 'Vault'}</span>
-        ${tabs.map(([t, l]) => `<button class="vt-tab" data-t="${t}" onclick="vaultTab(this.dataset.t)">${l}</button>`).join('')}
+        ${tabs.map(([t, l]) => `<button class="vt-tab" data-t="${t}" onclick="vaultTab(this.dataset.t)">${t === 'bestiary' && !isDM ? 'Creatures' : l}</button>`).join('')}
         <span style="flex:1"></span><button class="tbtn" onclick="vaultClose()">← Back to Sheet</button></div>
       <div class="vt-bar"><button class="tbtn vt-filterbtn" onclick="document.getElementById('vault-root').classList.toggle('filters')">☰ Filters</button><span id="vt-title" class="vt-title"></span><span id="vt-count" class="vt-count"></span><input class="vt-search vt-qbar" id="vt-q" type="search" placeholder="Search name or text…" autocomplete="off" oninput="vaultSearch(this.value)"><span style="flex:1"></span><span id="vt-tools" class="vt-tools"></span></div>
       <div id="vt-toolpanel" class="vt-toolpanel" style="display:none"></div>
@@ -99611,6 +99890,261 @@ async function syncChangesLoad(det, force) {
   } catch (e) { box.innerHTML = `<div style="color:var(--text3);font-size:12px">${e && e.status === 404 ? 'No change history yet: it appears after the first sync run.' : 'Could not load the history: ' + _itE(e.message || e)}</div>`; }
 }
 window.syncChangesLoad = syncChangesLoad;
+</script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// NEW FROM 5E.TOOLS (step 77)
+// The weekly sync writes chars/_5etools_sheet: spells, feats, backgrounds, species, classes, subclasses and class
+// options (invocations, maneuvers, metamagic) that this sheet does not have yet, already in the sheet's own shapes.
+// They are added to the sheet's lists when it opens (and every 30 minutes): official books always, playtest and
+// homebrew books once the DM ticks them "Add to the sheet" in Vault > Sources. Add-only: anything the sheet already
+// has is never replaced. What could be wired automatically is (feat ability scores, spells and uses, bonus spells,
+// background choices...); the rest is listed on the DM's Vault > New from 5e.tools page, where the DM marks entries
+// done or not needed (chars/_dm_review.json), and which Claude also works through in later sessions.
+// ═══════════════════════════════════════════════════════════
+const SP_DIR = '_5etools_sheet', SP_REVIEW = '_dm_review.json';
+const _SP = { idx: null, files: {}, at: 0, busy: false, err: null, rows: [], put: { spell: new Set(), feat: new Set(), background: new Set(), race: new Set(), class: new Set(), subclass: new Set(), invocation: new Set(), maneuver: new Set(), metamagic: new Set(), arcaneshot: new Set(), rune: new Set() }, review: {}, off: [], kept: new Set(), reviewSha: null, reviewAt: 0 };
+
+function spOfficial(a) { return !!(_SP.idx && (_SP.idx.official || []).includes(a)); }
+function spBookOn(a) { return spOfficial(a) || !!_vaultSync[a]; }
+const _spKindTab = { spell: 'spells', feat: 'featlib', background: 'bgs', race: 'species', class: 'classes', subclass: 'classes', invocation: 'featlib', maneuver: 'featlib', metamagic: 'featlib', arcaneshot: 'opts', rune: 'opts' };
+const _spKindName = { spell: 'Spell', feat: 'Feat', background: 'Background', race: 'Species', class: 'Class', subclass: 'Subclass', invocation: 'Invocation', maneuver: 'Maneuver', metamagic: 'Metamagic', arcaneshot: 'Arcane Shot', rune: 'Rune' };
+const _SP_BYNAME = new Set(['invocation', 'maneuver', 'metamagic', 'arcaneshot', 'rune']);
+const _spId = (kind, e) => _SP_BYNAME.has(kind) || kind === 'background' ? String(e.name).toLowerCase() : e.key;
+
+// put one entry into the sheet's own tables (never over something the sheet already has)
+function _spPut(kind, e, off) {
+  const P = _SP.put[kind];
+  const flag = off ? { _5e: true, _off: e._b } : { _5e: true };
+  try {
+    if (kind === 'arcaneshot') {
+      const def = (PHB_CLASS_CHOICES.fighter || []).find(d => d.id === 'arcane_shot_options'); if (!def || (def.options || []).some(n => n.toLowerCase() === e.name.toLowerCase())) return false;
+      def.options.push(e.name); ARCANE_SHOT_DESCS[e.name] = e.desc; (_SP.flags = _SP.flags || {})[kind + '|' + e.name.toLowerCase()] = flag; P.add(_spId(kind, e)); return true;
+    }
+    if (kind === 'rune') { const X = window.RUNE_EXTRA = window.RUNE_EXTRA || {}; if (X[e.name]) return false; X[e.name] = { lv: e.lv || 3, desc: e.desc }; (_SP.flags = _SP.flags || {})[kind + '|' + e.name.toLowerCase()] = flag; P.add(_spId(kind, e)); return true; }
+    if (kind === 'spell') {
+      if (PHB_SPELL_LIST.some(s => s.key === e.key || s.name.toLowerCase() === e.name.toLowerCase())) return false;
+      const o = Object.assign({}, e, flag); PHB_SPELL_LIST.push(o); P.add(e.key); return true;
+    }
+    if (kind === 'feat') {
+      const k = e.key; if (PHB_FEATS[k] && !PHB_FEATS[k]._5e) return false;
+      PHB_FEATS[k] = Object.assign({}, e.feat, flag);
+      const nm = typeof _feCodeKey === 'function' ? _feCodeKey(e.name) : k;
+      if (e.engine && typeof FEAT_ENGINE !== 'undefined') { FEAT_ENGINE[k] = JSON.parse(JSON.stringify(e.engine)); try { _FE_BY_NAME[_feClean(e.name)] = k; } catch (x) {}
+        if ((e.engine.picks || []).length && typeof FEAT_EXTRA_CHOICES !== 'undefined' && !FEAT_EXTRA_CHOICES[nm]) FEAT_EXTRA_CHOICES[nm] = { type: 'feat_engine', key: k, _5e: true }; }
+      if (e.asiPool && typeof FEAT_ASI_CHOICES !== 'undefined' && !FEAT_ASI_CHOICES[nm]) { const pool = e.asiPool.slice(); pool._5e = true; FEAT_ASI_CHOICES[nm] = pool; }
+      P.add(k); return true;
+    }
+    if (kind === 'background') { if (PHB_BACKGROUNDS[e.key] || Object.values(PHB_BACKGROUNDS).some(b => b.name === e.name)) return false; PHB_BACKGROUNDS[e.key] = Object.assign({}, e, flag); P.add(e.name.toLowerCase()); return true; }
+    if (kind === 'race') { if (PHB_RACES[e.key]) return false; PHB_RACES[e.key] = Object.assign({}, e, flag); P.add(e.key); return true; }
+    if (kind === 'class') {
+      if (PHB_CLASSES[e.key]) return false;
+      PHB_CLASSES[e.key] = Object.assign({}, e, { subclasses: (e.subclasses || []).slice() }, flag);
+      if (typeof PHB_CLASS_RESOURCES !== 'undefined' && !PHB_CLASS_RESOURCES[e.key]) PHB_CLASS_RESOURCES[e.key] = [];
+      if (typeof PHB_CLASS_CHOICES !== 'undefined' && !PHB_CLASS_CHOICES[e.key]) PHB_CLASS_CHOICES[e.key] = [];
+      P.add(e.key); return true;
+    }
+    if (kind === 'subclass') {
+      const c = PHB_CLASSES[e.cls]; if (!c || PHB_SUBCLASSES[e.key]) return false;
+      PHB_SUBCLASSES[e.key] = Object.assign({}, e, { features: e.features.map(f => Object.assign({}, f)), bonusSpells: (e.bonusSpells || []).slice() }, flag);
+      if (!(c.subclasses || []).includes(e.name)) (c.subclasses = c.subclasses || []).push(e.name);
+      P.add(e.key); return true;
+    }
+    const L = kind === 'invocation' ? PHB_INVOCATIONS : kind === 'maneuver' ? PHB_MANEUVERS : PHB_METAMAGIC;
+    if (L.some(x => (x.clean || x.name).toLowerCase() === e.name.toLowerCase())) return false;
+    L.push(Object.assign({}, e, flag)); P.add(_spId(kind, e)); return true;
+  } catch (err) { console.warn('[5e.tools sheet]', kind, e && e.name, err); return false; }
+}
+// take back what a book the DM switched off had put in (a character keeps the name it chose either way)
+function _spTakeOut(kind, e) {
+  const P = _SP.put[kind];
+  if (kind === 'arcaneshot') { const def = (PHB_CLASS_CHOICES.fighter || []).find(d => d.id === 'arcane_shot_options'); if (def) def.options = def.options.filter(n => n !== e.name); delete ARCANE_SHOT_DESCS[e.name]; P.delete(_spId(kind, e)); return; }
+  if (kind === 'rune') { if (window.RUNE_EXTRA) delete window.RUNE_EXTRA[e.name]; P.delete(_spId(kind, e)); return; }
+  if (kind === 'spell') { const i = PHB_SPELL_LIST.findIndex(s => s.key === e.key && s._5e); if (i >= 0) PHB_SPELL_LIST.splice(i, 1); P.delete(e.key); return; }
+  if (kind === 'feat') { if (PHB_FEATS[e.key] && PHB_FEATS[e.key]._5e) { delete PHB_FEATS[e.key]; try { delete FEAT_ENGINE[e.key]; } catch (x) {} } P.delete(e.key); return; }
+  const T = { background: PHB_BACKGROUNDS, race: PHB_RACES, class: PHB_CLASSES, subclass: PHB_SUBCLASSES }[kind];
+  if (T) { if (T[e.key] && T[e.key]._5e) { if (kind === 'subclass' && PHB_CLASSES[e.cls]) PHB_CLASSES[e.cls].subclasses = (PHB_CLASSES[e.cls].subclasses || []).filter(n => n !== e.name); delete T[e.key]; } P.delete(_spId(kind, e)); return; }
+  const L = kind === 'invocation' ? PHB_INVOCATIONS : kind === 'maneuver' ? PHB_MANEUVERS : PHB_METAMAGIC;
+  const i = L.findIndex(x => x._5e && x.name === e.name); if (i >= 0) L.splice(i, 1); P.delete(_spId(kind, e));
+}
+function _spSpellsBack() {   // the shared spell file replaces the list: put the new ones back
+  for (const r of _SP.rows) if (r.kind === 'spell' && (r.on || r.kept) && !PHB_SPELL_LIST.some(s => s.key === r.e.key)) PHB_SPELL_LIST.push(Object.assign({}, r.e, r.kept ? { _5e: true, _off: r.e._b } : { _5e: true }));
+}
+async function spLoad(force) {
+  if (_SP.busy || (!force && Date.now() - _SP.at < 30 * 60000)) return _SP;
+  _SP.busy = true; _SP.at = Date.now(); _SP.err = null;
+  try {
+    try { if (typeof vaultLoadSources === 'function') await vaultLoadSources(); } catch (e) {}
+    _SP.idx = (await GH.getFile(SP_DIR + '/index.json')).content;
+    const want = [];
+    const mine = new Set(Object.values((typeof currentChar !== 'undefined' && currentChar && currentChar.imports_5e) || {}));
+    for (const [kind, ki] of Object.entries(_SP.idx.kinds || {})) for (const f of ki.files || []) if ((f.g === 'o' || (f.b || []).some(a => spBookOn(a) || mine.has(a))) && (!_SP.files[f.f] || _SP.files[f.f].h !== f.h)) want.push([kind, f]);
+    for (let i = 0; i < want.length; i += 6) await Promise.all(want.slice(i, i + 6).map(async ([kind, f]) => { try { _SP.files[f.f] = { h: f.h, kind, rows: (await GH.getFile(SP_DIR + '/' + f.f)).content || [] }; } catch (e) { _SP.err = 'some files could not be read'; } }));
+    _spApply();
+  } catch (e) { if (!(e && e.status === 404)) { _SP.err = String(e && e.message || e); console.warn('[5e.tools sheet]', _SP.err); } }
+  _SP.busy = false;
+  return _SP;
+}
+// what the current character uses, as "kind|id" (ids as _spId gives them)
+function _spUses(c) {
+  const u = new Set(); if (!c) return u;
+  const lc = x => String(x || '').toLowerCase();
+  ((c.spells && c.spells.known) || []).forEach(s => s && u.add('spell|' + s.key));
+  (c.feats || []).forEach(f => u.add('feat|' + lc(f && (f.name || f.key) || f)));
+  Object.values(c.featSlots || {}).forEach(v => { const n = v && (v.name || v.feat || (typeof v === 'string' ? v : '')); if (n) u.add('feat|' + lc(n)); });
+  if (c.race) u.add('race|' + c.race);
+  if (c.background) u.add('background|' + lc(c.background));
+  (c.classes || []).forEach(k => { if (!k || !k.class) return; u.add('class|' + lc(k.class)); if (k.subclass) u.add('subclass|' + lc(k.class) + '/' + lc(k.subclass)); });
+  const cc = c.class_choices || {};
+  (cc.eldritch_invocations || []).forEach(i => u.add('invocation|' + lc(i && i.name || i)));
+  (cc.maneuvers || []).forEach(m => u.add('maneuver|' + lc(m)));
+  (cc.metamagic || cc.metamagic_options || []).forEach(m => u.add('metamagic|' + lc(m && m.name || m)));
+  (cc.arcane_shot_options || []).forEach(m => u.add('arcaneshot|' + lc(m)));
+  (cc.rune_knight_runes || []).forEach(m => u.add('rune|' + lc(m)));
+  return u;
+}
+function _spApply() {
+  const all = [];
+  for (const F of Object.values(_SP.files)) for (const e of F.rows) all.push({ kind: F.kind, e });
+  const c = typeof currentChar !== 'undefined' ? currentChar : null, uses = _spUses(c);
+  // the newest printing wins among the books in use
+  const on = new Set(all.filter(x => spBookOn(x.e._b)).map(x => x.e._k));
+  let changed = 0; const rows = [], off = [], mine = {};
+  // decide first: a name another book still supplies is not taken out by a switched-off book's entry of the same name
+  const dec = all.map(x => { const id = _spId(x.kind, x.e), uk = x.kind + '|' + id; const use = spBookOn(x.e._b) && !(x.e._rp && on.has(x.e._rp));
+    // a character keeps what it took from a book the DM has since switched off (flagged ⚠ on its sheet)
+    const keep = !use && uses.has(uk) && !(x.e._rp && on.has(x.e._rp)); return { x, id, uk, use, keep }; });
+  const claimed = new Set(dec.filter(d => d.use).map(d => d.uk));
+  dec.forEach(d => { if (d.keep && claimed.has(d.uk)) d.keep = false; });   // in use from a book that is on: no flag
+  dec.forEach(d => { if (d.keep) claimed.add(d.uk); });
+  for (const { x, id, uk, use, keep } of dec) {
+    const was = _SP.put[x.kind].has(id), wasKept = _SP.kept.has(uk);
+    if (use || keep) {
+      if (was && wasKept !== keep) { _spTakeOut(x.kind, x.e); }
+      if (!_SP.put[x.kind].has(id) && _spPut(x.kind, x.e, keep)) changed++;
+      if (keep) _SP.kept.add(uk); else _SP.kept.delete(uk);
+      if (keep && _SP.put[x.kind].has(id)) off.push({ kind: x.kind, name: x.e.name, book: x.e._b });
+      if (uses.has(uk)) mine[uk] = x.e._b;
+    } else if (was && !claimed.has(uk)) { _spTakeOut(x.kind, x.e); _SP.kept.delete(uk); changed++; }
+    rows.push({ kind: x.kind, e: x.e, on: use && _SP.put[x.kind].has(id), kept: keep });
+  }
+  _SP.rows = rows; _SP.off = off;
+  // remember which books this character's entries came from, so they load even after a book is switched off
+  if (c) { const before = JSON.stringify(c.imports_5e || {}); const now = Object.assign({}, Object.fromEntries(Object.entries(c.imports_5e || {}).filter(([k]) => uses.has(k))), mine);
+    if (JSON.stringify(now) !== before) { if (Object.keys(now).length) c.imports_5e = now; else delete c.imports_5e; try { if (typeof debouncedSave === 'function') debouncedSave(); } catch (e) {} } }
+  if (changed) {
+    try { if (typeof _feOwnCache !== 'undefined') _feOwnCache = null; } catch (e) {}
+    try { _spellDatalistPopulated = false; } catch (e) {}
+    try { if (typeof _V !== 'undefined') { _V.rows = {}; _V.lx = null; _V.peekRows = {}; } } catch (e) {}
+    if (typeof currentChar !== 'undefined' && currentChar) ['renderClassRows', 'renderKnownSpells', 'renderSpellBrowser', 'renderFeatsList', 'renderFeatSlotsPanel', 'populateFeaturesTab', 'renderClassChoices'].forEach(fn => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) {} });
+    try { if (typeof vaultDraw === 'function') vaultDraw('keep'); } catch (e) {}
+  }
+  _spFlagWatch();
+  if (c && off.length && !(_SP.warned = _SP.warned || new Set()).has(c.id)) { _SP.warned.add(c.id); try { toast(`⚠ ${off.length} thing${off.length === 1 ? '' : 's'} on this character come${off.length === 1 ? 's' : ''} from books no longer added to the sheet (marked ⚠). They still work.`, 'warn'); } catch (e) {} }
+  return changed;
+}
+// ⚠ next to anything on the character page that is kept from a switched-off book
+const _SP_SKIP = '#vault-root,#sp-browser-list,script,style,textarea,select,option,input,.sp-off';
+const _spFlagTip = o => `${_spKindName[o.kind]} from ${typeof vaultSourceName === 'function' ? vaultSourceName(o.book) : o.book}, a book the DM no longer adds to the sheet. It still works on this character; the DM can turn the book back on in Vault > Sources > Add to the sheet.`;
+function _spFlagPass() {
+  const off = _SP.off || []; if (!off.length) return;
+  const by = new Map(off.map(o => [o.name.toLowerCase(), o]));
+  const root = document.getElementById('app'); if (!root) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); const hits = []; let n;
+  while ((n = w.nextNode())) { const t = n.nodeValue.trim().toLowerCase(); if (!t || t.length > 80) continue; const o = by.get(t) || by.get(t.replace(/[.:]$/, '')); if (!o) continue; const p = n.parentElement; if (!p || p.closest(_SP_SKIP)) continue; if (p.querySelector(':scope > .sp-off')) continue; hits.push([p, o]); }
+  // a dropdown showing a kept entry: the flag goes in its chosen option, with a yellow outline (nothing added to the row's layout)
+  root.querySelectorAll('select').forEach(sel => { if (sel.closest('#vault-root')) return; const op = sel.selectedOptions && sel.selectedOptions[0]; if (!op) return;
+    const name = op.textContent.replace(/^⚠\s*/, '').trim(), o = by.get(name.toLowerCase());
+    if (o) { if (!op.textContent.startsWith('⚠')) op.textContent = '⚠ ' + name; sel.classList.add('sp-off-sel'); sel.title = _spFlagTip(o); }
+    else if (sel.classList.contains('sp-off-sel')) { op.textContent = name; sel.classList.remove('sp-off-sel'); sel.removeAttribute('title'); } });
+  for (const [p, o] of hits) { const b = document.createElement('span'); b.className = 'sp-off'; b.textContent = '⚠'; b.title = _spFlagTip(o); p.appendChild(b); }
+}
+let _spObs = null, _spObsT = 0;
+function _spFlagWatch() {
+  const any = (_SP.off || []).length > 0, root = document.getElementById('app');
+  if (!any) { if (_spObs) { _spObs.disconnect(); _spObs = null; } document.querySelectorAll('#app .sp-off').forEach(x => x.remove()); document.querySelectorAll('#app select.sp-off-sel').forEach(sel => { const op = sel.selectedOptions[0]; if (op) op.textContent = op.textContent.replace(/^⚠\s*/, ''); sel.classList.remove('sp-off-sel'); sel.removeAttribute('title'); }); return; }
+  if (!_spObs && root && typeof MutationObserver !== 'undefined') { _spObs = new MutationObserver(() => { clearTimeout(_spObsT); _spObsT = setTimeout(_spFlagPass, 250); }); _spObs.observe(root, { childList: true, subtree: true }); }
+  // a name no longer kept loses its flag
+  const names = new Set(_SP.off.map(o => o.name.toLowerCase()));
+  document.querySelectorAll('#app .sp-off').forEach(b => { const t = (b.parentElement && b.parentElement.firstChild && b.parentElement.firstChild.nodeValue || '').trim().toLowerCase(); if (!names.has(t) && !names.has(t.replace(/[.:]$/, ''))) b.remove(); });
+  _spFlagPass();
+}
+// another character opened: keep what that one uses (its books may need loading first)
+function spCharChanged() {
+  if (!_SP.idx) return;
+  const c = typeof currentChar !== 'undefined' ? currentChar : null;
+  const need = Object.values((c && c.imports_5e) || {}).filter(a => !Object.values(_SP.files).some(F => F.rows.length && F.rows[0]._b === a) && !Object.values(_SP.idx.kinds || {}).some(k => (k.files || []).some(f => (f.b || []).includes(a) && _SP.files[f.f])));
+  if (need.length) spLoad(true); else _spApply();
+}
+{ const _ea = enterApp; enterApp = function () { const r = _ea.apply(this, arguments); try { setTimeout(spCharChanged, 0); } catch (e) {} return r; }; window.enterApp = enterApp; }
+function spStatus() {
+  if (_SP.err) return 'New from 5e.tools: ' + _SP.err;
+  if (!_SP.idx) return 'New from 5e.tools: nothing yet (the weekly sync adds it).';
+  const n = _SP.rows.filter(r => r.on).length;
+  return `New from 5e.tools: ${n.toLocaleString()} spells, feats, species, backgrounds, subclasses and class options added to the sheet (official books, and the books you tick "Add to the sheet").`;
+}
+Object.assign(window, { spLoad, spStatus, _SP, spBookOn, spCharChanged, _spFlagPass });
+// load with the DM's item edits (start of a session, then on their timer); put new spells back after the spell file
+{ const _l = loadDMItemOverrides; loadDMItemOverrides = async function () { try { spLoad(); } catch (e) {} return _l.apply(this, arguments); }; window.loadDMItemOverrides = loadDMItemOverrides; }
+if (typeof injectCustomSpellsIntoCatalog === 'function') { const _i = injectCustomSpellsIntoCatalog; injectCustomSpellsIntoCatalog = function () { const r = _i.apply(this, arguments); try { _spSpellsBack(); } catch (e) {} return r; }; window.injectCustomSpellsIntoCatalog = injectCustomSpellsIntoCatalog; }
+// ── the DM's review list: what each new entry has wired, and what still needs doing ──
+async function spReviewLoad(force) {
+  if (!force && Date.now() - _SP.reviewAt < 60000) return;
+  _SP.reviewAt = Date.now();
+  try { const { content, sha } = await GH.getFile(SP_REVIEW); _SP.review = (content && content.items) || {}; _SP.reviewSha = sha; }
+  catch (e) { if (e && e.status === 404) { _SP.review = {}; _SP.reviewSha = null; } }
+}
+async function spReviewSet(k, patch) {
+  const cur = Object.assign({}, _SP.review[k] || {}, patch, { at: new Date().toISOString().slice(0, 10) });
+  if (!cur.s && !cur.note) delete _SP.review[k]; else _SP.review[k] = cur;
+  const body = () => ({ v: 1, items: _SP.review });
+  try { _SP.reviewSha = (await GH.putFile(SP_REVIEW, body(), _SP.reviewSha)).content.sha; }
+  catch (e) {
+    if (e.status !== 409 && e.status !== 422) throw e;
+    let fresh = {}; try { const f = await GH.getFile(SP_REVIEW); fresh = (f.content && f.content.items) || {}; _SP.reviewSha = f.sha; } catch (e2) { _SP.reviewSha = null; }
+    _SP.review = Object.assign(fresh, { [k]: _SP.review[k] }); if (!_SP.review[k]) delete _SP.review[k];
+    _SP.reviewSha = (await GH.putFile(SP_REVIEW, body(), _SP.reviewSha)).content.sha;
+  }
+  try { delete _V.rows.review; vaultDraw('keep'); } catch (e) {}
+}
+const _SP_STATES = { todo: 'Needs wiring', auto: 'Wired automatically', done: 'Marked wired', skip: 'Not needed' };
+function _spState(r) { const e = r.e || r.d; const s = (_SP.review[e._k] || {}).s; return s === 'done' ? 'done' : s === 'skip' ? 'skip' : (e._w && e._w.todo && e._w.todo.length ? 'todo' : 'auto'); }
+const VAULT_REVIEW = {
+  title: 'New from 5e.tools', noun: 'entries', async: true,
+  ready() { return !!_SP.idx && !_SP.busy; },
+  rows() {
+    if (!_SP.idx && !_SP.busy) spLoad(true).then(() => { try { delete _V.rows.review; vaultDraw('keep'); } catch (e) {} });
+    if (Date.now() - _SP.reviewAt > 60000) spReviewLoad().then(() => { try { delete _V.rows.review; vaultDraw('keep'); } catch (e) {} });
+    return _SP.rows.filter(r => r.on || r.kept).map(r => {
+      const w = r.e._w || {}, st = _spState(r);
+      return { d: r.e, kind: r.kind, key: r.e._k, name: r.e.name, group: _SP_STATES[st], glyph: '🆕', col: { todo: '#e0b341', auto: '#57ab5a', done: '#5b8def', skip: '#8b949e' }[st],
+        f: { src: [r.e._b], kind: [_spKindName[r.kind]], st: [_SP_STATES[st]], todo: [...new Set((w.todo || []).map(t => t.split(':')[0]))] },
+        search: (r.e.name + ' ' + _spKindName[r.kind]).toLowerCase(), body: () => [...(w.auto || []), ...(w.todo || [])].join(' ') };
+    });
+  },
+  groups: ['Needs wiring', 'Wired automatically', 'Marked wired', 'Not needed'], groupColour: g => ({ 'Needs wiring': '#e0b341', 'Wired automatically': '#57ab5a', 'Marked wired': '#5b8def', 'Not needed': '#8b949e' }[g] || 'var(--accent)'),
+  facets: [{ id: 'st', label: 'Status', values: ['Needs wiring', 'Wired automatically', 'Marked wired', 'Not needed'] }, { id: 'kind', label: 'Kind', values: Object.values(_spKindName) }, _vSrcFacet, { id: 'todo', label: 'Still to do' }],
+  crumb() { const R = _SP.rows.filter(r => r.on), n = s => R.filter(r => _spState(r) === s).length;
+    return `<div class="vt-rawbar"><div class="vt-rawnote">Spells, feats, species, backgrounds, classes, subclasses and class options that the weekly 5e.tools sync added to the sheet: official books always, and playtest or homebrew books you tick "Add to the sheet" in Sources. Each shows what was wired automatically and what is still text only. Mark one wired once it works the way you want (or not needed); Claude reads this list too and can wire the rest.</div>
+      <div class="vt-rawnote"><b>${n('todo').toLocaleString()}</b> need wiring · ${n('auto').toLocaleString()} wired automatically · ${n('done').toLocaleString()} marked wired · ${n('skip').toLocaleString()} not needed${_SP.err ? ' · ' + _itE(_SP.err) : ''}</div></div>`; },
+  empty() { return _SP.busy ? 'Loading…' : _SP.err || (_SP.idx ? 'Nothing here with these filters.' : 'Nothing yet: the weekly 5e.tools sync adds new entries.'); },
+  card(r) { const w = r.d._w || {};
+    return _vCardShell(r, '🆕', r.col, `${_spKindName[r.kind]} · ${r.d._b}`, `<div class="vt-sum">${_itE((w.todo || []).length ? 'To do: ' + w.todo.join('; ') : 'Wired: ' + (w.auto || []).join('; '))}</div>`, '', ''); },
+  detail(r) { const w = r.d._w || {}, rv = _SP.review[r.d._k] || {}, st = _spState(r), tab = _spKindTab[r.kind];
+    const list = (t, L, cls) => L && L.length ? `<div class="r5h1">${t}</div><ul class="vt-wl-list ${cls}">${L.map(x => `<li>${_itE(x)}</li>`).join('')}</ul>` : '';
+    const kept = _SP.rows.find(x => x.e === r.d && x.kept);
+    const lk = _SP_BYNAME.has(r.kind) ? '' : `<button class="tbtn" data-t="${tab}" data-k="${_itE(r.kind === 'feat' ? r.d.key : r.d.key)}" onclick="vaultPeek(this.dataset.t,this.dataset.k)">Show it</button>`;
+    return _vHead(r, '🆕', r.col, `${_spKindName[r.kind]} · ${vaultSourceName(r.d._b)} · ${_SP_STATES[st]}`) +
+      `<div class="vt-dbody r5body" style="border-top:1px solid var(--border)">${kept ? `<p class="r5c" style="color:#e0b341">⚠ Its book is no longer added to the sheet, but this character uses it, so it is kept (flagged ⚠ on the sheet).</p>` : ''}${list('Wired automatically', w.auto, 'ok')}${list('Still to do', w.todo, 'todo')}${list('Notes', w.info, '')}
+        <div class="r5h1">Your note</div><textarea class="vt-note" rows="3" placeholder="What you changed, or what Claude should do" data-k="${_itE(r.d._k)}" onchange="spReviewSet(this.dataset.k,{note:this.value})">${_itE(rv.note || '')}</textarea>
+        ${rv.at ? `<p class="r5c" style="color:var(--text3)">Last changed ${_itE(rv.at)}</p>` : ''}</div>
+      <div class="vt-dfoot">${st !== 'done' ? `<button class="vt-give" data-k="${_itE(r.d._k)}" onclick="spReviewSet(this.dataset.k,{s:'done'})">✓ Mark wired</button>` : ''}${st !== 'skip' ? `<button class="tbtn" data-k="${_itE(r.d._k)}" onclick="spReviewSet(this.dataset.k,{s:'skip'})">Not needed</button>` : ''}${rv.s ? `<button class="tbtn" data-k="${_itE(r.d._k)}" onclick="spReviewSet(this.dataset.k,{s:''})">Undo</button>` : ''}${lk}</div>`; },
+};
+window.spReviewSet = spReviewSet; window.spReviewLoad = spReviewLoad;
+
+// a DM-only Vault page, after "5e.tools"
+VAULT_LIB.review = VAULT_REVIEW;
+{ const i = VAULT_TABS.findIndex(t => t[0] === 'raw'); VAULT_TABS.splice(i + 1, 0, ['review', 'New from 5e.tools']); }
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
