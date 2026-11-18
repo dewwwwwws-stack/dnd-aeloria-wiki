@@ -10,11 +10,11 @@ Nothing new since the last sync.
 
 ## Bestiary
 
-5,384 creatures from 149 books. Nothing changed since the last sync.
+5,384 creatures from 149 books. Changed books: AU, BAM, BMT, CBT, CM, DMG'14, DMG'24, DoDk, EFA, FTD, GGR, ICC, LLK, MM'14, MM'25, MOT, MPMM, MTF, NF, PHB'24, PSZ, RHW, TCE, ToA, UA20SMT, UA21DO, UA22WotM, VGM, WBtW, WDH, WoW, WttHC, XGE, XUA23DP, XUA23P6, XUA24A
 
 ## Homebrew
 
-1,562 homebrew books are listed on Vault > Sources (names and what each has, no contents). Contents are stored for the 20 you approved: Bnd, BndD, BndD-2605, BndD-2606, BndD-2607, BndD-2608, BndD-2609, BndD-2610, BndD-2611, CBT, DoDk, Homebrew, MoDk, OSW:HAP, TDCSR, TGS1'24, TGS2, TGS3, TGS4, TGS5.
+1,562 homebrew books are listed on Vault > Sources (names and what each has, no contents). Contents are stored for the 24 you approved: Bnd, BndD, BndD-2605, BndD-2606, BndD-2607, BndD-2608, BndD-2609, BndD-2610, BndD-2611, BndMBG3, BndMDL, BndMEE, BndMUD, CBT, DoDk, Homebrew, MoDk, OSW:HAP, TDCSR, TGS1'24, TGS2, TGS3, TGS4, TGS5.
 
 ## New for the sheet
 
