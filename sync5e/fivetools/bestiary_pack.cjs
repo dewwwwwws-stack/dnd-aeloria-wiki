@@ -44,7 +44,11 @@ for (const m of res.ok) {
   let sb; try { sb = conv.convert(m); } catch (e) { fails.push(`${m.name} (${m.source}): ${e.message}`); continue; }
   delete sb.image;
   const a = bookFor(m) || brewSrc[m.source] || abv(m.source);
-  const tk = m.tokenUrl || (m.token && m.token.name ? `bestiary/tokens/${m.token.source || m.source}/${m.token.name}.webp` : m.hasToken ? `bestiary/tokens/${m.source}/${m.name.replace(/"/g, '')}.webp` : null);
+  // 5e.tools names token files the way its Parser.nameToTokenName does: accents dropped, Æ/æ as AE/ae, no quotes
+  const tokName = (n) => String(n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Æ/g, 'AE').replace(/æ/g, 'ae').replace(/"/g, '');
+  // homebrew gives its own token's address (tokenHref: an external URL, usually the homebrew image repository, or a path)
+  const href = m.tokenHref && (m.tokenHref.type === 'external' ? m.tokenHref.url : m.tokenHref.type === 'internal' ? m.tokenHref.path : null);
+  const tk = m.tokenUrl || href || (m.token && m.token.name ? `bestiary/tokens/${m.token.source || m.source}/${tokName(m.token.name)}.webp` : m.hasToken ? `bestiary/tokens/${m.source}/${tokName(m.name)}.webp` : null);
   const rp = (m.reprintedAs || [])[0]; const rpk = rp ? (typeof rp === 'string' ? rp : rp.uid || '') : '';
   const e = { k: keyOf(m), n: m.name, s: m.source, a, cr: typeof m.cr === 'object' ? (m.cr && m.cr.cr) : m.cr, t: sb.type, sz: sb.size, env: m.environment || undefined, al: sb.alignment,
     fam: m.familiar ? 1 : undefined, sum: m.summonedBySpell ? String(m.summonedBySpell).split('|')[0] : undefined, suml: m.summonedBySpellLevel || undefined,
