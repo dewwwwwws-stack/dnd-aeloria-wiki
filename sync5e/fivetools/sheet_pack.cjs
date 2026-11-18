@@ -357,6 +357,45 @@ for (const f of data.optionalfeature) tryAdd(() => {
   const b = bookOf(f); push(kind, b, Object.assign(o, meta(kind, f, b, w)));
 });
 
+// ── newer printings of what the sheet already has ──
+// The sheet's own entries always win, so a later reprint (a Xanathar's spell redone in Arcana Unleashed, say) is never
+// put in over them. Instead it is listed for the DM ("Newer printing available") when 5e.tools links the sheet's printing
+// to it with reprintedAs. Needs the book of each sheet entry (baseline/live.json rep.src, from dump.py).
+const SHEET_SRC = live.src || {};
+const _bkCache = new Map();
+const bookOfUid = (src, name) => { const k = lc(src); if (!_bkCache.has(k)) { let b = null; try { const real = Object.keys(J).find((x) => lc(x) === k); b = bookOf({ source: real || src, name }); } catch (e) {} _bkCache.set(k, b); } return _bkCache.get(k); };
+const RPL = new Map();   // "kind|name|book" -> ["kind|name|book" it was reprinted as]
+const UPKINDS = { spell: data.spell, feat: data.feat, background: data.background, race: data.race, class: data.class, subclass: data.subclass };
+const rpId = (kind, e, book) => kind + '|' + (kind === 'subclass' ? classKey(e.className) + '/' + lc(e.shortName || e.name) : lc(e.name)) + '|' + book;
+for (const [kind, L] of Object.entries(UPKINDS)) for (const e of L || []) {
+  if (!e.reprintedAs || !e.reprintedAs.length) continue; let b; try { b = bookOf(e); } catch (err) { continue; }
+  const to = e.reprintedAs.map((rp) => { const p = String(typeof rp === 'string' ? rp : rp.uid || '').split('|'); if (!p[0] || !p[1]) return null; const tb = bookOfUid(kind === 'subclass' ? p[p.length - 1] : p[1], p[0]); return tb ? kind + '|' + (kind === 'subclass' ? classKey(p[1] || e.className) + '/' : '') + lc(p[0]) + '|' + tb : null; }).filter(Boolean);
+  if (to.length) RPL.set(rpId(kind, e, b), to);
+}
+const reaches = (from, target) => { const seen = new Set([from]); let q = [from]; for (let d = 0; d < 6 && q.length; d++) { const nq = []; for (const x of q) for (const y of RPL.get(x) || []) { if (y === target) return true; if (!seen.has(y)) { seen.add(y); nq.push(y); } } q = nq; } return false; };
+let newer = 0, newerSame = 0;
+const SHEET_TXT = live.txt || {};
+const _words = (t) => new Set(String(t || '').toLowerCase().replace(/<[^>]+>/g, ' ').match(/[a-z]{4,}/g) || []);
+const _sim = (a, b) => { const A = _words(a), B = _words(b); if (!A.size || !B.size) return 0; let n = 0; for (const w of A) if (B.has(w)) n++; return n / (A.size + B.size - n); };
+const _byPrint = new Map(); for (const [kind, L] of Object.entries(UPKINDS)) for (const e of L || []) { try { _byPrint.set(kind + '|' + (kind === 'subclass' ? classKey(e.className) + '/' + lc(e.shortName || e.name) : lc(e.name)) + '|' + bookOf(e), e); } catch (err) {} }
+const _txtOf = (e) => { if (!e) return ''; if (e.subclassFeatures) { try { const F = featureList(e.subclassFeatures, 'subclass', e.name); return [F._intro || '', ...F.map((f) => (f.name || '') + ' ' + (f.desc || ''))].join(' '); } catch (err) { return ''; } } return RH.render(e.entries || [], 0); };
+for (const [kind, L] of Object.entries(UPKINDS)) for (const e of L || []) tryAdd(() => {
+  if (e.reprintedAs && e.reprintedAs.length) return;   // only the last printing
+  const ck = kind === 'subclass' ? classKey(e.className) : '';
+  const tries = kind === 'subclass' ? [ck + '/' + lc(e.shortName || e.name), ck + '/' + lc(e.name), ck + '/' + core(e.name)] : kind === 'race' ? [lc(e.name), bare(e.name)] : [lc(e.name)];
+  const nm = tries.find((t) => (SHEET_SRC[kind] || {})[t]); const S = nm && SHEET_SRC[kind][nm]; if (!S) return;
+  const b = bookOf(e); if (!b || b === S) return;
+  const from = kind === 'subclass' ? [ck + '/' + lc(e.shortName || e.name)] : [lc(e.name)];
+  if (!from.some((f) => reaches(kind + '|' + f + '|' + S, rpId(kind, e, b)))) return;
+  // only when the sheet's own text is still the older printing's (its book label can be out of date while its text is not)
+  const mine = (SHEET_TXT[kind] || {})[nm]; const oldE = _byPrint.get(kind + '|' + from[0] + '|' + S);
+  if (!mine || !oldE) return; const sOld = _sim(mine, _txtOf(oldE)), sNew = _sim(mine, _txtOf(e)); if (!(sOld > sNew + 0.05)) { newerSame++; return; }
+  const html = kind === 'subclass' ? (() => { try { const F = featureList(e.subclassFeatures, 'subclass', e.name); return (F._intro ? `<p>${F._intro}</p>` : '') + F.map((f) => `<p><b>${f.name}${f.level ? ' (level ' + f.level + ')' : ''}.</b> ${f.desc || ''}</p>`).join(''); } catch (err) { return ''; } })() : RH.render(e.entries || [], 0) + (e.entriesHigherLevel ? RH.render(e.entriesHigherLevel, 0) : '');
+  const o = { key: 'update|' + kind + '|' + nm, name: e.name, of: kind, from: S, html };
+  push('update', b, Object.assign(o, meta('update', Object.assign({}, e, { name: kind + ': ' + e.name }), b, { auto: [], todo: [`Newer printing: the sheet's ${kind} is from ${S}; ${b} reprinted it`] })));
+  newer++;
+});
+
 // ── rules: the glossary (variant and optional rules, actions, senses, skills, statuses, conditions, diseases) ──
 // Single words that are everyday English stay out of the automatic links (every "attack" or "help" would become one);
 // they are still in the glossary. Multi-word terms, diseases and these distinctive words are linked.
@@ -386,7 +425,7 @@ fs.mkdirSync(OUT, { recursive: true });
 for (const f of fs.readdirSync(OUT)) if (/^s_.*\.json$|^index\.json$/.test(f)) fs.unlinkSync(path.join(OUT, f));
 const LIMIT = 650000;
 const index = { v: 1, kinds: {}, extra: [], official: [], playtest: [], total: 0, skipped, nfails: fails.length, fails: fails.slice(0, 20) };
-const order = ['spell', 'feat', 'background', 'race', 'class', 'subclass', 'invocation', 'maneuver', 'metamagic', 'arcaneshot', 'rune', 'rule'];
+const order = ['spell', 'feat', 'background', 'race', 'class', 'subclass', 'invocation', 'maneuver', 'metamagic', 'arcaneshot', 'rune', 'rule', 'update'];
 for (const kind of order) {
   const B = out[kind]; if (!B) continue;
   const ki = index.kinds[kind] = { n: 0, counts: {}, files: [] };
@@ -409,4 +448,4 @@ index.playtest = [...used].filter((a) => names[a] && names[a][3] === 'playtest')
 index.extra = [...extra].filter((a) => used.has(a)).sort();
 index.official = [...used].filter((a) => OFFICIAL.has(a) && !names[a]).sort();
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index));
-console.log(JSON.stringify({ total: index.total, skipped, old2014, kinds: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, v.n])), official: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, Object.entries(v.counts).filter(([a]) => index.official.includes(a)).reduce((s, [, n]) => s + n, 0)])), files: Object.values(index.kinds).reduce((s, v) => s + v.files.length, 0), fails: fails.length, firstFails: fails.slice(0, 4) }));
+console.log(JSON.stringify({ total: index.total, skipped, old2014, newer, newerSame, kinds: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, v.n])), official: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, Object.entries(v.counts).filter(([a]) => index.official.includes(a)).reduce((s, [, n]) => s + n, 0)])), files: Object.values(index.kinds).reduce((s, v) => s + v.files.length, 0), fails: fails.length, firstFails: fails.slice(0, 4) }));
