@@ -99306,13 +99306,21 @@ function _vCharCreatureCtx() {
   const dl = typeof getClassLevelCount === 'function' ? getClassLevelCount('druid') : 0;
   const moon = dl && (currentChar.classes || []).some(c => c.class === 'druid' && /moon/i.test(c.subclass || ''));
   const wsCr = dl >= 8 ? 1 : dl >= 4 ? 0.5 : dl >= 2 ? 0.25 : -1;
-  return { fam: has('Find Familiar') || chain, chain, has, dl, wsCr: moon ? Math.max(wsCr, Math.floor(dl / 3)) : wsCr, wsFly: dl >= 8 };
+  const items = new Set([...(currentChar.magicItems || []), ...(currentChar.equipment || [])].map(x => _vItemKey(x && x.name)).filter(Boolean));
+  const subs = (currentChar.classes || []).map(c => [String(c.class || '').toLowerCase(), String(c.subclass || '').toLowerCase()]);
+  return { fam: has('Find Familiar') || chain, chain, has, dl, wsCr: moon ? Math.max(wsCr, Math.floor(dl / 3)) : wsCr, wsFly: dl >= 8, items, subs };
 }
+const _vItemKey = n => String(n || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+// creatures a subclass feature brings (5e.tools names the class only); [class, subclass]
+const _V_CLASS_SUM = { 'steel defender': ['artificer', /battle ?smith/], 'beast of the land': ['ranger', /beast ?master/], 'beast of the sea': ['ranger', /beast ?master/], 'beast of the sky': ['ranger', /beast ?master/],
+  'dancing item': ['bard', /dance/], 'wildfire spirit': ['druid', /wildfire/], 'drake companion': ['ranger', /drakewarden/], 'hound of ill omen': ['sorcerer', /shadow/] };
 const _V_CHAIN = ['imp', 'pseudodragon', 'quasit', 'skeleton', 'slaad tadpole', 'sphinx of wonder', 'sprite', 'venomous snake'];
 function _vWhyCan(e, c) {
   const out = []; if (!c) return out;
   if (c.fam && (e.fam || (c.chain && _V_CHAIN.includes(e.n.toLowerCase())))) out.push('Familiar');
-  if (e.sum && c.has(e.sum)) out.push('Summoned by your spell');
+  if ((e.sum && c.has(e.sum)) || (e.ss || []).some(n => c.has(n))) out.push('Summoned by your spell');
+  if (c.items && c.items.size && (e.si || []).some(n => c.items.has(_vItemKey(n)))) out.push('From your item');
+  { const cs = _V_CLASS_SUM[String(e.n || '').toLowerCase()]; if (cs && (c.subs || []).some(([k, sb]) => k === cs[0] && cs[1].test(sb))) out.push('Your class feature'); }
   if (c.wsCr >= 0 && e.t === 'beast' && _vCrNum(e.cr) != null && _vCrNum(e.cr) <= c.wsCr && (c.wsFly || !/fly/i.test(String(e.sb.speed || '')))) out.push('Wild Shape');
   return out;
 }
@@ -99356,7 +99364,7 @@ const VAULT_BEAST = {
       const crn = _vCrNum(e.cr), sb = e.sb || {};
       out.push({ d: e, key: e.k, name: e.n, group: _vCrBand(crn), glyph: '🐉', col: _vHue(e.t), pic: _vTokUrl(e.tk),
         f: { src: [e.a], cr: [_vCrBand(crn)], type: [_vCap(e.t || 'unknown')], size: String(e.sz || '').split(' or '), env: (e.env || []).map(_vCap),
-          has: [e.fam ? 'Can be a familiar' : null, e.sum ? 'Summoned by a spell' : null, sb.legendary_actions ? 'Legendary actions' : null, /fly/i.test(String(sb.speed || '')) ? 'Flying' : null,
+          has: [e.fam ? 'Can be a familiar' : null, e.sum || e.ss ? 'Summoned by a spell' : null, e.si ? 'From a magic item' : null, sb.legendary_actions ? 'Legendary actions' : null, /fly/i.test(String(sb.speed || '')) ? 'Flying' : null,
             (sb.actions || []).concat(sb.traits || []).some(a => /spellcasting/i.test(a.name || '')) ? 'Spellcasting' : null, e.npc ? 'NPC' : null].filter(Boolean),
           why: why.length ? why : isDM && shown ? ['Shown to players by you'] : [], pv: shown ? ['Players can see'] : ['DM only'] },
         search: (e.n + ' ' + (e.t || '') + ' ' + (sb.subtype || '')).toLowerCase(), body: () => (sb.traits || []).concat(sb.actions || []).map(x => x.name + ' ' + x.desc).join(' '), crn });
@@ -99365,9 +99373,9 @@ const VAULT_BEAST = {
   },
   groups: [..._V_CRBAND.map(x => x[0]), 'CR unknown'], groupColour: g => ['#57ab5a', '#4fb8a8', '#5b8def', '#e0b341', '#f0883e', '#e5534b', '#8b949e'][[..._V_CRBAND.map(x => x[0]), 'CR unknown'].indexOf(g)] || 'var(--accent)',
   groupNote: () => _VB.loading ? `loading books… ${_VB.got}/${_VB.want}` : '',
-  facets: [{ id: 'why', label: 'For this character', values: ['Familiar', 'Summoned by your spell', 'Wild Shape', 'Shown to players by you'] }, _vSrcFacet, { id: 'cr', label: 'Challenge', values: [..._V_CRBAND.map(x => x[0]), 'CR unknown'] },
+  facets: [{ id: 'why', label: 'For this character', values: ['Familiar', 'Summoned by your spell', 'From your item', 'Your class feature', 'Wild Shape', 'Shown to players by you'] }, _vSrcFacet, { id: 'cr', label: 'Challenge', values: [..._V_CRBAND.map(x => x[0]), 'CR unknown'] },
     { id: 'type', label: 'Type', dot: v => _vHue(v.toLowerCase()) }, { id: 'size', label: 'Size', values: ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'] }, { id: 'env', label: 'Habitat' },
-    { id: 'has', label: 'Has', values: ['Can be a familiar', 'Summoned by a spell', 'Legendary actions', 'Spellcasting', 'Flying', 'NPC'], every: true }, { id: 'pv', label: 'Players', values: ['Players can see', 'DM only'], dmOnly: true }],
+    { id: 'has', label: 'Has', values: ['Can be a familiar', 'Summoned by a spell', 'From a magic item', 'Legendary actions', 'Spellcasting', 'Flying', 'NPC'], every: true }, { id: 'pv', label: 'Players', values: ['Players can see', 'DM only'], dmOnly: true }],
   empty() { return _VB.err || (_VB.loading ? `Loading the bestiary… ${_VB.got}/${_VB.want} books` : isDM ? 'No creatures match.' : 'No creatures to show yet: your DM can share some, and familiars, summons and Wild Shape forms you can use appear here.'); },
   card(r) { const e = r.d, sb = e.sb || {};
     return _vCardShell(r, '🐉', r.col, `${e.sz || ''} ${e.t || ''} · CR ${e.cr == null ? '?' : e.cr} · ${e.a}`.trim(), `<div class="vt-sum vt-mono">AC ${_itE(sb.ac)} · HP ${_itE(sb.hp)} · ${_itE(String(sb.speed || '').slice(0, 60))}</div>`,
