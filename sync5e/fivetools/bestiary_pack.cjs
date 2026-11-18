@@ -14,10 +14,10 @@ const templates = JSON.parse(fs.readFileSync(path.join(D, 'template.json'), 'utf
 // homebrew: short names shared with the library pack (brew_sources.cjs); with ALL_BREW=1 every homebrew book is read
 const fails = [];
 const allow = process.env.BREW_ALLOW ? new Set(JSON.parse(fs.readFileSync(process.env.BREW_ALLOW, 'utf8'))) : null;   // only approved homebrew books
-const { srcOf: brewSrc, names, extra, files: bookFiles, allowed } = require('./brew_sources.cjs')({ BREW, UA: UA_DIR, known: JSON.parse(fs.readFileSync(BF, 'utf8')), J, all: !!process.env.ALL_BREW, allow });
+const { srcOf: brewSrc, names, extra, files: bookFiles, allowed, bookFor } = require('./brew_sources.cjs')({ BREW, UA: UA_DIR, known: JSON.parse(fs.readFileSync(BF, 'utf8')), J, all: !!process.env.ALL_BREW, allow });
 for (const [root, f] of bookFiles) {
   let d; try { d = JSON.parse(fs.readFileSync(path.join(root, f), 'utf8')); } catch (e) { fails.push(`${f}: not readable (${e.message})`); continue; }
-  for (const m of d.monster || []) { if (!brewSrc[m.source]) brewSrc[m.source] = m.source; if (allowed(brewSrc[m.source])) all.push(m); }
+  for (const m of d.monster || []) { if (!brewSrc[m.source]) brewSrc[m.source] = m.source; if (allowed(bookFor(m) || brewSrc[m.source])) all.push(m); }
 }
 // spell links in the user's own form: [[Tools/Spells/Gust Of Wind|Gust of Wind]] (the plugin may re-point the folder)
 const titleCase = n => String(n).replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
@@ -27,7 +27,7 @@ const out = {}; for (const x of res.failed) fails.push(`${x.name} (${x.source}):
 for (const m of res.ok) {
   let sb; try { sb = conv.convert(m); } catch (e) { fails.push(`${m.name} (${m.source}): ${e.message}`); continue; }
   delete sb.image;
-  const a = brewSrc[m.source] || abv(m.source);
+  const a = bookFor(m) || brewSrc[m.source] || abv(m.source);
   const tk = m.tokenUrl || (m.token && m.token.name ? `bestiary/tokens/${m.token.source || m.source}/${m.token.name}.webp` : m.hasToken ? `bestiary/tokens/${m.source}/${m.name.replace(/"/g, '')}.webp` : null);
   const rp = (m.reprintedAs || [])[0]; const rpk = rp ? (typeof rp === 'string' ? rp : rp.uid || '') : '';
   const e = { k: keyOf(m), n: m.name, s: m.source, a, cr: typeof m.cr === 'object' ? (m.cr && m.cr.cr) : m.cr, t: sb.type, sz: sb.size, env: m.environment || undefined, al: sb.alignment,

@@ -11,7 +11,7 @@ const J = JSON.parse(fs.readFileSync(J2A, 'utf8'));
 const known = JSON.parse(fs.readFileSync(BF, 'utf8'));
 // BREW_ALLOW: a JSON file listing the homebrew books the DM approved (+ books characters still use); only those are read
 const allow = process.env.BREW_ALLOW ? new Set(JSON.parse(fs.readFileSync(process.env.BREW_ALLOW, 'utf8'))) : null;
-const { srcOf, names, extra, files: bookFiles, abv, allowed } = require('./brew_sources.cjs')({ BREW, UA, known, J, all, allow });
+const { srcOf, names, extra, files: bookFiles, abv, allowed, bookFor } = require('./brew_sources.cjs')({ BREW, UA, known, J, all, allow });
 const data = Object.fromEntries([...CAT, ...FEATURES].map((c) => [c, []]));
 const fails = [];
 const take = (d, origin) => { for (const c of Object.keys(data)) for (const e of d[c] || []) if (e && typeof e === 'object' && e.name) { e.__o = origin; data[c].push(e); } };
@@ -24,7 +24,7 @@ for (const sub of ['spells', 'class']) for (const f of fs.readdirSync(path.join(
 // playtest and homebrew books
 for (const [root, f, kind] of bookFiles) { const d = readJson(path.join(root, f)); if (d) take(d, kind); }
 const srcField = (e) => e.source || (e.inherits && e.inherits.source) || '';
-const bookOf = (e) => srcOf[srcField(e)] || abv(srcField(e) || 'Unknown');
+const bookOf = (e) => (e && e.source && bookFor(e)) || srcOf[srcField(e)] || abv(srcField(e) || 'Unknown');   // dated parts (D&D Beyond Drops) count as their own book
 
 // ── copies ("as X, but...") within a category ──
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();

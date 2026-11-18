@@ -13,10 +13,23 @@ for (const j of Object.keys(P.SOURCE_JSON_TO_FULL)) {
     : P.SOURCES_ADVENTURES.has(j) ? 'adventure' : 'core';
   out[abv] = [P.SOURCE_JSON_TO_FULL[j], g];
 }
-const B = JSON.parse(fs.readFileSync(BF, 'utf8'));
+const B = JSON.parse(fs.readFileSync(BF, 'utf8')), PARTS = {};   // PARTS: { parent: { entry name: part } } -> sources.parts.json
 for (const [abv, files] of Object.entries(B)) for (const f of files) {
   const m = JSON.parse(fs.readFileSync(path.join(BREW, f), 'utf8'))._meta.sources.find(s => s.abbreviation === abv);
   if (m) out[abv] = [m.full, m.partnered ? 'partnered' : 'homebrew'];
+  // a book made of dated parts (D&D Beyond Drops): each part is its own book, "BndD-2606", in the parent's group (same names as brew_sources.cjs)
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  for (const b of JSON.parse(fs.readFileSync(path.join(BREW, f), 'utf8')).book || []) {
+    if (!m || !b || b.source !== m.json || !/^\d{4}-\d\d-\d\d$/.test(String(b.id || ''))) continue;
+    const y = b.id.slice(2, 4), mo = b.id.slice(5, 7);
+    out[`${abv}-${y}${mo}`] = [`${m.full}: ${String(b.name || '').replace(/^.*?[—–-]\s*/, '')} (${MON[+mo - 1]} 20${y})`, out[abv][1], abv, b.id];   // [name, group, parent, date]
+  }
+  // which part each entry belongs to, by name (the sheet's own entries only carry the parent's code)
+  const d = JSON.parse(fs.readFileSync(path.join(BREW, f), 'utf8'));
+  for (const [k, L] of Object.entries(d)) if (k !== '_meta' && k !== 'book' && k !== 'bookData' && !/Fluff$/.test(k) && Array.isArray(L)) for (const e of L) {
+    if (!e || !e.name || !m || e.source !== m.json || !/^\d{4}-\d\d-\d\d$/.test(String(e.page || ''))) continue;
+    const pa = `${abv}-${e.page.slice(2, 4)}${e.page.slice(5, 7)}`; if (out[pa]) ((PARTS[abv] = PARTS[abv] || {})[e.name.toLowerCase()] = pa);
+  }
 }
 if (UA) { const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.name.startsWith('.') || e.name.startsWith('_') ? [] : e.isDirectory() ? walk(path.join(d, e.name)) : e.name.endsWith('.json') ? [path.join(d, e.name)] : []);
   for (const f of walk(UA)) { try { for (const m of JSON.parse(fs.readFileSync(f, 'utf8'))._meta.sources || []) if (m.abbreviation && !out[m.abbreviation]) out[m.abbreviation] = [m.full, 'playtest']; } catch (e) {} } }
@@ -27,5 +40,6 @@ for (const k of ['WoW', 'ICC']) if (out[k]) out[k][1] = 'universes';
 out.UA = ['Unearthed Arcana (playtest, packet not recorded)', 'playtest']; out.Legacy = ['2014 rules (book not recorded)', 'core']; out['Core rules'] = ["Player's Handbook (2024)", 'core'];
 if (!out.WoW) out.WoW = ['D&D: World of Warcraft', 'universes'];
 fs.writeFileSync(OUT, JSON.stringify(out));
+fs.writeFileSync(OUT.replace(/\.json$/, '') + '.parts.json', JSON.stringify(PARTS));
 fs.writeFileSync(OUT.replace(/\.json$/, '') + '.json2abv.json', JSON.stringify(Object.fromEntries(Object.keys(P.SOURCE_JSON_TO_FULL).map(j => [j, [P.SOURCE_JSON_TO_ABV[j] || j, (P.SOURCE_JSON_TO_DATE || {})[j] || null]]))));
 const c = {}; Object.values(out).forEach(v => c[v[1]] = (c[v[1]] || 0) + 1); console.log(Object.keys(out).length, c);
