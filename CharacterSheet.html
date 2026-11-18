@@ -33957,7 +33957,7 @@ function _linkifyBuild(html, exclude) {
   const terms = new Map(); // lowercase term -> { type, key, display }
   if (typeof RULES_GLOSSARY !== 'undefined') {
     Object.values(RULES_GLOSSARY).forEach(g => {
-      if (g.name.toLowerCase() !== exclude) terms.set(g.name.toLowerCase(), { type: 'glossary', key: g.name.toLowerCase() });
+      if (!g.nolink && g.name.toLowerCase() !== exclude) terms.set(g.name.toLowerCase(), { type: 'glossary', key: g.name.toLowerCase() });
     });
   }
   Object.entries(GLOSSARY_ALIASES).forEach(([alias, targetKey]) => {
@@ -98465,12 +98465,15 @@ let _vaultSourcesSHA = null, _vaultSourcesAt = 0;
 let _vaultSync = {};               // books the DM ticked "Add to the sheet" (official books are always added; step 77)
 function vaultSourceOf(def) { if (!def) return 'Unknown'; if (def.homebrew) return 'Homebrew'; const s = def.source || 'Unknown', P = VAULT_SRC_PARTS[s]; return (P && def.name && P[String(def.name).toLowerCase()]) || s; }
 // a list saved before a book was split into its parts (D&D Beyond Drops) approved the whole book: count that as every part
+const VAULT_UA_LEGACY = ['XUA25PU', 'XUA25P', 'XUA25ApS', 'XUA25ArS', 'XUA26MS', 'XUA26UO', 'XUA26VO', 'XUA26VO2', 'XUA26VOU'];
 function _vSrcPartsCompat(L) {
   if (!L) return L;
   for (const parent of Object.keys(VAULT_SRC_PARTS)) {
     const parts = Object.keys(VAULT_SRC_META).filter(a => (VAULT_SRC_META[a] || [])[2] === parent);
     if (L[parent] && parts.length && !parts.some(a => a in L)) parts.forEach(a => { L[a] = true; });
   }
+  // a list saved before Unearthed Arcana was split into its packets had one "UA" tick: count it as every packet the sheet's own UA content now sits in
+  if (L.UA) VAULT_UA_LEGACY.forEach(a => { if (!(a in L)) L[a] = true; });
   return L;
 }
 function vaultSourceOk(def) {
@@ -99692,7 +99695,7 @@ async function vaultSrcSave(reset) {
   const st = document.getElementById('vt-src-status'); if (st) st.textContent = 'Saving…';
   try {
     if (_V.srcMode === 'sync') {
-      const was = _vOnNow(); const sy = {}; Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcDraft[s] && !_vSrcOfficial(s)) sy[s] = true; });
+      const was = _vOnNow(); const sy = {}; Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcDraft[s] && !_vSrcOfficial(s)) sy[s] = true; }); Object.keys(_vaultSync || {}).forEach(s => { if (_vaultSync[s] && s !== 'UA' && !(s in (_V.srcDraft || {}))) sy[s] = true; });
       await vaultSaveSources(_vaultSources ? _vaultSources.approved : null, sy); _V.srcDraft = null;
       if (typeof spLoad === 'function') await spLoad(true);
       const pend = _vPending(a => (!!sy[a] || !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[a])) && !was.has(a));
@@ -99700,6 +99703,7 @@ async function vaultSrcSave(reset) {
       return;
     }
     const was = _vOnNow(); const ap = {}; Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcDraft[s]) ap[s] = true; });
+    if (_vaultSources && _vaultSources.approved) Object.keys(_vaultSources.approved).forEach(s => { if (_vaultSources.approved[s] && s !== 'UA' && !(s in (_V.srcDraft || {}))) ap[s] = true; });   // ticks for books not on the page (renamed or split) are kept
     await vaultSaveSources(reset ? null : ap); _V.srcDraft = null; vaultDraw();
     const pend = reset ? [] : _vPending(a => (!!ap[a] || !!_vaultSync[a]) && !was.has(a));
     const s2 = document.getElementById('vt-src-status'); if (s2) s2.textContent = reset ? 'Saved: players see every book.' : 'Saved. Players pick this up within 5 minutes.' + (pend.length ? ' ' + _vFetchMsg(pend) : '');
@@ -99800,6 +99804,7 @@ function _packApply(P) {
   return add;
 }
 async function packLoad(force) {
+  if (isDM) GH.getFile('_5etools_changes.json').then(ch => { _PACK.last = ((ch.content && ch.content.runs) || [])[0] || null; }).catch(() => { _PACK.last = null; });   // the latest run, for the status line (DM)
   if (!force && Date.now() - _PACK.at < 30 * 60000) return _PACK;
   _PACK.at = Date.now();
   try {
@@ -99818,11 +99823,26 @@ async function packLoad(force) {
   } catch (e) { if (!(e && e.status === 404)) { _PACK.error = String(e && e.message || e); console.warn('[5e.tools pack]', _PACK.error); } }
   return _PACK;
 }
+// one line for a sync run: every part of it (items, creatures, homebrew stored, new for the sheet, 5e.tools library)
+const _SYNC_KIND = { spell: 'spells', feat: 'feats', background: 'backgrounds', race: 'species', class: 'classes', subclass: 'subclasses', invocation: 'invocations', maneuver: 'maneuvers', metamagic: 'metamagic', arcaneshot: 'Arcane Shots', rune: 'runes', rule: 'rules' };
+const _sum = o => Object.values(o || {}).reduce((t, n) => t + n, 0);
+function syncRunLine(r) {
+  if (!r) return '';
+  if (r.first) return `first sync (${r.total} items)`;
+  const parts = [`${r.new.length} new item${r.new.length === 1 ? '' : 's'}${r.gone.length ? `, ${r.gone.length} gone` : ''}`];
+  if (r.creatures) { const a = _sum(r.creatures.added), c = (r.creatures.changed || []).length; parts.push(a || c ? `creatures: ${a ? '+' + a : 'changes'}${c ? ` in ${c} book${c === 1 ? '' : 's'}` : ''}` : 'creatures: no change'); }
+  if (r.brewAdded || r.brewRemoved) { const a = (r.brewAdded || []).length, d = (r.brewRemoved || []).length; parts.push(a || d ? `homebrew stored: ${a ? '+' + a : ''}${a && d ? ' / ' : ''}${d ? '−' + d : ''} book${a + d === 1 ? '' : 's'}` : `homebrew: ${(r.stored || []).length} book${(r.stored || []).length === 1 ? '' : 's'} stored, no change`); }
+  if (r.sheet) { const g = _sum(r.sheet.grew); parts.push(g ? `new for the sheet: ${g > 0 ? '+' : ''}${g}` : 'new for the sheet: no change'); }
+  if (r.library) { const g = _sum(r.library.grew); parts.push(g ? `5e.tools library: ${g > 0 ? '+' : ''}${g}` : '5e.tools library: no change'); }
+  return parts.join(' · ');
+}
 function packStatus() {
   const n = Object.values(_PACK.added).reduce((a, b) => a + b, 0);
   if (_PACK.error) return '5e.tools sync: could not read the pack (' + _PACK.error + ')';
+  if (_PACK.last) return `5e.tools sync: last run ${_PACK.last.date}: ${syncRunLine(_PACK.last)}.`;
   if (!_PACK.built) return '5e.tools sync: no pack found yet; the sheet is showing what it was built with.';
-  return `5e.tools sync: last run ${_PACK.built}; ${n} new item${n === 1 ? '' : 's'} on top of this sheet (creatures, the 5e.tools library and new spells, feats and so on are counted on their own pages).`;
+  if (_PACK.last) return `5e.tools sync: last run ${_PACK.last.date}: ${syncRunLine(_PACK.last)}.`;
+  return `5e.tools sync: last run ${_PACK.built}; ${n} new item${n === 1 ? '' : 's'} on top of this sheet.`;
 }
 Object.assign(window, { packLoad, packStatus, _PACK });
 { const _l = loadDMItemOverrides;
@@ -99902,11 +99922,19 @@ async function syncChangesLoad(det, force) {
     const { content } = await GH.getFile('_5etools_changes.json');
     const runs = (content && content.runs) || [];
     box.dataset.done = '1';
-    if (!runs.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px">No sync has reported changes yet.</div>'; return; }
+    if (!runs.length) { box.innerHTML = '<div style="color:var(--text3);font-size:12px">No run recorded yet: runs appear here from the next sync on.</div>'; return; }
     const group = L => { const by = {}; (L || []).forEach(x => (by[x.kind] = by[x.kind] || []).push(x)); return Object.entries(by).map(([k, v]) =>
       `<div style="margin:2px 0 6px"><b>${_itE(k)}</b> <span style="color:var(--text3)">(${v.length})</span><br>${v.slice(0, 200).map(x => `${_itE(x.name)} <span style="color:var(--text3)">${_itE(x.source || '')}</span>`).join(', ')}${v.length > 200 ? ' …' : ''}</div>`).join(''); };
-    box.innerHTML = runs.map((r, i) => `<details class="vt-ver" ${i === 0 ? 'open' : ''}><summary>${_itE(r.date)} — ${r.first ? `first sync (${r.total} entries)` : `${r.new.length} new${r.gone.length ? `, ${r.gone.length} no longer in the pack` : ''}`}</summary>
-      <div style="font-size:12.5px;line-height:1.5;margin-top:6px">${r.first ? '<p>Everything in the pack was new to the sheet.</p>' : group(r.new) || '<p>Nothing new.</p>'}
+    const nm = a => typeof vaultSourceName === 'function' ? vaultSourceName(a) : a;
+    const kinds = o => Object.entries(o || {}).map(([k, n]) => `${n > 0 ? '+' : ''}${n} ${_itE(_SYNC_KIND[k] || k)}`).join(', ');
+    const extra = r => [
+      r.creatures && (_sum(r.creatures.added) || (r.creatures.changed || []).length) ? `<div><b>Creatures</b> ${Object.entries(r.creatures.added || {}).map(([a, n]) => `${_itE(nm(a))} +${n}`).join(', ') || 'changed in ' + (r.creatures.changed || []).map(a => _itE(nm(a))).join(', ')}</div>` : '',
+      (r.brewAdded || []).length ? `<div><b>Homebrew now stored</b> ${(r.brewAdded || []).map(a => _itE(nm(a))).join(', ')}</div>` : '',
+      (r.brewRemoved || []).length ? `<div><b>Homebrew no longer stored</b> ${(r.brewRemoved || []).map(a => _itE(nm(a))).join(', ')}</div>` : '',
+      r.sheet && _sum(r.sheet.grew) ? `<div><b>New for the sheet</b> ${kinds(r.sheet.grew)} <span style="color:var(--text3)">(see Vault > New from 5e.tools)</span></div>` : '',
+      r.library && _sum(r.library.grew) ? `<div><b>5e.tools library</b> ${kinds(r.library.grew)}</div>` : ''].join('');
+    box.innerHTML = runs.map((r, i) => `<details class="vt-ver" ${i === 0 ? 'open' : ''}><summary>${_itE(r.date)} — ${_itE(syncRunLine(r))}</summary>
+      <div style="font-size:12.5px;line-height:1.5;margin-top:6px">${extra(r)}${r.first ? '<p>Everything in the pack was new to the sheet.</p>' : group(r.new) || (extra(r) ? '' : '<p>Nothing changed in this run.</p>')}
       ${!r.first && r.gone.length ? '<div style="color:var(--text3);margin-top:6px">No longer in the pack (usually built into a newer sheet):</div>' + group(r.gone) : ''}</div></details>`).join('');
   } catch (e) { box.innerHTML = `<div style="color:var(--text3);font-size:12px">${e && e.status === 404 ? 'No change history yet: it appears after the first sync run.' : 'Could not load the history: ' + _itE(e.message || e)}</div>`; }
 }
@@ -99924,12 +99952,12 @@ window.syncChangesLoad = syncChangesLoad;
 // done or not needed (chars/_dm_review.json), and which Claude also works through in later sessions.
 // ═══════════════════════════════════════════════════════════
 const SP_DIR = '_5etools_sheet', SP_REVIEW = '_dm_review.json';
-const _SP = { idx: null, files: {}, at: 0, busy: false, err: null, rows: [], put: { spell: new Set(), feat: new Set(), background: new Set(), race: new Set(), class: new Set(), subclass: new Set(), invocation: new Set(), maneuver: new Set(), metamagic: new Set(), arcaneshot: new Set(), rune: new Set() }, review: {}, off: [], kept: new Set(), reviewSha: null, reviewAt: 0 };
+const _SP = { idx: null, files: {}, at: 0, busy: false, err: null, rows: [], put: { spell: new Set(), feat: new Set(), background: new Set(), race: new Set(), class: new Set(), subclass: new Set(), invocation: new Set(), maneuver: new Set(), metamagic: new Set(), arcaneshot: new Set(), rune: new Set(), rule: new Set() }, review: {}, off: [], kept: new Set(), reviewSha: null, reviewAt: 0 };
 
 function spOfficial(a) { return !!(_SP.idx && (_SP.idx.official || []).includes(a)); }
 function spBookOn(a) { return spOfficial(a) || !!_vaultSync[a]; }
-const _spKindTab = { spell: 'spells', feat: 'featlib', background: 'bgs', race: 'species', class: 'classes', subclass: 'classes', invocation: 'featlib', maneuver: 'featlib', metamagic: 'featlib', arcaneshot: 'opts', rune: 'opts' };
-const _spKindName = { spell: 'Spell', feat: 'Feat', background: 'Background', race: 'Species', class: 'Class', subclass: 'Subclass', invocation: 'Invocation', maneuver: 'Maneuver', metamagic: 'Metamagic', arcaneshot: 'Arcane Shot', rune: 'Rune' };
+const _spKindTab = { spell: 'spells', feat: 'featlib', background: 'bgs', race: 'species', class: 'classes', subclass: 'classes', invocation: 'featlib', maneuver: 'featlib', metamagic: 'featlib', arcaneshot: 'opts', rune: 'opts', rule: '' };
+const _spKindName = { spell: 'Spell', feat: 'Feat', background: 'Background', race: 'Species', class: 'Class', subclass: 'Subclass', invocation: 'Invocation', maneuver: 'Maneuver', metamagic: 'Metamagic', arcaneshot: 'Arcane Shot', rune: 'Rune', rule: 'Rule' };
 const _SP_BYNAME = new Set(['invocation', 'maneuver', 'metamagic', 'arcaneshot', 'rune']);
 const _spId = (kind, e) => _SP_BYNAME.has(kind) || kind === 'background' ? String(e.name).toLowerCase() : e.key;
 
@@ -99941,6 +99969,10 @@ function _spPut(kind, e, off) {
     if (kind === 'arcaneshot') {
       const def = (PHB_CLASS_CHOICES.fighter || []).find(d => d.id === 'arcane_shot_options'); if (!def || (def.options || []).some(n => n.toLowerCase() === e.name.toLowerCase())) return false;
       def.options.push(e.name); ARCANE_SHOT_DESCS[e.name] = e.desc; (_SP.flags = _SP.flags || {})[kind + '|' + e.name.toLowerCase()] = flag; P.add(_spId(kind, e)); return true;
+    }
+    if (kind === 'rule') {   // the rules glossary (links in text and the glossary browser); a common word is kept out of the links (nolink)
+      if (typeof RULES_GLOSSARY === 'undefined' || RULES_GLOSSARY[e.key] || (typeof CONDITION_INFO !== 'undefined' && Object.keys(CONDITION_INFO).some(k => k.toLowerCase() === e.key))) return false;
+      RULES_GLOSSARY[e.key] = Object.assign({ name: e.name, source: e.source, html: '<div class="r5body">' + e.html + '</div>' }, e.nolink ? { nolink: true } : {}, flag); P.add(e.key); return true;
     }
     if (kind === 'rune') { const X = window.RUNE_EXTRA = window.RUNE_EXTRA || {}; if (X[e.name]) return false; X[e.name] = { lv: e.lv || 3, desc: e.desc }; (_SP.flags = _SP.flags || {})[kind + '|' + e.name.toLowerCase()] = flag; P.add(_spId(kind, e)); return true; }
     if (kind === 'spell') {
@@ -99981,6 +100013,7 @@ function _spTakeOut(kind, e) {
   const P = _SP.put[kind];
   if (kind === 'arcaneshot') { const def = (PHB_CLASS_CHOICES.fighter || []).find(d => d.id === 'arcane_shot_options'); if (def) def.options = def.options.filter(n => n !== e.name); delete ARCANE_SHOT_DESCS[e.name]; P.delete(_spId(kind, e)); return; }
   if (kind === 'rune') { if (window.RUNE_EXTRA) delete window.RUNE_EXTRA[e.name]; P.delete(_spId(kind, e)); return; }
+  if (kind === 'rule') { if (typeof RULES_GLOSSARY !== 'undefined' && RULES_GLOSSARY[e.key] && RULES_GLOSSARY[e.key]._5e) delete RULES_GLOSSARY[e.key]; P.delete(e.key); return; }
   if (kind === 'spell') { const i = PHB_SPELL_LIST.findIndex(s => s.key === e.key && s._5e); if (i >= 0) PHB_SPELL_LIST.splice(i, 1); P.delete(e.key); return; }
   if (kind === 'feat') { if (PHB_FEATS[e.key] && PHB_FEATS[e.key]._5e) { delete PHB_FEATS[e.key]; try { delete FEAT_ENGINE[e.key]; } catch (x) {} } P.delete(e.key); return; }
   const T = { background: PHB_BACKGROUNDS, race: PHB_RACES, class: PHB_CLASSES, subclass: PHB_SUBCLASSES }[kind];
@@ -100057,7 +100090,7 @@ function _spApply() {
     try { if (typeof _feOwnCache !== 'undefined') _feOwnCache = null; } catch (e) {}
     try { _spellDatalistPopulated = false; } catch (e) {}
     try { if (typeof _V !== 'undefined') { _V.rows = {}; _V.lx = null; _V.peekRows = {}; } } catch (e) {}
-    if (typeof currentChar !== 'undefined' && currentChar) ['renderClassRows', 'renderKnownSpells', 'renderSpellBrowser', 'renderFeatsList', 'renderFeatSlotsPanel', 'populateFeaturesTab', 'renderClassChoices'].forEach(fn => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) {} });
+    if (typeof currentChar !== 'undefined' && currentChar) ['renderGlossaryBrowser', 'renderClassRows', 'renderKnownSpells', 'renderSpellBrowser', 'renderFeatsList', 'renderFeatSlotsPanel', 'populateFeaturesTab', 'renderClassChoices'].forEach(fn => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) {} });
     try { if (typeof vaultDraw === 'function') vaultDraw('keep'); } catch (e) {}
   }
   _spFlagWatch();
@@ -100154,7 +100187,7 @@ const VAULT_REVIEW = {
   detail(r) { const w = r.d._w || {}, rv = _SP.review[r.d._k] || {}, st = _spState(r), tab = _spKindTab[r.kind];
     const list = (t, L, cls) => L && L.length ? `<div class="r5h1">${t}</div><ul class="vt-wl-list ${cls}">${L.map(x => `<li>${_itE(x)}</li>`).join('')}</ul>` : '';
     const kept = _SP.rows.find(x => x.e === r.d && x.kept);
-    const lk = _SP_BYNAME.has(r.kind) ? '' : `<button class="tbtn" data-t="${tab}" data-k="${_itE(r.kind === 'feat' ? r.d.key : r.d.key)}" onclick="vaultPeek(this.dataset.t,this.dataset.k)">Show it</button>`;
+    const lk = r.kind === 'rule' ? `<button class="tbtn" data-k="${_itE(r.d.key)}" onclick="openGlossaryTermModal(this.dataset.k)">Show it</button>` : _SP_BYNAME.has(r.kind) ? '' : `<button class="tbtn" data-t="${tab}" data-k="${_itE(r.kind === 'feat' ? r.d.key : r.d.key)}" onclick="vaultPeek(this.dataset.t,this.dataset.k)">Show it</button>`;
     return _vHead(r, '🆕', r.col, `${_spKindName[r.kind]} · ${vaultSourceName(r.d._b)} · ${_SP_STATES[st]}`) +
       `<div class="vt-dbody r5body" style="border-top:1px solid var(--border)">${kept ? `<p class="r5c" style="color:#e0b341">⚠ Its book is no longer added to the sheet, but this character uses it, so it is kept (flagged ⚠ on the sheet).</p>` : ''}${list('Wired automatically', w.auto, 'ok')}${list('Still to do', w.todo, 'todo')}${list('Notes', w.info, '')}
         <div class="r5h1">Your note</div><textarea class="vt-note" rows="3" placeholder="What you changed, or what Claude should do" data-k="${_itE(r.d._k)}" onchange="spReviewSet(this.dataset.k,{note:this.value})">${_itE(rv.note || '')}</textarea>
