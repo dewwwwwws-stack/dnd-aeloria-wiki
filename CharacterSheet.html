@@ -52233,7 +52233,7 @@ function buildClassDropdown() {
   sel.dataset.key = el.dataset.key || 'class';
   sel.setAttribute('oninput', 'onClassChange()');
   sel.innerHTML = '<option value="">- Class -</option>';
-  Object.entries(PHB_CLASSES).forEach(([key, cls]) => {
+  Object.entries(PHB_CLASSES).filter(([key]) => typeof vaultOkClass !== 'function' || key === current.toLowerCase().trim() || vaultOkClass(key)).forEach(([key, cls]) => {   // VAULT
     const opt = document.createElement('option');
     opt.value = key;
     opt.textContent = cls.name;
@@ -58655,6 +58655,7 @@ function renderBackgroundSearchResults() {
 
   const matches = Object.entries(PHB_BACKGROUNDS).filter(([key, bg]) => {
     if (!bg.skills?.length && !bg.trait) return false; // hide catalog placeholders
+    if (key !== curKey && typeof vaultOk === 'function' && !vaultOk('backgrounds', key, bg.source)) return false;   // VAULT
     if (source && bg.source !== source) return false;
     if (_bgsmSelectedAbilities.size && ![..._bgsmSelectedAbilities].every(a => bg.abilityScores?.includes(a))) return false;
     if (query) {
@@ -66017,7 +66018,7 @@ function renderClassRows() {
     // Class select
     const clsSel = document.createElement('select');
     clsSel.className = 'mc-class-select';
-    const classNames = Object.keys(PHB_CLASSES).sort();
+    const classNames = (typeof vaultClassKeys === 'function' ? vaultClassKeys(cls) : Object.keys(PHB_CLASSES)).sort();   // VAULT
     clsSel.innerHTML = '<option value="">- Class -</option>';
     classNames.forEach(c => {
       const opt = document.createElement('option');
@@ -66123,7 +66124,7 @@ function renderClassRows() {
       subSel.innerHTML = '<option value="">- Subclass -</option>';
       const classData = getClassData(cls);
       if (classData?.subclasses) {
-        classData.subclasses.forEach(s => {
+        classData.subclasses.filter(s => s === sub || typeof vaultOkSubclass !== 'function' || vaultOkSubclass(cls, s)).forEach(s => {   // VAULT
           const opt = document.createElement('option');
           opt.value = s;
           opt.textContent = s;
@@ -66348,7 +66349,7 @@ function renderLevelPlanGrid() {
     // 1), but which class that ends up being is the player's call, and
     // changing it here is exactly how you'd correct an earlier Quick
     // Start pick without starting over.
-    Object.keys(PHB_CLASSES).sort().forEach(c => {
+    (typeof vaultClassKeys === 'function' ? vaultClassKeys(currentCls) : Object.keys(PHB_CLASSES)).sort().forEach(c => {   // VAULT
       const opt = document.createElement('option');
       opt.value = c;
       opt.textContent = c.charAt(0).toUpperCase() + c.slice(1);
@@ -67001,6 +67002,7 @@ function renderQuickStartBackgroundGrid() {
   const q = (document.getElementById('qs-bg-search')?.value || '').trim();
   const matchQ = buildSearchMatcher(q);
   const entries = Object.entries(PHB_BACKGROUNDS)
+    .filter(([k, bg]) => k === currentKey || typeof vaultOk !== 'function' || vaultOk('backgrounds', k, bg.source))   // VAULT
     .filter(([, bg]) => !q || matchQ(bg.name))
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
@@ -67075,7 +67077,7 @@ function renderQuickStartBackgroundDetail(key) {
 function renderQuickStartClassStep(body) {
   const primary = currentChar.classes?.[0];
   const currentCls = primary?.class || '';
-  const classNames = Object.keys(PHB_CLASSES).sort();
+  const classNames = (typeof vaultClassKeys === 'function' ? vaultClassKeys(currentCls) : Object.keys(PHB_CLASSES)).sort();   // VAULT
 
   body.innerHTML = `
     <div style="font-family:var(--font-body);font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">
@@ -67267,7 +67269,8 @@ function renderQuickStartRaceGrid() {
   const q = (document.getElementById('qs-race-search')?.value || '').trim();
   const matchQ = buildSearchMatcher(q);
   const raceEntries = Object.entries(PHB_RACES)
-    .filter(([k, r]) => !r.hidden || k === currentRace)     // not on the DM's list
+    .filter(([k, r]) => !r.hidden || k === currentRace)
+    .filter(([k, r]) => k === currentRace || typeof vaultOk !== 'function' || vaultOk('species', k, r.source))   // VAULT     // not on the DM's list
     .filter(([, r]) => !q || matchQ(r.name))
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
@@ -98396,7 +98399,7 @@ select.sp-off-sel{outline:1px solid #e0b341;outline-offset:1px}
 .r5body table.r5t{border-collapse:collapse;margin:4px 0 10px;font-size:12.5px;width:100%}.r5body .r5t td,.r5body .r5t th{border:1px solid var(--border);padding:3px 6px;text-align:left;vertical-align:top}
 .r5body a.r5{color:var(--accent);cursor:pointer;text-decoration:underline dotted}
 .vt-srcfind{margin-left:auto;padding:4px 10px;border-radius:14px;border:1px solid var(--border);background:var(--bg2,transparent);color:inherit;font-size:12.5px;min-width:200px}
-.vt-srcn{font-size:10px;opacity:.65;font-weight:400;margin-left:3px}.vt-src:hover{border-color:var(--accent)}.vt-src.on{background:#337ab7;border-color:#2e6da4;color:#fff;font-weight:600}.vt-src.part{border-color:#337ab7;color:#337ab7}
+.vt-srcn{font-size:10px;opacity:.65;font-weight:400;margin-left:3px}.vt-srcpart{margin-left:6px;padding:0 3px;border-left:1px solid rgba(255,255,255,.35);opacity:.85}.vt-srcpart:hover,.vt-srcpart.open{opacity:1;text-decoration:underline}.vt-hidmark{font-size:11px;opacity:.9}.vt-partsbox{margin:8px 0 4px;padding:9px 11px;border:1px solid #337ab7;border-radius:6px;background:var(--bg2)}.vt-partshead{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:13px}.vt-partshead .tbtn{margin-left:auto}.vt-src:hover{border-color:var(--accent)}.vt-src.on{background:#337ab7;border-color:#2e6da4;color:#fff;font-weight:600}.vt-src.part{border-color:#337ab7;color:#337ab7}
 .vt-hp{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;flex:none;margin:6px 0}.vt-hp div{height:100%}.vt-card .vt-sum+.vt-tags,.vt-card .vt-hp+.vt-tags{margin-top:auto}
 /* the Vault is the DM panel: old tabs show the DM page under the Vault's bar */
 #vault-root.legacy{bottom:auto}#vault-root.legacy .vt-body{display:none}
@@ -98462,6 +98465,17 @@ a.vt-pill.vt-wl{border-bottom:1px solid var(--accent)}
 const VAULT_SRC_FILE = '_dm_sources.json';
 let _vaultSources = null;          // null = no list saved: everything allowed. Else { approved: {SRC: true} }
 let _vaultSourcesSHA = null, _vaultSourcesAt = 0;
+let _vaultHide = {};               // book -> {kind: true}: parts of an approved book players may NOT use (e.g. WoW classes)
+const VAULT_KINDS = [['class', 'Classes'], ['subclass', 'Subclasses'], ['species', 'Species'], ['background', 'Backgrounds'], ['feat', 'Feats'], ['option', 'Class options'], ['spell', 'Spells'], ['item', 'Items'], ['creature', 'Creatures']];
+const _VK_LIST = { spells: 'spell', feats: 'feat', subclasses: 'subclass', species: 'species', backgrounds: 'background', gear: 'item', weapons: 'item', armour: 'item', val: 'item', mnt: 'item', classes: 'class' };
+function vaultKindOk(book, kind) { const h = _vaultHide[book]; return !h || !kind || !h[kind]; }
+const _V_OPT_TYPES = new Set(['invocation', 'class option']);
+function _vRowKind(r, tab) {
+  if (tab === 'classes') return r.cls ? 'class' : 'subclass';
+  if (tab === 'featlib') return _V_OPT_TYPES.has(((r.f && r.f.type) || [])[0]) ? 'option' : 'feat';
+  return { spells: 'spell', itemlib: 'item', magic: 'item', species: 'species', bgs: 'background', bestiary: 'creature' }[tab] || null;
+}
+function _vRowOk(r, tab) { if (!r.f || !r.f.src) return true; const b = r.f.src[0]; if (_vaultSources && _vaultSources.approved && !_vaultSources.approved[b]) return false; return vaultKindOk(b, _vRowKind(r, tab)); }
 let _vaultSync = {};               // books the DM ticked "Add to the sheet" (official books are always added; step 77)
 function vaultSourceOf(def) { if (!def) return 'Unknown'; if (def.homebrew) return 'Homebrew'; const s = def.source || 'Unknown', P = VAULT_SRC_PARTS[s]; return (P && def.name && P[String(def.name).toLowerCase()]) || s; }
 // a list saved before a book was split into its parts (D&D Beyond Drops) approved the whole book: count that as every part
@@ -98477,25 +98491,27 @@ function _vSrcPartsCompat(L) {
   return L;
 }
 function vaultSourceOk(def) {
+  const b = vaultSourceOf(def); if (!vaultKindOk(b, def && def.school && def.level != null ? 'spell' : 'item')) return false;
   if (!_vaultSources || !_vaultSources.approved) return true;
-  return !!_vaultSources.approved[vaultSourceOf(def)];
+  return !!_vaultSources.approved[b];
 }
 async function vaultLoadSources(force) {
   if (!force && Date.now() - _vaultSourcesAt < 5 * 60000) return;
   _vaultSourcesAt = Date.now();
   try {
     const { content, sha } = await GH.getFile(VAULT_SRC_FILE);
-    const before = JSON.stringify(_vaultSources);
+    const before = JSON.stringify([_vaultSources, _vaultHide]);
     _vaultSources = content && content.approved ? { approved: content.approved } : null;
-    _vaultSourcesSHA = sha;
+    _vaultSourcesSHA = sha; _vaultHide = (content && content.hide) || {};
     if (_vaultSources) _vSrcPartsCompat(_vaultSources.approved);
     { const was = JSON.stringify(_vaultSync); _vaultSync = (content && content.sync) || {}; _vSrcPartsCompat(_vaultSync); if (was !== JSON.stringify(_vaultSync) && typeof spLoad === 'function' && typeof _SP !== 'undefined' && _SP.idx) spLoad(true); }
-    if (before !== JSON.stringify(_vaultSources)) ['renderMagicItemBrowser', 'renderSpellBrowser', 'renderGearBrowser'].forEach(f => { try { if (typeof window[f] === 'function') window[f](); } catch (e) {} });
+    if (before !== JSON.stringify([_vaultSources, _vaultHide])) ['renderMagicItemBrowser', 'renderSpellBrowser', 'renderGearBrowser'].forEach(f => { try { if (typeof window[f] === 'function') window[f](); } catch (e) {} });
   } catch (e) { if (e && e.status === 404) { _vaultSources = null; _vaultSourcesSHA = null; } }
 }
 async function vaultSaveSources(approved, sync) {
   if (sync) _vaultSync = sync;
-  const body = Object.assign(approved ? { approved } : {}, Object.keys(_vaultSync).length ? { sync: _vaultSync } : {});
+  const hide = Object.fromEntries(Object.entries(_vaultHide || {}).filter(([, h]) => h && Object.values(h).some(Boolean)));
+  const body = Object.assign(approved ? { approved } : {}, Object.keys(_vaultSync).length ? { sync: _vaultSync } : {}, Object.keys(hide).length ? { hide } : {});
   try { await GH.putFile(VAULT_SRC_FILE, body, _vaultSourcesSHA); }
   catch (e) {
     if (e.status !== 422 && e.status !== 409) throw e;
@@ -98522,21 +98538,26 @@ function vaultSrc(list, key, raw) {
   return raw && VAULT_SRC_META[raw] ? raw : (raw || "PHB'24");
 }
 // May a PLAYER browse this entry? The DM always can; no saved list = everything.
-function vaultOk(list, key, raw) { return isDM || !_vaultSources || !_vaultSources.approved || !!_vaultSources.approved[vaultSrc(list, key, raw)]; }
+function vaultOk(list, key, raw, kind) { if (isDM) return true; const b = vaultSrc(list, key, raw); if (!vaultKindOk(b, kind || _VK_LIST[list] || list)) return false; return !_vaultSources || !_vaultSources.approved || !!_vaultSources.approved[b]; }
 let _vFeatKeys = null;
 function vaultOkFeat(f) {
-  if (isDM || !_vaultSources || !f) return true;
+  if (isDM || !f) return true;
   if (!_vFeatKeys || !_vFeatKeys.has(f)) { _vFeatKeys = new Map(); Object.entries(PHB_FEATS).forEach(([k, v]) => _vFeatKeys.set(v, k)); }
   let k = _vFeatKeys.get(f); if (k == null) { const e = Object.entries(PHB_FEATS).find(([, v]) => v.name === f.name); if (!e) return true; k = e[0]; f = e[1]; }
-  return vaultOk('feats', k, f.source);
+  return vaultOk('feats', k, f.source, _V_OPT_TYPES.has(f.type) ? 'option' : 'feat');
 }
 function vaultOkSubclass(cls, name) {
-  if (isDM || !_vaultSources) return true;
+  if (isDM) return true;
   const c = String(cls || '').toLowerCase(), n = String(name || '').toLowerCase().trim();
   const e = Object.entries(PHB_SUBCLASSES).find(([k, v]) => k.startsWith(c + '/') && (String(v.name || '').toLowerCase() === n || k === c + '/' + n));
   return !e || vaultOk('subclasses', e[0], e[1].source);
 }
-Object.assign(window, { vaultSrc, vaultOk, vaultOkFeat, vaultOkSubclass });
+// the book a class comes from (sheet classes carry no source of their own; 5e.tools ones do)
+function vaultClassSrc(k) { const d = PHB_CLASSES[k] || {}; return d.source && (VAULT_SRC_META[d.source] || d._5e) ? d.source : k === 'artificer' ? 'EFA' : k === 'psion' ? 'XUA25PU' : "PHB'24"; }
+function vaultOkClass(k) { return isDM || vaultOk('classes', k, vaultClassSrc(k), 'class'); }
+// classes a player may pick, always keeping the one already chosen
+function vaultClassKeys(keep) { const c = String(keep || '').toLowerCase().trim(); return Object.keys(PHB_CLASSES).filter(k => k === c || vaultOkClass(k)); }
+Object.assign(window, { vaultSrc, vaultOk, vaultOkFeat, vaultOkSubclass, vaultOkClass, vaultClassKeys, vaultKindOk });
 function vaultSourceName(s) { if (VAULT_SRC_META[s]) return VAULT_SRC_META[s][0] || s; const n = typeof _vBrewName === 'function' && _vBrewName(s); return n ? n[0] : s; }
 // homebrew that only the bestiary brings (the full 5e.tools homebrew collection): off until the DM turns the book on
 // every homebrew and playtest book (names and counts, no contents): chars/_5etools_books.json, from the weekly sync.
@@ -98885,7 +98906,7 @@ const VAULT_CLASSES = {
   rows() {
     const R = [];
     Object.entries(PHB_CLASSES).forEach(([k, d]) => R.push({ d, key: k, name: d.name, group: '~classes', ck: k, glyph: '🎓', cls: true, col: _vClassCol(k), pic: _vPic('classes', k),
-      f: { src: [['artificer', 'psion'].includes(k) ? (k === 'artificer' ? 'EFA' : 'XUA25PU') : "PHB'24"], cls: [d.name], cast: [_vCaster(d)] },
+      f: { src: [vaultClassSrc(k)], cls: [d.name], cast: [_vCaster(d)] },
       search: d.name.toLowerCase(), body: () => (d.features || []).map(f => f.name + ' ' + f.desc).join(' ') }));
     Object.entries(PHB_SUBCLASSES).forEach(([k, d]) => { const ck = k.split('/')[0], c = PHB_CLASSES[ck]; R.push({ d, key: k, name: d.name, group: ck, ck, glyph: '📘', parent: c, col: _vClassCol(ck), pic: _vPic('subclasses', k),
       f: { src: [vaultSrc('subclasses', k, d.source)], cls: [c ? c.name : _vCap(ck)], cast: [d.bonusSpells ? 'Bonus spells' : 'No bonus spells'] },
@@ -99267,7 +99288,7 @@ async function _vBeastLoad() {
     if (!_VB.idx) _VB.idx = (await GH.getFile('_bestiary/index.json')).content;
     try { const v = await GH.getFile(VAULT_CREATURE_FILE); _VB.vis = (v.content && v.content.visible) || {}; _VB.visSHA = v.sha; } catch (e) { _VB.vis = {}; }
     const on = a => !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[a]);
-    const books = Object.keys(_VB.idx.files).filter(a => vaultExtraBrew(a) ? on(a) : (isDM || !_vaultSources || !_vaultSources.approved || on(a)));
+    const books = Object.keys(_VB.idx.files).filter(a => vaultExtraBrew(a) ? on(a) : (isDM || ((!_vaultSources || !_vaultSources.approved || on(a)) && vaultKindOk(a, 'creature'))));
     const files = books.flatMap(a => _VB.idx.files[a].map(f => [a, f.f])).filter(([, f]) => !_VB.books[f]);
     _VB.want = files.length; _VB.got = 0;
     let last = 0;
@@ -99325,7 +99346,7 @@ const VAULT_BEAST = {
   ready() { return !_VB.loading && !!_VB.idx; },
   rows() {
     if (!_VB.idx || (!_VB.loading && _VB.want && _VB.got < _VB.want && !_VB.err) || (!_VB.loading && !Object.keys(_VB.books).length && !_VB.err)) { if (!_VB.loading) _vBeastLoad(); }
-    const L = Object.values(_VB.books).flat(), keys = new Set(L.map(e => e.k)), ok = a => isDM || !_vaultSources || !_vaultSources.approved || !!_vaultSources.approved[a];
+    const L = Object.values(_VB.books).flat(), keys = new Set(L.map(e => e.k)), ok = a => isDM || ((!_vaultSources || !_vaultSources.approved || !!_vaultSources.approved[a]) && vaultKindOk(a, 'creature'));
     const byKey = new Map(L.map(e => [e.k, e])), ctx = _vCharCreatureCtx(), out = [];
     for (const e of L) {
       if (!ok(e.a)) continue;
@@ -99443,7 +99464,7 @@ function _vRowsOf(tab) {
   if (tab === _V.tab) return _vRows();
   const C = VAULT_LIB[tab]; if (!C || C.async) return [];
   _V.peekRows = _V.peekRows || {}; if (_V.peekRows[tab]) return _V.peekRows[tab];
-  let R = C.rows(); if (!isDM) R = R.filter(r => !r.d.dmOnly && !r.d.baseOnly && (!_vaultSources || !_vaultSources.approved || !r.f.src || !!_vaultSources.approved[r.f.src[0]]));
+  let R = C.rows(); if (!isDM) R = R.filter(r => !r.d.dmOnly && !r.d.baseOnly && _vRowOk(r, tab));
   return (_V.peekRows[tab] = R);
 }
 // ───────── wiki links between library entries (and backlinks) ─────────
@@ -99495,7 +99516,7 @@ function _vPeekDraw() { const det = document.getElementById('vt-detail'); if (!d
 function _vRows() {
   const t = _V.tab; if (_V.rows[t]) return _V.rows[t];
   let R = _vC().rows().sort((a, b) => a.name.localeCompare(b.name));
-  if (!isDM) R = R.filter(r => !r.d.dmOnly && !r.d.baseOnly && (!_vaultSources || !_vaultSources.approved || !r.f.src || !!_vaultSources.approved[r.f.src[0]]));   // players: approved books only
+  if (!isDM) R = R.filter(r => !r.d.dmOnly && !r.d.baseOnly && _vRowOk(r, t));   // players: approved books (and approved parts of them) only
   const pk = _vPk();
   if (pk) { const ctx = pk.prep ? pk.prep() : null; if (pk.keep) R = R.filter(r => pk.keep(r, ctx)); R.forEach(r => { r.f.mine = pk.tags ? pk.tags(r, ctx) : []; r.pstate = pk.state ? pk.state(r, ctx) : null; }); }
   if (!_vC().async || (_vC().ready ? _vC().ready() : _V.chars)) _V.rows[t] = R;
@@ -99612,6 +99633,7 @@ function _vSourcesPage() {
   _vCatLoad();
   if (_VC.books) Object.entries(_VC.books).forEach(([a, b]) => { if (!cnt[a]) cnt[a] = Object.values(b[3] || {}).reduce((t, n) => t + n, 0); });
   if (typeof _SP !== 'undefined' && _SP.idx) Object.values(_SP.idx.kinds || {}).forEach(k => Object.keys(k.counts || {}).forEach(a => { if (!cnt[a]) cnt[a] = 0; }));
+  if (!_V.srcDraft) _V.hideDraft = JSON.parse(JSON.stringify(_vaultHide || {}));
   if (!_V.srcDraft) { _V.srcDraft = {}; Object.keys(cnt).forEach(s => { _V.srcDraft[s] = sync ? (_vSrcOfficial(s) || !!_vaultSync[s]) : _vaultSources ? !!_vaultSources.approved[s] : !vaultExtraBrew(s); }); }
   const names = Object.keys(cnt), on = names.filter(s => _V.srcDraft[s]).length;
   const groups = VAULT_SRC_GROUPS.map(([g, gl]) => {
@@ -99621,7 +99643,7 @@ function _vSourcesPage() {
     const find = g === 'homebrew' && L.length > 40 ? `<input class="vt-srcfind" placeholder="Find a homebrew book…" value="${_itE(_V.srcFind || '')}" oninput="vaultSrcFind(this.value)">` : '';
     return `<div class="vt-sgroup" data-g="${g}"><div class="vt-sghead"><span class="vt-gname">${gl}</span><span class="vt-gnote">${n} of ${L.length} on</span>${find}
         <button class="tbtn" data-g="${g}" onclick="vaultSrcAll(true,this.dataset.g)">All</button><button class="tbtn" data-g="${g}" onclick="vaultSrcAll(false,this.dataset.g)">None</button></div>
-      <div class="vt-pillgrid">${L.map(s => `<button class="vt-src${_V.srcDraft[s] ? ' on' : ''}${sync && _vSrcOfficial(s) ? ' vt-lock' : ''}" title="${_V.srcDraft[s] && _VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew' && !_vStored(s) ? '⏳ Its contents arrive with the next 5e.tools sync · ' : ''}${_VC.books && _VC.books[s] ? _itE(Object.entries(_VC.books[s][3] || {}).map(([k, n]) => n + ' ' + k).join(', ')) + ' · ' : ''}${sync && _vSrcOfficial(s) ? 'Official: always added to the sheet · ' : ''}${_itE(s)} · ${cnt[s]} entr${cnt[s] === 1 ? 'y' : 'ies'}${vaultExtraBrew(s) && (_vBrewName(s) || [])[1] ? ' · by ' + _itE(_vBrewName(s)[1]) : ''}" data-v="${_itE(s)}" data-n="${_itE((vaultSourceName(s) + ' ' + s + ' ' + ((_vBrewName(s) || [])[1] || '')).toLowerCase())}"${_V.srcFind && g === 'homebrew' && !(vaultSourceName(s) + ' ' + s + ' ' + ((_vBrewName(s) || [])[1] || '')).toLowerCase().includes(_V.srcFind.toLowerCase()) ? ' style="display:none"' : ''} onclick="vaultSrcFlip(this.dataset.v)">${_itE(vaultSourceName(s))}${_V.srcDraft[s] && _VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew' && !_vStored(s) ? ' <span class="vt-pend">⏳</span>' : ''} <span class="vt-srcn">${cnt[s]}</span></button>`).join('')}</div></div>`;
+      <div class="vt-pillgrid">${L.map(s => `<button class="vt-src${_V.srcDraft[s] ? ' on' : ''}${sync && _vSrcOfficial(s) ? ' vt-lock' : ''}" title="${_V.srcDraft[s] && _VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew' && !_vStored(s) ? '⏳ Its contents arrive with the next 5e.tools sync · ' : ''}${_VC.books && _VC.books[s] ? _itE(Object.entries(_VC.books[s][3] || {}).map(([k, n]) => n + ' ' + k).join(', ')) + ' · ' : ''}${sync && _vSrcOfficial(s) ? 'Official: always added to the sheet · ' : ''}${_itE(s)} · ${cnt[s]} entr${cnt[s] === 1 ? 'y' : 'ies'}${vaultExtraBrew(s) && (_vBrewName(s) || [])[1] ? ' · by ' + _itE(_vBrewName(s)[1]) : ''}" data-v="${_itE(s)}" data-n="${_itE((vaultSourceName(s) + ' ' + s + ' ' + ((_vBrewName(s) || [])[1] || '')).toLowerCase())}"${_V.srcFind && g === 'homebrew' && !(vaultSourceName(s) + ' ' + s + ' ' + ((_vBrewName(s) || [])[1] || '')).toLowerCase().includes(_V.srcFind.toLowerCase()) ? ' style="display:none"' : ''} onclick="vaultSrcFlip(this.dataset.v)">${!sync && _V.srcDraft[s] && _vHidN(s) ? '<span class="vt-hidmark" title="Some parts of this book are hidden from players">◐</span> ' : ''}${_itE(vaultSourceName(s))}${_V.srcDraft[s] && _VC.books && _VC.books[s] && _VC.books[s][2] === 'homebrew' && !_vStored(s) ? ' <span class="vt-pend">⏳</span>' : ''} <span class="vt-srcn">${cnt[s]}</span>${!sync && _V.srcDraft[s] ? `<span class="vt-srcpart${_V.partsOf === s ? ' open' : ''}" title="Choose which parts of this book players may use" data-v="${_itE(s)}" onclick="event.stopPropagation();vaultSrcParts(this.dataset.v)">▾</span>` : ''}</button>`).join('')}</div>${!sync && _V.partsOf && L.includes(_V.partsOf) ? _vPartsBox(_V.partsOf) : ''}</div>`;
   }).join('');
   const modeBar = `<div class="vt-srcmode"><button class="vt-src${sync ? '' : ' on'}" onclick="vaultSrcMode('browse')">Players may browse</button><button class="vt-src${sync ? ' on' : ''}" onclick="vaultSrcMode('sync')">Add to the sheet</button></div>`;
   if (sync) return `<div class="vt-srcpage">${modeBar}<h3>Books whose new content is added to the sheet</h3>
@@ -99631,7 +99653,7 @@ function _vSourcesPage() {
     <p style="font-size:12px;color:var(--text3);margin-top:2px">${typeof spStatus === 'function' ? _itE(spStatus()) : ''}</p><p style="font-size:12px;color:var(--text3);margin-top:2px">Homebrew is only stored once you approve a book on either list: until then the sync keeps just its name and what it has. A newly approved book (⏳) arrives with the next sync; saving starts one.</p>
     ${groups}</div>`;
   return `<div class="vt-srcpage">${modeBar}${'<p style="font-size:12px;color:var(--text3);margin-top:2px">Homebrew is only stored once you approve a book on either list: until then the sync keeps just its name and what it has. A newly approved book (⏳) arrives with the next sync; saving starts one.</p>'}<h3>Books players may browse</h3>
-    <p>Players can only pick spells, feats, subclasses, items and magic items from the highlighted books. The rest stay in your Vault only, and you can still give them to a character. Anything a character already has is never hidden or removed. The number on each book is how many entries it has across all lists.
+    <p>Players can only pick classes, subclasses, species, backgrounds, spells, feats, items and magic items from the highlighted books. To keep a book but hide part of it (say its classes), use the ▾ on the book. The rest stay in your Vault only, and you can still give them to a character. Anything a character already has is never hidden or removed. The number on each book is how many entries it has across all lists.
       ${_vaultSources ? 'A book that arrives in a later import starts switched off.' : '<b>No list is saved yet, so players see every book.</b>'}
       Homebrew from the full 5e.tools collection (creatures only, for now) stays off until you turn a book on; only books that are on are downloaded, for you and for players.</p>
     <div class="vt-srcbar"><button class="tbtn" onclick="vaultSrcAll(true)">All</button><button class="tbtn" onclick="vaultSrcAll(false)">None</button>
@@ -99683,6 +99705,25 @@ function vaultClear() { const st = _vS(); st.q = ''; { const q = document.getEle
 function vaultSelect(k) { _V.peek = []; const st = _vS(), C = _vC(); if (k && C && C.onPick) { const r = _vRows().find(x => x.key === k); if (r && C.onPick(r, st)) return; } st.sel = k || null; vaultDraw('detail'); }
 function vaultTab(t) { if (_V.pick && t !== _V.pick.tab) return; if ((!isDM || _V.lib) && !VAULT_PLAYER_TABS.includes(t)) return; _V.tab = t; _V.peek = []; _V.lx = null; _V.peekRows = {}; delete _V.rows[t];   /* fresh each visit: new feats, DM edits and pack items show at once */ if (t === 'sources') _V.srcDraft = null; if (t === 'chars') { _V.chars = null; delete _V.rows.chars; } if (VAULT_LEGACY[t]) { _vOrigSwitch(t); } vaultDraw(); }
 function _vSrcOfficial(s) { if (typeof spOfficial === 'function' && spOfficial(s)) return true; return !_vBrewName(s) && !['homebrew', 'playtest'].includes(vaultSourceGroup(s)) && s !== 'Homebrew' && s !== 'DM'; }
+function _vHidN(s) { const h = (_V.hideDraft || {})[s]; return h ? Object.values(h).filter(Boolean).length : 0; }
+// how many entries of each kind a book has (sheet lists, creatures, new-from-5e.tools)
+function _vBookKinds(s) {
+  const n = {};
+  ['magic', 'itemlib', 'spells', 'featlib', 'classes', 'species', 'bgs'].forEach(t => (_V.rows[t] || []).forEach(r => { if (r.f && r.f.src && r.f.src[0] === s) { const k = _vRowKind(r, t); if (k) n[k] = (n[k] || 0) + 1; } }));
+  if (_VB.idx && _VB.idx.counts && _VB.idx.counts[s]) n.creature = (n.creature || 0) + _VB.idx.counts[s];
+  const SPK = { spell: 'spell', feat: 'feat', background: 'background', race: 'species', class: 'class', subclass: 'subclass', invocation: 'option', maneuver: 'option', metamagic: 'option', arcaneshot: 'option', rune: 'option' };
+  if (typeof _SP !== 'undefined' && _SP.idx) Object.entries(_SP.idx.kinds || {}).forEach(([k, v]) => { const c = (v.counts || {})[s]; if (c && SPK[k] && !(_SP.put && _SP.put[k] && _SP.put[k].size)) n[SPK[k]] = Math.max(n[SPK[k]] || 0, c); });
+  return n;
+}
+function _vPartsBox(s) {
+  const n = _vBookKinds(s), h = (_V.hideDraft || {})[s] || {};
+  const kinds = VAULT_KINDS.filter(([k]) => n[k] || h[k]);
+  return `<div class="vt-partsbox"><div class="vt-partshead"><b>${_itE(vaultSourceName(s))}</b>: what players may use<button class="tbtn" onclick="vaultSrcParts(null)">Done</button></div>
+    ${kinds.length ? `<div class="vt-pillgrid">${kinds.map(([k, l]) => `<button class="vt-src${h[k] ? '' : ' on'}" data-v="${_itE(s)}" data-k="${k}" onclick="vaultSrcPartFlip(this.dataset.v,this.dataset.k)">${l} <span class="vt-srcn">${n[k] || 0}</span></button>`).join('')}</div>` : '<div style="font-size:12px;color:var(--text3)">This book has nothing players can pick yet.</div>'}
+    <div style="font-size:11.5px;color:var(--text3);margin-top:6px">Switched-off parts stay in your Vault (and in the sheet for you to give out); players cannot pick or browse them. Anything a character already has is kept. Save to apply.</div></div>`;
+}
+function vaultSrcParts(s) { _V.partsOf = _V.partsOf === s ? null : s; vaultDraw('keep'); }
+function vaultSrcPartFlip(s, k) { const H = (_V.hideDraft = _V.hideDraft || {}); const h = (H[s] = H[s] || {}); if (h[k]) delete h[k]; else h[k] = true; if (!Object.keys(h).length) delete H[s]; vaultDraw('keep'); }
 function vaultSrcMode(m) { if ((_V.srcMode || 'browse') === m) return; _V.srcMode = m; _V.srcDraft = null; vaultDraw(); }
 function vaultSrcFlip(v) { if (_V.srcMode === 'sync' && _vSrcOfficial(v)) return; _V.srcDraft[v] = !_V.srcDraft[v]; vaultDraw('keep'); }
 function vaultSrcGroupFlip(g) { const L = Object.keys(_V.srcDraft || {}).filter(s => vaultSourceGroup(s) === g); vaultSrcAll(!L.every(s => _V.srcDraft[s]), g); }
@@ -99704,7 +99745,8 @@ async function vaultSrcSave(reset) {
     }
     const was = _vOnNow(); const ap = {}; Object.keys(_V.srcDraft || {}).forEach(s => { if (_V.srcDraft[s]) ap[s] = true; });
     if (_vaultSources && _vaultSources.approved) Object.keys(_vaultSources.approved).forEach(s => { if (_vaultSources.approved[s] && s !== 'UA' && !(s in (_V.srcDraft || {}))) ap[s] = true; });   // ticks for books not on the page (renamed or split) are kept
-    await vaultSaveSources(reset ? null : ap); _V.srcDraft = null; vaultDraw();
+    _vaultHide = reset ? {} : Object.fromEntries(Object.entries(_V.hideDraft || {}).filter(([b, h]) => ap[b] && Object.keys(h).length));
+    await vaultSaveSources(reset ? null : ap); _V.srcDraft = null; _V.partsOf = null; vaultDraw();
     const pend = reset ? [] : _vPending(a => (!!ap[a] || !!_vaultSync[a]) && !was.has(a));
     const s2 = document.getElementById('vt-src-status'); if (s2) s2.textContent = reset ? 'Saved: players see every book.' : 'Saved. Players pick this up within 5 minutes.' + (pend.length ? ' ' + _vFetchMsg(pend) : '');
   } catch (e) { if (st) { st.style.color = 'var(--red)'; st.textContent = 'Not saved: ' + (e && e.message || e); } }
