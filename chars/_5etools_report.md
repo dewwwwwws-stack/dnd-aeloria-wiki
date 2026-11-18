@@ -10,7 +10,7 @@ Nothing new since the last sync.
 
 ## Bestiary
 
-5,384 creatures from 149 books. Changed books: AU, BAM, BMT, CBT, CM, DMG'14, DMG'24, DoDk, EFA, FTD, GGR, ICC, LLK, MM'14, MM'25, MOT, MPMM, MTF, NF, PHB'24, PSZ, RHW, TCE, ToA, UA20SMT, UA21DO, UA22WotM, VGM, WBtW, WDH, WoW, WttHC, XGE, XUA23DP, XUA23P6, XUA24A
+5,384 creatures from 149 books. Changed books: AI, BndD-2606, BndD-2607, BndD-2608, BndD-2611, CBT, CoA, DoDk, MPMM, MoDk, OSW:HAP, PotA, TDCSR, ToA, UA20S2, UA20S5, UA20SMT, UA21DO, UA21MoS, UA22GO, UA22WotM, UAAR, UACDW, UACFV, VGM, XUA26MS, XUA26VO, XUA26VOU
 
 ## Homebrew
 
