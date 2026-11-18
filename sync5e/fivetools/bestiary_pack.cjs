@@ -53,17 +53,34 @@ for (const m of res.ok) {
   (out[a] = out[a] || []).push(e);
 }
 fs.mkdirSync(OUT, { recursive: true });
-for (const f of fs.readdirSync(OUT)) if (/^b_.*\.json$|^index\.json$/.test(f)) fs.unlinkSync(path.join(OUT, f));
+for (const f of fs.readdirSync(OUT)) if (/^b_.*\.json$|^index\.json$|^list(_\d+)?\.json$/.test(f)) fs.unlinkSync(path.join(OUT, f));
 const index = { v: 1, files: {}, counts: {}, total: 0, names: Object.fromEntries(Object.entries(names).filter(([a]) => out[a])), extra: [...extra].filter(a => out[a]).sort(), nfails: fails.length, fails: fails.slice(0, 200) };
 const LIMIT = 650000, usedBase = new Set();
+const fileOf = new Map();
 const safe = a => { let b = a.replace(/[^A-Za-z0-9]+/g, '_'); if (usedBase.has(b.toLowerCase())) b += '_' + crypto.createHash('sha1').update(a).digest('hex').slice(0, 6); usedBase.add(b.toLowerCase()); return b; };
 for (const [a, L] of Object.entries(out)) {
   const base = safe(a);
   L.sort((x, y) => x.n.localeCompare(y.n)); const parts = [[]]; let size = 0;
   for (const e of L) { const z = JSON.stringify(e).length; if (size + z > LIMIT && parts[parts.length - 1].length) { parts.push([]); size = 0; } parts[parts.length - 1].push(e); size += z; }
   index.files[a] = parts.map((p, i) => { const name = `b_${base}${parts.length > 1 ? '_' + (i + 1) : ''}.json`; const txt = JSON.stringify(p);
-    fs.writeFileSync(path.join(OUT, name), txt); return { f: name, h: crypto.createHash('sha1').update(txt).digest('hex').slice(0, 12), n: p.length }; });
+    fs.writeFileSync(path.join(OUT, name), txt); for (const e of p) fileOf.set(e.k, name); return { f: name, h: crypto.createHash('sha1').update(txt).digest('hex').slice(0, 12), n: p.length }; });
   index.counts[a] = L.length; index.total += L.length;
+}
+// list.json: every creature in one small file (what a card, the filters and searching need; no statblock), so the
+// sheet's Bestiary shows and searches at once and fetches a creature's book only when it is opened. Book-ordered;
+// x: L legendary actions, S spellcasting, F flies.
+{
+  const list = [];
+  for (const [a, L] of Object.entries(out)) for (const e of L) {
+    const sb = e.sb || {}; const x = (sb.legendary_actions && sb.legendary_actions.length ? 'L' : '') + ((sb.actions || []).concat(sb.traits || []).some((t) => /spellcasting/i.test(t.name || '')) ? 'S' : '') + (/fly/i.test(String(sb.speed || '')) ? 'F' : '');
+    const o = { k: e.k, n: e.n, a: e.a, cr: e.cr, t: e.t, sz: e.sz, al: e.al, env: e.env, tk: e.tk, fam: e.fam, sum: e.sum, ss: e.ss, si: e.si, npc: e.npc, rp: e.rp,
+      ac: sb.ac, hp: sb.hp, sp: String(sb.speed || '').slice(0, 60) || undefined, st: sb.subtype || undefined, x: x || undefined, f: fileOf.get(e.k) };
+    list.push(o);
+  }
+  // in parts under GitHub's 1 MB limit for reading a file through its API
+  const parts = [[]]; let size = 0;
+  for (const o of list) { const z = JSON.stringify(o).length + 1; if (size + z > LIMIT && parts[parts.length - 1].length) { parts.push([]); size = 0; } parts[parts.length - 1].push(o); size += z; }
+  index.list = parts.map((p, i) => { const name = `list_${i + 1}.json`, txt = JSON.stringify(p); fs.writeFileSync(path.join(OUT, name), txt); return { f: name, h: crypto.createHash('sha1').update(txt).digest('hex').slice(0, 12), n: p.length }; });
 }
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index));
 console.log(JSON.stringify({ total: index.total, books: Object.keys(out).length, files: Object.values(index.files).flat().length, fails: fails.length, firstFails: fails.slice(0, 3) }));
