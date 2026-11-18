@@ -1,4 +1,4 @@
-# 5e.tools sync — 2026-11-17
+# 5e.tools sync — 2026-11-18
 
 **0 magic items, 0 gear, 0 valuables, 0 mounts/vehicles, 0 weapons, 0 armour** on top of the sheet as last built.
 
@@ -10,11 +10,13 @@ Nothing new since the last sync.
 
 ## Bestiary
 
-5,359 creatures from 143 books. Changed books: AU, FRAiF, MM'25, RHW, WDMM, WoW
+5,359 creatures from 148 books. Changed books: BndD-2606, BndD-2607, BndD-2608, BndD-2609, BndD-2610, BndD-2611
+
+New creatures by book: BndD-2606 +4, BndD-2607 +4, BndD-2608 +3, BndD-2609 +3, BndD-2610 +4, BndD-2611 +3
 
 ## Homebrew
 
-1,555 homebrew books are listed on Vault > Sources (names and what each has, no contents). Contents are stored for the 12 you approved: Bnd, BndD, DoDk, Homebrew, MoDk, OSW:HAP, TDCSR, TGS1'24, TGS2, TGS3, TGS4, TGS5.
+1,562 homebrew books are listed on Vault > Sources (names and what each has, no contents). Contents are stored for the 18 you approved: Bnd, BndD, BndD-2605, BndD-2606, BndD-2607, BndD-2608, BndD-2609, BndD-2610, DoDk, Homebrew, MoDk, OSW:HAP, TDCSR, TGS1'24, TGS2, TGS3, TGS4, TGS5.
 
 ## New for the sheet
 
@@ -25,8 +27,6 @@ Check them in Vault > New from 5e.tools: each shows what was wired automatically
 ## 5e.tools library (DM only)
 
 13,375 entries: Spells 1,283, Psionics 52, Classes 82, Subclasses 735, Species 242, Subspecies 142, Backgrounds 226, Feats 644, Class options 557, Other options 47, Magic & special items 4,792, Basic gear & weapons 388, Item templates 414, Item groups 155, Weapon masteries 42, Item properties 1, Vehicles 46, Vehicle upgrades 31, Actions 101, Conditions 95, Diseases 29, Statuses 5, Rules & variant rules 459, Skills 36, Senses 20, Languages 235, Deities 593, Cults 40, Boons 20, Rewards & blessings 318, Bastion facilities 70, Recipes 316, Tables 199, Decks 35, Cards 765, Objects 38, Traps 49, Hazards 73.
-
-Change since last sync: Feats +19
 
 2 entries could not be built (mostly homebrew that copies from a book that is not loaded).
 
