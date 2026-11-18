@@ -23,6 +23,22 @@ for (const [root, f] of bookFiles) {
 const titleCase = n => String(n).replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
 const res = F.resolveCopies(all, templates); const conv = F.converter({ spellNote: (k, name) => 'Tools/Spells/' + titleCase(name) });
 const keyOf = m => F.norm(m.name) + '|' + String(m.source).toLowerCase();
+// what else can bring a creature out: spells and magic items whose text links the creature ({@creature ...}) and talks
+// about summoning, conjuring, animating or turning into it. 5e.tools' own summonedBySpell field misses Animate Dead,
+// Find Steed and every item (Figurine of Wondrous Power, Bag of Tricks...). Name-matched; the sheet shows a creature to
+// a player only when their character knows/prepares the spell or owns the item.
+const SUM_BY = { spell: new Map(), item: new Map() };
+{
+  const walk = (x, acc) => { if (typeof x === 'string') acc.push(x); else if (Array.isArray(x)) x.forEach((y) => walk(y, acc)); else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) if (k !== 'name' && k !== 'source') walk(v, acc); };
+  const scan = (kind, e, rx) => { const acc = []; walk(e.entries || [], acc); walk(e.entriesHigherLevel || [], acc); const t = acc.join(' '); if (!rx.test(t)) return;
+    for (const m of t.matchAll(/\{@creature ([^}|]+)/g)) { const n = F.norm(m[1].trim()); const M = SUM_BY[kind]; if (!M.has(n)) M.set(n, new Set()); M.get(n).add(e.name); } };
+  const SPELL_RX = /\b(summon|conjur|animate|raise|creates? an?|calls? forth|appears? in an unoccupied|becomes? (your|a)|you create)/i;
+  const ITEM_RX = /\b(summon|conjur|becomes? a|turns? into|transforms? into|animate|appears? in an unoccupied|comes to life|living creature|pull(s|ed)? (an?|the) .{0,30}out|takes the form|assumes the form|calls? forth|springs? forth)/i;
+  const NOT_SPELLS = new Set(['Wish', 'Major Image']);   // they name a creature only as an example
+  // spells: the newest printing only (the 2024 Find Steed brings the Otherworldly Steed, not a warhorse)
+  try { const si = JSON.parse(fs.readFileSync(path.join(SITE, 'data', 'spells', 'index.json'), 'utf8')); for (const f of Object.values(si)) for (const sp of JSON.parse(fs.readFileSync(path.join(SITE, 'data', 'spells', f), 'utf8')).spell || []) if (!NOT_SPELLS.has(sp.name) && !(sp.reprintedAs && sp.reprintedAs.length)) scan('spell', sp, SPELL_RX); } catch (e) { fails.push('summoning spells: ' + e.message); }
+  try { for (const it of JSON.parse(fs.readFileSync(path.join(SITE, 'data', 'items.json'), 'utf8')).item || []) scan('item', it, ITEM_RX); } catch (e) { fails.push('summoning items: ' + e.message); }
+}
 const out = {}; for (const x of res.failed) fails.push(`${x.name} (${x.source}): ${x.why}`);
 for (const m of res.ok) {
   let sb; try { sb = conv.convert(m); } catch (e) { fails.push(`${m.name} (${m.source}): ${e.message}`); continue; }
@@ -32,6 +48,7 @@ for (const m of res.ok) {
   const rp = (m.reprintedAs || [])[0]; const rpk = rp ? (typeof rp === 'string' ? rp : rp.uid || '') : '';
   const e = { k: keyOf(m), n: m.name, s: m.source, a, cr: typeof m.cr === 'object' ? (m.cr && m.cr.cr) : m.cr, t: sb.type, sz: sb.size, env: m.environment || undefined, al: sb.alignment,
     fam: m.familiar ? 1 : undefined, sum: m.summonedBySpell ? String(m.summonedBySpell).split('|')[0] : undefined, suml: m.summonedBySpellLevel || undefined,
+    ss: (() => { const S = SUM_BY.spell.get(F.norm(m.name)); return S ? [...S].sort() : undefined; })(), si: (() => { const S = SUM_BY.item.get(F.norm(m.name)); return S ? [...S].sort() : undefined; })(),
     npc: m.isNpc ? 1 : undefined, tk: tk || undefined, rp: rpk ? F.norm(rpk.split('|')[0]) + '|' + String(rpk.split('|')[1] || '').toLowerCase() : undefined, sb };
   (out[a] = out[a] || []).push(e);
 }
