@@ -5,9 +5,12 @@
 // Usage: node sheet_pack.cjs SITE BREW UA brew_files.json json2abv.json live.json OUT_DIR   (ALL_BREW=1: all homebrew)
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const [SITE, BREW, UA, BF, J2A, LIVE, OUT] = process.argv.slice(2);
-const KINDS = ['spell', 'feat', 'background', 'race', 'subrace', 'class', 'subclass', 'optionalfeature'];
+const KINDS = ['spell', 'feat', 'background', 'race', 'subrace', 'class', 'subclass', 'optionalfeature', 'variantrule', 'action', 'sense', 'skill', 'status', 'condition', 'disease'];
 const L = require('./load_data.cjs')({ SITE, BREW, UA, BF, J2A, all: !!process.env.ALL_BREW, cats: KINDS });
-const { data, names, extra, bookOf, srcField, fails } = L;
+const { data, names, extra, bookOf, srcField, fails, norm } = L;
+// rules text as the sheet's glossary shows it: plain safe HTML, links to other entries dropped (the glossary links its own terms)
+let FEAT_MAP_R = null;
+const RH = require('./render_html.cjs')({ get FEAT_MAP() { return FEAT_MAP_R; }, featLookup: () => null, norm });
 const J = JSON.parse(fs.readFileSync(J2A, 'utf8'));
 const OFFICIAL = new Set(Object.values(J).map((v) => (Array.isArray(v) ? v[0] : v)));
 const live = JSON.parse(fs.readFileSync(LIVE, 'utf8')).rep || {};
@@ -63,7 +66,8 @@ const have = {
   race: new Set((live.races || []).flatMap(([k, n, subs]) => [bare(n), lc(n), lc(k), ...(subs || []).flatMap((x) => [lc(x), lc(x) + ' ' + bare(n), bare(n) + ' (' + lc(x) + ')'])])), background: new Set((live.bgs || []).map(([, n]) => lc(n))),
   class: new Set((live.classes || []).flatMap(([k, n]) => [lc(n), lc(k)])), subclass: new Set((live.subclasses || []).flatMap(([k, n]) => [lc(k), k.split('/')[0] + '/' + lc(n), k.split('/')[0] + '/' + core(k.split('/')[1]), k.split('/')[0] + '/' + core(n)])),
   invocation: new Set((live.invocations || []).map(([c]) => lc(c))), maneuver: new Set((live.maneuvers || []).map(([n]) => lc(n))), metamagic: new Set((live.metamagic || []).map(([n]) => lc(n))),
-  arcaneshot: new Set((live.arcaneshots || []).map(([n]) => lc(n))), rune: new Set(['cloud rune', 'fire rune', 'frost rune', 'hill rune', 'stone rune', 'storm rune']),   // the Rune Knight's own six (fighter step)
+  arcaneshot: new Set((live.arcaneshots || []).map(([n]) => lc(n))),
+  rule: new Set([...(live.glossary || []).flatMap(([k, n]) => [lc(k), lc(n)]), ...(live.conditions || []).map(([k]) => lc(k)), ...(live.aliases || []).map(([k]) => lc(k))]), rune: new Set(['cloud rune', 'fire rune', 'frost rune', 'hill rune', 'stone rune', 'storm rune']),   // the Rune Knight's own six (fighter step)
 };
 const spellKeyOf = new Map((live.spells || []).map(([k, n]) => [lc(n), k]));
 const usedKeys = { spell: new Set((live.spells || []).map(([k]) => k)), feat: new Set((live.feats || []).map(([k]) => k)), race: new Set((live.races || []).map(([k]) => k)), background: new Set((live.bgs || []).map(([k]) => k)) };
@@ -351,12 +355,36 @@ for (const f of data.optionalfeature) tryAdd(() => {
   const b = bookOf(f); push(kind, b, Object.assign(o, meta(kind, f, b, w)));
 });
 
+// ── rules: the glossary (variant and optional rules, actions, senses, skills, statuses, conditions, diseases) ──
+// Single words that are everyday English stay out of the automatic links (every "attack" or "help" would become one);
+// they are still in the glossary. Multi-word terms, diseases and these distinctive words are linked.
+const LINK_WORDS = new Set(['blindsight', 'darkvision', 'tremorsense', 'truesight', 'bloodied', 'concentration', 'exhaustion', 'dash', 'disengage', 'dodge', 'acrobatics', 'athletics', 'arcana', 'deception', 'insight', 'intimidation', 'investigation', 'perception', 'persuasion', 'stealth', 'survival']);
+const RULEKIND = { variantrule: 'Rule', action: 'Action', sense: 'Sense', skill: 'Skill', status: 'Status', condition: 'Condition', disease: 'Disease' };
+const RTYPE = { C: 'Rules glossary', O: 'Optional rule', V: 'Variant rule', VO: 'Variant optional rule', VV: 'Variant rule' };
+const DATE = (b) => { for (const v of Object.values(J)) if (Array.isArray(v) && v[0] === b) return v[1] || ''; return ''; };
+const bestRule = new Map();   // name -> the entry to use: newest official printing, else the first of the others
+for (const kind of Object.keys(RULEKIND)) for (const e of data[kind] || []) tryAdd(() => {
+  const n = lc(e.name); if (!n || have.rule.has(n)) { if (n) skipped++; return; }
+  const b = bookOf(e), off = OFFICIAL.has(b) && !names[b];
+  const cur = bestRule.get(n + '|' + (off ? '' : b));
+  if (!cur || (off && DATE(b) > DATE(cur.b))) bestRule.set(n + '|' + (off ? '' : b), { e, kind, b });
+});
+for (const { e, kind, b } of bestRule.values()) tryAdd(() => {
+  const html = RH.render(e.entries || (e.entry != null ? [e.entry] : []), 0).replace(/<a class="r5"[^>]*>([\s\S]*?)<\/a>/g, '$1');
+  if (!html.trim()) return;
+  const single = !/[\s-]/.test(e.name.trim());
+  const link = !single || LINK_WORDS.has(lc(e.name)) || kind === 'disease';
+  const what = kind === 'variantrule' ? (RTYPE[e.ruleType] || 'Rule') : RULEKIND[kind];
+  const w = { auto: ['Glossary entry (' + what.toLowerCase() + ')', link ? 'Linked wherever it appears in rules text' : 'In the glossary only: a common word, so not linked in text'], todo: [] };
+  push('rule', b, Object.assign({ key: lc(e.name), name: e.name, source: b, html, kind: what, nolink: link ? undefined : 1 }, meta('rule', e, b, w)));
+});
+
 // ── write: whole books per file, homebrew from the full collection never mixed with the rest ──
 fs.mkdirSync(OUT, { recursive: true });
 for (const f of fs.readdirSync(OUT)) if (/^s_.*\.json$|^index\.json$/.test(f)) fs.unlinkSync(path.join(OUT, f));
 const LIMIT = 650000;
 const index = { v: 1, kinds: {}, extra: [], official: [], playtest: [], total: 0, skipped, nfails: fails.length, fails: fails.slice(0, 20) };
-const order = ['spell', 'feat', 'background', 'race', 'class', 'subclass', 'invocation', 'maneuver', 'metamagic', 'arcaneshot', 'rune'];
+const order = ['spell', 'feat', 'background', 'race', 'class', 'subclass', 'invocation', 'maneuver', 'metamagic', 'arcaneshot', 'rune', 'rule'];
 for (const kind of order) {
   const B = out[kind]; if (!B) continue;
   const ki = index.kinds[kind] = { n: 0, counts: {}, files: [] };

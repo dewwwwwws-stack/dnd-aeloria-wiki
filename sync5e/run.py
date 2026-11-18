@@ -134,7 +134,7 @@ def _load_pack(d):
         return P
     except Exception: return None
 def _entries(P): return {f"{k}:{x['key']}": {'kind': lbl, 'name': x.get('name'), 'source': x.get('source')} for k, lbl in KINDS for x in (P or {}).get(k, []) if x.get('key')}
-def diff_with_prev(pack):
+def diff_with_prev(pack, more=None):
     prev = _load_pack(A.prev) if A.prev else None
     now, was = _entries(pack), _entries(prev)
     new = [now[k] for k in now if k not in was]; gone = [was[k] for k in was if k not in now]
@@ -142,7 +142,9 @@ def diff_with_prev(pack):
     try: hist = json.load(open(os.path.join(A.prev, '_5etools_changes.json'), encoding='utf-8')).get('runs', []) if A.prev else []
     except Exception: hist = []
     run = {'date': datetime.date.today().isoformat(), 'built': pack.get('built'), 'first': prev is None, 'new': new, 'gone': gone, 'total': len(now)}
-    if prev is None or new or gone: hist = [run] + hist
+    # every part of the run, not just items (the sheet's "What changed" and status line read these)
+    if more: run.update(more)
+    hist = [run] + hist   # every run is recorded, also one that changed nothing
     json.dump({'runs': hist[:20]}, open(os.path.join(OUT, '_5etools_changes.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
     return run
 def _bybook(L): 
@@ -226,7 +228,20 @@ else:
                  'newBooks': sorted(a for a in off if prevS is not None and a not in set(prevS.get('official', []))), 'fails': r.get('fails', 0)}
     except Exception as e:
         warns.append('New-for-the-sheet pack not built this run: ' + str(e).splitlines()[0][:300])
-    change = diff_with_prev(pack)
+    # what this run changed, part by part, for the change log
+    prevStored = None
+    try: prevStored = next((r.get('stored') for r in json.load(open(os.path.join(A.prev, '_5etools_changes.json'), encoding='utf-8')).get('runs', []) if r.get('stored') is not None), None) if A.prev else None
+    except Exception: prevStored = None
+    more = {}
+    if books: more['stored'] = books['stored']; more['brewAdded'] = sorted(set(books['stored']) - set(prevStored or [])) if prevStored is not None else []; more['brewRemoved'] = sorted(set(prevStored or []) - set(books['stored']))
+    if best: more['creatures'] = {'total': best['total'], 'added': {a: n for a, n in best['added'].items() if n} if not best['first'] else {}, 'changed': best['changed'][:60] if not best['first'] else []}
+    if sheet:
+        prevSK = {}
+        try: prevSK = {k: v['n'] for k, v in json.load(open(os.path.join(A.prev, '_5etools_sheet_index.json'), encoding='utf-8'))['kinds'].items()} if A.prev else {}
+        except Exception: prevSK = {}
+        more['sheet'] = {'total': sheet['total'], 'grew': {k: n - prevSK.get(k, 0) for k, n in sheet['kinds'].items() if n != prevSK.get(k, 0)} if prevSK else {}}
+    if raw: more['library'] = {'total': raw['total'], 'grew': raw['grew']}
+    change = diff_with_prev(pack, more)
     c = {k: len(pack[k]) for k in ('magic', 'gearAdd', 'valAdd', 'mntAdd', 'newWeapons', 'newArmour')}; all_magic = list(pack['magic']); nparts = write(pack)
     L += [f"**{c['magic']} magic items, {c['gearAdd']} gear, {c['valAdd']} valuables, {c['mntAdd']} mounts/vehicles, {c['newWeapons']} weapons, {c['newArmour']} armour** on top of the sheet as last built"
           + (f' (split over {nparts} extra files).' if nparts else '.'), '', 'From: ' + ', '.join(f'{k} {v}' for k, v in pack['from'].items()), '']
