@@ -99712,7 +99712,7 @@ function _vBookKinds(s) {
   ['magic', 'itemlib', 'spells', 'featlib', 'classes', 'species', 'bgs'].forEach(t => (_V.rows[t] || []).forEach(r => { if (r.f && r.f.src && r.f.src[0] === s) { const k = _vRowKind(r, t); if (k) n[k] = (n[k] || 0) + 1; } }));
   if (_VB.idx && _VB.idx.counts && _VB.idx.counts[s]) n.creature = (n.creature || 0) + _VB.idx.counts[s];
   const SPK = { spell: 'spell', feat: 'feat', background: 'background', race: 'species', class: 'class', subclass: 'subclass', invocation: 'option', maneuver: 'option', metamagic: 'option', arcaneshot: 'option', rune: 'option' };
-  if (typeof _SP !== 'undefined' && _SP.idx) Object.entries(_SP.idx.kinds || {}).forEach(([k, v]) => { const c = (v.counts || {})[s]; if (c && SPK[k] && !(_SP.put && _SP.put[k] && _SP.put[k].size)) n[SPK[k]] = Math.max(n[SPK[k]] || 0, c); });
+  if (typeof _SP !== 'undefined' && _SP.idx) Object.entries(_SP.idx.kinds || {}).forEach(([k, v]) => { const c = (v.counts || {})[s]; if (c && SPK[k]) n[SPK[k]] = Math.max(n[SPK[k]] || 0, c); });
   return n;
 }
 function _vPartsBox(s) {
@@ -99760,6 +99760,8 @@ function _vFetchMsg(pend) {
   return `${what}: contents arrive with the next 5e.tools sync.`;
 }
 function vaultOpen(tab, lib) {
+  // the synced 5e.tools entries (new classes, subclasses...) load with a character; opening the Vault first must load them too
+  try { if (typeof spLoad === 'function' && typeof _SP !== 'undefined' && !_SP.idx && !_SP.busy) spLoad(true).then(() => { try { _V.rows = {}; _V.peekRows = {}; vaultDraw('keep'); } catch (e) {} }); } catch (e) {}
   let root = document.getElementById('vault-root');
   if (!_V.picking) _V.pick = null;
   _V.lib = !isDM || !!lib || !!_V.pick;                          // library = the seven reference pages only (always so for players)
@@ -99866,7 +99868,7 @@ async function packLoad(force) {
   return _PACK;
 }
 // one line for a sync run: every part of it (items, creatures, homebrew stored, new for the sheet, 5e.tools library)
-const _SYNC_KIND = { spell: 'spells', feat: 'feats', background: 'backgrounds', race: 'species', class: 'classes', subclass: 'subclasses', invocation: 'invocations', maneuver: 'maneuvers', metamagic: 'metamagic', arcaneshot: 'Arcane Shots', rune: 'runes', rule: 'rules' };
+const _SYNC_KIND = { spell: 'spells', feat: 'feats', background: 'backgrounds', race: 'species', class: 'classes', subclass: 'subclasses', invocation: 'invocations', maneuver: 'maneuvers', metamagic: 'metamagic', arcaneshot: 'Arcane Shots', rune: 'runes', rule: 'rules', update: 'newer printings' };
 const _sum = o => Object.values(o || {}).reduce((t, n) => t + n, 0);
 function syncRunLine(r) {
   if (!r) return '';
@@ -99994,18 +99996,19 @@ window.syncChangesLoad = syncChangesLoad;
 // done or not needed (chars/_dm_review.json), and which Claude also works through in later sessions.
 // ═══════════════════════════════════════════════════════════
 const SP_DIR = '_5etools_sheet', SP_REVIEW = '_dm_review.json';
-const _SP = { idx: null, files: {}, at: 0, busy: false, err: null, rows: [], put: { spell: new Set(), feat: new Set(), background: new Set(), race: new Set(), class: new Set(), subclass: new Set(), invocation: new Set(), maneuver: new Set(), metamagic: new Set(), arcaneshot: new Set(), rune: new Set(), rule: new Set() }, review: {}, off: [], kept: new Set(), reviewSha: null, reviewAt: 0 };
+const _SP = { idx: null, files: {}, at: 0, busy: false, err: null, rows: [], put: { spell: new Set(), feat: new Set(), background: new Set(), race: new Set(), class: new Set(), subclass: new Set(), invocation: new Set(), maneuver: new Set(), metamagic: new Set(), arcaneshot: new Set(), rune: new Set(), rule: new Set(), update: new Set() }, review: {}, off: [], kept: new Set(), reviewSha: null, reviewAt: 0 };
 
 function spOfficial(a) { return !!(_SP.idx && (_SP.idx.official || []).includes(a)); }
 function spBookOn(a) { return spOfficial(a) || !!_vaultSync[a]; }
-const _spKindTab = { spell: 'spells', feat: 'featlib', background: 'bgs', race: 'species', class: 'classes', subclass: 'classes', invocation: 'featlib', maneuver: 'featlib', metamagic: 'featlib', arcaneshot: 'opts', rune: 'opts', rule: '' };
-const _spKindName = { spell: 'Spell', feat: 'Feat', background: 'Background', race: 'Species', class: 'Class', subclass: 'Subclass', invocation: 'Invocation', maneuver: 'Maneuver', metamagic: 'Metamagic', arcaneshot: 'Arcane Shot', rune: 'Rune', rule: 'Rule' };
+const _spKindTab = { update: '', spell: 'spells', feat: 'featlib', background: 'bgs', race: 'species', class: 'classes', subclass: 'classes', invocation: 'featlib', maneuver: 'featlib', metamagic: 'featlib', arcaneshot: 'opts', rune: 'opts', rule: '' };
+const _spKindName = { update: 'Newer printing', spell: 'Spell', feat: 'Feat', background: 'Background', race: 'Species', class: 'Class', subclass: 'Subclass', invocation: 'Invocation', maneuver: 'Maneuver', metamagic: 'Metamagic', arcaneshot: 'Arcane Shot', rune: 'Rune', rule: 'Rule' };
 const _SP_BYNAME = new Set(['invocation', 'maneuver', 'metamagic', 'arcaneshot', 'rune']);
 const _spId = (kind, e) => _SP_BYNAME.has(kind) || kind === 'background' ? String(e.name).toLowerCase() : e.key;
 
 // put one entry into the sheet's own tables (never over something the sheet already has)
 function _spPut(kind, e, off) {
   const P = _SP.put[kind];
+  if (kind === 'update') { if (P.has(e.key)) return false; P.add(e.key); return true; }   // listed for the DM only; the sheet's own entry stays
   const flag = off ? { _5e: true, _off: e._b } : { _5e: true };
   try {
     if (kind === 'arcaneshot') {
@@ -100053,6 +100056,7 @@ function _spPut(kind, e, off) {
 // take back what a book the DM switched off had put in (a character keeps the name it chose either way)
 function _spTakeOut(kind, e) {
   const P = _SP.put[kind];
+  if (kind === 'update') { P.delete(e.key); return; }
   if (kind === 'arcaneshot') { const def = (PHB_CLASS_CHOICES.fighter || []).find(d => d.id === 'arcane_shot_options'); if (def) def.options = def.options.filter(n => n !== e.name); delete ARCANE_SHOT_DESCS[e.name]; P.delete(_spId(kind, e)); return; }
   if (kind === 'rune') { if (window.RUNE_EXTRA) delete window.RUNE_EXTRA[e.name]; P.delete(_spId(kind, e)); return; }
   if (kind === 'rule') { if (typeof RULES_GLOSSARY !== 'undefined' && RULES_GLOSSARY[e.key] && RULES_GLOSSARY[e.key]._5e) delete RULES_GLOSSARY[e.key]; P.delete(e.key); return; }
@@ -100203,8 +100207,31 @@ async function spReviewSet(k, patch) {
   }
   try { delete _V.rows.review; vaultDraw('keep'); } catch (e) {}
 }
-const _SP_STATES = { todo: 'Needs wiring', auto: 'Wired automatically', done: 'Marked wired', skip: 'Not needed' };
-function _spState(r) { const e = r.e || r.d; const s = (_SP.review[e._k] || {}).s; return s === 'done' ? 'done' : s === 'skip' ? 'skip' : (e._w && e._w.todo && e._w.todo.length ? 'todo' : 'auto'); }
+const _SP_STATES = { newer: 'Newer printing available', want: 'Claude to update', todo: 'Needs wiring', auto: 'Wired automatically', done: 'Marked wired', skip: 'Not needed' };
+function _spState(r) { const e = r.e || r.d; const s = (_SP.review[e._k] || {}).s; if (r.kind === 'update' && !s) return 'newer'; return s === 'done' ? 'done' : s === 'skip' ? 'skip' : s === 'want' ? 'want' : (e._w && e._w.todo && e._w.todo.length ? 'todo' : 'auto'); }
+// a newer printing of something the sheet already has: its text, and the DM's choice (Claude makes the change in a later session)
+function _spSheetKey(of, nm) {
+  const n = String(nm || '').toLowerCase();
+  if (of === 'subclass') return ['classes', nm];
+  if (of === 'spell') { const x = PHB_SPELL_LIST.find(z => z.name.toLowerCase() === n); return ['spells', x && x.key]; }
+  if (of === 'feat') { const x = Object.entries(PHB_FEATS).find(([, z]) => z.name.toLowerCase() === n); return ['featlib', x && x[0]]; }
+  if (of === 'background') { const x = Object.entries(PHB_BACKGROUNDS).find(([, z]) => z.name.toLowerCase() === n); return ['bgs', x && x[0]]; }
+  if (of === 'race') { const x = Object.entries(PHB_RACES).find(([, z]) => String(z.name).toLowerCase().replace(/\s*\([^)]*\)\s*/g, ' ').trim() === n); return ['species', x && x[0]]; }
+  if (of === 'class') { const x = Object.keys(PHB_CLASSES).find(k => PHB_CLASSES[k].name.toLowerCase() === n); return ['classes', x]; }
+  return ['', null];
+}
+function _spUpdateDetail(r) {
+  const rv = _SP.review[r.d._k] || {}, st = _spState(r), nm = String(r.d.key || '').split('|').slice(2).join('|'), [tab, key] = _spSheetKey(r.d.of, nm);
+  const b = (lbl, sv, main) => `<button class="${main ? 'vt-give' : 'tbtn'}" data-k="${_itE(r.d._k)}" onclick="spReviewSet(this.dataset.k,{s:'${sv}'})">${lbl}</button>`;
+  return _vHead(r, '🆕', r.col, `Newer printing · ${_itE(_spKindName[r.d.of] || r.d.of)} · ${_SP_STATES[st]}`) +
+    `<div class="vt-dbody r5body" style="border-top:1px solid var(--border)">
+      <p class="r5c">Your sheet's <b>${_itE(r.d.name)}</b> still has the <b>${_itE(vaultSourceName(r.d.from))}</b> text. <b>${_itE(vaultSourceName(r.d._b))}</b> reprinted it, and the text below is that newer version. The sheet's own entries are never replaced automatically.</p>
+      <p class="r5c">Choose <b>Use the new version</b> and Claude switches the sheet over (with its wiring) in a later session, or <b>Keep the sheet's</b> to leave it as it is.${key ? ` <button class="tbtn" data-t="${tab}" data-k="${_itE(key)}" onclick="vaultPeek(this.dataset.t,this.dataset.k)">Show the sheet's version</button>` : ''}</p>
+      <div class="r5h1">The newer version (${_itE(vaultSourceName(r.d._b))})</div>${r.d.html || '<p>No text.</p>'}
+      <div class="r5h1">Your note</div><textarea class="vt-note" rows="3" placeholder="Anything Claude should know" data-k="${_itE(r.d._k)}" onchange="spReviewSet(this.dataset.k,{note:this.value})">${_itE(rv.note || '')}</textarea>
+      ${rv.at ? `<p class="r5c" style="color:var(--text3)">Last changed ${_itE(rv.at)}</p>` : ''}</div>
+    <div class="vt-dfoot">${st !== 'want' && st !== 'done' ? b('Use the new version', 'want', true) : ''}${st !== 'skip' ? b("Keep the sheet's", 'skip') : ''}${st === 'want' ? b('Updated', 'done') : ''}${rv.s ? b('Undo', '') : ''}</div>`;
+}
 const VAULT_REVIEW = {
   title: 'New from 5e.tools', noun: 'entries', async: true,
   ready() { return !!_SP.idx && !_SP.busy; },
@@ -100213,20 +100240,20 @@ const VAULT_REVIEW = {
     if (Date.now() - _SP.reviewAt > 60000) spReviewLoad().then(() => { try { delete _V.rows.review; vaultDraw('keep'); } catch (e) {} });
     return _SP.rows.filter(r => r.on || r.kept).map(r => {
       const w = r.e._w || {}, st = _spState(r);
-      return { d: r.e, kind: r.kind, key: r.e._k, name: r.e.name, group: _SP_STATES[st], glyph: '🆕', col: { todo: '#e0b341', auto: '#57ab5a', done: '#5b8def', skip: '#8b949e' }[st],
+      return { d: r.e, kind: r.kind, key: r.e._k, name: r.e.name, group: _SP_STATES[st], glyph: '🆕', col: { newer: '#c678dd', want: '#d19a66', todo: '#e0b341', auto: '#57ab5a', done: '#5b8def', skip: '#8b949e' }[st],
         f: { src: [r.e._b], kind: [_spKindName[r.kind]], st: [_SP_STATES[st]], todo: [...new Set((w.todo || []).map(t => t.split(':')[0]))] },
         search: (r.e.name + ' ' + _spKindName[r.kind]).toLowerCase(), body: () => [...(w.auto || []), ...(w.todo || [])].join(' ') };
     });
   },
-  groups: ['Needs wiring', 'Wired automatically', 'Marked wired', 'Not needed'], groupColour: g => ({ 'Needs wiring': '#e0b341', 'Wired automatically': '#57ab5a', 'Marked wired': '#5b8def', 'Not needed': '#8b949e' }[g] || 'var(--accent)'),
-  facets: [{ id: 'st', label: 'Status', values: ['Needs wiring', 'Wired automatically', 'Marked wired', 'Not needed'] }, { id: 'kind', label: 'Kind', values: Object.values(_spKindName) }, _vSrcFacet, { id: 'todo', label: 'Still to do' }],
+  groups: ['Newer printing available', 'Claude to update', 'Needs wiring', 'Wired automatically', 'Marked wired', 'Not needed'], groupColour: g => ({ 'Newer printing available': '#c678dd', 'Claude to update': '#d19a66', 'Needs wiring': '#e0b341', 'Wired automatically': '#57ab5a', 'Marked wired': '#5b8def', 'Not needed': '#8b949e' }[g] || 'var(--accent)'),
+  facets: [{ id: 'st', label: 'Status', values: ['Newer printing available', 'Claude to update', 'Needs wiring', 'Wired automatically', 'Marked wired', 'Not needed'] }, { id: 'kind', label: 'Kind', values: Object.values(_spKindName) }, _vSrcFacet, { id: 'todo', label: 'Still to do' }],
   crumb() { const R = _SP.rows.filter(r => r.on), n = s => R.filter(r => _spState(r) === s).length;
     return `<div class="vt-rawbar"><div class="vt-rawnote">Spells, feats, species, backgrounds, classes, subclasses and class options that the weekly 5e.tools sync added to the sheet: official books always, and playtest or homebrew books you tick "Add to the sheet" in Sources. Each shows what was wired automatically and what is still text only. Mark one wired once it works the way you want (or not needed); Claude reads this list too and can wire the rest.</div>
-      <div class="vt-rawnote"><b>${n('todo').toLocaleString()}</b> need wiring · ${n('auto').toLocaleString()} wired automatically · ${n('done').toLocaleString()} marked wired · ${n('skip').toLocaleString()} not needed${_SP.err ? ' · ' + _itE(_SP.err) : ''}</div></div>`; },
+      <div class="vt-rawnote">${n('newer') ? `<b>${n('newer')}</b> newer printing${n('newer') === 1 ? '' : 's'} available · ` : ''}${n('want') ? `${n('want')} for Claude to update · ` : ''}<b>${n('todo').toLocaleString()}</b> need wiring · ${n('auto').toLocaleString()} wired automatically · ${n('done').toLocaleString()} marked wired · ${n('skip').toLocaleString()} not needed${_SP.err ? ' · ' + _itE(_SP.err) : ''}</div></div>`; },
   empty() { return _SP.busy ? 'Loading…' : _SP.err || (_SP.idx ? 'Nothing here with these filters.' : 'Nothing yet: the weekly 5e.tools sync adds new entries.'); },
   card(r) { const w = r.d._w || {};
-    return _vCardShell(r, '🆕', r.col, `${_spKindName[r.kind]} · ${r.d._b}`, `<div class="vt-sum">${_itE((w.todo || []).length ? 'To do: ' + w.todo.join('; ') : 'Wired: ' + (w.auto || []).join('; '))}</div>`, '', ''); },
-  detail(r) { const w = r.d._w || {}, rv = _SP.review[r.d._k] || {}, st = _spState(r), tab = _spKindTab[r.kind];
+    return _vCardShell(r, '🆕', r.col, `${_spKindName[r.kind]} · ${r.d._b}`, `<div class="vt-sum">${_itE(r.kind === 'update' ? `Your sheet has the ${r.d.from} version; ${vaultSourceName(r.d._b)} has a newer one` : (w.todo || []).length ? 'To do: ' + w.todo.join('; ') : 'Wired: ' + (w.auto || []).join('; '))}</div>`, '', ''); },
+  detail(r) { if (r.kind === 'update') return _spUpdateDetail(r); const w = r.d._w || {}, rv = _SP.review[r.d._k] || {}, st = _spState(r), tab = _spKindTab[r.kind];
     const list = (t, L, cls) => L && L.length ? `<div class="r5h1">${t}</div><ul class="vt-wl-list ${cls}">${L.map(x => `<li>${_itE(x)}</li>`).join('')}</ul>` : '';
     const kept = _SP.rows.find(x => x.e === r.d && x.kept);
     const lk = r.kind === 'rule' ? `<button class="tbtn" data-k="${_itE(r.d.key)}" onclick="openGlossaryTermModal(this.dataset.k)">Show it</button>` : _SP_BYNAME.has(r.kind) ? '' : `<button class="tbtn" data-t="${tab}" data-k="${_itE(r.kind === 'feat' ? r.d.key : r.d.key)}" onclick="vaultPeek(this.dataset.t,this.dataset.k)">Show it</button>`;
