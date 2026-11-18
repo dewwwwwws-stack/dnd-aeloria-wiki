@@ -78266,7 +78266,7 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
       json.format = json.format || 1;
       json.spells = json.spells.concat(add);
       const body = {
-        message: add.length === 1 ? `Add custom spell ${add[0].name}` : `Add ${add.length} custom spells`,
+        message: add.length === 1 ? `Add spell ${add[0].name}` : `Add ${add.length} spells`,
         content: textToB64(JSON.stringify(json, null, 1)),
         branch: GH.branch
       };
@@ -78310,6 +78310,15 @@ window.renderScrollsSpellPanel = renderScrollsSpellPanel;
     return run;
   }
   window.publishCustomSpells = publish;
+  let _builtInDone = false;
+  window.publishBuiltInSpells = function () {
+    if (_builtInDone || window._previewMode || !isDM || window._spellListSource !== 'file' || !Array.isArray(window._builtInOnlySpells)) return Promise.resolve([]);
+    const want = new Set(window._builtInOnlySpells), shared = window._sharedSpellKeys || new Set();
+    const missing = PHB_SPELL_LIST.filter(sp => sp && want.has(sp.key) && !shared.has(sp.key) && !sp._5e);
+    _builtInDone = true;
+    if (!missing.length) return Promise.resolve([]);
+    return publish(missing).then(added => { if (added.length && typeof toast === 'function') toast(`${added.length} spell${added.length === 1 ? '' : 's'} built into the sheet added to the shared spell list (for the Obsidian spell notes).`, 'ok'); return added; });
+  };
 
   const _saveCustomSpell = window.saveCustomSpell;
   if (typeof _saveCustomSpell === 'function') {
@@ -99795,6 +99804,7 @@ function _vFetchMsg(pend) {
   return `${what}: contents arrive with the next 5e.tools sync.`;
 }
 function vaultOpen(tab, lib) {
+  try { if (isDM && typeof window.publishBuiltInSpells === 'function') (window.spellListReady || Promise.resolve()).then(() => window.publishBuiltInSpells()); } catch (e) {}   // spells built into the page that the shared file lacks
   // the synced 5e.tools entries (new classes, subclasses...) load with a character; opening the Vault first must load them too
   try { if (typeof spLoad === 'function' && typeof _SP !== 'undefined' && !_SP.idx && !_SP.busy) spLoad(true).then(() => { try { _V.rows = {}; _V.peekRows = {}; vaultDraw('keep'); } catch (e) {} }); } catch (e) {}
   let root = document.getElementById('vault-root');
