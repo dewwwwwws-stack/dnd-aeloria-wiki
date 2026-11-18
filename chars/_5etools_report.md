@@ -10,9 +10,7 @@ Nothing new since the last sync.
 
 ## Bestiary
 
-5,384 creatures from 149 books. Changed books: CBT
-
-New creatures by book: CBT +25
+5,384 creatures from 149 books. Nothing changed since the last sync.
 
 ## Homebrew
 
@@ -20,15 +18,15 @@ New creatures by book: CBT +25
 
 ## New for the sheet
 
-Added to the sheet's own lists from official books: 1 spells, 5 feats, 92 backgrounds, 73 species, 12 classes, 33 subclasses, 3 maneuvers. Playtest and homebrew books add theirs once you tick them "Add to the sheet" in Vault > Sources (available: 99 spells, 147 feats, 129 backgrounds, 114 species, 20 classes, 215 subclasses, 28 invocations, 9 maneuvers, 2 metamagic options, 16 Arcane Shots, 6 runes).
+Added to the sheet's own lists from official books: 1 spells, 5 feats, 92 backgrounds, 73 species, 12 classes, 33 subclasses, 3 maneuvers, 186 rule. Playtest and homebrew books add theirs once you tick them "Add to the sheet" in Vault > Sources (available: 99 spells, 147 feats, 129 backgrounds, 114 species, 20 classes, 215 subclasses, 28 invocations, 9 maneuvers, 2 metamagic options, 16 Arcane Shots, 6 runes, 389 rule).
 
 Check them in Vault > New from 5e.tools: each shows what was wired automatically and what is still text only.
+
+New official books with new content: CM, CoS, DMG'24, FRAiF, IDRotF, MM'14, OoW, OotA, TftYP, VGM, VRGR, WDMM
 
 ## 5e.tools library (DM only)
 
 13,426 entries: Spells 1,309, Psionics 52, Classes 82, Subclasses 747, Species 242, Subspecies 142, Backgrounds 227, Feats 649, Class options 557, Other options 47, Magic & special items 4,799, Basic gear & weapons 388, Item templates 414, Item groups 155, Weapon masteries 42, Item properties 1, Vehicles 46, Vehicle upgrades 31, Actions 101, Conditions 95, Diseases 29, Statuses 5, Rules & variant rules 459, Skills 36, Senses 20, Languages 235, Deities 593, Cults 40, Boons 20, Rewards & blessings 318, Bastion facilities 70, Recipes 316, Tables 199, Decks 35, Cards 765, Objects 38, Traps 49, Hazards 73.
-
-Change since last sync: Spells +26, Subclasses +12, Backgrounds +1, Feats +5, Magic & special items +7
 
 2 entries could not be built (mostly homebrew that copies from a book that is not loaded).
 
