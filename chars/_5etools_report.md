@@ -18,11 +18,9 @@ Nothing new since the last sync.
 
 ## New for the sheet
 
-Added to the sheet's own lists from official books: 1 spells, 5 feats, 92 backgrounds, 73 species, 12 classes, 33 subclasses, 3 maneuvers, 186 rule. Playtest and homebrew books add theirs once you tick them "Add to the sheet" in Vault > Sources (available: 99 spells, 147 feats, 129 backgrounds, 114 species, 20 classes, 215 subclasses, 28 invocations, 9 maneuvers, 2 metamagic options, 16 Arcane Shots, 6 runes, 389 rule).
+Added to the sheet's own lists from official books: 1 spells, 5 feats, 4 backgrounds, 73 species, 12 classes, 33 subclasses, 3 maneuvers, 186 rules, 1 newer printings of what the sheet has (Vault > New from 5e.tools). Playtest and homebrew books add theirs once you tick them "Add to the sheet" in Vault > Sources (available: 99 spells, 147 feats, 16 backgrounds, 114 species, 20 classes, 215 subclasses, 28 invocations, 9 maneuvers, 2 metamagic options, 16 Arcane Shots, 6 runes, 389 rules, 1 newer printings of what the sheet has (Vault > New from 5e.tools)).
 
 Check them in Vault > New from 5e.tools: each shows what was wired automatically and what is still text only.
-
-New official books with new content: CM, CoS, DMG'24, FRAiF, IDRotF, MM'14, OoW, OotA, TftYP, VGM, VRGR, WDMM
 
 ## 5e.tools library (DM only)
 
