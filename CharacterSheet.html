@@ -98567,7 +98567,7 @@ function _vCatLoad() { if (_VC.tried) return; _VC.tried = true; GH.getFile('_5et
 // a sync finished: forget the indexes and book list read so far, so the new ones are read (Sources, Bestiary, 5e.tools, new for the sheet)
 function vaultAfterSync() {
   _VC.tried = false; _VC.books = null;
-  if (!_VB.loading) { _VB.idx = null; _VB.books = {}; _VB.idxTry = false; }
+  if (!_VB.loading) { _VB.idx = null; _VB.books = {}; _VB.list = null; _VB.idxTry = false; }
   if (typeof _VR !== 'undefined' && !_VR.loading) { _VR.idx = null; _VR.files = {}; _VR.idxTry = false; }
   try { _V.rows = {}; } catch (e) {}
   if (typeof spLoad === 'function') return spLoad(true);
@@ -99276,7 +99276,26 @@ Object.assign(window, { vaultPick, vaultPickAct, vaultPickSpells, vaultPickMagic
 // Data: chars/_bestiary/index.json + one file per book, written by the weekly 5e.tools sync. Loaded on first visit,
 // book by book (approved books only for players). Players see only creatures the DM marks, plus what their own
 // character can use: familiars, creatures summoned by spells they have, and Wild Shape beasts within their limits.
-const _VB = { idx: null, books: {}, loading: false, err: null, vis: null, visSHA: null, want: 0, got: 0 };
+const _VB = { idx: null, books: {}, list: null, loading: false, err: null, vis: null, visSHA: null, want: 0, got: 0, bookWait: {} };
+// a small store in the browser for downloaded bestiary files, by their hash: a later visit opens at once
+const _vIdb = (() => { let db = null;
+  const open = () => db || (db = new Promise((res) => { try { const r = indexedDB.open('vault-bestiary', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } }));
+  const tx = async (mode, fn) => { const d = await open(); if (!d) return null; return new Promise((res) => { try { const t = d.transaction('f', mode), q = fn(t.objectStore('f')); t.oncomplete = () => res(q && q.result); t.onerror = t.onabort = () => res(null); } catch (e) { res(null); } }); };
+  return { get: (k) => tx('readonly', (o) => o.get(k)), put: (k, v) => tx('readwrite', (o) => o.put(v, k)), del: (k) => tx('readwrite', (o) => o.delete(k)) }; })();
+async function _vBeastFile(f, h) {   // one bestiary file, from the browser's store when its hash still matches
+  const key = 'b|' + f; if (h) { const c = await _vIdb.get(key); if (c && c.h === h) return c.d; }
+  const d = (await GH.getFile('_bestiary/' + f)).content || []; if (h) _vIdb.put(key, { h, d }); return d;
+}
+// the list row of a full entry (an older pack has no list.json: the books are loaded and listed this way)
+function _vBeastRow(e, f) { const sb = e.sb || {}; return Object.assign({}, e, { sb: undefined, ac: sb.ac, hp: sb.hp, sp: String(sb.speed || '').slice(0, 60) || undefined, st: sb.subtype || undefined, f,
+  x: ((sb.legendary_actions && sb.legendary_actions.length ? 'L' : '') + ((sb.actions || []).concat(sb.traits || []).some(t => /spellcasting/i.test(t.name || '')) ? 'S' : '') + (/fly/i.test(String(sb.speed || '')) ? 'F' : '')) || undefined }); }
+// a creature's full statblock: its book file is fetched the first time one of its creatures is opened
+function _vBeastFull(e) { const B = _VB.books[e.f]; return B ? (B._byK || (B._byK = new Map(B.map(x => [x.k, x])))).get(e.k) || null : null; }
+function _vBeastBook(f) {
+  if (_VB.books[f] || _VB.bookWait[f]) return _VB.bookWait[f];
+  const h = ((Object.values((_VB.idx && _VB.idx.files) || {}).flat().find(x => x.f === f)) || {}).h;
+  return (_VB.bookWait[f] = _vBeastFile(f, h).then(d => { _VB.books[f] = d; }).catch(() => { _VB.books[f] = []; }).finally(() => { delete _VB.bookWait[f]; if (_V.tab === 'bestiary') vaultDraw('detail'); }));
+}
 const VAULT_CREATURE_FILE = '_dm_creatures.json';
 const _vCrNum = c => { const t = String(c == null ? '' : c); if (!t || t === 'Unknown') return null; const f = t.match(/^(\d+)\/(\d+)$/); return f ? f[1] / f[2] : parseFloat(t); };
 const _V_CRBAND = [['CR 0 – 1/4', 0, 0.25], ['CR 1/2 – 1', 0.5, 1], ['CR 2 – 4', 2, 4], ['CR 5 – 10', 5, 10], ['CR 11 – 16', 11, 16], ['CR 17+', 17, 99]];
@@ -99287,14 +99306,22 @@ async function _vBeastLoad() {
   try {
     if (!_VB.idx) _VB.idx = (await GH.getFile('_bestiary/index.json')).content;
     try { const v = await GH.getFile(VAULT_CREATURE_FILE); _VB.vis = (v.content && v.content.visible) || {}; _VB.visSHA = v.sha; } catch (e) { _VB.vis = {}; }
-    const on = a => !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[a]);
-    const books = Object.keys(_VB.idx.files).filter(a => vaultExtraBrew(a) ? on(a) : (isDM || ((!_vaultSources || !_vaultSources.approved || on(a)) && vaultKindOk(a, 'creature'))));
-    const files = books.flatMap(a => _VB.idx.files[a].map(f => [a, f.f])).filter(([, f]) => !_VB.books[f]);
-    _VB.want = files.length; _VB.got = 0;
-    let last = 0;
-    const one = async ([a, f]) => { try { _VB.books[f] = (await GH.getFile('_bestiary/' + f)).content || []; } catch (e) { _VB.books[f] = []; } _VB.got++;
-      if (Date.now() - last > 700 && _V.tab === 'bestiary') { last = Date.now(); delete _V.rows.bestiary; vaultDraw('keep'); } };
-    for (let i = 0; i < files.length; i += 6) await Promise.all(files.slice(i, i + 6).map(one));   // six at a time
+    if (Array.isArray(_VB.idx.list)) {
+      // one small list of every creature (a few files, kept in the browser): the page shows and searches at once
+      _VB.want = _VB.idx.list.length; _VB.got = 0;
+      const parts = await Promise.all(_VB.idx.list.map(p => _vBeastFile(p.f, p.h).then(d => { _VB.got++; return d; })));
+      _VB.list = parts.flat();
+    } else {
+      // an older pack: every book is loaded (as before), then listed
+      const on = a => !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[a]);
+      const books = Object.keys(_VB.idx.files).filter(a => vaultExtraBrew(a) ? on(a) : (isDM || ((!_vaultSources || !_vaultSources.approved || on(a)) && vaultKindOk(a, 'creature'))));
+      const files = books.flatMap(a => _VB.idx.files[a].map(f => [a, f.f])).filter(([, f]) => !_VB.books[f]);
+      _VB.want = files.length; _VB.got = 0; let last = 0;
+      const one = async ([a, f]) => { try { _VB.books[f] = (await GH.getFile('_bestiary/' + f)).content || []; } catch (e) { _VB.books[f] = []; } _VB.got++;
+        if (Date.now() - last > 700 && _V.tab === 'bestiary') { last = Date.now(); _VB.list = Object.entries(_VB.books).flatMap(([f, L]) => L.map(e => _vBeastRow(e, f))); delete _V.rows.bestiary; vaultDraw('keep'); } };
+      for (let i = 0; i < files.length; i += 6) await Promise.all(files.slice(i, i + 6).map(one));
+      _VB.list = Object.entries(_VB.books).flatMap(([f, L]) => L.map(e => _vBeastRow(e, f)));
+    }
   } catch (e) { _VB.err = e && e.status === 404 ? 'No bestiary yet: it is added by the 5e.tools sync (run it from Vault > Sources).' : 'Could not load the bestiary: ' + (e.message || e); }
   _VB.loading = false; _V.lx = null; if (_V.tab === 'bestiary') { delete _V.rows.bestiary; vaultDraw('keep'); }
 }
@@ -99321,7 +99348,7 @@ function _vWhyCan(e, c) {
   if ((e.sum && c.has(e.sum)) || (e.ss || []).some(n => c.has(n))) out.push('Summoned by your spell');
   if (c.items && c.items.size && (e.si || []).some(n => c.items.has(_vItemKey(n)))) out.push('From your item');
   { const cs = _V_CLASS_SUM[String(e.n || '').toLowerCase()]; if (cs && (c.subs || []).some(([k, sb]) => k === cs[0] && cs[1].test(sb))) out.push('Your class feature'); }
-  if (c.wsCr >= 0 && e.t === 'beast' && _vCrNum(e.cr) != null && _vCrNum(e.cr) <= c.wsCr && (c.wsFly || !/fly/i.test(String(e.sb.speed || '')))) out.push('Wild Shape');
+  if (c.wsCr >= 0 && e.t === 'beast' && _vCrNum(e.cr) != null && _vCrNum(e.cr) <= c.wsCr && (c.wsFly || !/F/.test(e.x || ''))) out.push('Wild Shape');
   return out;
 }
 function _vStatblock(sb) {
@@ -99353,37 +99380,37 @@ const VAULT_BEAST = {
   title: 'Bestiary', noun: 'creatures', async: true,
   ready() { return !_VB.loading && !!_VB.idx; },
   rows() {
-    if (!_VB.idx || (!_VB.loading && _VB.want && _VB.got < _VB.want && !_VB.err) || (!_VB.loading && !Object.keys(_VB.books).length && !_VB.err)) { if (!_VB.loading) _vBeastLoad(); }
-    const L = Object.values(_VB.books).flat(), keys = new Set(L.map(e => e.k)), ok = a => isDM || ((!_vaultSources || !_vaultSources.approved || !!_vaultSources.approved[a]) && vaultKindOk(a, 'creature'));
+    if (!_VB.loading && !_VB.err && (!_VB.idx || !_VB.list)) _vBeastLoad();
+    const L = (_VB.list || []).filter(e => !vaultExtraBrew(e.a) || !!(_vaultSources && _vaultSources.approved && _vaultSources.approved[e.a])), keys = new Set(L.map(e => e.k)), ok = a => isDM || ((!_vaultSources || !_vaultSources.approved || !!_vaultSources.approved[a]) && vaultKindOk(a, 'creature'));
     const byKey = new Map(L.map(e => [e.k, e])), ctx = _vCharCreatureCtx(), out = [];
     for (const e of L) {
       if (!ok(e.a)) continue;
       if (e.rp && keys.has(e.rp) && ok((byKey.get(e.rp) || {}).a)) continue;   // the newest printing wins (among books in use)
       const why = _vWhyCan(e, ctx), shown = !!(_VB.vis || {})[e.k];
       if (!isDM && !shown && !why.length) continue;
-      const crn = _vCrNum(e.cr), sb = e.sb || {};
+      const crn = _vCrNum(e.cr), x = e.x || '';
       out.push({ d: e, key: e.k, name: e.n, group: _vCrBand(crn), glyph: '🐉', col: _vHue(e.t), pic: _vTokUrl(e.tk),
         f: { src: [e.a], cr: [_vCrBand(crn)], type: [_vCap(e.t || 'unknown')], size: String(e.sz || '').split(' or '), env: (e.env || []).map(_vCap),
-          has: [e.fam ? 'Can be a familiar' : null, e.sum || e.ss ? 'Summoned by a spell' : null, e.si ? 'From a magic item' : null, sb.legendary_actions ? 'Legendary actions' : null, /fly/i.test(String(sb.speed || '')) ? 'Flying' : null,
-            (sb.actions || []).concat(sb.traits || []).some(a => /spellcasting/i.test(a.name || '')) ? 'Spellcasting' : null, e.npc ? 'NPC' : null].filter(Boolean),
+          has: [e.fam ? 'Can be a familiar' : null, e.sum || e.ss ? 'Summoned by a spell' : null, e.si ? 'From a magic item' : null, x.includes('L') ? 'Legendary actions' : null, x.includes('F') ? 'Flying' : null,
+            x.includes('S') ? 'Spellcasting' : null, e.npc ? 'NPC' : null].filter(Boolean),
           why: why.length ? why : isDM && shown ? ['Shown to players by you'] : [], pv: shown ? ['Players can see'] : ['DM only'] },
-        search: (e.n + ' ' + (e.t || '') + ' ' + (sb.subtype || '')).toLowerCase(), body: () => (sb.traits || []).concat(sb.actions || []).map(x => x.name + ' ' + x.desc).join(' '), crn });
+        search: (e.n + ' ' + (e.t || '') + ' ' + (e.st || '')).toLowerCase(), body: () => { const F = _vBeastFull(e), sb = (F && F.sb) || {}; return (sb.traits || []).concat(sb.actions || []).map(x => x.name + ' ' + x.desc).join(' '); }, crn });
     }
     return out;
   },
   groups: [..._V_CRBAND.map(x => x[0]), 'CR unknown'], groupColour: g => ['#57ab5a', '#4fb8a8', '#5b8def', '#e0b341', '#f0883e', '#e5534b', '#8b949e'][[..._V_CRBAND.map(x => x[0]), 'CR unknown'].indexOf(g)] || 'var(--accent)',
-  groupNote: () => _VB.loading ? `loading books… ${_VB.got}/${_VB.want}` : '',
+  groupNote: () => _VB.loading ? `loading… ${_VB.got}/${_VB.want}` : '',
   facets: [{ id: 'why', label: 'For this character', values: ['Familiar', 'Summoned by your spell', 'From your item', 'Your class feature', 'Wild Shape', 'Shown to players by you'] }, _vSrcFacet, { id: 'cr', label: 'Challenge', values: [..._V_CRBAND.map(x => x[0]), 'CR unknown'] },
     { id: 'type', label: 'Type', dot: v => _vHue(v.toLowerCase()) }, { id: 'size', label: 'Size', values: ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'] }, { id: 'env', label: 'Habitat' },
     { id: 'has', label: 'Has', values: ['Can be a familiar', 'Summoned by a spell', 'From a magic item', 'Legendary actions', 'Spellcasting', 'Flying', 'NPC'], every: true }, { id: 'pv', label: 'Players', values: ['Players can see', 'DM only'], dmOnly: true }],
-  empty() { return _VB.err || (_VB.loading ? `Loading the bestiary… ${_VB.got}/${_VB.want} books` : isDM ? 'No creatures match.' : 'No creatures to show yet: your DM can share some, and familiars, summons and Wild Shape forms you can use appear here.'); },
-  card(r) { const e = r.d, sb = e.sb || {};
-    return _vCardShell(r, '🐉', r.col, `${e.sz || ''} ${e.t || ''} · CR ${e.cr == null ? '?' : e.cr} · ${e.a}`.trim(), `<div class="vt-sum vt-mono">AC ${_itE(sb.ac)} · HP ${_itE(sb.hp)} · ${_itE(String(sb.speed || '').slice(0, 60))}</div>`,
-      r.f.why.filter(w => w !== 'Shown to players by you').map(w => _vTag(w, 'vt-have')).join('') + (isDM && r.f.pv[0] === 'Players can see' ? _vTag('Players can see', 'vt-ch') : '') + (e.fam ? _vTag('Familiar') : '') + (sb.legendary_actions ? _vTag('Legendary', 'vt-att') : ''), (e.al || '').slice(0, 24)); },
-  detail(r) { const e = r.d, sb = e.sb || {};
-    return _vHead(r, '🐉', r.col, `${e.sz || ''} ${e.t || ''}${sb.subtype ? ' (' + sb.subtype + ')' : ''}, ${e.al || ''} · ${vaultSourceName(e.a)}`) +
+  empty() { return _VB.err || (_VB.loading ? `Loading the bestiary… ${_VB.got}/${_VB.want}` : isDM ? 'No creatures match.' : 'No creatures to show yet: your DM can share some, and familiars, summons and Wild Shape forms you can use appear here.'); },
+  card(r) { const e = r.d;
+    return _vCardShell(r, '🐉', r.col, `${e.sz || ''} ${e.t || ''} · CR ${e.cr == null ? '?' : e.cr} · ${e.a}`.trim(), `<div class="vt-sum vt-mono">AC ${_itE(e.ac)} · HP ${_itE(e.hp)} · ${_itE(e.sp || '')}</div>`,
+      r.f.why.filter(w => w !== 'Shown to players by you').map(w => _vTag(w, 'vt-have')).join('') + (isDM && r.f.pv[0] === 'Players can see' ? _vTag('Players can see', 'vt-ch') : '') + (e.fam ? _vTag('Familiar') : '') + (/L/.test(e.x || '') ? _vTag('Legendary', 'vt-att') : ''), (e.al || '').slice(0, 24)); },
+  detail(r) { const e = r.d, F = _vBeastFull(e), sb = (F && F.sb) || null; if (!sb && e.f) _vBeastBook(e.f);
+    return _vHead(r, '🐉', r.col, `${e.sz || ''} ${e.t || ''}${e.st ? ' (' + e.st + ')' : ''}, ${e.al || ''} · ${vaultSourceName(e.a)}`) +
       `<div class="vt-pills"><span class="vt-pill">CR ${_itE(e.cr == null ? '?' : e.cr)}</span>${r.f.why.map(w => `<span class="vt-pill vt-have">${_itE(w)}</span>`).join('')}</div>
-      <div class="vt-dbody" style="border-top:1px solid var(--border)">${r.pic ? `<img class="vt-big vt-token" loading="lazy" src="${_itE(r.pic)}" onerror="this.remove()">` : ''}${_vStatblock(sb)}</div>
+      <div class="vt-dbody" style="border-top:1px solid var(--border)">${r.pic ? `<img class="vt-big vt-token" loading="lazy" src="${_itE(r.pic)}" onerror="this.remove()">` : ''}${sb ? _vStatblock(sb) : `<p style="color:var(--text3)">${_VB.books[e.f] ? 'No statblock found.' : 'Loading the statblock…'}</p>`}</div>
       ${isDM ? `<div class="vt-dfoot"><label class="vt-chk${(_VB.vis || {})[e.k] ? ' on' : ''}" style="flex:1"><input type="checkbox" ${(_VB.vis || {})[e.k] ? 'checked' : ''} data-k="${_itE(e.k)}" onchange="vaultCreatureVisible(this.dataset.k,this.checked)"> <span class="vt-lbl" style="text-transform:none">Players can see this creature</span></label></div>` : ''}`; },
 };
 
