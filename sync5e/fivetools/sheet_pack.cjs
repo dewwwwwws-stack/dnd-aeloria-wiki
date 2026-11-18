@@ -329,7 +329,9 @@ const tryAdd = (fn) => { try { fn(); } catch (err) { fails.push(String(err && er
 // spells first, so feats and subclasses can point at new spells too
 for (const sp of data.spell) tryAdd(() => { if (have.spell.has(lc(sp.name)) || reprintHave(sp, 'spell')) { skipped++; return; } const b = bookOf(sp); const [o, w] = makeSpell(sp, b); push('spell', b, Object.assign(o, meta('spell', sp, b, w))); });
 for (const f of data.feat) tryAdd(() => { if (lc(f.name) === 'ability score improvement') return; if (have.feat.has(lc(f.name)) || reprintHave(f, 'feat')) { skipped++; return; } const b = bookOf(f); const [o, w] = makeFeat(f, b); push('feat', b, Object.assign(o, meta('feat', f, b, w))); });
-for (const x of data.background) tryAdd(() => { if (have.background.has(lc(x.name)) || reprintHave(x, 'background')) { skipped++; return; } const b = bookOf(x); const [o, w] = makeBackground(x, b); o.key = keyFor('background', x.name, b); push('background', b, Object.assign(o, meta('background', x, b, w))); });
+let old2014 = 0;
+for (const x of data.background) tryAdd(() => { if (!x.ability || !x.ability.length) { old2014++; return; }   // 2014-style background (ability scores on the species, no origin feat): not for this 2024 sheet
+  if (have.background.has(lc(x.name)) || reprintHave(x, 'background')) { skipped++; return; } const b = bookOf(x); const [o, w] = makeBackground(x, b); o.key = keyFor('background', x.name, b); push('background', b, Object.assign(o, meta('background', x, b, w))); });
 const raceBy = new Map(data.race.map((r) => [lc(r.name) + '|' + lc(r.source), r]));
 for (const r of data.race) tryAdd(() => { if (have.race.has(bare(r.name)) || have.race.has(lc(r.name)) || reprintHave(r, 'race')) { skipped++; return; } const b = bookOf(r); const [o, w] = makeRace(r, b, r.name); o.key = keyFor('race', r.name, b); push('race', b, Object.assign(o, meta('race', r, b, w))); });
 for (const s of data.subrace) tryAdd(() => {
@@ -407,4 +409,4 @@ index.playtest = [...used].filter((a) => names[a] && names[a][3] === 'playtest')
 index.extra = [...extra].filter((a) => used.has(a)).sort();
 index.official = [...used].filter((a) => OFFICIAL.has(a) && !names[a]).sort();
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index));
-console.log(JSON.stringify({ total: index.total, skipped, kinds: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, v.n])), official: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, Object.entries(v.counts).filter(([a]) => index.official.includes(a)).reduce((s, [, n]) => s + n, 0)])), files: Object.values(index.kinds).reduce((s, v) => s + v.files.length, 0), fails: fails.length, firstFails: fails.slice(0, 4) }));
+console.log(JSON.stringify({ total: index.total, skipped, old2014, kinds: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, v.n])), official: Object.fromEntries(Object.entries(index.kinds).map(([k, v]) => [k, Object.entries(v.counts).filter(([a]) => index.official.includes(a)).reduce((s, [, n]) => s + n, 0)])), files: Object.values(index.kinds).reduce((s, v) => s + v.files.length, 0), fails: fails.length, firstFails: fails.slice(0, 4) }));
