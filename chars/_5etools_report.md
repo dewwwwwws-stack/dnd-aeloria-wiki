@@ -1,8 +1,8 @@
-# 5e.tools sync — 2026-11-18
+# 5e.tools sync — 2026-11-23
 
 **0 magic items, 0 gear, 0 valuables, 0 mounts/vehicles, 0 weapons, 0 armour** on top of the sheet as last built.
 
-From: 5etools-src c3a5185 2026-11-17, homebrew 8175cd0 2026-11-17, unearthed-arcana 7c93aee 2026-11-05
+From: 5etools-src c286d15 2026-11-19, homebrew bfa8996 2026-11-23, unearthed-arcana 7c93aee 2026-11-05
 
 ## What changed
 
@@ -10,11 +10,11 @@ Nothing new since the last sync.
 
 ## Bestiary
 
-5,384 creatures from 149 books. Changed books: AI, BndD-2606, BndD-2607, BndD-2608, BndD-2611, CBT, CoA, DoDk, MPMM, MoDk, OSW:HAP, PotA, TDCSR, ToA, UA20S2, UA20S5, UA20SMT, UA21DO, UA21MoS, UA22GO, UA22WotM, UAAR, UACDW, UACFV, VGM, XUA26MS, XUA26VO, XUA26VOU
+5,384 creatures from 149 books. Changed books: WoW
 
 ## Homebrew
 
-1,562 homebrew books are listed on Vault > Sources (names and what each has, no contents). Contents are stored for the 24 you approved: Bnd, BndD, BndD-2605, BndD-2606, BndD-2607, BndD-2608, BndD-2609, BndD-2610, BndD-2611, BndMBG3, BndMDL, BndMEE, BndMUD, CBT, DoDk, Homebrew, MoDk, OSW:HAP, TDCSR, TGS1'24, TGS2, TGS3, TGS4, TGS5.
+1,567 homebrew books are listed on Vault > Sources (names and what each has, no contents). Contents are stored for the 24 you approved: Bnd, BndD, BndD-2605, BndD-2606, BndD-2607, BndD-2608, BndD-2609, BndD-2610, BndD-2611, BndMBG3, BndMDL, BndMEE, BndMUD, CBT, DoDk, Homebrew, MoDk, OSW:HAP, TDCSR, TGS1'24, TGS2, TGS3, TGS4, TGS5.
 
 ## New for the sheet
 
