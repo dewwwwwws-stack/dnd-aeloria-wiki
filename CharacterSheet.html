@@ -69839,7 +69839,8 @@ function pdfCollectCharacter() {
   });
   [...D.spellClasses.map(s => s.cls), '_other'].forEach(g => {
     const list = byGroup.get(g); if (!list || !list.length) return;
-    D.spellGroups.push({ cls: g, info: D.spellClasses.find(s => s.cls === g) || null, rows: list.map(r => pdfSpellRow(r, g)) });
+    // (`via`: how a spell from outside the classes is cast, for the Atlas copy: "1/day, Magic Initiate")
+    D.spellGroups.push({ cls: g, info: D.spellClasses.find(s => s.cls === g) || null, rows: list.map(r => Object.assign(pdfSpellRow(r, g), { via: g === '_other' ? _atlasVia(r, D) : '', ritual: !!(r.ritual || r.pipType === 'ritual-only') })) });
   });
   // cantrip attacks for the attacks block
   D.spellGroups.flatMap(g => g.rows).filter(s => s.level === 0 && /\d+d\d+/.test(s.desc) && /damage/i.test(s.descFull || s.desc)).forEach(s => {
@@ -98297,36 +98298,66 @@ function _atlasActionLine(a) {
 
 // Fantasy Statblocks' spell list: a header line per caster, then { "<level>": "names" } lines
 function _atlasSpellList(D) {
+  // One list of every spell the character can cast, in level order, as a monster's statblock lists them:
+  // each class's DC and attack bonus first, then "1st level (4 slots): Shield, Sanctuary (1/day, Magic Initiate)".
+  // A spell from outside the classes says how it's cast in brackets; a ritual says so.
   const out = [];
   const slotsAt = {};
   (D.slots?.levels || []).forEach(l => { if (Number(l.max) > 0) slotsAt[l.level] = Number(l.max); });
   const pact = D.slots?.warlock || null;
-  const nameOf = r => String(r.name || r.key);
-  (D.spellGroups || []).forEach(g => {
-    const rows = (g.rows || []).filter(r => r && (r.name || r.key));
-    if (!rows.length) return;
-    const sc = g.info;
-    if (sc) {
-      out.push(`**${_pdfCap(sc.cls)}** (${_pdfCap(String(sc.ability || ''))}): spell save DC ${sc.dc}, ${_pdfSign(sc.atk)} to hit with spell attacks` + (sc.prepare ? `; prepares ${sc.prepare}` : '')
-        + (/warlock/i.test(sc.cls) && pact ? `; ${pact.max} Pact Magic slot${pact.max === 1 ? '' : 's'} (level ${pact.slotLevel})` : '') + ':');
-      const warlock = /warlock/i.test(sc.cls);
-      for (let lv = 0; lv <= 9; lv++) {
-        const names = rows.filter(r => (r.level | 0) === lv).map(nameOf);
-        if (!names.length) continue;
-        let label;
-        if (lv === 0) label = 'Cantrips (at will)';
-        else if (warlock && pact) label = `${_AT_ORD(lv)} level`;
-        else label = `${_AT_ORD(lv)} level` + (slotsAt[lv] ? ` (${slotsAt[lv]} slot${slotsAt[lv] === 1 ? '' : 's'})` : '');
-        out.push({ [label]: [...new Set(names)].join(', ') });
-      }
-    } else {
-      out.push('Other spells (species, feats, items and features):');
-      const byLv = new Map();
-      rows.forEach(r => { const lv = r.level | 0; if (!byLv.has(lv)) byLv.set(lv, []); byLv.get(lv).push(nameOf(r)); });
-      [...byLv.keys()].sort((a, b) => a - b).forEach(lv => out.push({ [lv === 0 ? 'Cantrips' : `${_AT_ORD(lv)} level`]: [...new Set(byLv.get(lv))].join(', ') }));
-    }
+  const groups = (D.spellGroups || []).filter(g => (g.rows || []).some(r => r && (r.name || r.key)));
+  if (!groups.length) return out;
+  const casters = groups.filter(g => g.info).map(g => g.info);
+  casters.forEach((sc, i) => {
+    out.push(`**${_pdfCap(sc.cls)}** (${_pdfCap(String(sc.ability || ''))}): spell save DC ${sc.dc}, ${_pdfSign(sc.atk)} to hit with spell attacks` + (sc.prepare ? `; prepares ${sc.prepare}` : '')
+      + (/warlock/i.test(sc.cls) && pact ? `; ${pact.max} Pact Magic slot${pact.max === 1 ? '' : 's'} (level ${pact.slotLevel})` : '') + (i === casters.length - 1 ? ':' : ''));
+  });
+  if (!casters.length) out.push(`${D.identity?.name || 'The character'} can cast:`);
+  const multi = casters.length > 1;
+  const seen = new Set(), byLv = new Map();
+  // class spells first, so a spell the character also has another way is listed as the class's
+  [...groups.filter(g => g.info), ...groups.filter(g => !g.info)].forEach(g => (g.rows || []).forEach(r => {
+    if (!r || !(r.name || r.key) || seen.has(r.key)) return;
+    seen.add(r.key);
+    const name = String(r.name || r.key).replace(/\s*\(R\)\s*$/, '');
+    const ritual = r.ritual || /\(R\)\s*$/.test(String(r.name || ''));
+    const notes = g.info ? [ritual ? 'ritual' : '', multi ? _pdfCap(g.cls) : ''].filter(Boolean) : [r.via].filter(Boolean);
+    const lv = r.level | 0;
+    if (!byLv.has(lv)) byLv.set(lv, []);
+    byLv.get(lv).push(name + (notes.length ? ` (${notes.join(', ')})` : ''));
+  }));
+  const onlyPact = pact && !Object.keys(slotsAt).length;
+  [...byLv.keys()].sort((a, b) => a - b).forEach(lv => {
+    let label;
+    if (lv === 0) label = 'Cantrips (at will)';
+    else label = `${_AT_ORD(lv)} level` + (!onlyPact && slotsAt[lv] ? ` (${slotsAt[lv]} slot${slotsAt[lv] === 1 ? '' : 's'})` : '');
+    out.push({ [label]: byLv.get(lv).join(', ') });
   });
   return out;
+}
+
+/** How a spell from outside the character's classes is cast: "1/day, Magic Initiate", "2 charges, Wand of Fireballs", "at will, Mask of Many Faces". */
+function _atlasVia(r, D) {
+  const parts = [];
+  const g = (r.itemGrants || [])[0];
+  const inv = (r.invocationGrants || [])[0];
+  const ritual = !!(r.ritual || r.pipType === 'ritual-only');
+  if (g) {
+    if (g.grantType === 'itemCharges') { const n = g.chargeCost || 1; parts.push(`${n} charge${n === 1 ? '' : 's'}`); }
+    else if (g.grantType === 'itemLimited') parts.push(`${g.usesMax || 1}/${({ short: 'short rest', long: 'long rest', dawn: 'dawn', dusk: 'dusk' })[g.recovery] || 'day'}`);
+    else if (g.grantType === 'atWill') parts.push('at will');
+    parts.push(g.itemName || r.label || 'item');
+  } else if (inv) {
+    if (inv.grantType === 'atWill' || /at will/i.test(String(inv.note || inv.desc || ''))) parts.push('at will');
+    parts.push(r.label || inv.invoc || 'invocation');
+  } else {
+    if ((r.level | 0) > 0 && !ritual) parts.push('1/day');
+    const species = String(D?.identity?.species || 'species').replace(/\s*\([^)]*\)\s*$/, '');
+    const label = String(r.label || '').replace(/^Racial$/i, species);
+    if (label) parts.push(label);
+  }
+  if (ritual) parts.unshift('ritual');
+  return parts.join(', ');
 }
 
 // features by name, with their uses where the sheet tracks them ("Portent (2/Long Rest)")
