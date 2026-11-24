@@ -69808,7 +69808,8 @@ function pdfCollectCharacter() {
     const a = T('weapon ' + w.name, () => calcWeaponAttack(w), null);
     if (!a) return;
     const dm = String(a.dmgStr || '').match(/^(.*?)\s+([a-z]+)$/i);
-    const row = { name: w.name || a.phbWeapon?.name || 'Weapon', ability: _pdfCap(a.abilityKey), range: a.saveLabel ? [a.saveRange, a.saveLabel].filter(Boolean).join(' \u00b7 ') : a.phbWeapon?.range || (a.isRanged ? 'Ranged' : 'Melee'),
+    // (`base`: what it is (a Greatsword), for a weapon named its own way: the Atlas copy says so, for its animation)
+    const row = { name: w.name || a.phbWeapon?.name || 'Weapon', base: a.phbWeapon?.name || '', ability: _pdfCap(a.abilityKey), range: a.saveLabel ? [a.saveRange, a.saveLabel].filter(Boolean).join(' \u00b7 ') : a.phbWeapon?.range || (a.isRanged ? 'Ranged' : 'Melee'),
       hit: a.saveDC ? 'DC ' + a.saveDC : _pdfSign(a.atkBonus), dmg: dm ? dm[1] : a.dmgStr, type: dm ? _pdfCap(dm[2]) : _pdfCap(a.dmgType),
       notes: [...(a.notes || []), a.phbWeapon?.mastery ? 'Mastery: ' + _pdfCap(a.phbWeapon.mastery) : ''].filter(Boolean).join(', '), prof: !!a.isProficient };
     const sig = [row.name, row.hit, row.dmg].join('|');
@@ -98293,7 +98294,10 @@ function _atlasActionLine(a) {
   const roll = /^DC/i.test(hit) ? `${save ? (_AT_SAVE[save] || save) + ' saving throw, ' : ''}${hit}` : hit ? `${hit} to hit` : '';
   const dmg = _atJoin([a.dmg, a.type], ' ');
   const notes = cantrip ? '' : _atText(a.notes || '');
-  return [a.range ? `*${a.range}:*` : '', roll ? roll + '.' : '', dmg ? `*${/^DC/i.test(hit) ? 'Failed save' : 'Hit'}:* ${dmg}.` : '', notes ? notes + '.' : ''].filter(Boolean).join(' ');
+  const base = String(a.base || '').replace(/,.*$/, '').trim();
+  const kind = base && !String(a.name || '').toLowerCase().includes(base.toLowerCase()) ? base : '';
+  const lead = _atJoin([kind, a.range], ' · ');
+  return [lead ? `*${lead}:*` : '', roll ? roll + '.' : '', dmg ? `*${/^DC/i.test(hit) ? 'Failed save' : 'Hit'}:* ${dmg}.` : '', notes ? notes + '.' : ''].filter(Boolean).join(' ');
 }
 
 // Fantasy Statblocks' spell list: a header line per caster, then { "<level>": "names" } lines
@@ -98376,7 +98380,12 @@ function _atlasFeatureText(D) {
 const _atlasFieldsFull = _atlasFields;
 _atlasFields = function (D, c) {
   const F = _atlasFieldsFull(D, c);
-  F.attacks = (D.attacks || []).map(a => ({ name: String(a.name || 'Attack'), desc: _atlasActionLine(a) }));
+  // A Monk's Empowered Strikes (level 6): "Whenever you deal damage with your Unarmed Strike, it can deal your choice of
+  // Force damage or its normal damage type." Atlas gets Force (a glowing punch in Combat+), its normal type noted
+  let monkLv = 0; try { monkLv = typeof getClassLevelCount === 'function' ? getClassLevelCount('monk') || 0 : 0; } catch (e) {}
+  const empowered = a => monkLv >= 6 && /^unarmed strike$/i.test(String(a.base || a.name || '')) && a.type && !/^force$/i.test(a.type)
+    ? Object.assign({}, a, { type: 'Force', notes: _atJoin([a.notes, `Empowered Strikes: or ${a.type}`]) }) : a;
+  F.attacks = (D.attacks || []).map(a => ({ name: String(a.name || 'Attack'), desc: _atlasActionLine(empowered(a)) }));
   F.spells = _atlasSpellList(D);
   F.features = _atlasFeatureText(D);
   F.items_line = _atJoin((D.magicItems || []).map(m => m.name + (/attuned/i.test(m.line || '') ? ' (attuned)' : '')));
