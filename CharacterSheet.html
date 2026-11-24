@@ -13663,6 +13663,9 @@ function subscribeToCharUpdates(charId) {
       return;
     }
     console.log('[realtime] received broadcast', { charId, payload: msg.payload });
+    // A change made in Atlas VTT carries its new values: taken at once, no file read needed
+    // (the plugin saves the same change to the file and announces that separately).
+    if (msg.payload?.atlas && typeof msg.payload.atlas === 'object') { applyAtlasChange(msg.payload.atlas); return; }
     handleRemoteCharUpdate(msg.payload?.field || 'full', msg.payload?.notify || null);
   });
   // If the WebSocket handshake never completes (e.g. Obsidian's sandboxed
@@ -14086,6 +14089,70 @@ async function handleRemoteCharUpdate(field, notify) {
     _remoteUpdateInFlight = false;
   }
 }
+
+// ── Changes made in Atlas VTT ────────────────────────────────────────────
+// The DM's Character Sheet Sync plugin (Obsidian) broadcasts what a token's
+// HP or temp HP bar, or a pip of the Atlas statblock's Limited uses / Spell
+// slots, was changed to: { hp, temp, counters: { ref: { used, max } } }.
+// A counter's ref says where its uses are kept (the Atlas copy writes it):
+// 'res:<resource id>', 'field:<linked field>', 'slot:<level>' or 'pact'.
+// Returns the top-level keys of `c` it changed. The plugin applies the same
+// function's twin to the file when this sheet isn't open.
+function _atlasSetPips(c, prefix, legacyKey, max, used) {
+  const s = c.spell_slots_used = (c.spell_slots_used && typeof c.spell_slots_used === 'object') ? c.spell_slots_used : {};
+  const want = Math.min(used, max);
+  let on = [];
+  for (let i = 0; i < max; i++) if (s[prefix + i]) on.push(i);
+  // an old count-only record: as pips, from the first
+  if (!on.length && s[legacyKey] !== undefined) on = Array.from({ length: Math.min(parseInt(s[legacyKey]) || 0, max) }, (_, i) => i);
+  const before = JSON.stringify(s);
+  if (on.length < want) { for (let i = 0; i < max && on.length < want; i++) if (!on.includes(i)) on.push(i); }
+  else on = on.slice(0, want);   // the last ones used come back first
+  for (let i = 0; i < max; i++) { if (on.includes(i)) s[prefix + i] = true; else delete s[prefix + i]; }
+  delete s[legacyKey];
+  return JSON.stringify(s) !== before;
+}
+function applyAtlasOps(c, ops) {
+  const changed = [];
+  const add = k => { if (!changed.includes(k)) changed.push(k); };
+  const whole = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v))) ? null : Math.max(0, Math.round(Number(v)));
+  const hp = whole(ops.hp), temp = whole(ops.temp);
+  if (hp !== null && Number(c.hp_current) !== hp) { c.hp_current = hp; add('hp_current'); }
+  if (temp !== null && (Number(c.hp_temp) || 0) !== temp) { c.hp_temp = temp; add('hp_temp'); }
+  Object.entries(ops.counters || {}).forEach(([ref, v]) => {
+    const used = whole(v?.used), max = whole(v?.max);
+    if (used === null) return;
+    let m;
+    if ((m = /^res:(.+)$/.exec(ref))) {
+      if (!c.resources || typeof c.resources !== 'object') c.resources = {};
+      if ((parseInt(c.resources[m[1]]) || 0) !== used) { c.resources[m[1]] = used; add('resources'); }
+    } else if ((m = /^field:(.+)$/.exec(ref))) {
+      if ((parseInt(c[m[1]]) || 0) !== used) { c[m[1]] = used; add(m[1]); add('resources'); }
+    } else if ((m = /^slot:(\d+)$/.exec(ref)) && max !== null) {
+      if (_atlasSetPips(c, `slot_${m[1]}_`, `slot_${m[1]}`, max, used)) add('spell_slots_used');
+    } else if (ref === 'pact' && max !== null) {
+      if (_atlasSetPips(c, 'pact_slot_', 'pact_slot', max, used)) add('spell_slots_used');
+    }
+  });
+  return changed;
+}
+window.applyAtlasOps = applyAtlasOps;
+function applyAtlasChange(ops) {
+  if (!currentChar?.id || !ops) return;
+  // typed-but-unsaved inputs count as this window's own, as for any remote change
+  try { if (typeof gatherSheetData === 'function') gatherSheetData(); } catch (e) {}
+  const changed = applyAtlasOps(currentChar, ops);
+  console.log('[realtime] change from Atlas', { ops, changed });
+  if (!changed.length) return;
+  const cur = document.getElementById('hp-current'), tmp = document.getElementById('hp-temp');
+  if (cur && changed.includes('hp_current')) cur.value = currentChar.hp_current;
+  if (tmp && changed.includes('hp_temp')) tmp.value = currentChar.hp_temp;
+  if (changed.includes('hp_current') && typeof clampCurrentHP === 'function') { try { clampCurrentHP(); } catch (e) {} }
+  applyRemoteAdoptedUI(changed);
+  // saved like any edit here (the plugin saves it too; the two merge), so it holds even if the plugin can't write
+  if (!window._previewMode && typeof debouncedSave === 'function') debouncedSave();
+}
+window.applyAtlasChange = applyAtlasChange;
 
 // "You received an item" popup - triggered from handleRemoteCharUpdate
 // whenever a broadcast carries a notify payload (see confirmGiveItem and
@@ -69722,7 +69789,7 @@ function pdfCollectCharacter() {
   // limited-use features <- resource tracker (Used = expended)
   D.resources = T('resources', () => (window._pdfResourceRows || []).map(d => {
     const rec = String(d.recovery ?? 'long').toLowerCase();
-    return { name: d.name, max: d.max, used: d.used || 0,
+    return { id: d.id, linkedField: d.linkedField || null, name: d.name, max: d.max, used: d.used || 0,
       recovery: /short/.test(rec) ? 'Short Rest' : /long/.test(rec) ? 'Long Rest' : /dawn/.test(rec) ? 'Dawn' : /dusk/.test(rec) ? 'Dusk' : _pdfCap(rec) };
   }).filter(r => r.max > 0 && !(r.name === 'Heroic Inspiration')), []);
   D.heroicInspiration = T('hi', () => {
@@ -86999,10 +87066,12 @@ function _atlasFields(D, c) {
   const armour = _atJoin(['light', 'medium', 'heavy'].filter(k => at[k]).map(_pdfCap), '/');
   F.training = _atJoin([armour ? armour + ' armour' : '', at.shields ? 'Shields' : '', wt.simple ? 'Simple weapons' : '', wt.martial ? 'Martial weapons' : '', wt.other]);
   F.resources = (D.resources || []).filter(r => r.name && Number(r.max) > 0)
-    .map(r => ({ name: String(r.name) + (r.recovery ? ` (${r.recovery})` : ''), max: _atWhole(r.max), used: Math.min(_atWhole(r.max), _atWhole(r.used)), reset: null }));
+    .map(r => ({ name: String(r.name) + (r.recovery ? ` (${r.recovery})` : ''), max: _atWhole(r.max), used: Math.min(_atWhole(r.max), _atWhole(r.used)), reset: null,
+      // where the uses are kept, so a pip pressed in Atlas comes back here (see applyAtlasOps)
+      ...(r.linkedField ? { ref: 'field:' + r.linkedField } : r.id ? { ref: 'res:' + r.id } : {}) }));
   F.spell_slots = [];
-  (D.slots?.levels || []).forEach(l => F.spell_slots.push({ name: `Level ${l.level}`, max: _atWhole(l.max), used: Math.min(_atWhole(l.max), _atWhole(l.used)), reset: null }));
-  if (D.slots?.warlock) F.spell_slots.push({ name: `Pact (level ${D.slots.warlock.slotLevel})`, max: _atWhole(D.slots.warlock.max), used: Math.min(_atWhole(D.slots.warlock.max), _atWhole(D.slots.warlock.used)), reset: null });
+  (D.slots?.levels || []).forEach(l => F.spell_slots.push({ name: `Level ${l.level}`, max: _atWhole(l.max), used: Math.min(_atWhole(l.max), _atWhole(l.used)), reset: null, ref: 'slot:' + l.level }));
+  if (D.slots?.warlock) F.spell_slots.push({ name: `Pact (level ${D.slots.warlock.slotLevel})`, max: _atWhole(D.slots.warlock.max), used: Math.min(_atWhole(D.slots.warlock.max), _atWhole(D.slots.warlock.used)), reset: null, ref: 'pact' });
   F.spellcasting = (D.spellClasses || []).map(s => `**${_pdfCap(s.cls)}** (${String(s.ability || '').toUpperCase()}): save DC ${s.dc} · ${_pdfSign(s.atk)} to hit` + (s.prepare ? ` · prepares ${s.prepare}` : '')).join('\n');
   F.attacks = (D.attacks || []).map(a => ({ name: a.name, desc: _atText(a.notes || ''), hit: a.hit || '', damage: _atJoin([a.dmg, a.type], ' '), range: a.range || '' }));
   const feat = f => ({ name: f.name || 'Feature', desc: _atParas(f.text || '') });
