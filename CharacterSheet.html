@@ -14655,7 +14655,7 @@ function closeModal(id) {
     openModal('quick-start-modal');
     renderQuickStartStep();
   }
-  if (id === 'levelup-spell-modal' && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'spells') {
+  if (id === 'levelup-spell-modal' && !window._luToLibrary && typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'spells') {
     openModal('quick-start-modal');
     renderQuickStartStep();
   }
@@ -31092,9 +31092,28 @@ function getOrderSkillBonus(skillKey) {
       (e.class||'').toLowerCase().trim() === 'ranger' && /fey wanderer/i.test(e.subclass||'') && (e.levels?.length || 0) >= 3)) {
     return bonus;
   }
+  // Enchanter's Enchanting Conversationalist: "when you make an ability check with the chosen skill, you gain a
+  // bonus to the check equal to your Intelligence modifier (minimum of +1)."
+  const ench = _enchanterConvSkill();
+  if (ench && ench === skillKey) return Math.max(1, abilityMod(getAbilities().int));
   return 0;
 }
 window.getOrderSkillBonus = getOrderSkillBonus;
+/** The Enchanter's Enchanting Conversationalist skill (its key), at Wizard 3+, or ''. */
+function _enchanterConvSkill() {
+  if (!currentChar) return '';
+  const on = getAllClasses().some(e => (e.class||'').toLowerCase().trim() === 'wizard' && /enchant/i.test(e.subclass||'') && ((e.levels?.length || parseInt(e.level || 0) || 0) >= 3));
+  if (!on) return '';
+  const name = currentChar.class_choices?.enchanter_conversation_skill;
+  const pick = Array.isArray(name) ? name[0] : name;
+  return pick ? (SKILLS.find(sk => sk.name === pick)?.key || '') : '';
+}
+/** What the extra skill bonus above is called, for the skill's working-out. */
+function getOrderSkillBonusName(skillKey) {
+  if (_enchanterConvSkill() === skillKey) return 'Enchanting Conversationalist';
+  if (['deception','intimidation','performance','persuasion'].includes(skillKey) && getAllClasses().some(e => (e.class||'').toLowerCase().trim() === 'ranger' && /fey wanderer/i.test(e.subclass||''))) return 'Otherworldly Glamour';
+  return hasClass('cleric') ? 'Thaumaturge' : 'Magician';
+}
 
 // Sources granting Advantage on a specific skill check - currently only
 // magic items (effects.skillAdvantage: "Stealth", matched by skill name so
@@ -31189,7 +31208,7 @@ function getSkillProfSources(skillKey) {
     const cls = (currentChar.levelPlan?.[1] || getPrimaryClass?.() || '').toString();
     sources.push(cls ? `Class (${cls.charAt(0).toUpperCase()+cls.slice(1)})` : 'Class');
   }
-  if (skName && currentChar._raceSkill === skName) {
+  if (skName && _raceSkillsOf(currentChar).includes(skName)) {
     const raceName = currentChar.race ? (PHB_RACES[currentChar.race]?.name || currentChar.race) : 'Race';
     sources.push(raceName);
   }
@@ -31368,7 +31387,7 @@ function renderSkillsBlock() {
     if (isExpert)     skParts.push(`Expertise +${prof*2}`);
     else if (isProf)  skParts.push(`Prof +${prof}`);
     else if (joat)    skParts.push(`JoAT +${halfProf}`);
-    if (orderBonus)   skParts.push(`${hasClass('cleric')?'Thaumaturge':'Magician'} +${orderBonus}`);
+    if (orderBonus)   skParts.push(`${getOrderSkillBonusName(sk.key)} +${orderBonus}`);
     if (exPen > 0)    skParts.push(`Exh \u2212${exPen}`);
     if (drunkPen > 0) skParts.push(`Drunk \u2212${drunkPen}`);
     const profSources = (isProf || isExpert) ? getSkillProfSources(sk.key) : [];
@@ -62537,13 +62556,31 @@ onFeatSlotFeatChange = function(id, value) {
 // SKILL PROFICIENCY SETUP MODAL
 // ═══════════════════════════════════════════════════════════
 
-let _skillSetupState = {};  // { classSkills: [], raceSkill: '' }
+let _skillSetupState = {};  // { classSkills: [], raceSkill: '', raceSkills: [] }
+
+// A species can grant more than one skill of choice (Changeling: two of five). All of them in _raceSkills;
+// _raceSkill keeps the first, for everything that only knew of one.
+function _raceSkillsOf(c) {
+  if (Array.isArray(c?._raceSkills) && c._raceSkills.length) return [...c._raceSkills];
+  return c?._raceSkill ? [c._raceSkill] : [];
+}
+function _toggleRaceSkill(sk, count) {
+  const cur = (_skillSetupState.raceSkills || []).slice();
+  const i = cur.indexOf(sk);
+  if (i >= 0) cur.splice(i, 1);
+  else { if (cur.length >= count) cur.shift(); cur.push(sk); }
+  _skillSetupState.raceSkills = cur;
+  _skillSetupState.raceSkill = cur[0] || '';
+  renderSkillSetupBody();
+}
+window._toggleRaceSkill = _toggleRaceSkill;
 
 function openSkillSetup() {
   if (!currentChar) { toast('No character loaded', 'warn'); return; }
   _skillSetupState = {
     classSkills:   [...(currentChar._classSkills || [])],
     raceSkill:     currentChar._raceSkill || '',
+    raceSkills:    _raceSkillsOf(currentChar),
     skilledSkills: [...(currentChar._skilledSkills || [])],
     multiclassSkills: { ...(currentChar._multiclassSkills || {}) },
     toolChoices: JSON.parse(JSON.stringify(currentChar._toolChoices || {})),
@@ -62568,6 +62605,7 @@ function openSkillSetupForFeat(slotId) {
   _skillSetupState = {
     classSkills:       [...(currentChar._classSkills || [])],
     raceSkill:         currentChar._raceSkill || '',
+    raceSkills:        _raceSkillsOf(currentChar),
     skilledSkills:     [...(currentChar._skilledSkills || [])],
     skilledTools:      [...(currentChar._skilledTools || [])],
     skillExpertData:   currentChar._skillExpertData ? {...currentChar._skillExpertData} : null,
@@ -62745,10 +62783,20 @@ function renderSkillSetupBody() {
     if (racePools.count > 0) {
       const pool       = racePools.pool === 'any' ? SKILLS.map(s=>s.name) : racePools.pool;
       const chosenRace = _skillSetupState.raceSkill || '';
-      html += `
+      const chosenAll  = _skillSetupState.raceSkills || [];
+      const raceLabel  = ((typeof getRaceData === 'function' && getRaceData(race)?.name) || (race.charAt(0).toUpperCase()+race.slice(1))).replace(/\s*\([^)]*\)\s*$/, '');
+      html += racePools.count > 1 ? `
         <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-          <div class="choice-label">${((typeof getRaceData === 'function' && getRaceData(race)?.name) || (race.charAt(0).toUpperCase()+race.slice(1))).replace(/\s*\([^)]*\)\s*$/, '')} Skill - choose ${racePools.count}</div>
-          <select class="choice-select" onchange="_skillSetupState.raceSkill=this.value">
+          <div class="choice-label">${raceLabel} Skills - choose ${racePools.count}</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">${chosenAll.length}/${racePools.count} selected</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${pool.map(sk => `<div class="choice-pill${chosenAll.includes(sk) ? ' selected' : ''}" onclick="_toggleRaceSkill(${JSON.stringify(sk).replace(/"/g, '&quot;')}, ${racePools.count})">${sk}</div>`).join('')}
+          </div>
+        </div>
+      ` : `
+        <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div class="choice-label">${raceLabel} Skill - choose ${racePools.count}</div>
+          <select class="choice-select" onchange="_skillSetupState.raceSkill=this.value;_skillSetupState.raceSkills=this.value?[this.value]:[]">
             <option value="">- Choose skill -</option>
             ${pool.map(sk=>`<option value="${sk}" ${chosenRace===sk?'selected':''}>${sk}</option>`).join('')}
           </select>
@@ -62768,7 +62816,7 @@ function renderSkillSetupBody() {
     const allCurrentProfs2 = new Set([
       ...bg_skills,
       ...(_skillSetupState.classSkills||[]),
-      ...(_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : []),
+      ...(_skillSetupState.raceSkills || (_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : [])),
       ...(racePools?.fixed||[]),
     ]);
     const se = _skillSetupState.skillExpertData || { prof:'', expert:'' };
@@ -62790,7 +62838,7 @@ function renderSkillSetupBody() {
     const allCurrentProfs3 = new Set([
       ...bg_skills,
       ...(_skillSetupState.classSkills||[]),
-      ...(_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : []),
+      ...(_skillSetupState.raceSkills || (_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : [])),
       ...(racePools?.fixed||[]),
     ]);
     const pool   = skillExpertExtra.pool || [];
@@ -62825,7 +62873,7 @@ function renderSkillSetupBody() {
     const allCurrentProfs = new Set([
       ...bg_skills,
       ...(_skillSetupState.classSkills||[]),
-      ...(_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : []),
+      ...(_skillSetupState.raceSkills || (_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : [])),
       ...(racePools?.fixed||[]),
     ]);
     const skilledChosen = Array.isArray(_skillSetupState.skilledSkills) ? _skillSetupState.skilledSkills : [];
@@ -62889,7 +62937,7 @@ function renderSkillSetupBody() {
   const allProf = [
     ...bg_skills,
     ...(_skillSetupState.classSkills||[]),
-    ...(_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : []),
+    ...(_skillSetupState.raceSkills || (_skillSetupState.raceSkill ? [_skillSetupState.raceSkill] : [])),
     ...(racePools?.fixed||[]),
     ...(_skillSetupState.skilledSkills||[]),
     ...Object.values(_skillSetupState.multiclassSkills || {}).filter(Boolean),
@@ -63053,8 +63101,8 @@ function applySkillSetup() {
 
   const race      = (currentChar.race||'').toLowerCase().trim();
   const racePools = typeof _spSkillPool === 'function' ? _spSkillPool(race) : RACE_SKILL_POOLS[race];
-  if (racePools?.count > 0 && !_skillSetupState.raceSkill) {
-    errEl.textContent = 'Please choose a racial skill.';
+  if (racePools?.count > 0 && (_skillSetupState.raceSkills || []).length < Math.min(racePools.count, (racePools.pool === 'any' ? SKILLS.length : racePools.pool.length))) {
+    errEl.textContent = racePools.count > 1 ? `Please choose ${racePools.count} racial skills.` : 'Please choose a racial skill.';
     return;
   }
 
@@ -63091,10 +63139,10 @@ function applySkillSetup() {
       }
     });
   }
-  if (currentChar._raceSkill) {
-    const key = SKILLS.find(s=>s.name===currentChar._raceSkill)?.key;
+  _raceSkillsOf(currentChar).forEach(sk => {
+    const key = SKILLS.find(s=>s.name===sk)?.key;
     if (key) delete currentChar.skill_profs[key];
-  }
+  });
 
   // Apply new selections
   if (!currentChar.skill_profs) currentChar.skill_profs = {};
@@ -63164,10 +63212,13 @@ function applySkillSetup() {
   });
   currentChar._toolChoices = newToolChoices;
 
-  if (_skillSetupState.raceSkill) {
-    const key = SKILLS.find(s=>s.name===_skillSetupState.raceSkill)?.key;
-    if (key) currentChar.skill_profs[key] = true;
-    currentChar._raceSkill = _skillSetupState.raceSkill;
+  if ((_skillSetupState.raceSkills || []).length) {
+    _skillSetupState.raceSkills.forEach(sk => {
+      const key = SKILLS.find(s=>s.name===sk)?.key;
+      if (key) currentChar.skill_profs[key] = true;
+    });
+    currentChar._raceSkills = [..._skillSetupState.raceSkills];
+    currentChar._raceSkill = _skillSetupState.raceSkills[0];
   }
 
   // Save Skill Expert / skill_prof_or_expert choices
@@ -66830,6 +66881,8 @@ function quickStartOpenSpellModal(cls) {
   // The modal defaults to spell mode - for a guided creation flow, cantrips
   // should come first, so explicitly switch after opening.
   if (typeof setLuMode === 'function') setLuMode('cantrip');
+  // (the library, open already in Spells: shown again as Cantrips)
+  if (typeof vaultLuRefresh === 'function' && typeof _V !== 'undefined' && _V.pick) { try { vaultLuRefresh(); } catch (e) { /* not open */ } }
   // Wizards: this modal's "Spells" tab doesn't understand the spellbook -
   // it's a fixed-cap known-list picker, same reason it's hidden entirely
   // for wizards on the main sheet. Their leveled spells go through the
@@ -98385,9 +98438,24 @@ function _atlasVia(r, D) {
 // features by name, with their uses where the sheet tracks them ("Portent (2/Long Rest)")
 function _atlasFeatureText(D) {
   const uses = (D.resources || []).filter(r => r.name && Number(r.max) > 0);
+  // a feature's own choice made on the sheet goes with its name: "Elemental Affinity (Fire)", so Combat+ (and the
+  // reader) needn't ask for it
+  const chosen = new Map();
+  try {
+    const cc = (typeof currentChar !== 'undefined' && currentChar && currentChar.class_choices) || {};
+    (typeof getAllClasses === 'function' ? getAllClasses() : []).forEach(e => {
+      const cls = String(e.class || '').toLowerCase().trim(); if (!cls) return;
+      const lv = e.levels?.length || parseInt(e.level || 0) || 0;
+      const defs = [...((typeof PHB_CLASS_CHOICES !== 'undefined' && PHB_CLASS_CHOICES[cls]) || []).filter(d => !(d.minLevel > lv)),
+        ...(typeof getSubclassChoiceDefs === 'function' ? getSubclassChoiceDefs(cls, e.subclass || '', lv) : [])];
+      defs.forEach(d => { const v = cc[d.id]; if (d.type === 'dropdown' && d.label && typeof v === 'string' && v.trim()) chosen.set(String(d.label).toLowerCase(), v.trim()); });
+    });
+  } catch (e) { /* the choices can't be read: names as they are */ }
   const tag = n => {
     const r = uses.find(u => String(u.name).toLowerCase() === String(n).toLowerCase());
-    return r ? `${n} (${r.max}/${r.recovery || 'rest'})` : n;
+    const c = chosen.get(String(n).toLowerCase());
+    const named = c && !String(n).toLowerCase().includes(c.toLowerCase()) ? `${n} (${c})` : n;
+    return r ? `${named} (${r.max}/${r.recovery || 'rest'})` : named;
   };
   const names = list => [...new Set((list || []).map(f => String(f.name || '').trim()).filter(Boolean))]
     .filter(n => !/^Ability Score Improvement$/i.test(n)).map(tag).join(', ');
@@ -99351,7 +99419,13 @@ const _vLibBtn = (title, fn) => { const b = document.createElement('button'); b.
 const _vAfter = (el, title, fn) => { if (!el || (el.nextElementSibling && el.nextElementSibling.classList.contains('vt-pickbtn'))) return; el.after(_vLibBtn(title, fn)); };
 function _vWireClassChoices() {
   const body = document.getElementById('class-choices-body'); if (!body) return;
-  body.querySelectorAll('.choice-pills-grid').forEach((g, i) => { g.dataset.vtGrid = 'g' + i; const cnt = g.parentElement.querySelector('.choice-pills-count'); _vAfter(cnt || g, 'Browse these options in the library', () => vaultPickPills('g' + i)); });
+  body.querySelectorAll('.choice-pills-grid').forEach((g, i) => {
+    // only options with something to read in the library (maneuvers, metamagic…): not skills, tools or languages
+    const ps = [...g.querySelectorAll('.choice-pill')];
+    const nm = p => { const mm = (p.getAttribute('onclick') || '').match(/toggleChoicePill\('[^']*',\s*'((?:\\'|[^'])*)'/); return mm ? mm[1].replace(/\\'/g, "'") : p.textContent.trim(); };
+    const said = ps.filter(p => p.getAttribute('title') || _vFeatByName(nm(p))).length;
+    if (!ps.length || said < ps.length / 2 || ps.every(p => (typeof SKILLS !== 'undefined') && SKILLS.some(sk => sk.name === nm(p)))) return;
+    g.dataset.vtGrid = 'g' + i; const cnt = g.parentElement.querySelector('.choice-pills-count'); _vAfter(cnt || g, 'Browse these options in the library', () => vaultPickPills('g' + i)); });
   body.querySelectorAll('select[onchange^="onChoiceChange"]').forEach((s, i) => { const opts = [...s.options].filter(o => o.value); if (opts.length < 3 || opts.filter(o => _vFeatByName(o.textContent.trim())).length < opts.length / 2) return;
     s.dataset.vtSel = 's' + i; _vAfter(s, 'Browse these options in the library', () => vaultPickSelect('s' + i)); });
   body.querySelectorAll('button[onclick="openArcaneShotModal()"], button[onclick="openDisciplinesModal()"], button[onclick="openInvocationsModal()"]').forEach(b => {
@@ -99411,13 +99485,15 @@ function vaultLuRefresh() { delete _V.rows.spells; vaultDraw('keep'); }
 function vaultPickLevelUpSpells() {
   const cls = () => getAllSpellcastingClasses(), cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   vaultPick({ tab: 'spells', title: 'Spells for ' + _vWho(), stay: true, again: true,
+    // opened from the Quick Start's Spells step: back to it once the library is closed
+    done() { if (typeof _qsActive !== 'undefined' && _qsActive && QS_STEPS[_qsStepIndex] === 'spells') { openModal('quick-start-modal'); renderQuickStartStep(); } },
     prep() { return _vLuScrape(); }, keep(r, m) { return m.has(r.key); },
     state(r, m) { const x = m.get(r.key); return x && !x.add && /^✓/.test(x.note) ? cap(x.note.replace(/^✓\s*/, '').toLowerCase()) + ' (granted)' : null; },
     disabled(r) { const x = (_V._lu || new Map()).get(r.key); return !x ? 'Not available' : x.add ? '' : /^✓/.test(x.note) ? '' : x.note; },
     label(r) { const x = (_V._lu || new Map()).get(r.key); return x && x.add ? (/^add$/i.test(x.add) ? '+ Add spell' : x.add) : 'Already granted'; },
     act(r) { const x = (_V._lu || new Map()).get(r.key); if (x && x.add) luAddSpell(r.key); },
     tools() { const L = cls(); return (L.length > 1 ? L.map(c => `<button class="tbtn${c.cls === _luSelectedClass ? ' vt-on' : ''}" onclick="setLuClass('${c.cls}');vaultLuRefresh()">${cap(c.cls)}</button>`).join('') + '<span style="width:10px"></span>' : '') +
-      `<button class="tbtn${_luMode === 'spell' ? ' vt-on' : ''}" onclick="setLuMode('spell');vaultLuRefresh()">Spells</button><button class="tbtn${_luMode === 'cantrip' ? ' vt-on' : ''}" onclick="setLuMode('cantrip');vaultLuRefresh()">Cantrips</button>`; },
+      (_luSelectedClass === 'wizard' ? '' : `<button class="tbtn${_luMode === 'spell' ? ' vt-on' : ''}" onclick="setLuMode('spell');vaultLuRefresh()">Spells</button>`) + `<button class="tbtn${_luMode === 'cantrip' ? ' vt-on' : ''}" onclick="setLuMode('cantrip');vaultLuRefresh()">Cantrips</button>`; },
     panel() { let sub = ''; try { sub = _getLuSubtitle(); } catch (e) {}
       const cur = _getLuCurrentSpells();
       return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px"><span style="color:var(--text3);margin-right:6px">${_itE(String(sub || '').replace(/<[^>]*>/g, ''))}</span>
@@ -99426,7 +99502,10 @@ function vaultPickLevelUpSpells() {
         ${cur.map(s => `<span class="vt-chip${s.key === _luReplaceKey ? ' on' : ''}"><a data-k="${_itE(s.key)}" onclick="luSetReplace(this.dataset.k);vaultLuRefresh()">${_itE(s.name)}</a><a title="Remove" data-k="${_itE(s.key)}" onclick="luRemoveSpell(this.dataset.k);vaultLuRefresh()">✕</a></span>`).join('') || '<span style="color:var(--text3)">None yet</span>'}</div>`; } });
 }
 { const _ol = openLevelUpSpellModal;
-  openLevelUpSpellModal = function () { const x = _ol.apply(this, arguments); if (window._luOldModal) return x; try { closeModal('levelup-spell-modal'); vaultPickLevelUpSpells(); } catch (e) { console.error('vault spells', e); openModal('levelup-spell-modal'); } return x; };
+  openLevelUpSpellModal = function () { const x = _ol.apply(this, arguments); if (window._luOldModal) return x; try {
+    // (the old picker swapped for the library: closing it mustn't bring the Quick Start back over the library)
+    window._luToLibrary = true; try { closeModal('levelup-spell-modal'); } finally { window._luToLibrary = false; }
+    vaultPickLevelUpSpells(); } catch (e) { console.error('vault spells', e); openModal('levelup-spell-modal'); } return x; };
   window.openLevelUpSpellModal = openLevelUpSpellModal; }
 Object.assign(window, { vaultCreatureVisible });
 Object.assign(window, { vaultPickFormBase, vaultCustomItem, vaultPickLevelUpSpells, vaultLuRefresh });
