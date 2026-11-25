@@ -87067,6 +87067,7 @@ function _atlasFields(D, c) {
   const at = D.armorTraining, wt = D.weaponTraining;
   const armour = _atJoin(['light', 'medium', 'heavy'].filter(k => at[k]).map(_pdfCap), '/');
   F.training = _atJoin([armour ? armour + ' armour' : '', at.shields ? 'Shields' : '', wt.simple ? 'Simple weapons' : '', wt.martial ? 'Martial weapons' : '', wt.other]);
+  F.spell_uses = null;
   F.resources = (D.resources || []).filter(r => r.name && Number(r.max) > 0)
     .map(r => ({ name: String(r.name) + (r.recovery ? ` (${r.recovery})` : ''), max: _atWhole(r.max), used: Math.min(_atWhole(r.max), _atWhole(r.used)), reset: null,
       // where the uses are kept, so a pip pressed in Atlas comes back here (see applyAtlasOps)
@@ -98322,6 +98323,8 @@ function _atlasSpellList(D) {
   // class spells first, so a spell the character also has another way is listed as the class's
   [...groups.filter(g => g.info), ...groups.filter(g => !g.info)].forEach(g => (g.rows || []).forEach(r => {
     if (!r || !(r.name || r.key) || seen.has(r.key)) return;
+    // (one not yet the character's: a subclass spell for a later level)
+    if (r.pipType === 'subclass-locked' || r.pipType === 'locked-level') return;
     seen.add(r.key);
     const name = String(r.name || r.key).replace(/\s*\(R\)\s*$/, '');
     const ritual = r.ritual || /\(R\)\s*$/.test(String(r.name || ''));
@@ -98341,7 +98344,16 @@ function _atlasSpellList(D) {
 }
 
 /** How a spell from outside the character's classes is cast: "1/day, Magic Initiate", "2 charges, Wand of Fireballs", "at will, Mask of Many Faces". */
+/** Whether a tracked use is a spell's own (a feat's or a species' free cast, a Mystic Arcanum). */
+function _atlasSpellUse(r, D) {
+  const names = new Set((D.spellGroups || []).flatMap(g => (g.rows || []).map(x => String(x.name || '').replace(/\s*\(R\)\s*$/, '').trim().toLowerCase())).filter(Boolean));
+  return /^(feat_spell_|racial_spell)/.test(String(r.id || '')) || /arcanum/i.test(String(r.name || '')) || names.has(String(r.name || '').trim().toLowerCase());
+}
+
 function _atlasVia(r, D) {
+  // Only what limits it: its uses and what gives them ("1/long rest, Fey Touched", "2 charges, Wand of Fireballs"),
+  // that it's at will through an invocation (no slot spent), or that it's cast only as a ritual. A spell cast with
+  // slots like any other (a subclass's always-prepared ones) or a cantrip says nothing.
   const parts = [];
   const g = (r.itemGrants || [])[0];
   const inv = (r.invocationGrants || [])[0];
@@ -98349,16 +98361,22 @@ function _atlasVia(r, D) {
   if (g) {
     if (g.grantType === 'itemCharges') { const n = g.chargeCost || 1; parts.push(`${n} charge${n === 1 ? '' : 's'}`); }
     else if (g.grantType === 'itemLimited') parts.push(`${g.usesMax || 1}/${({ short: 'short rest', long: 'long rest', dawn: 'dawn', dusk: 'dusk' })[g.recovery] || 'day'}`);
-    else if (g.grantType === 'atWill') parts.push('at will');
-    parts.push(g.itemName || r.label || 'item');
-  } else if (inv) {
-    if (inv.grantType === 'atWill' || /at will/i.test(String(inv.note || inv.desc || ''))) parts.push('at will');
-    parts.push(r.label || inv.invoc || 'invocation');
+    if (parts.length) parts.push(g.itemName || r.label || 'item');
+  } else if (inv && (inv.grantType === 'atWill' || /at will/i.test(String(inv.note || inv.desc || '')))) {
+    // at will through an invocation (Armor of Shadows' Mage Armor): said, so no spell slot is spent on it
+    parts.push('At Will', `${String(inv.invoc || r.label || '').replace(/\s*invocation\s*$/i, '')} invocation`.trim());
   } else {
-    if ((r.level | 0) > 0 && !ritual) parts.push('1/day');
-    const species = String(D?.identity?.species || 'species').replace(/\s*\([^)]*\)\s*$/, '');
-    const label = String(r.label || '').replace(/^Racial$/i, species);
-    if (label) parts.push(label);
+    // its free casts as the sheet's own tracker counts them
+    const always = r.pipType === 'subclass' || r.pipType === 'prepared' || r.pipType === 'cantrip' || r.grantType === 'alwaysPrepared' || r.source === 'subclass';
+    const id = k => String(k).replace(/[^a-z0-9_]/g, '_');
+    const nm = String(r.name || '').replace(/\s*\(R\)\s*$/, '').trim().toLowerCase();
+    const res = (r.level | 0) > 0 && !ritual && !always ? (D?.resources || []).find(x => (r.key && (x.id === id(`feat_spell_${r.key}`) || (String(x.id || '').startsWith('racial_spell_') && String(x.id).endsWith('_' + id(r.key))))) || (nm && String(x.name || '').trim().toLowerCase() === nm)) : null;
+    if (res) {
+      parts.push(`${res.max}/${String(res.recovery || 'long rest').toLowerCase()}`);
+      const species = String(D?.identity?.species || 'species').replace(/\s*\([^)]*\)\s*$/, '');
+      const label = inv ? (r.label || inv.invoc || '') : String(r.label || '').replace(/^Racial$/i, species);
+      if (label) parts.push(label);
+    }
   }
   if (ritual) parts.unshift('ritual');
   return parts.join(', ');
@@ -98386,7 +98404,45 @@ _atlasFields = function (D, c) {
   const empowered = a => monkLv >= 6 && /^unarmed strike$/i.test(String(a.base || a.name || '')) && a.type && !/^force$/i.test(a.type)
     ? Object.assign({}, a, { type: 'Force', notes: _atJoin([a.notes, `Empowered Strikes: or ${a.type}`]) }) : a;
   F.attacks = (D.attacks || []).map(a => ({ name: String(a.name || 'Attack'), desc: _atlasActionLine(empowered(a)) }));
-  F.spells = _atlasSpellList(D);
+  // The Spells tab, level by level: each level's spells, then its pips (its slots, a Pact slot of that level, and the
+  // uses of a spell of that level cast without a slot: a feat's or a species' free cast, a Mystic Arcanum), so
+  // nothing about a level is anywhere else. Each pip row is the same uses as on the sheet (and in Limited uses):
+  // pressed in Atlas, it goes back.
+  const list = _atlasSpellList(D);
+  F.spells = list.filter(x => typeof x === 'string');
+  const byLevel = {};
+  list.filter(x => x && typeof x === 'object').forEach(o => Object.entries(o).forEach(([label, spells]) => {
+    const lv = /^Cantrips/i.test(label) ? 0 : parseInt(label, 10) || 0;
+    byLevel[lv] = [{ [label.replace(/\s*\(\d+ slots?\)$/, '')]: spells }];
+  }));
+  const rowsAll = (D.spellGroups || []).flatMap(g => g.rows || []);
+  const levelOfUse = r => {
+    const id = String(r.id || '');
+    const row = rowsAll.find(x => x.key && (id === ('feat_spell_' + x.key).replace(/[^a-z0-9_]/g, '_') || (id.startsWith('racial_spell_') && id.endsWith('_' + String(x.key).replace(/[^a-z0-9_]/g, '_')))))
+      || rowsAll.find(x => String(x.name || '').replace(/\s*\(R\)\s*$/, '').trim().toLowerCase() === String(r.name || '').trim().toLowerCase());
+    if (row) return row.level | 0;
+    const m = /arcanum\D*(\d)/i.exec(String(r.name || '')); return m ? Number(m[1]) : 0;
+  };
+  const pips = (name, max, used, ref) => ({ name, max: _atWhole(max), used: Math.min(_atWhole(max), _atWhole(used)), reset: null, ref });
+  // "1st level - Slots ◆◆◆◆" heads a level that has slots, its spells under it; a level with none says its name
+  // before its spells ("Cantrips (at will): …"). Free casts of that level follow its spells.
+  const ORD = n => n === 0 ? 'Cantrips' : ({ 1: '1st', 2: '2nd', 3: '3rd' }[n] || n + 'th') + ' level';
+  for (let lv = 0; lv <= 9; lv++) {
+    const head = [], uses = [];
+    const sl = (D.slots?.levels || []).find(l => Number(l.level) === lv && Number(l.max) > 0);
+    if (sl) head.push(pips(ORD(lv) + ' - Slots', sl.max, sl.used, 'slot:' + lv));
+    const pact = D.slots?.warlock;
+    if (pact && Number(pact.slotLevel) === lv && Number(pact.max) > 0) head.push(pips(head.length ? 'Pact slots' : ORD(lv) + ' - Pact slots', pact.max, pact.used, 'pact'));
+    if (lv > 0) (D.resources || []).filter(r => r.name && Number(r.max) > 0 && _atlasSpellUse(r, D) && levelOfUse(r) === lv)
+      .forEach(r => uses.push(pips(String(r.name) + (r.recovery ? ` (${r.recovery})` : ''), r.max, r.used, r.linkedField ? 'field:' + r.linkedField : 'res:' + r.id)));
+    const said = byLevel[lv] ? Object.values(byLevel[lv][0])[0] : '';
+    F['lv' + lv + '_slots'] = head.length ? head : null;
+    // (a blank header line first: Atlas heads a list without one "<name> knows the following spells:"; under a
+    // heading, the spells as a line of no level: a bare line of names would be read as a header)
+    F['lv' + lv + '_spells'] = !said ? null : [' ', head.length ? { '': said } : byLevel[lv][0]];
+    F['lv' + lv + '_uses'] = uses.length ? uses : null;
+  }
+  F.spell_slots = null;
   F.features = _atlasFeatureText(D);
   F.items_line = _atJoin((D.magicItems || []).map(m => m.name + (/attuned/i.test(m.line || '') ? ' (attuned)' : '')));
   const magic = new Set((D.magicItems || []).map(m => String(m.name).toLowerCase()));
